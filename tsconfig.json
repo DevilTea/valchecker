@@ -1,0 +1,12 @@
+{
+	"extends": [
+		"./docs/tsconfig.json",
+		"./packages/valchecker/tsconfig.json"
+	],
+	"references": [
+		{
+			"path": "./tsconfig.scripts.json"
+		}
+	],
+	"files": []
+}
