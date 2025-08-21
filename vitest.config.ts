@@ -2,12 +2,6 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
 	test: {
-		coverage: {
-			enabled: true,
-			include: ['src/**/*.ts'],
-		},
-		typecheck: {
-			enabled: true,
-		},
+		projects: ['packages/*/vitest.config.ts'],
 	},
 })

@@ -6,6 +6,11 @@ export default deviltea(
 		ignores: [
 			// eslint ignore globs here
 		],
+		typescript: {
+			overrides: {
+				'ts/no-namespace': 'off',
+			},
+		},
 	},
 	{
 		rules: {
