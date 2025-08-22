@@ -1,6 +1,8 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { Equal, IsAllPropsOptional, MaybePromise, Optional, Simplify } from '../utils'
+import type { PipeStepSchema } from './pipe'
 import { createObject, ExecutionChain, NullProtoObj, throwNotImplementedError } from '../utils'
+import { PipeSchema } from './pipe'
 
 type SchemaMessageFn<T extends SchemaTypes> = (payload: { code: T['issueCode'], value: T['input'], path?: ValidationIssue['path'], error?: unknown }) => string
 type SchemaMessageMap<T extends SchemaTypes> = Simplify<
@@ -54,7 +56,7 @@ interface StandardProps<T extends SchemaTypes> extends StandardSchemaV1.Props<T[
 interface ValidationUtils<T extends SchemaTypes> {
 	readonly meta: T['meta']
 	readonly success: (value: T['output']) => ExecutionChain<ValidationSuccessResult<T['output']>>
-	readonly issue: (code: T['issueCode'], payload?: { path?: ValidationIssue['path'], error?: unknown }) => ValidationIssue
+	readonly issue: (code: T['issueCode'], payload?: { path?: ValidationIssue['path'], error?: unknown, message?: string }) => ValidationIssue
 	readonly failure: (issue: T['issueCode'] | ValidationIssue | ValidationIssue[]) => ExecutionChain<ValidationFailureResult>
 	readonly createExecutionChain: () => ExecutionChain<void>
 }
@@ -89,9 +91,9 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 		const utils: ValidationUtils<T> = createObject<ValidationUtils<T>>({
 			meta: this.meta,
 			success: value => new ExecutionChain({ value }),
-			issue: (code, { path, error } = {}) => ({
+			issue: (code, { path, error, message } = {}) => ({
 				code,
-				message: resolveMessage({ code, value, path, error }, this['~defaultMessage'], this['~message']),
+				message: message || resolveMessage({ code, value, path, error }, this['~defaultMessage'], this['~message']),
 				path,
 				error,
 			}),
@@ -115,6 +117,12 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 		catch (error) {
 			return { issues: [utils.issue('UNKNOWN_ERROR', { error })] } as T['result']
 		}
+	}
+
+	// @ts-expect-error Too complex for TS to infer the output type correctly
+	step<NewStep extends PipeStepSchema<InferOutput<this>, unknown>>(step: NewStep): PipeSchema<[this, NewStep]>
+	step(step: any): any {
+		return new PipeSchema({ meta: { steps: [this, step] } })
 	}
 }
 
