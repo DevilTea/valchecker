@@ -1,6 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { Equal, IsAllPropsOptional, MaybePromise, Optional, Simplify } from '../utils'
-import type { PipeStepSchema } from './pipe'
 import { createObject, ExecutionChain, NullProtoObj, throwNotImplementedError } from '../utils'
 import { PipeSchema } from './pipe'
 
@@ -33,13 +32,13 @@ function resolveMessage<T extends SchemaTypes>(payload: { code: T['issueCode'], 
 	if (_defaultMessage != null)
 		return _defaultMessage
 
-	return 'Error occurred'
+	return 'Invalid value'
 }
 
 interface ValidationSuccessResult<Output> extends StandardSchemaV1.SuccessResult<Output> {}
 interface ValidationIssue extends StandardSchemaV1.Issue {
-	code: string
-	error?: unknown
+	readonly code: string
+	readonly error?: unknown
 }
 interface ValidationFailureResult extends StandardSchemaV1.FailureResult {
 	readonly issues: ValidationIssue[]
@@ -55,6 +54,7 @@ interface StandardProps<T extends SchemaTypes> extends StandardSchemaV1.Props<T[
 
 interface ValidationUtils<T extends SchemaTypes> {
 	readonly meta: T['meta']
+	readonly isTransformed: boolean
 	readonly success: (value: T['output']) => ExecutionChain<ValidationSuccessResult<T['output']>>
 	readonly issue: (code: T['issueCode'], payload?: { path?: ValidationIssue['path'], error?: unknown, message?: string }) => ValidationIssue
 	readonly failure: (issue: T['issueCode'] | ValidationIssue | ValidationIssue[]) => ExecutionChain<ValidationFailureResult>
@@ -66,7 +66,7 @@ type AbstractSchemaConstructorPayload<T extends SchemaTypes> = Simplify<
 	& { message?: SchemaMessage<T> }
 >
 
-abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj implements StandardSchemaV1<T['input'], T['output']> {
+abstract class AbstractBaseSchema<T extends SchemaTypes = any> extends NullProtoObj implements StandardSchemaV1<T['input'], T['output']> {
 	public meta: T['meta']
 	private '~message': SchemaMessage<T>
 
@@ -84,12 +84,14 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 	private '~impl'(): any { throwNotImplementedError() }
 
 	get '~standard'(): StandardProps<T> { return this['~impl']()['~standard'] }
+	get '~transformed'(): ((meta: T['meta']) => boolean) { return this['~impl']()['~transformed'] }
 	get '~defaultMessage'(): SchemaMessage<T> { return this['~impl']()['~defaultMessage'] }
 	get '~validate'(): (value: T['input'], utils: ValidationUtils<T>) => ExecutionChain<MaybePromise<ValidationResult<T['output']>>> { return this['~impl']()['~validate'] }
 
 	validate(value: T['input']): T['result'] {
 		const utils: ValidationUtils<T> = createObject<ValidationUtils<T>>({
 			meta: this.meta,
+			isTransformed: this.isTransformed,
 			success: value => new ExecutionChain({ value }),
 			issue: (code, { path, error, message } = {}) => ({
 				code,
@@ -119,10 +121,14 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 		}
 	}
 
-	// @ts-expect-error Too complex for TS to infer the output type correctly
-	step<NewStep extends PipeStepSchema<InferOutput<this>, unknown>>(step: NewStep): PipeSchema<[this, NewStep]>
-	step(step: any): any {
-		return new PipeSchema({ meta: { steps: [this, step] } })
+	get isTransformed() { return this['~transformed'](this.meta) }
+}
+
+type AsValSchema<T extends ValSchema | AbstractBaseSchema> = T extends ValSchema ? T : ValSchema<InferInput<T>, InferOutput<T>>
+
+abstract class AbstractSchema<T extends SchemaTypes = any> extends AbstractBaseSchema<T> {
+	pipe(): PipeSchema<[AsValSchema<this>]> {
+		return new PipeSchema({ meta: { steps: [this as AsValSchema<this>] } })
 	}
 }
 
@@ -134,19 +140,23 @@ const standard = createObject<any>({
 	},
 })
 
-function implementSchemaClass<SchemaClass extends new (...args: any[]) => AbstractSchema>(
-	Class: SchemaClass,
+const isNotTransformed = () => false
+
+function implementSchemaClass<Schema extends AbstractBaseSchema>(
+	Class: new (...args: any[]) => Schema,
 	{
+		isTransformed,
 		defaultMessage,
 		validate,
 	}: {
-		async?: InstanceType<SchemaClass>['~async']
-		defaultMessage?: InstanceType<SchemaClass>['~defaultMessage']
-		validate: InstanceType<SchemaClass>['~validate']
+		isTransformed?: Schema['~transformed']
+		defaultMessage?: Schema['~defaultMessage']
+		validate: Schema['~validate']
 	},
 ) {
 	const impl = createObject<any>({
 		'~standard': standard,
+		'~transformed': isTransformed || isNotTransformed,
 		'~defaultMessage': defaultMessage,
 		'~validate': validate,
 	})
@@ -210,16 +220,16 @@ type SchemaTypes = _SchemaTypes<_ResolvedSchemaTypesParam>
 
 type DefineSchemaTypes<P extends _RawSchemaTypesParam> = _SchemaTypes<ResolvedSchemaTypesParam<P>>
 
-type InferAsync<Schema extends ValSchema> = NonNullable<Schema['~standard']['types']>['async']
-type InferMeta<Schema extends ValSchema> = NonNullable<Schema['~standard']['types']>['meta']
-type InferInput<Schema extends ValSchema> = NonNullable<Schema['~standard']['types']>['input']
-type InferOutput<Schema extends ValSchema> = NonNullable<Schema['~standard']['types']>['output']
-type InferIssueCode<Schema extends ValSchema> = NonNullable<Schema['~standard']['types']>['issueCode']
-type InferResult<Schema extends ValSchema> = NonNullable<Schema['~standard']['types']>['result']
+type InferAsync<Schema extends (ValSchema | AbstractBaseSchema)> = NonNullable<Schema['~standard']['types']>['async']
+type InferMeta<Schema extends (ValSchema | AbstractBaseSchema)> = NonNullable<Schema['~standard']['types']>['meta']
+type InferInput<Schema extends (ValSchema | AbstractBaseSchema)> = NonNullable<Schema['~standard']['types']>['input']
+type InferOutput<Schema extends (ValSchema | AbstractBaseSchema)> = NonNullable<Schema['~standard']['types']>['output']
+type InferIssueCode<Schema extends (ValSchema | AbstractBaseSchema)> = NonNullable<Schema['~standard']['types']>['issueCode']
+type InferResult<Schema extends (ValSchema | AbstractBaseSchema)> = NonNullable<Schema['~standard']['types']>['result']
 
-type PickedProps = '~standard' | 'meta' | 'validate'
+type PickedProps = '~standard' | 'meta' | 'isTransformed' | 'validate'
 type ValSchema<Input = unknown, Output = unknown>
-	= Pick<AbstractSchema<{
+	= Pick<AbstractBaseSchema<{
 		readonly async: false
 		readonly meta: any
 		readonly input: Input
@@ -227,7 +237,7 @@ type ValSchema<Input = unknown, Output = unknown>
 		readonly issueCode: any
 		readonly result: ValidationResult<Output>
 	}>, PickedProps>
-	| Pick<AbstractSchema<{
+	| Pick<AbstractBaseSchema<{
 		readonly async: true
 		readonly meta: any
 		readonly input: Input
@@ -264,6 +274,7 @@ export type {
 }
 
 export {
+	AbstractBaseSchema,
 	AbstractSchema,
 	implementSchemaClass,
 	isSuccessResult,

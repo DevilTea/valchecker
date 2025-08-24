@@ -1,18 +1,18 @@
 import type { DefineSchemaTypes, ValidationResult } from '../core'
 import type { MaybePromise } from '../utils'
-import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../core'
+import { AbstractBaseSchema, implementSchemaClass, isSuccessResult } from '../core'
 
-type CheckFn = (value: unknown) => MaybePromise<boolean | string>
+type CheckFn<T = any> = (value: T) => MaybePromise<boolean | string>
 
-type CheckPipeStepSchemaTypes<Fn extends CheckFn> = DefineSchemaTypes<{
+type CheckPipeStepSchemaTypes<Input, Fn extends CheckFn<Input>> = DefineSchemaTypes<{
 	Async: ReturnType<Fn> extends Promise<any> ? true : false
 	Meta: { fn: Fn }
-	Input: ValidationResult<Parameters<Fn>[0]>
-	Output: Parameters<Fn>[0]
+	Input: ValidationResult<Input>
+	Output: Input
 	IssueCode: 'CHECK_FAILED'
 }>
 
-export class CheckPipeStepSchema<Fn extends CheckFn> extends AbstractSchema<CheckPipeStepSchemaTypes<Fn>> {}
+export class CheckPipeStepSchema<Input, Fn extends CheckFn<Input>> extends AbstractBaseSchema<CheckPipeStepSchemaTypes<Input, Fn>> {}
 
 implementSchemaClass(
 	CheckPipeStepSchema,
@@ -22,7 +22,7 @@ implementSchemaClass(
 			if (isSuccessResult(lastResult)) {
 				return chain
 					.then(() => meta.fn(lastResult.value))
-					.then((checkReturn) => {
+					.then<ValidationResult<any>>((checkReturn) => {
 						if (checkReturn === true)
 							return success(lastResult.value)
 
@@ -37,6 +37,6 @@ implementSchemaClass(
 	},
 )
 
-export function check<Fn extends CheckFn>(fn: Fn): CheckPipeStepSchema<Fn> {
+export function check<Input, Fn extends CheckFn<Input>>(fn: Fn): CheckPipeStepSchema<Input, Fn> {
 	return new CheckPipeStepSchema({ meta: { fn } })
 }

@@ -25,6 +25,7 @@ export class IntersectionSchema<Branches extends ValSchema[]> extends AbstractSc
 implementSchemaClass(
 	IntersectionSchema,
 	{
+		isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
 		validate: (value, { meta, success, failure, createExecutionChain }) => {
 			const issues: ValidationIssue[] = []
 			let isValid = true

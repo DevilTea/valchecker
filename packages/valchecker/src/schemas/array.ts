@@ -15,28 +15,33 @@ export class ArraySchema<T extends ValSchema> extends AbstractSchema<ArraySchema
 implementSchemaClass(
 	ArraySchema,
 	{
+		isTransformed: meta => meta.item.isTransformed,
 		defaultMessage: {
 			EXPECTED_ARRAY: 'Expected an array.',
 		},
-		validate: (value, { meta, success, failure, createExecutionChain }) => {
+		validate: (value, { meta, isTransformed, success, failure, createExecutionChain }) => {
 			if (!Array.isArray(value))
 				return failure('EXPECTED_ARRAY')
 
+			const _value = isTransformed ? Array.from(value) : value
 			const issues: ValidationIssue[] = []
 			const itemSchema = meta.item
 			let chain = createExecutionChain()
-			for (let i = 0; i < value.length; i++) {
-				const item = value[i]
+			for (let i = 0; i < _value.length; i++) {
+				const item = _value[i]
 				chain = chain
 					.then(() => itemSchema.validate(item))
 					.then((result) => {
-						if (isSuccessResult(result))
+						if (isSuccessResult(result)) {
+							if (isTransformed) {
+								_value[i] = result.value
+							}
 							return
-
+						}
 						issues.push(...result.issues.map(issue => prependIssuePath(issue, [i])))
 					})
 			}
-			return chain.then<ValidationResult<any[]>>(() => issues.length === 0 ? success(value) : failure(issues))
+			return chain.then<ValidationResult<any[]>>(() => issues.length === 0 ? success(_value) : failure(issues))
 		},
 	},
 )
