@@ -27,8 +27,8 @@
 		"docs:dev": "pnpm -r --filter=./docs run dev",
 		"docs:build": "pnpm -r --filter=./docs run build",
 		"docs:preview": "pnpm -r --filter=./docs run preview",
-		"test": "vitest",
-		"test:coverage": "vitest --coverage",
+		"test": "vitest --run",
+		"test:watch": "vitest --watch",
 		"lint": "eslint --fix .",
 		"typecheck": "pnpm -r typecheck",
 		"prepare": "simple-git-hooks"
