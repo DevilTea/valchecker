@@ -1,0 +1,110 @@
+# withModifier.spec.md
+
+Source File: `./withModifier.ts`
+
+## Functionality Summary
+- Provides schema modifier functionality, specifically the 'optional' modifier that allows schemas to accept undefined values in addition to their normal input types.
+
+## Exported Items (Functions, Classes, Constants, TS Types, etc.)
+- `optional`
+  - Description: Creates an optional version of a given schema that accepts undefined values
+  - Input: A ValSchema instance
+  - Output: A WithModifierSchema with 'optional' modifier
+- `WithModifierSchema`
+  - Description: Schema class that wraps another schema with a modifier
+  - Input: Constructor takes meta object with schema and modifier
+  - Output: Instance of WithModifierSchema
+- `isOptionalValSchema`
+  - Description: Type guard function to check if a schema is an optional val schema
+  - Input: A ValSchema instance
+  - Output: Boolean indicating if the schema is optional
+- `isWithModifierSchema`
+  - Description: Type guard function to check if a schema is a WithModifierSchema
+  - Input: A ValSchema instance
+  - Output: Boolean indicating if the schema is a WithModifierSchema
+- `unwrapWithModifierSchema`
+  - Description: Unwraps a WithModifierSchema to get the underlying schema
+  - Input: A ValSchema instance
+  - Output: The unwrapped schema if input was WithModifierSchema, otherwise the input schema
+- `OptionalValSchema`
+  - Description: TypeScript type for optional val schemas
+  - Input: Generic type parameters for Input and Output types
+  - Output: Type definition
+- `UnwrappedWithModifierSchema`
+  - Description: TypeScript utility type that unwraps WithModifierSchema types
+  - Input: A ValSchema type
+  - Output: The unwrapped schema type if input was WithModifierSchema, otherwise the input type
+
+## Test Cases (as strictly required for 100% coverage)
+- `optional`
+  - Happy Path Cases
+    - [ ] case 1: should create optional schema from a basic schema
+      - Input: A string schema
+      - Expected: Returns WithModifierSchema instance with optional modifier
+    - [ ] case 2: should validate defined values normally
+      - Input: Optional schema with defined string value
+      - Expected: Success with the string value
+    - [ ] case 3: should accept undefined values
+      - Input: Optional schema with undefined value
+      - Expected: Success with undefined
+    - [ ] case 4: should unwrap nested WithModifierSchema
+      - Input: Optional schema wrapping another optional schema
+      - Expected: Returns WithModifierSchema with unwrapped inner schema
+  - Edge Cases
+    - [ ] case 1: should work with complex schemas
+      - Input: Optional schema wrapping an object schema
+      - Expected: Validates object or undefined
+  - Error Cases (if applicable)
+    - [ ] case 1: should reject invalid values for the base schema
+      - Input: Optional string schema with number value
+      - Expected: Validation error
+- `WithModifierSchema`
+  - Happy Path Cases
+    - [ ] case 1: should inherit transformed status from base schema
+      - Input: WithModifierSchema wrapping a transformed schema
+      - Expected: isTransformed returns true
+    - [ ] case 2: should inherit non-transformed status from base schema
+      - Input: WithModifierSchema wrapping a non-transformed schema
+      - Expected: isTransformed returns false
+  - Edge Cases
+    - [ ] case 1: should handle nested modifiers
+      - Input: WithModifierSchema wrapping another WithModifierSchema
+      - Expected: Proper validation behavior
+- `isOptionalValSchema`
+  - Happy Path Cases
+    - [ ] case 1: should return true for optional schemas
+      - Input: Schema created with optional() function
+      - Expected: true
+    - [ ] case 2: should return false for non-optional schemas
+      - Input: Regular ValSchema instance
+      - Expected: false
+  - Edge Cases
+    - [ ] case 1: should return false for WithModifierSchema with different modifier
+      - Input: WithModifierSchema with non-optional modifier
+      - Expected: false
+- `isWithModifierSchema`
+  - Happy Path Cases
+    - [ ] case 1: should return true for WithModifierSchema instances
+      - Input: Schema created with optional() function
+      - Expected: true
+    - [ ] case 2: should return false for non-WithModifierSchema instances
+      - Input: Regular ValSchema instance
+      - Expected: false
+- `unwrapWithModifierSchema`
+  - Happy Path Cases
+    - [ ] case 1: should unwrap WithModifierSchema to get inner schema
+      - Input: WithModifierSchema instance
+      - Expected: Returns the inner schema
+    - [ ] case 2: should return input schema if not WithModifierSchema
+      - Input: Regular ValSchema instance
+      - Expected: Returns the input schema unchanged
+- `OptionalValSchema`
+  - Happy Path Cases
+    - [ ] case 1: should allow undefined in output type
+      - Input: TypeScript type checking
+      - Expected: OptionalValSchema allows undefined in output
+- `UnwrappedWithModifierSchema`
+  - Happy Path Cases
+    - [ ] case 1: should unwrap WithModifierSchema types
+      - Input: TypeScript type checking
+      - Expected: UnwrappedWithModifierSchema correctly unwraps types
