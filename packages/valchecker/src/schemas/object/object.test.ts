@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { number } from '../number'
+import { optional } from '../optional'
 import { string } from '../string'
-import { optional } from '../withModifier'
 import { object, ObjectSchema } from './object'
 
 describe('tests of `object`', () => {

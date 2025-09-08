@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, InferAsync, InferOutput, SchemaMessage, ValidationIssue, ValidationResult, ValSchema } from '../../core'
 import type { Simplify } from '../../shared'
-import type { OptionalValSchema } from '../withModifier'
+import type { OptionalSchema } from '../optional'
 import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
 import { createExecutionChain, createObject } from '../../shared'
 
@@ -18,9 +18,9 @@ type InferObjectAsync<O extends Record<PropertyKey, ValSchema>> = {
 }[keyof O] extends false ? false : true
 
 type InferObjectOutput<O extends Record<PropertyKey, ValSchema>> = Simplify<{
-	[K in keyof O as O[K] extends OptionalValSchema ? K : never]?: InferOutput<O[K]>
+	[K in keyof O as O[K] extends OptionalSchema ? K : never]?: InferOutput<O[K]>
 } & {
-	[K in keyof O as O[K] extends OptionalValSchema ? never : K]: InferOutput<O[K]>
+	[K in keyof O as O[K] extends OptionalSchema ? never : K]: InferOutput<O[K]>
 }>
 
 class ObjectSchema<O extends Record<PropertyKey, ValSchema>> extends AbstractSchema<ObjectSchemaTypes<O>> {}

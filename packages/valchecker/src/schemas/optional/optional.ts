@@ -1,0 +1,51 @@
+import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValSchema } from '../../core'
+import { AbstractBaseSchema, implementSchemaClass } from '../../core'
+
+type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
+	Async: InferAsync<Schema>
+	Transformed: InferTransformed<Schema>
+	Meta: {
+		schema: Schema
+	}
+	Input: InferInput<Schema>
+	Output: InferOutput<Schema> | undefined
+}>
+
+class OptionalSchema<Schema extends ValSchema = any> extends AbstractBaseSchema<OptionalSchemaTypes<Schema>> {}
+
+implementSchemaClass(
+	OptionalSchema,
+	{
+		isTransformed: ({ schema }) => schema.isTransformed,
+		validate: (value, { meta: { schema }, success }) => {
+			if (value === void 0) {
+				return success(value)
+			}
+
+			return schema.validate(value)
+		},
+	},
+)
+
+type UnwrapOptional<Schema extends ValSchema> = Schema extends OptionalSchema<infer InnerSchema extends ValSchema> ? InnerSchema : Schema
+
+function unwrapOptional<Schema extends ValSchema>(schema: Schema): UnwrapOptional<Schema> {
+	if (schema instanceof OptionalSchema) {
+		return schema.meta.schema
+	}
+	return schema as UnwrapOptional<Schema>
+}
+
+function optional<Schema extends ValSchema>(schema: Schema): OptionalSchema<UnwrapOptional<Schema>> {
+	return new OptionalSchema({ meta: { schema: unwrapOptional(schema) } })
+}
+
+export type {
+	UnwrapOptional,
+}
+
+export {
+	optional,
+	OptionalSchema,
+	unwrapOptional,
+}
