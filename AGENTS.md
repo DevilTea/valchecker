@@ -90,9 +90,9 @@ This project is a monorepo managed with pnpm workspaces, containing multiple pac
 
 - Update spec/test for a specific source file `<path_to_source>.ts`
 	1. After analyzing `<path_to_source>.ts`, write a complete specification in `<path_to_source>.spec.md` following the format in **Global Conventions**.
-		- If the spec already exists, ensure it is up-to-date and fully follows the format.
+		- If the spec already exists, ensure it is up-to-date, every exported item is covered and fully follows the format.
 	2. Run Lint, If any issues, fix them.
-	3. Check the `<path_to_source>.test.ts` file, ensure it aligns with the new spec.
+	3. Check the `<path_to_source>.test.ts` file, ensure it aligns with the section `Test Cases` of `<path_to_source>.spec.md`.
 	4. Run Test + Run Lint + Run Typecheck, collect failures, issues and coverage report.
 		- If any tests fail or issues, fix them. Re-run starting from `4.` until all pass.
 		- If coverage < 100%, re-run starting from `1.` until coverage is 100%.
