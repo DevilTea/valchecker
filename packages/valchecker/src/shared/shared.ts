@@ -27,13 +27,22 @@ export const NullProtoObj = (() => {
 	return constructor
 })()
 
+export function safeAssign(target: Record<any, any>, ...sources: Record<any, any>[]) {
+	for (const source of sources) {
+		if (source && typeof source === 'object') {
+			// Exclude some properties that can cause prototype pollution
+			// eslint-disable-next-line no-restricted-properties
+			const { __proto__, constructor, prototype, ...rest } = source as any
+			Object.assign(target, rest)
+		}
+	}
+	return target
+}
+
 export function createObject<T extends Record<any, any> = Record<any, any>>(obj?: T): T {
 	const _obj = new NullProtoObj() as T
 	if (obj) {
-		// Exclude some properties that can cause prototype pollution
-		// eslint-disable-next-line no-restricted-properties
-		const { __proto__, constructor, prototype, ...rest } = obj as any
-		Object.assign(_obj, rest)
+		safeAssign(_obj, obj)
 	}
 	return _obj
 }

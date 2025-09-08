@@ -13,6 +13,7 @@ import {
 	returnFalse,
 	returnTrue,
 
+	safeAssign,
 	throwNotImplementedError,
 } from './shared'
 
@@ -136,6 +137,58 @@ describe('tests of `NullProtoObj`', () => {
 	})
 })
 
+describe('tests of `safeAssign`', () => {
+	describe('happy path cases', () => {
+		describe('case 1', () => {
+			it('should assign safe properties from single source', () => {
+				const target = {}
+				safeAssign(target, { a: 1, b: 2 })
+				expect(target).toEqual({ a: 1, b: 2 })
+			})
+		})
+		describe('case 2', () => {
+			it('should assign safe properties from multiple sources', () => {
+				const target = {}
+				safeAssign(target, { a: 1 }, { b: 2 })
+				expect(target).toEqual({ a: 1, b: 2 })
+			})
+		})
+		describe('case 3', () => {
+			it('should skip non-object sources', () => {
+				const target = {}
+				safeAssign(target, { a: 1 }, 'string' as any, null as any)
+				expect(target).toEqual({ a: 1 })
+			})
+		})
+	})
+	describe('edge cases', () => {
+		describe('case 1', () => {
+			it('should exclude dangerous __proto__ property', () => {
+				const target = {}
+				safeAssign(target, { a: 1, __proto__: { polluted: true } })
+				expect(target).toEqual({ a: 1 })
+				expect(Object.getPrototypeOf(target)).toBe(Object.prototype)
+			})
+		})
+		describe('case 2', () => {
+			it('should exclude dangerous constructor property', () => {
+				const target = {}
+				safeAssign(target, { a: 1, constructor: () => {} })
+				expect(target).toEqual({ a: 1 })
+				expect(target).not.toHaveProperty('constructor')
+			})
+		})
+		describe('case 3', () => {
+			it('should exclude dangerous prototype property', () => {
+				const target = {}
+				safeAssign(target, { a: 1, prototype: {} })
+				expect(target).toEqual({ a: 1 })
+				expect(target).not.toHaveProperty('prototype')
+			})
+		})
+	})
+})
+
 describe('tests of `createObject<T>`', () => {
 	describe('happy path cases', () => {
 		describe('case 1', () => {
@@ -186,6 +239,11 @@ describe('tests of `expectNever`', () => {
 		describe('case 1', () => {
 			it('should throw with undefined', () => {
 				expect(() => expectNever()).toThrow('Expected never, but got: undefined')
+			})
+		})
+		describe('case 2', () => {
+			it('should throw with provided value', () => {
+				expect(() => expectNever('unexpected' as never)).toThrow('Expected never, but got: unexpected')
 			})
 		})
 	})
@@ -249,6 +307,34 @@ describe('tests of `ExecutionChain<T>`', () => {
 			it('should return same chain when no callbacks for sync value', () => {
 				const chain = new ExecutionChain('test')
 				const result = chain.then(null, null)
+				expect(result).toBe(chain)
+			})
+		})
+		describe('case 12', () => {
+			it('should return same chain when onfulfilled is null for sync value', () => {
+				const chain = new ExecutionChain('test')
+				const result = chain.then(null)
+				expect(result).toBe(chain)
+			})
+		})
+		describe('case 13', () => {
+			it('should return same chain when onrejected is null for sync error', () => {
+				const chain = new ExecutionChain(undefined, new Error('test'))
+				const result = chain.then(null, null)
+				expect(result).toBe(chain)
+			})
+		})
+		describe('case 14', () => {
+			it('should return same chain when onrejected is null but onfulfilled provided for sync error', () => {
+				const chain = new ExecutionChain(undefined, new Error('test'))
+				const result = chain.then(() => 'fallback', null)
+				expect(result).toBe(chain)
+			})
+		})
+		describe('case 15', () => {
+			it('should return same chain when onfulfilled is null but onrejected provided for sync value', () => {
+				const chain = new ExecutionChain('test')
+				const result = chain.then(null, () => 'error')
 				expect(result).toBe(chain)
 			})
 		})

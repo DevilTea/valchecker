@@ -38,6 +38,10 @@ Source File: `./shared.ts`
   - Description: A constructor function that creates objects with null prototype to prevent prototype pollution
   - Input: N/A (constructor)
   - Output: A new object with null prototype
+- `safeAssign`
+  - Description: Safely assigns properties from source objects to a target object, excluding potentially dangerous properties that could cause prototype pollution
+  - Input: target (Record<any, any>), ...sources (Record<any, any>[])
+  - Output: The target object with safe properties assigned
 - `createObject<T>`
   - Description: Creates a new object with null prototype and assigns properties from the input object, excluding potentially dangerous properties
   - Input: An optional object obj of type T
@@ -117,6 +121,27 @@ Source File: `./shared.ts`
     - [ ] case 1: Creates object with null prototype
       - Input: N/A
       - Expected: Object with null prototype
+- `safeAssign`
+  - Happy Path Cases
+    - [ ] case 1: Assigns safe properties from single source
+      - Input: target: {}, source: { a: 1, b: 2 }
+      - Expected: target with a: 1, b: 2
+    - [ ] case 2: Assigns safe properties from multiple sources
+      - Input: target: {}, sources: [{ a: 1 }, { b: 2 }]
+      - Expected: target with a: 1, b: 2
+    - [ ] case 3: Skips non-object sources
+      - Input: target: {}, sources: [{ a: 1 }, 'string', null]
+      - Expected: target with a: 1
+  - Edge Cases
+    - [ ] case 1: Excludes dangerous properties (__proto__)
+      - Input: target: {}, source: { a: 1, __proto__: { polluted: true } }
+      - Expected: target with a: 1, __proto__ excluded
+    - [ ] case 2: Excludes dangerous properties (constructor)
+      - Input: target: {}, source: { a: 1, constructor: () => {} }
+      - Expected: target with a: 1, constructor excluded
+    - [ ] case 3: Excludes dangerous properties (prototype)
+      - Input: target: {}, source: { a: 1, prototype: {} }
+      - Expected: target with a: 1, prototype excluded
 - `createObject<T>`
   - Happy Path Cases
     - [ ] case 1: Creates object with properties
@@ -187,6 +212,18 @@ Source File: `./shared.ts`
     - [ ] case 11: value getter with sync error
       - Input: ExecutionChain with error
       - Expected: Throws the error
+    - [ ] case 12: then() with onfulfilled null for sync value
+      - Input: ExecutionChain('test'), null
+      - Expected: Same ExecutionChain
+    - [ ] case 13: then() with onrejected null for sync error
+      - Input: ExecutionChain with error, null, null
+      - Expected: Same ExecutionChain
+    - [ ] case 14: then() with onfulfilled provided but onrejected null for sync error
+      - Input: ExecutionChain with error, () => 'fallback', null
+      - Expected: Same ExecutionChain
+    - [ ] case 15: then() with onrejected provided but onfulfilled null for sync value
+      - Input: ExecutionChain('test'), null, () => 'error'
+      - Expected: Same ExecutionChain
   - Edge Cases
     - [ ] case 1: then() without callbacks
       - Input: ExecutionChain('test'), null, null
