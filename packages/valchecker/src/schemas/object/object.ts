@@ -2,7 +2,7 @@ import type { DefineSchemaTypes, InferAsync, InferOutput, SchemaMessage, Validat
 import type { Simplify } from '../../shared'
 import type { OptionalSchema } from '../optional'
 import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
-import { createExecutionChain, createObject } from '../../shared'
+import { createExecutionChain, safeAssign } from '../../shared'
 
 type ObjectSchemaTypes<O extends Record<PropertyKey, ValSchema>> = DefineSchemaTypes<{
 	Async: InferObjectAsync<O>
@@ -36,7 +36,7 @@ implementSchemaClass(
 			if (typeof value !== 'object' || value == null || Array.isArray(value))
 				return failure('EXPECTED_OBJECT')
 
-			const output: Record<PropertyKey, any> = isTransformed ? createObject(value) : value
+			const output: Record<PropertyKey, any> = isTransformed ? safeAssign({}, value) : value
 			const issues: ValidationIssue[] = []
 			const struct = meta.struct
 			const keys = Reflect.ownKeys(struct)
