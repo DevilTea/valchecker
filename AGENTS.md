@@ -81,12 +81,9 @@ This project is a monorepo managed with pnpm workspaces, containing multiple pac
 - When processing test file's failures or type errors, always assume the source file is correct and do not modify it unless you have explicit reason to believe it's wrong and user agrees to modify it.
 
 ## Workflows
-- Analyze `<specific_dir>` for spec/test updates
-	1. Scan all source files in `<specific_dir>`, check if they have paired spec and test files.
-	2. For each source file, check if the paired spec and test files are up-to-date and fully follow the format in **Global Conventions**.
-	3. Collect all source files that need updates (missing spec/test, outdated spec/test, not following format).
-	4. Print the list of files that need updates, and ask user for confirmation to proceed with updates.
-	5. If user confirms, sort the list of files by complexity (e.g. lines of code, number of exports) and process them one by one using the **Update spec/test for a specific source file** workflow.
+- Update all spec/test files in `<specific_dir>`
+	1. Collect all source files in `<specific_dir>`.
+	2. For each source file, run the **Update spec/test for a specific source file** workflow to analyze and update its spec/test files.
 
 - Update spec/test for a specific source file `<path_to_source>.ts`
 	1. After analyzing `<path_to_source>.ts`, write a complete specification in `<path_to_source>.spec.md` following the format in **Global Conventions**.
