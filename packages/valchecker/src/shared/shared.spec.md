@@ -38,14 +38,10 @@ Source File: `./shared.ts`
   - Description: A constructor function that creates objects with null prototype to prevent prototype pollution
   - Input: N/A (constructor)
   - Output: A new object with null prototype
-- `safeAssign`
-  - Description: Safely assigns properties from source objects to a target object, excluding potentially dangerous properties that could cause prototype pollution
-  - Input: target (Record<any, any>), ...sources (Record<any, any>[])
-  - Output: The target object with safe properties assigned
 - `createObject<T>`
-  - Description: Creates a new object with null prototype and assigns properties from the input object, excluding potentially dangerous properties
+  - Description: Creates a new object with null prototype and copies all property descriptors from the input object using Object.defineProperties and Object.getOwnPropertyDescriptors
   - Input: An optional object obj of type T
-  - Output: A new object of type T with null prototype
+  - Output: A new object of type T with null prototype and copied property descriptors
 - `throwNotImplementedError`
   - Description: Throws an error indicating that a method is not implemented
   - Input: None
@@ -121,27 +117,6 @@ Source File: `./shared.ts`
     - [ ] case 1: Creates object with null prototype
       - Input: N/A
       - Expected: Object with null prototype
-- `safeAssign`
-  - Happy Path Cases
-    - [ ] case 1: Assigns safe properties from single source
-      - Input: target: {}, source: { a: 1, b: 2 }
-      - Expected: target with a: 1, b: 2
-    - [ ] case 2: Assigns safe properties from multiple sources
-      - Input: target: {}, sources: [{ a: 1 }, { b: 2 }]
-      - Expected: target with a: 1, b: 2
-    - [ ] case 3: Skips non-object sources
-      - Input: target: {}, sources: [{ a: 1 }, 'string', null]
-      - Expected: target with a: 1
-  - Edge Cases
-    - [ ] case 1: Excludes dangerous properties (__proto__)
-      - Input: target: {}, source: { a: 1, __proto__: { polluted: true } }
-      - Expected: target with a: 1, __proto__ excluded
-    - [ ] case 2: Excludes dangerous properties (constructor)
-      - Input: target: {}, source: { a: 1, constructor: () => {} }
-      - Expected: target with a: 1, constructor excluded
-    - [ ] case 3: Excludes dangerous properties (prototype)
-      - Input: target: {}, source: { a: 1, prototype: {} }
-      - Expected: target with a: 1, prototype excluded
 - `createObject<T>`
   - Happy Path Cases
     - [ ] case 1: Creates object with properties
@@ -151,9 +126,9 @@ Source File: `./shared.ts`
       - Input: undefined
       - Expected: Empty object with null prototype
   - Edge Cases
-    - [ ] case 1: Excludes dangerous properties
-      - Input: { __proto__: {}, constructor: () => {}, prototype: {} }
-      - Expected: Empty object (dangerous properties excluded)
+    - [ ] case 1: Copies all property descriptors including non-enumerable
+      - Input: Object with non-enumerable properties
+      - Expected: New object with all property descriptors copied
 - `throwNotImplementedError`
   - Error Cases
     - [ ] case 1: Always throws error

@@ -13,7 +13,6 @@ import {
 	returnFalse,
 	returnTrue,
 
-	safeAssign,
 	throwNotImplementedError,
 } from './shared'
 
@@ -137,58 +136,6 @@ describe('tests of `NullProtoObj`', () => {
 	})
 })
 
-describe('tests of `safeAssign`', () => {
-	describe('happy path cases', () => {
-		describe('case 1', () => {
-			it('should assign safe properties from single source', () => {
-				const target = {}
-				safeAssign(target, { a: 1, b: 2 })
-				expect(target).toEqual({ a: 1, b: 2 })
-			})
-		})
-		describe('case 2', () => {
-			it('should assign safe properties from multiple sources', () => {
-				const target = {}
-				safeAssign(target, { a: 1 }, { b: 2 })
-				expect(target).toEqual({ a: 1, b: 2 })
-			})
-		})
-		describe('case 3', () => {
-			it('should skip non-object sources', () => {
-				const target = {}
-				safeAssign(target, { a: 1 }, 'string' as any, null as any)
-				expect(target).toEqual({ a: 1 })
-			})
-		})
-	})
-	describe('edge cases', () => {
-		describe('case 1', () => {
-			it('should exclude dangerous __proto__ property', () => {
-				const target = {}
-				safeAssign(target, { a: 1, __proto__: { polluted: true } })
-				expect(target).toEqual({ a: 1 })
-				expect(Object.getPrototypeOf(target)).toBe(Object.prototype)
-			})
-		})
-		describe('case 2', () => {
-			it('should exclude dangerous constructor property', () => {
-				const target = {}
-				safeAssign(target, { a: 1, constructor: () => {} })
-				expect(target).toEqual({ a: 1 })
-				expect(target).not.toHaveProperty('constructor')
-			})
-		})
-		describe('case 3', () => {
-			it('should exclude dangerous prototype property', () => {
-				const target = {}
-				safeAssign(target, { a: 1, prototype: {} })
-				expect(target).toEqual({ a: 1 })
-				expect(target).not.toHaveProperty('prototype')
-			})
-		})
-	})
-})
-
 describe('tests of `createObject<T>`', () => {
 	describe('happy path cases', () => {
 		describe('case 1', () => {
@@ -209,16 +156,20 @@ describe('tests of `createObject<T>`', () => {
 	})
 	describe('edge cases', () => {
 		describe('case 1', () => {
-			it('should exclude dangerous properties', () => {
-				const obj = createObject({
-					a: 1,
-					__proto__: { polluted: true },
-					constructor: () => {},
-					prototype: {},
+			it('should copy all property descriptors including non-enumerable', () => {
+				const source = {}
+				Object.defineProperty(source, 'hidden', {
+					value: 'secret',
+					enumerable: false,
 				})
-				expect(obj.a).toBe(1)
-				expect((obj as any).polluted).toBeUndefined()
-				expect(Object.keys(obj)).toEqual(['a'])
+				const obj = createObject(source)
+				expect(Object.getOwnPropertyDescriptor(obj, 'hidden')).toEqual({
+					value: 'secret',
+					enumerable: false,
+					configurable: false,
+					writable: false,
+				})
+				expect(Object.getPrototypeOf(Object.getPrototypeOf(obj))).toBeNull()
 			})
 		})
 	})

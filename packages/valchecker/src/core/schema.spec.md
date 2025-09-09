@@ -1,6 +1,6 @@
-# base.spec.md
+# schema.spec.md
 
-Source File: `./base.ts`
+Source File: `./schema.ts`
 
 ## Functionality Summary
 - Provides the core foundation for the validation schema system, including base classes, types, and utilities for implementing validation schemas that conform to the Standard Schema specification.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AbstractSchema, implementSchemaClass } from './base'
+import { AbstractSchema, implementSchemaClass } from '../../core'
 import { PipeSchema } from './pipe'
 
 describe('tests of `PipeSchema.validate`', () => {
