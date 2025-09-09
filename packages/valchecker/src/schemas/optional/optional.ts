@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValSchema } from '../../core'
-import { AbstractBaseSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema, implementSchemaClass } from '../../core'
 
 type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<Schema>
@@ -11,7 +11,7 @@ type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<Schema> | undefined
 }>
 
-class OptionalSchema<Schema extends ValSchema = any> extends AbstractBaseSchema<OptionalSchemaTypes<Schema>> {}
+class OptionalSchema<Schema extends ValSchema = ValSchema> extends AbstractSchema<OptionalSchemaTypes<Schema>> {}
 
 implementSchemaClass(
 	OptionalSchema,

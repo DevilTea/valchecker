@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { AbstractBaseSchema, implementSchemaClass } from './base'
+import { AbstractSchema, implementSchemaClass } from './base'
 import { PipeSchema } from './pipe'
 
 describe('tests of `PipeSchema.validate`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: validates successfully through single step pipeline', () => {
 			it('should return success', () => {
-				class TestSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
 					validate: value => ({ value }),
@@ -20,8 +20,8 @@ describe('tests of `PipeSchema.validate`', () => {
 
 		describe('case 2: validates successfully through multi-step pipeline', () => {
 			it('should return transformed result', () => {
-				class Step1Schema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-				class Step2Schema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
+				class Step1Schema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class Step2Schema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(Step1Schema, {
 					validate: value => ({ value: `${value} step1` }),
@@ -43,7 +43,7 @@ describe('tests of `PipeSchema.validate`', () => {
 
 		describe('case 3: handles async pipeline with successful validation', () => {
 			it('should return promise resolving to result', async () => {
-				class AsyncSchema extends AbstractBaseSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class AsyncSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(AsyncSchema, {
 					validate: value => Promise.resolve({ value: `${value} async` }),
@@ -57,8 +57,8 @@ describe('tests of `PipeSchema.validate`', () => {
 
 		describe('case 4: stops at first failure in pipeline', () => {
 			it('should return failure from first failing step', () => {
-				class SuccessSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-				class FailureSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
+				class SuccessSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class FailureSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SuccessSchema, {
 					validate: value => ({ value }),
@@ -88,9 +88,9 @@ describe('tests of `PipeSchema.validate`', () => {
 	describe('edge cases', () => {
 		describe('case 2: propagates errors from any step in pipeline', () => {
 			it('should return failure from middle step', () => {
-				class SuccessSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-				class FailureSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'MIDDLE_ERROR' }> {}
-				class SuccessSchema2 extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
+				class SuccessSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class FailureSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'MIDDLE_ERROR' }> {}
+				class SuccessSchema2 extends AbstractSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SuccessSchema, {
 					validate: value => ({ value }),
@@ -127,8 +127,8 @@ describe('tests of `PipeSchema.validate`', () => {
 
 		describe('case 3: handles mixed sync/async steps in pipeline', () => {
 			it('should return promise resolving to result', async () => {
-				class SyncSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-				class AsyncSchema extends AbstractBaseSchema<{ async: true, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
+				class SyncSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class AsyncSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SyncSchema, {
 					validate: value => ({ value: `${value} sync` }),
@@ -154,7 +154,7 @@ describe('tests of `PipeSchema.check`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: adds check step to pipeline', () => {
 			it('should add check step', () => {
-				class BaseSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
 					validate: value => ({ value }),
@@ -168,7 +168,7 @@ describe('tests of `PipeSchema.check`', () => {
 
 		describe('case 2: check step validates successfully', () => {
 			it('should continue to next step', () => {
-				class BaseSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
 					validate: value => ({ value }),
@@ -184,7 +184,7 @@ describe('tests of `PipeSchema.check`', () => {
 
 		describe('case 3: check step fails validation', () => {
 			it('should stop with check failure', () => {
-				class BaseSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
 					validate: value => ({ value }),
@@ -210,7 +210,7 @@ describe('tests of `PipeSchema.transform`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: adds transform step to pipeline', () => {
 			it('should add transform step', () => {
-				class BaseSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
 					validate: value => ({ value }),
@@ -224,7 +224,7 @@ describe('tests of `PipeSchema.transform`', () => {
 
 		describe('case 2: transform step modifies value successfully', () => {
 			it('should pass transformed value to next step', () => {
-				class BaseSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
 					validate: value => ({ value }),
@@ -244,7 +244,7 @@ describe('tests of `PipeSchema.fallback`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: adds fallback step to pipeline', () => {
 			it('should add fallback step', () => {
-				class BaseSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
 					validate: value => ({ value }),
@@ -258,7 +258,7 @@ describe('tests of `PipeSchema.fallback`', () => {
 
 		describe('case 2: fallback executes when previous step fails', () => {
 			it('should return fallback value', () => {
-				class FailureSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class FailureSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(FailureSchema, {
 					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
@@ -274,7 +274,7 @@ describe('tests of `PipeSchema.fallback`', () => {
 
 		describe('case 3: fallback not executed when previous step succeeds', () => {
 			it('should pass through original value', () => {
-				class SuccessSchema extends AbstractBaseSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+				class SuccessSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SuccessSchema, {
 					validate: value => ({ value }),

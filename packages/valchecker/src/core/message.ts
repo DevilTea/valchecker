@@ -1,5 +1,5 @@
 import type { Simplify } from '../shared'
-import type { ValidationIssue } from './base'
+import type { ValidationIssue } from './schema'
 
 type UnknownErrorIssueCode = 'UNKNOWN_ERROR'
 type SchemaMessageFn<IssueCode extends string, Input> = (payload: { code: IssueCode, value: Input, path?: ValidationIssue['path'], error?: unknown }) => string

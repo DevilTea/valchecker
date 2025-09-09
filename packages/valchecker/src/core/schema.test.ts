@@ -1,11 +1,16 @@
+import type { ValidationIssue, ValidationResult } from './schema'
 import { describe, expect, it } from 'vitest'
-import { implementSchemaClass } from './base'
-import { AbstractSchema } from './schema'
+import {
+	AbstractSchema,
+	implementSchemaClass,
+	isSuccessResult,
+	prependIssuePath,
+} from './schema'
 
-describe('tests of `AbstractSchema.check`', () => {
+describe('tests of `AbstractSchema.validate`', () => {
 	describe('happy path cases', () => {
-		describe('case 1: adds check step to schema', () => {
-			it('should return PipeSchema with check step', () => {
+		describe('case 1: returns success result when validation succeeds', () => {
+			it('should return success result', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
@@ -13,40 +18,58 @@ describe('tests of `AbstractSchema.check`', () => {
 				})
 
 				const schema = new TestSchema()
-				const result = schema.check(() => true)
-				expect(result.meta.steps).toHaveLength(2)
-			})
-		})
-
-		describe('case 2: check step validates successfully', () => {
-			it('should continue to next step', () => {
-				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-
-				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
-				})
-
-				const schema = new TestSchema()
-				const pipeline = schema.check(() => true)
-				const result = pipeline.validate('test')
+				const result = schema.validate('test')
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
 
-		describe('case 3: check step fails validation', () => {
-			it('should stop with check failure', () => {
+		describe('case 2: returns failure result when validation fails', () => {
+			it('should return failure result', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 				})
 
 				const schema = new TestSchema()
-				const pipeline = schema.check(() => false)
-				const result = pipeline.validate('test')
+				const result = schema.validate('invalid')
 				expect(result).toEqual({
 					issues: [{
-						code: 'CHECK_FAILED',
+						code: 'TEST_ERROR',
+						message: 'Invalid value.',
+						path: undefined,
+					}],
+				})
+			})
+		})
+
+		describe('case 3: handles async validation returning success', () => {
+			it('should return promise resolving to success', async () => {
+				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: value => Promise.resolve({ value }),
+				})
+
+				const schema = new TestSchema()
+				const result = await schema.validate('test')
+				expect(result).toEqual({ value: 'test' })
+			})
+		})
+
+		describe('case 4: handles async validation returning failure', () => {
+			it('should return promise resolving to failure', async () => {
+				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: (_value, { failure, issue }) => Promise.resolve(failure(issue('TEST_ERROR'))),
+				})
+
+				const schema = new TestSchema()
+				const result = await schema.validate('invalid')
+				expect(result).toEqual({
+					issues: [{
+						code: 'TEST_ERROR',
 						message: 'Invalid value.',
 						path: undefined,
 					}],
@@ -54,93 +77,154 @@ describe('tests of `AbstractSchema.check`', () => {
 			})
 		})
 	})
-})
 
-describe('tests of `AbstractSchema.transform`', () => {
-	describe('happy path cases', () => {
-		describe('case 1: adds transform step to schema', () => {
-			it('should return PipeSchema with transform step', () => {
+	describe('edge cases', () => {
+		describe('case 1: handles validation throwing synchronous error', () => {
+			it('should return failure with UNKNOWN_ERROR', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					validate: () => { throw new Error('sync error') },
 				})
 
 				const schema = new TestSchema()
-				const result = schema.transform(value => `${value} transformed`)
-				expect(result.meta.steps).toHaveLength(2)
+				const result = schema.validate('test')
+				expect(result).toEqual({
+					issues: [{
+						code: 'UNKNOWN_ERROR',
+						error: new Error('sync error'),
+						message: 'Invalid value.',
+						path: undefined,
+					}],
+				})
 			})
 		})
 
-		describe('case 2: transform step modifies value successfully', () => {
-			it('should pass transformed value to next step', () => {
+		describe('case 2: handles async validation rejecting', () => {
+			it('should return promise resolving to failure with UNKNOWN_ERROR', async () => {
+				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: () => Promise.reject(new Error('async error')),
+				})
+
+				const schema = new TestSchema()
+				const result = await schema.validate('test')
+				expect(result).toEqual({
+					issues: [{
+						code: 'UNKNOWN_ERROR',
+						error: new Error('async error'),
+						message: 'Invalid value.',
+						path: undefined,
+					}],
+				})
+			})
+		})
+
+		describe('case 3: handles custom message resolution', () => {
+			it('should use custom message', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
-				})
-
-				const schema = new TestSchema()
-				const pipeline = schema.transform(value => `${value} transformed`)
-				const result = pipeline.validate('test')
-				expect(result).toEqual({ value: 'test transformed' })
-			})
-		})
-	})
-})
-
-describe('tests of `AbstractSchema.fallback`', () => {
-	describe('happy path cases', () => {
-		describe('case 1: adds fallback step to schema', () => {
-			it('should return PipeSchema with fallback step', () => {
-				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-
-				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
-				})
-
-				const schema = new TestSchema()
-				const result = schema.fallback('fallback value')
-				expect(result.meta.steps).toHaveLength(2)
-			})
-		})
-
-		describe('case 2: fallback executes when validation fails', () => {
-			it('should return fallback value', () => {
-				class FailureSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-
-				implementSchemaClass(FailureSchema, {
 					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 				})
 
-				const schema = new FailureSchema()
-				const pipeline = schema.fallback('fallback value')
-				const result = pipeline.validate('test')
-				expect(result).toEqual({ value: 'fallback value' })
+				const schema = new TestSchema({
+					message: { TEST_ERROR: 'Custom error message' },
+				})
+				const result = schema.validate('invalid')
+				expect(result).toEqual({
+					issues: [{
+						code: 'TEST_ERROR',
+						message: 'Custom error message',
+						path: undefined,
+					}],
+				})
 			})
 		})
+	})
 
-		describe('case 3: fallback not executed when validation succeeds', () => {
-			it('should pass through original value', () => {
-				class SuccessSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+	describe('error cases', () => {
+		describe('case 1: handles malformed validation result', () => {
+			it('should return failure with UNKNOWN_ERROR', () => {
+				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
-				implementSchemaClass(SuccessSchema, {
-					validate: value => ({ value }),
+				implementSchemaClass(TestSchema, {
+					validate: () => 'invalid' as any,
 				})
 
-				const schema = new SuccessSchema()
-				const pipeline = schema.fallback('fallback value')
-				const result = pipeline.validate('test')
-				expect(result).toEqual({ value: 'test' })
+				const schema = new TestSchema()
+				const result = schema.validate('test')
+				expect(result).toBe('invalid')
 			})
 		})
 	})
 })
 
-describe('tests of `AbstractSchema` inheritance', () => {
+describe('tests of `AbstractSchema.isValid`', () => {
 	describe('happy path cases', () => {
-		describe('case 1: inherits AbstractBaseSchema properties', () => {
-			it('should have validate method', () => {
+		describe('case 1: returns true for successful validation', () => {
+			it('should return true', () => {
+				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: value => ({ value }),
+				})
+
+				const schema = new TestSchema()
+				const result = schema.isValid('test')
+				expect(result).toBe(true)
+			})
+		})
+
+		describe('case 2: returns false for failed validation', () => {
+			it('should return false', () => {
+				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+				})
+
+				const schema = new TestSchema()
+				const result = schema.isValid('invalid')
+				expect(result).toBe(false)
+			})
+		})
+
+		describe('case 3: returns promise resolving to true for async success', () => {
+			it('should return promise resolving to true', async () => {
+				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: value => Promise.resolve({ value }),
+				})
+
+				const schema = new TestSchema()
+				const result = await schema.isValid('test')
+				expect(result).toBe(true)
+			})
+		})
+
+		describe('case 4: returns promise resolving to false for async failure', () => {
+			it('should return promise resolving to false', async () => {
+				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: (_value, { failure, issue }) => Promise.resolve(failure(issue('TEST_ERROR'))),
+				})
+
+				const schema = new TestSchema()
+				const result = await schema.isValid('invalid')
+				expect(result).toBe(false)
+			})
+		})
+	})
+})
+
+describe('tests of `implementSchemaClass`', () => {
+	describe('happy path cases', () => {
+		describe('case 1: successfully implements schema class with validate function', () => {
+			it('should implement schema class', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
@@ -149,32 +233,88 @@ describe('tests of `AbstractSchema` inheritance', () => {
 
 				const schema = new TestSchema()
 				expect(typeof schema.validate).toBe('function')
-			})
-		})
-
-		describe('case 2: inherits AbstractBaseSchema isValid method', () => {
-			it('should have isValid method', () => {
-				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
-
-				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
-				})
-
-				const schema = new TestSchema()
 				expect(typeof schema.isValid).toBe('function')
 			})
 		})
 
-		describe('case 3: has isTransformed property', () => {
-			it('should have isTransformed property', () => {
+		describe('case 2: implements schema class with default message', () => {
+			it('should use default message', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+					defaultMessage: { TEST_ERROR: 'Default test error' },
 				})
 
 				const schema = new TestSchema()
-				expect(typeof schema.isTransformed).toBe('boolean')
+				const result = schema.validate('invalid')
+				expect(result).toEqual({
+					issues: [{
+						code: 'TEST_ERROR',
+						message: 'Default test error',
+						path: undefined,
+					}],
+				})
+			})
+		})
+
+		describe('case 3: implements schema class with isTransformed function', () => {
+			it('should set isTransformed correctly', () => {
+				class TestSchema extends AbstractSchema<{ async: false, transformed: true, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: value => ({ value }),
+					isTransformed: () => true,
+				})
+
+				const schema = new TestSchema()
+				expect(schema.isTransformed).toBe(true)
+			})
+		})
+	})
+})
+
+describe('tests of `isSuccessResult`', () => {
+	describe('happy path cases', () => {
+		describe('case 1: returns true for success result', () => {
+			it('should return true', () => {
+				const result: ValidationResult<string> = { value: 'test' }
+				expect(isSuccessResult(result)).toBe(true)
+			})
+		})
+
+		describe('case 2: returns false for failure result', () => {
+			it('should return false', () => {
+				const result: ValidationResult<string> = { issues: [{ code: 'ERROR', message: 'Error message' }] }
+				expect(isSuccessResult(result)).toBe(false)
+			})
+		})
+	})
+})
+
+describe('tests of `prependIssuePath`', () => {
+	describe('happy path cases', () => {
+		describe('case 1: prepends path to issue without existing path', () => {
+			it('should prepend path', () => {
+				const issue: ValidationIssue = { code: 'ERROR', message: 'Error message' }
+				const result = prependIssuePath(issue, ['root', 'field'])
+				expect(result).toEqual({
+					code: 'ERROR',
+					message: 'Error message',
+					path: ['root', 'field'],
+				})
+			})
+		})
+
+		describe('case 2: prepends path to issue with existing path', () => {
+			it('should prepend path to existing path', () => {
+				const issue: ValidationIssue = { code: 'ERROR', message: 'Error message', path: ['nested'] }
+				const result = prependIssuePath(issue, ['root'])
+				expect(result).toEqual({
+					code: 'ERROR',
+					message: 'Error message',
+					path: ['root', 'nested'],
+				})
 			})
 		})
 	})

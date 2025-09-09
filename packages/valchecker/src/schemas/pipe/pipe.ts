@@ -1,10 +1,10 @@
-import type { AnyFn, ExecutionChain } from '../shared'
-import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValidationResult, ValSchema } from './base'
+import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValidationResult, ValSchema } from '../../core'
+import type { AnyFn, ExecutionChain } from '../../shared'
 import type { CheckFn, PipeStepCheckSchemaMessage } from './check'
 import type { FallbackFn, PipeStepFallbackSchemaMessage } from './fallback'
 import type { PipeStepTransformSchemaMessage, TransformFn } from './transform'
-import { createExecutionChain } from '../shared'
-import { AbstractBaseSchema, implementSchemaClass } from './base'
+import { AbstractSchema, implementSchemaClass } from '../../core'
+import { createExecutionChain } from '../../shared'
 import { PipeStepCheckSchema } from './check'
 import { PipeStepFallbackSchema } from './fallback'
 import { PipeStepTransformSchema } from './transform'
@@ -34,7 +34,7 @@ type InferPipeAsync<Steps extends PipeSteps> = InferAsync<Steps[number]> extends
 
 type InferPipeTransformed<Steps extends PipeSteps> = InferTransformed<Steps[number]> extends false ? false : true
 
-class PipeSchema<Steps extends PipeSteps> extends AbstractBaseSchema<PipeSchemaTypes<Steps>> {
+class PipeSchema<Steps extends PipeSteps> extends AbstractSchema<PipeSchemaTypes<Steps>> {
 	check<
 		Check extends CheckFn<InferPipeOutput<Steps>>,
 	>(
@@ -82,6 +82,11 @@ implementSchemaClass(
 	},
 )
 
+function pipe<Source extends ValSchema>(source: Source): PipeSchema<[Source]> {
+	return new PipeSchema({ meta: { steps: [source] } })
+}
+
 export {
+	pipe,
 	PipeSchema,
 }

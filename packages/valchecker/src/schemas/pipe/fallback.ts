@@ -1,7 +1,7 @@
-import type { IsReturnPromise } from '../shared'
-import type { DefineSchemaTypes, SchemaMessage, ValidationResult } from './base'
-import { createExecutionChain, returnTrue } from '../shared'
-import { AbstractBaseSchema, implementSchemaClass, isSuccessResult } from './base'
+import type { DefineSchemaTypes, SchemaMessage, ValidationResult } from '../../core'
+import type { IsReturnPromise } from '../../shared'
+import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { createExecutionChain, returnTrue } from '../../shared'
 
 type FallbackFn<T = any> = () => T | Promise<T>
 
@@ -16,7 +16,7 @@ type PipeStepFallbackSchemaTypes<Fallback extends FallbackFn> = DefineSchemaType
 
 type PipeStepFallbackSchemaMessage<Fn extends FallbackFn> = SchemaMessage<PipeStepFallbackSchemaTypes<Fn>>
 
-class PipeStepFallbackSchema<Fn extends FallbackFn> extends AbstractBaseSchema<PipeStepFallbackSchemaTypes<Fn>> {}
+class PipeStepFallbackSchema<Fn extends FallbackFn> extends AbstractSchema<PipeStepFallbackSchemaTypes<Fn>> {}
 
 implementSchemaClass(
 	PipeStepFallbackSchema,

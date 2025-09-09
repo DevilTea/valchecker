@@ -1,101 +1,163 @@
-# AbstractSchema
+# base.spec.md
 
-AbstractSchema is an abstract base class that extends AbstractBaseSchema and provides chainable pipe methods for creating validation pipelines.
+Source File: `./base.ts`
 
-## Overview
+## Functionality Summary
+- Provides the core foundation for the validation schema system, including base classes, types, and utilities for implementing validation schemas that conform to the Standard Schema specification.
 
-AbstractSchema serves as the foundation for all schema classes in the valchecker library. It extends AbstractBaseSchema with additional methods that allow schemas to be chained together in pipelines using the `check`, `transform`, and `fallback` methods.
+## Exported Items (Functions, Classes, Constants, TS Types, etc.)
+- `DefineSchemaTypes`
+  - Description: Type helper to define schema types with proper inference for async, transformed, meta, input, output, and issue code properties.
+  - Input: Raw schema types parameter object
+  - Output: Resolved schema types with proper inference
+- `InferAsync`
+  - Description: Type helper to infer if a schema is async
+  - Input: Schema type
+  - Output: Boolean indicating if schema operations are async
+- `InferInput`
+  - Description: Type helper to infer the input type of a schema
+  - Input: Schema type
+  - Output: The input type of the schema
+- `InferIssueCode`
+  - Description: Type helper to infer the issue codes a schema can produce
+  - Input: Schema type
+  - Output: Union of possible issue codes
+- `InferIsValidReturn`
+  - Description: Type helper to infer the return type of isValid method
+  - Input: Schema type
+  - Output: Promise<boolean> if async, boolean if sync
+- `InferMeta`
+  - Description: Type helper to infer the meta type of a schema
+  - Input: Schema type
+  - Output: The meta type of the schema
+- `InferOutput`
+  - Description: Type helper to infer the output type of a schema
+  - Input: Schema type
+  - Output: The output type of the schema
+- `InferTransformed`
+  - Description: Type helper to infer if a schema is transformed
+  - Input: Schema type
+  - Output: Boolean indicating if schema transforms input
+- `InferValidateReturn`
+  - Description: Type helper to infer the return type of validate method
+  - Input: Schema type
+  - Output: ValidationResult or Promise<ValidationResult>
+- `SchemaMessage`
+  - Description: Type for schema validation messages
+  - Input: Schema types
+  - Output: Message configuration type
+- `SchemaTypes`
+  - Description: Base schema types interface with async, transformed, meta, input, output, and issueCode properties
+  - Input: N/A
+  - Output: Schema types interface
+- `UntransformedValSchema`
+  - Description: Type for schemas that don't transform their input
+  - Input: Input and Output types
+  - Output: Schema type with transformed: false
+- `ValidationFailureResult`
+  - Description: Type for validation failure results containing issues array
+  - Input: N/A
+  - Output: Object with issues array
+- `ValidationIssue`
+  - Description: Type for individual validation issues with code, message, path, and error
+  - Input: N/A
+  - Output: Validation issue object type
+- `ValidationResult`
+  - Description: Union type for validation results (success or failure)
+  - Input: Output type
+  - Output: Success result or failure result
+- `ValidationSuccessResult`
+  - Description: Type for validation success results containing value
+  - Input: Output type
+  - Output: Object with value property
+- `ValSchema`
+  - Description: Type for general validation schemas
+  - Input: Input and Output types
+  - Output: Schema type with flexible properties
+- `AbstractSchema`
+  - Description: Abstract base class for all validation schemas, implements Standard Schema V1
+  - Input: Schema types configuration
+  - Output: Schema instance with validate and isValid methods
+- `implementSchemaClass`
+  - Description: Function to implement schema classes with validation logic
+  - Input: Schema class constructor and implementation object
+  - Output: N/A (mutates the class prototype)
+- `isSuccessResult`
+  - Description: Type guard to check if a validation result is successful
+  - Input: Validation result
+  - Output: Boolean indicating if result is success
+- `prependIssuePath`
+  - Description: Utility to prepend a path to validation issues
+  - Input: Validation issue and path array
+  - Output: New validation issue with prepended path
 
-## API
-
-### Methods
-
-#### `check<Check>(check, message?)`
-
-Adds a check step to the schema pipeline.
-
-**Parameters:**
-- `check`: A function that performs validation on the schema's output
-- `message`: Optional custom error message for check failures
-
-**Returns:** A PipeSchema instance with the check step added
-
-**Example:**
-```typescript
-const schema = new MySchema()
-const pipeline = schema.check(value => value > 0, 'Value must be positive')
-```
-
-#### `transform<Transform>(transform, message?)`
-
-Adds a transform step to the schema pipeline.
-
-**Parameters:**
-- `transform`: A function that transforms the schema's output
-- `message`: Optional custom error message for transform failures
-
-**Returns:** A PipeSchema instance with the transform step added
-
-**Example:**
-```typescript
-const schema = new MySchema()
-const pipeline = schema.transform(value => value.toString())
-```
-
-#### `fallback<Fallback>(fallback, message?)`
-
-Adds a fallback step to the schema pipeline.
-
-**Parameters:**
-- `fallback`: A value or function to use as fallback when validation fails
-- `message`: Optional custom error message for fallback failures
-
-**Returns:** A PipeSchema instance with the fallback step added
-
-**Example:**
-```typescript
-const schema = new MySchema()
-const pipeline = schema.fallback('default value')
-```
-
-## Usage
-
-AbstractSchema is designed to be extended by concrete schema implementations:
-
-```typescript
-class MyStringSchema extends AbstractSchema<{
-	async: false
-	transformed: false
-	meta: null
-	input: string
-	output: string
-	issueCode: 'INVALID_STRING'
-}> {
-	// Implementation
-}
-```
-
-## Inheritance
-
-AbstractSchema extends AbstractBaseSchema and inherits all its properties and methods, including:
-- `validate()` method for running validation
-- `isValid()` method for checking validity
-- `isTransformed` property
-- `meta` property
-
-## Pipeline Integration
-
-The chainable methods (`check`, `transform`, `fallback`) create PipeSchema instances that can be further chained:
-
-```typescript
-const pipeline = schema
-	.check(value => value.length > 0)
-	.transform(value => value.toUpperCase())
-	.fallback('N/A')
-```
-
-This creates a validation pipeline that:
-1. Validates the input using the base schema
-2. Checks that the result has length > 0
-3. Transforms the result to uppercase
-4. Falls back to 'N/A' if any step fails
+## Test Cases (as strictly required for 100% coverage)
+- `AbstractSchema.validate`
+  - Happy Path Cases
+    - [ ] case 1: returns success result when validation succeeds
+      - Input: `value: 'test'`, schema with successful validation
+      - Expected: `{ value: 'test' }`
+    - [ ] case 2: returns failure result when validation fails
+      - Input: `value: 'invalid'`, schema with failing validation
+      - Expected: `{ issues: [{ code: 'VALIDATION_ERROR' }] }`
+    - [ ] case 3: handles async validation returning success
+      - Input: `value: 'test'`, schema with async successful validation
+      - Expected: `Promise<{ value: 'test' }>`
+    - [ ] case 4: handles async validation returning failure
+      - Input: `value: 'invalid'`, schema with async failing validation
+      - Expected: `Promise<{ issues: [{ code: 'VALIDATION_ERROR' }] }>`
+  - Edge Cases
+    - [ ] case 1: handles validation throwing synchronous error
+      - Input: `value: 'test'`, schema that throws error during validation
+      - Expected: `{ issues: [{ code: 'UNKNOWN_ERROR', error: thrownError }] }`
+    - [ ] case 2: handles async validation rejecting
+      - Input: `value: 'test'`, schema with async validation that rejects
+      - Expected: `Promise<{ issues: [{ code: 'UNKNOWN_ERROR', error: rejectionError }] }>`
+    - [ ] case 3: handles custom message resolution
+      - Input: `value: 'test'`, schema with custom message configuration
+      - Expected: Result with custom error message
+  - Error Cases (if applicable)
+    - [ ] case 1: handles malformed validation result
+      - Input: `value: 'test'`, schema returning invalid result format
+      - Expected: `{ issues: [{ code: 'UNKNOWN_ERROR' }] }`
+- `AbstractSchema.isValid`
+  - Happy Path Cases
+    - [ ] case 1: returns true for successful validation
+      - Input: `value: 'test'`, schema with successful validation
+      - Expected: `true`
+    - [ ] case 2: returns false for failed validation
+      - Input: `value: 'invalid'`, schema with failing validation
+      - Expected: `false`
+    - [ ] case 3: returns promise resolving to true for async success
+      - Input: `value: 'test'`, schema with async successful validation
+      - Expected: `Promise<true>`
+    - [ ] case 4: returns promise resolving to false for async failure
+      - Input: `value: 'invalid'`, schema with async failing validation
+      - Expected: `Promise<false>`
+- `implementSchemaClass`
+  - Happy Path Cases
+    - [ ] case 1: successfully implements schema class with validate function
+      - Input: Schema class and implementation object with validate function
+      - Expected: Class prototype has implementation methods
+    - [ ] case 2: implements schema class with default message
+      - Input: Schema class and implementation with defaultMessage
+      - Expected: Schema instances use default message for issues
+    - [ ] case 3: implements schema class with isTransformed function
+      - Input: Schema class and implementation with isTransformed function
+      - Expected: Schema isTransformed property works correctly
+- `isSuccessResult`
+  - Happy Path Cases
+    - [ ] case 1: returns true for success result
+      - Input: `{ value: 'test' }`
+      - Expected: `true`
+    - [ ] case 2: returns false for failure result
+      - Input: `{ issues: [{ code: 'ERROR' }] }`
+      - Expected: `false`
+- `prependIssuePath`
+  - Happy Path Cases
+    - [ ] case 1: prepends path to issue without existing path
+      - Input: `issue: { code: 'ERROR' }, path: ['root', 'field']`
+      - Expected: `{ code: 'ERROR', path: ['root', 'field'] }`
+    - [ ] case 2: prepends path to issue with existing path
+      - Input: `issue: { code: 'ERROR', path: ['nested'] }, path: ['root']`
+      - Expected: `{ code: 'ERROR', path: ['root', 'nested'] }`

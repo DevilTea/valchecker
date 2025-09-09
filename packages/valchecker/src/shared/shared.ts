@@ -42,7 +42,7 @@ export function safeAssign(target: Record<any, any>, ...sources: Record<any, any
 export function createObject<T extends Record<any, any> = Record<any, any>>(obj?: T): T {
 	const _obj = new NullProtoObj() as T
 	if (obj) {
-		safeAssign(_obj, obj)
+		Object.defineProperties(_obj, Object.getOwnPropertyDescriptors(obj))
 	}
 	return _obj
 }

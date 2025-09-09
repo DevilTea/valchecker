@@ -1,7 +1,7 @@
-import type { IsReturnPromise } from '../shared'
-import type { DefineSchemaTypes, SchemaMessage, ValidationResult } from './base'
-import { createExecutionChain, returnTrue } from '../shared'
-import { AbstractBaseSchema, implementSchemaClass, isSuccessResult } from './base'
+import type { DefineSchemaTypes, SchemaMessage, ValidationResult } from '../../core'
+import type { IsReturnPromise } from '../../shared'
+import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { createExecutionChain, returnTrue } from '../../shared'
 
 type TransformFn<Input = any> = (value: Input) => any
 
@@ -16,7 +16,7 @@ type PipeStepTransformSchemaTypes<Transform extends TransformFn> = DefineSchemaT
 
 type PipeStepTransformSchemaMessage<Fn extends TransformFn> = SchemaMessage<PipeStepTransformSchemaTypes<Fn>>
 
-class PipeStepTransformSchema<Fn extends TransformFn> extends AbstractBaseSchema<PipeStepTransformSchemaTypes<Fn>> {}
+class PipeStepTransformSchema<Fn extends TransformFn> extends AbstractSchema<PipeStepTransformSchemaTypes<Fn>> {}
 
 implementSchemaClass(
 	PipeStepTransformSchema,

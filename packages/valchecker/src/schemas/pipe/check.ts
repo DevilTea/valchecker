@@ -1,7 +1,7 @@
-import type { IsReturnPromise } from '../shared'
-import type { DefineSchemaTypes, SchemaMessage, ValidationIssue, ValidationResult } from './base'
-import { createExecutionChain, createObject, returnTrue } from '../shared'
-import { AbstractBaseSchema, implementSchemaClass, isSuccessResult } from './base'
+import type { DefineSchemaTypes, SchemaMessage, ValidationIssue, ValidationResult } from '../../core'
+import type { IsReturnPromise } from '../../shared'
+import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { createExecutionChain, createObject, returnTrue } from '../../shared'
 
 type True<T> = true & { readonly '~output': T }
 
@@ -28,7 +28,7 @@ type PipeStepCheckSchemaTypes<Check extends CheckFn> = DefineSchemaTypes<{
 
 type PipeStepCheckSchemaMessage<Fn extends CheckFn> = SchemaMessage<PipeStepCheckSchemaTypes<Fn>>
 
-class PipeStepCheckSchema<Fn extends CheckFn> extends AbstractBaseSchema<PipeStepCheckSchemaTypes<Fn>> {}
+class PipeStepCheckSchema<Fn extends CheckFn> extends AbstractSchema<PipeStepCheckSchemaTypes<Fn>> {}
 
 implementSchemaClass(
 	PipeStepCheckSchema,
