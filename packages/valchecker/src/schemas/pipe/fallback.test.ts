@@ -6,7 +6,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 		describe('case 1: returns original success if lastResult is success', () => {
 			it('should return the original success result', () => {
 				const schema = new PipeStepFallbackSchema({
-					meta: { fallback: () => 'fallback' },
+					meta: { run: () => 'fallback' },
 				})
 				const lastResult = { value: 'ok' }
 				const result = schema.validate(lastResult as any)
@@ -17,7 +17,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 		describe('case 2: returns success with sync fallback if lastResult is failure', () => {
 			it('should return success with fallback value', () => {
 				const schema = new PipeStepFallbackSchema({
-					meta: { fallback: () => 'fallback' },
+					meta: { run: () => 'fallback' },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
 				const result = schema.validate(lastResult as any)
@@ -28,7 +28,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 		describe('case 3: returns success with async fallback if lastResult is failure', () => {
 			it('should return success with async fallback value', async () => {
 				const schema = new PipeStepFallbackSchema({
-					meta: { fallback: async () => 'async' },
+					meta: { run: async () => 'async' },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
 				const result = await schema.validate(lastResult as any)
@@ -41,7 +41,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 		describe('case 1: returns failure if sync fallback throws', () => {
 			it('should return failure with FALLBACK_FAILED issue', () => {
 				const schema = new PipeStepFallbackSchema({
-					meta: { fallback: () => { throw new Error('fail') } },
+					meta: { run: () => { throw new Error('fail') } },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
 				const result = schema.validate(lastResult as any)
@@ -59,7 +59,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 		describe('case 2: returns failure if async fallback rejects', () => {
 			it('should return failure with FALLBACK_FAILED issue', async () => {
 				const schema = new PipeStepFallbackSchema({
-					meta: { fallback: async () => { throw new Error('fail') } },
+					meta: { run: async () => { throw new Error('fail') } },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
 				const result = await schema.validate(lastResult as any)

@@ -6,9 +6,9 @@ Source File: `./check.ts`
 - Provides a check schema system for running validation checks on values within a pipeline. Check functions can return boolean, string, or use utility functions to add custom issues or narrow types.
 
 ## Exported Items (Functions, Classes, Constants, TS Types, etc.)
-- `CheckFn`
+- `RunCheck`
   - Description: Type for check functions that validate values and can return various result types
-  - Input: Input type, CheckFnUtils
+  - Input: Input type, RunCheckUtils
   - Output: void | boolean | string | True<any> | Promise of any of these
 - `PipeStepCheckSchemaMessage`
   - Description: Type for schema message configuration for check schemas

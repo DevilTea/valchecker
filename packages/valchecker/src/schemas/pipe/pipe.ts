@@ -1,8 +1,8 @@
-import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValidationResult, ValSchema } from '../../core'
-import type { AnyFn, ExecutionChain } from '../../shared'
-import type { CheckFn, PipeStepCheckSchemaMessage } from './check'
-import type { FallbackFn, PipeStepFallbackSchemaMessage } from './fallback'
-import type { PipeStepTransformSchemaMessage, TransformFn } from './transform'
+import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValidationFailureResult, ValidationResult, ValSchema } from '../../core'
+import type { Equal, ExecutionChain, IsPromise, MaybePromise } from '../../shared'
+import type { PipeStepCheckSchemaMessage, RunCheck, RunCheckResult, RunCheckUtils, True } from './check'
+import type { PipeStepFallbackSchemaMessage } from './fallback'
+import type { PipeStepTransformSchemaMessage, RunTransform } from './transform'
 import { AbstractSchema, implementSchemaClass } from '../../core'
 import { createExecutionChain } from '../../shared'
 import { PipeStepCheckSchema } from './check'
@@ -12,58 +12,86 @@ import { PipeStepTransformSchema } from './transform'
 type PipeStepValSchema = ValSchema<ValidationResult<any>, any>
 type PipeSteps = [ValSchema, ...PipeStepValSchema[]]
 
-type PipeSchemaTypes<Steps extends PipeSteps> = DefineSchemaTypes<{
-	Async: InferPipeAsync<Steps>
-	Transformed: InferPipeTransformed<Steps>
+type NextAsync<NewValue extends boolean, LastValue extends boolean> = Equal<NewValue, false> extends true ? LastValue : true
+
+type PipeSchemaTypes<Async extends boolean, Transformed extends boolean, Input, Output> = DefineSchemaTypes<{
+	Async: Async
+	Transformed: Transformed
 	Meta: {
-		steps: Steps
+		steps: PipeSteps
 	}
-	Input: InferPipeInput<Steps>
-	Output: InferPipeOutput<Steps>
+	Input: Input
+	Output: Output
 }>
+class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Output> extends AbstractSchema<PipeSchemaTypes<Async, Transformed, Input, Output>> {
+	private '~step'(step: PipeStepValSchema): PipeSchema<any, any, any, any> {
+		return new PipeSchema({
+			meta: {
+				steps: [...this.meta.steps, step],
+			},
+		})
+	}
 
-type InferPipeInput<Steps extends PipeSteps> = Steps extends [infer First extends ValSchema, ...any[]]
-	? InferInput<First>
-	: unknown
-
-type InferPipeOutput<Steps extends PipeSteps> = Steps extends [...any[], infer Last extends ValSchema]
-	? InferOutput<Last>
-	: unknown
-
-type InferPipeAsync<Steps extends PipeSteps> = InferAsync<Steps[number]> extends false ? false : true
-
-type InferPipeTransformed<Steps extends PipeSteps> = InferTransformed<Steps[number]> extends false ? false : true
-
-class PipeSchema<Steps extends PipeSteps> extends AbstractSchema<PipeSchemaTypes<Steps>> {
+	/**
+	 * Add a check step. (type guard)
+	 */
 	check<
-		Check extends CheckFn<InferPipeOutput<Steps>>,
+		CheckOutput extends Output,
 	>(
-		check: Check,
-		message?: PipeStepCheckSchemaMessage<Check>,
-	): PipeSchema<[...Steps, PipeStepCheckSchema<Check>]> {
-		this.meta.steps.push(new PipeStepCheckSchema({ meta: { check }, message }) satisfies PipeStepValSchema)
-		return this as any
+		rule: (value: NoInfer<Output>, utils: RunCheckUtils<NoInfer<Output>>) => value is CheckOutput,
+		message?: PipeStepCheckSchemaMessage<Output, True<CheckOutput>>,
+	): PipeSchema<Async, Transformed, Input, CheckOutput>
+	/**
+	 * Add a check step.
+	 */
+	check<
+		Result extends RunCheckResult,
+	>(
+		rule: RunCheck<Output, Result>,
+		message?: PipeStepCheckSchemaMessage<Output, Result>,
+	): PipeSchema<NextAsync<Async, IsPromise<Result>>, Transformed, Input, Awaited<Result> extends (True<infer T> | false) ? T : Output>
+	check(
+		rule: RunCheck,
+		message?: PipeStepCheckSchemaMessage<any, any>,
+	): PipeSchema<any, any, any, any> {
+		return this['~step'](new PipeStepCheckSchema({
+			meta: { run: rule },
+			message,
+		}))
 	}
 
-	transform<Transform extends TransformFn<InferPipeOutput<Steps>>>(
-		transform: Transform,
-		message?: PipeStepTransformSchemaMessage<Transform>,
-	): PipeSchema<[...Steps, PipeStepTransformSchema<Transform>]> {
-		this.meta.steps.push(new PipeStepTransformSchema({ meta: { transform }, message }) satisfies PipeStepValSchema)
-		return this as any
+	/**
+	 * Add a transformation step.
+	 */
+	transform<
+		Result extends MaybePromise<any>,
+	>(
+		rule: RunTransform<Output, Result>,
+		message?: PipeStepTransformSchemaMessage<Output, Result>,
+	): PipeSchema<NextAsync<Async, IsPromise<Result>>, true, Input, Awaited<Result>>
+	transform(
+		rule: RunTransform,
+		message?: PipeStepTransformSchemaMessage<any, any>,
+	): PipeSchema<any, any, any, any> {
+		return this['~step'](new PipeStepTransformSchema({
+			meta: { run: rule },
+			message,
+		}))
 	}
 
+	/**
+	 * Add a fallback step.
+	 */
 	fallback<
-		Output extends InferPipeOutput<Steps>,
-		Fallback extends (Output extends AnyFn ? FallbackFn<Output> : (Output | Promise<Output> | FallbackFn<Output>)),
-		_Fallback extends FallbackFn<Output> = () => (Fallback extends AnyFn ? ReturnType<Fallback> : Fallback),
+		Result extends MaybePromise<Output>,
 	>(
-		fallback: Fallback,
-		message?: PipeStepFallbackSchemaMessage<_Fallback>,
-	): PipeSchema<[...Steps, PipeStepFallbackSchema<_Fallback>]> {
-		const _fallback = (typeof fallback === 'function' ? fallback : () => fallback) as any as _Fallback
-		this.meta.steps.push(new PipeStepFallbackSchema({ meta: { fallback: _fallback }, message }) satisfies PipeStepValSchema)
-		return this as any
+		rule: (failure: ValidationFailureResult) => Result,
+		message?: PipeStepFallbackSchemaMessage<Output, IsPromise<Result>>,
+	): PipeSchema<NextAsync<Async, IsPromise<Result>>, true, Input, Awaited<Result>> {
+		return this['~step'](new PipeStepFallbackSchema({
+			meta: { run: rule },
+			message,
+		}))
 	}
 }
 
@@ -82,7 +110,7 @@ implementSchemaClass(
 	},
 )
 
-function pipe<Source extends ValSchema>(source: Source): PipeSchema<[Source]> {
+function pipe<Source extends ValSchema>(source: Source): PipeSchema<InferAsync<Source>, InferTransformed<Source>, InferInput<Source>, InferOutput<Source>> {
 	return new PipeSchema({ meta: { steps: [source] } })
 }
 

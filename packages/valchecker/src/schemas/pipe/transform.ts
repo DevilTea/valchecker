@@ -1,22 +1,22 @@
 import type { DefineSchemaTypes, SchemaMessage, ValidationResult } from '../../core'
-import type { IsReturnPromise } from '../../shared'
+import type { IsPromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain, returnTrue } from '../../shared'
 
-type TransformFn<Input = any> = (value: Input) => any
+type RunTransform<Input = any, Result = any> = (value: Input) => Result
 
-type PipeStepTransformSchemaTypes<Transform extends TransformFn> = DefineSchemaTypes<{
-	Async: IsReturnPromise<Transform> extends false ? false : true
+type PipeStepTransformSchemaTypes<Input, Result> = DefineSchemaTypes<{
+	Async: IsPromise<Result>
 	Transformed: true
-	Meta: { transform: Transform }
-	Input: ValidationResult<Parameters<Transform>[0]>
-	Output: Awaited<ReturnType<Transform>>
+	Meta: { run: RunTransform<Input, Result> }
+	Input: ValidationResult<Input>
+	Output: Awaited<Result>
 	IssueCode: 'TRANSFORM_FAILED'
 }>
 
-type PipeStepTransformSchemaMessage<Fn extends TransformFn> = SchemaMessage<PipeStepTransformSchemaTypes<Fn>>
+type PipeStepTransformSchemaMessage<Input, Result> = SchemaMessage<PipeStepTransformSchemaTypes<Input, Result>>
 
-class PipeStepTransformSchema<Fn extends TransformFn> extends AbstractSchema<PipeStepTransformSchemaTypes<Fn>> {}
+class PipeStepTransformSchema<Input, Result> extends AbstractSchema<PipeStepTransformSchemaTypes<Input, Result>> {}
 
 implementSchemaClass(
 	PipeStepTransformSchema,
@@ -27,7 +27,7 @@ implementSchemaClass(
 				return createExecutionChain(lastResult)
 
 			return createExecutionChain()
-				.then(() => meta.transform(lastResult.value))
+				.then(() => meta.run(lastResult.value))
 				.then<ValidationResult<any>, ValidationResult<any>>(
 					transformed => success(transformed),
 					error => failure(issue('TRANSFORM_FAILED', { error })),
@@ -36,11 +36,18 @@ implementSchemaClass(
 	},
 )
 
+function defineRunTransform<Input>(): ({ implement: <Run extends RunTransform<Input>>(run: Run) => Run }) {
+	return {
+		implement: run => run,
+	}
+}
+
 export type {
 	PipeStepTransformSchemaMessage,
-	TransformFn,
+	RunTransform,
 }
 
 export {
+	defineRunTransform,
 	PipeStepTransformSchema,
 }

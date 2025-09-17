@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AbstractSchema, implementSchemaClass } from '../../core'
-import { PipeSchema } from './pipe'
+import { pipe, PipeSchema } from './pipe'
 
 describe('tests of `PipeSchema.validate`', () => {
 	describe('happy path cases', () => {
@@ -251,7 +251,7 @@ describe('tests of `PipeSchema.fallback`', () => {
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new BaseSchema()] } })
-				const result = pipeline.fallback('fallback value')
+				const result = pipeline.fallback(() => 'fallback value')
 				expect(result.meta.steps).toHaveLength(2)
 			})
 		})
@@ -265,7 +265,7 @@ describe('tests of `PipeSchema.fallback`', () => {
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new FailureSchema()] } })
-					.fallback('fallback value')
+					.fallback(() => 'fallback value')
 
 				const result = pipeline.validate('test')
 				expect(result).toEqual({ value: 'fallback value' })
@@ -281,10 +281,28 @@ describe('tests of `PipeSchema.fallback`', () => {
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new SuccessSchema()] } })
-					.fallback('fallback value')
+					.fallback(() => 'fallback value')
 
 				const result = pipeline.validate('test')
 				expect(result).toEqual({ value: 'test' })
+			})
+		})
+	})
+})
+
+describe('tests of `pipe`', () => {
+	describe('happy path cases', () => {
+		describe('case 1: creates a PipeSchema with single step', () => {
+			it('should create PipeSchema instance', () => {
+				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
+
+				implementSchemaClass(TestSchema, {
+					validate: value => ({ value }),
+				})
+
+				const pipeline = pipe(new TestSchema())
+				expect(pipeline).toBeInstanceOf(PipeSchema)
+				expect(pipeline.meta.steps).toHaveLength(1)
 			})
 		})
 	})

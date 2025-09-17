@@ -1,34 +1,30 @@
 import type { DefineSchemaTypes, SchemaMessage, ValidationIssue, ValidationResult } from '../../core'
-import type { IsReturnPromise } from '../../shared'
+import type { IsPromise, MaybePromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain, createObject, returnTrue } from '../../shared'
 
 type True<T> = true & { readonly '~output': T }
 
-interface CheckFnUtils<Input> {
+interface RunCheckUtils<Input> {
 	readonly narrow: <T extends Input>() => True<T>
 	readonly addIssue: (issue: ValidationIssue) => void
 }
 
-type CheckFn<Input = any> = (value: Input, utils: CheckFnUtils<Input>) => void | boolean | string | True<any> | Promise<void> | Promise<boolean> | Promise<string> | Promise<True<any>>
+type RunCheckResult = MaybePromise<void | boolean | string | True<any>>
 
-type InferPipeStepCheckSchemaOutput<Fn extends CheckFn, Input = Parameters<Fn>[0]> = Fn extends ((value: any) => value is infer Output)
-	? Output
-	: Exclude<Awaited<ReturnType<Fn>>, false | string> extends True<infer Output extends Input>
-		? Output
-		: Input
+type RunCheck<Input = any, Result extends RunCheckResult = RunCheckResult> = (value: Input, utils: RunCheckUtils<Input>) => Result
 
-type PipeStepCheckSchemaTypes<Check extends CheckFn> = DefineSchemaTypes<{
-	Async: IsReturnPromise<Check> extends false ? false : true
-	Meta: { check: Check }
-	Input: ValidationResult<Parameters<Check>[0]>
-	Output: InferPipeStepCheckSchemaOutput<Check>
+type PipeStepCheckSchemaTypes<Input, Result extends RunCheckResult> = DefineSchemaTypes<{
+	Async: IsPromise<Result>
+	Meta: { run: RunCheck<Input, Result> }
+	Input: ValidationResult<Input>
+	Output: Result extends MaybePromise<True<infer T>> ? T : Input
 	IssueCode: 'CHECK_FAILED'
 }>
 
-type PipeStepCheckSchemaMessage<Fn extends CheckFn> = SchemaMessage<PipeStepCheckSchemaTypes<Fn>>
+type PipeStepCheckSchemaMessage<Input, Result extends RunCheckResult> = SchemaMessage<PipeStepCheckSchemaTypes<Input, Result>>
 
-class PipeStepCheckSchema<Fn extends CheckFn> extends AbstractSchema<PipeStepCheckSchemaTypes<Fn>> {}
+class PipeStepCheckSchema<Input, Result extends RunCheckResult> extends AbstractSchema<PipeStepCheckSchemaTypes<Input, Result>> {}
 
 implementSchemaClass(
 	PipeStepCheckSchema,
@@ -42,9 +38,9 @@ implementSchemaClass(
 			const utils = createObject({
 				narrow: returnTrue,
 				addIssue: (issue: ValidationIssue) => issues.push(issue),
-			} as any as CheckFnUtils<any>)
+			} as any as RunCheckUtils<any>)
 			return createExecutionChain()
-				.then(() => meta.check(lastResult.value, utils))
+				.then(() => meta.run(lastResult.value, utils))
 				.then<ValidationResult<any>, ValidationResult<any>>(
 					(result) => {
 						if (typeof result === 'boolean') {
@@ -61,11 +57,21 @@ implementSchemaClass(
 	},
 )
 
+function defineRunCheck<Input>(): ({ implement: <Run extends RunCheck<Input>>(run: Run) => Run }) {
+	return {
+		implement: run => run,
+	}
+}
+
 export type {
-	CheckFn,
 	PipeStepCheckSchemaMessage,
+	RunCheck,
+	RunCheckResult,
+	RunCheckUtils,
+	True,
 }
 
 export {
+	defineRunCheck,
 	PipeStepCheckSchema,
 }

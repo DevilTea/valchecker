@@ -1,4 +1,4 @@
-import type { AnyFn, Equal, IsAllPropsOptional, IsReturnPromise, MaybePromise, Optional, Simplify } from './shared'
+import type { AnyFn, Equal, IsAllPropsOptional, MaybePromise, Optional, Simplify } from './shared'
 import { describe, expect, it } from 'vitest'
 import {
 
@@ -101,25 +101,6 @@ describe('tests of `MaybePromise<T>`', () => {
 				const promise: TestType = Promise.resolve('test')
 				expect(value).toBe('test')
 				expect(promise).toBeInstanceOf(Promise)
-			})
-		})
-	})
-})
-
-describe('tests of `IsReturnPromise<Fn>`', () => {
-	describe('happy path cases', () => {
-		describe('case 1', () => {
-			it('should return true for promise-returning function', () => {
-				type TestType = IsReturnPromise<() => Promise<string>>
-				const result: TestType = true
-				expect(result).toBe(true)
-			})
-		})
-		describe('case 2', () => {
-			it('should return false for non-promise-returning function', () => {
-				type TestType = IsReturnPromise<() => string>
-				const result: TestType = false
-				expect(result).toBe(false)
 			})
 		})
 	})

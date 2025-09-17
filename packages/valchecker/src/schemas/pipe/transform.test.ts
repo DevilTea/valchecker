@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PipeStepTransformSchema } from './transform'
+import { defineRunTransform, PipeStepTransformSchema } from './transform'
 
 describe('tests of `PipeStepTransformSchema.validate`', () => {
 	describe('happy path cases', () => {
@@ -7,7 +7,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 			it('should return transformed value', () => {
 				const transformStep = new PipeStepTransformSchema({
 					meta: {
-						transform: (value: string) => `${value} transformed`,
+						run: (value: string) => `${value} transformed`,
 					},
 				})
 
@@ -20,7 +20,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 			it('should return promise resolving to transformed value', async () => {
 				const transformStep = new PipeStepTransformSchema({
 					meta: {
-						transform: async (value: string) => `${value} async transformed`,
+						run: async (value: string) => `${value} async transformed`,
 					},
 				})
 
@@ -33,7 +33,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 			it('should return original failure unchanged', () => {
 				const transformStep = new PipeStepTransformSchema({
 					meta: {
-						transform: (value: string) => `${value} transformed`,
+						run: (value: string) => `${value} transformed`,
 					},
 				})
 
@@ -56,7 +56,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 			it('should return TRANSFORM_FAILED error', () => {
 				const transformStep = new PipeStepTransformSchema({
 					meta: {
-						transform: (_value: string) => {
+						run: (_value: string) => {
 							throw new Error('Transform failed')
 						},
 					},
@@ -78,7 +78,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 			it('should return TRANSFORM_FAILED error', async () => {
 				const transformStep = new PipeStepTransformSchema({
 					meta: {
-						transform: async (_value: string) => {
+						run: async (_value: string) => {
 							throw new Error('Async transform failed')
 						},
 					},
@@ -104,7 +104,7 @@ describe('tests of `PipeStepTransformSchema` properties', () => {
 			it('should be true', () => {
 				const transformStep = new PipeStepTransformSchema({
 					meta: {
-						transform: (value: string) => value,
+						run: (value: string) => value,
 					},
 				})
 
@@ -117,11 +117,29 @@ describe('tests of `PipeStepTransformSchema` properties', () => {
 				const transformFn = (value: string) => value.toUpperCase()
 				const transformStep = new PipeStepTransformSchema({
 					meta: {
-						transform: transformFn,
+						run: transformFn,
 					},
 				})
 
-				expect(transformStep.meta.transform).toBe(transformFn)
+				expect(transformStep.meta.run).toBe(transformFn)
+			})
+		})
+	})
+})
+
+describe('tests of `defineRunTransform`', () => {
+	describe('happy path cases', () => {
+		describe('case 1: returns an object with implement method', () => {
+			it('should return object with implement function', () => {
+				const result = defineRunTransform<string>()
+				expect(typeof result.implement).toBe('function')
+			})
+		})
+		describe('case 2: implement method returns the run function', () => {
+			it('should return the provided run function', () => {
+				const runFn = (value: string) => value.toUpperCase()
+				const result = defineRunTransform<string>()
+				expect(result.implement(runFn)).toBe(runFn)
 			})
 		})
 	})

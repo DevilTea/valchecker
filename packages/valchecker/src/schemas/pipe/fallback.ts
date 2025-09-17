@@ -1,22 +1,22 @@
-import type { DefineSchemaTypes, SchemaMessage, ValidationResult } from '../../core'
-import type { IsReturnPromise } from '../../shared'
+import type { DefineSchemaTypes, SchemaMessage, ValidationFailureResult, ValidationResult } from '../../core'
+import type { MaybePromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain, returnTrue } from '../../shared'
 
-type FallbackFn<T = any> = () => T | Promise<T>
+type FallbackFn<T = any> = (failure: ValidationFailureResult) => MaybePromise<T>
 
-type PipeStepFallbackSchemaTypes<Fallback extends FallbackFn> = DefineSchemaTypes<{
-	Async: IsReturnPromise<Fallback> extends false ? false : true
+type PipeStepFallbackSchemaTypes<Output, Async extends boolean> = DefineSchemaTypes<{
+	Async: Async
 	Transformed: true
-	Meta: { fallback: Fallback }
-	Input: ValidationResult<Awaited<ReturnType<Fallback>>>
-	Output: Awaited<ReturnType<Fallback>>
+	Meta: { run: FallbackFn<Output> }
+	Input: ValidationResult<Output>
+	Output: Output
 	IssueCode: 'FALLBACK_FAILED'
 }>
 
-type PipeStepFallbackSchemaMessage<Fn extends FallbackFn> = SchemaMessage<PipeStepFallbackSchemaTypes<Fn>>
+type PipeStepFallbackSchemaMessage<Output, Async extends boolean> = SchemaMessage<PipeStepFallbackSchemaTypes<Output, Async>>
 
-class PipeStepFallbackSchema<Fn extends FallbackFn> extends AbstractSchema<PipeStepFallbackSchemaTypes<Fn>> {}
+class PipeStepFallbackSchema<Output, Async extends boolean> extends AbstractSchema<PipeStepFallbackSchemaTypes<Output, Async>> {}
 
 implementSchemaClass(
 	PipeStepFallbackSchema,
@@ -27,7 +27,7 @@ implementSchemaClass(
 				return createExecutionChain(lastResult)
 
 			return createExecutionChain()
-				.then(() => meta.fallback())
+				.then(() => meta.run(lastResult))
 				.then<ValidationResult<any>, ValidationResult<any>>(
 					fallbackValue => success(fallbackValue),
 					error => failure(issue('FALLBACK_FAILED', { error })),

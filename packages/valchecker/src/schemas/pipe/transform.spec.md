@@ -20,12 +20,12 @@ Creates a new transform schema instance.
 
 ### Types
 
-#### `TransformFn<Input = any>`
+#### `RunTransform<Input = any>`
 
 A function that takes an input value and returns a transformed value.
 
 ```typescript
-type TransformFn<Input = any> = (value: Input) => any
+type RunTransform<Input = any> = (value: Input) => any
 ```
 
 #### `PipeStepTransformSchemaMessage<Fn>`

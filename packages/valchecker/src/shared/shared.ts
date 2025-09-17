@@ -13,11 +13,13 @@ export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T ext
 
 export type MaybePromise<T> = T | Promise<T>
 
-export type IsReturnPromise<Fn extends (...args: any[]) => any> = ReturnType<Fn> extends Promise<any>
-	? true
-	: Promise<any> extends ReturnType<Fn>
-		? boolean
-		: false
+export type IsPromise<T> = T extends Promise<any> ? true : Promise<any> extends T ? boolean : false
+
+export type ValueHasProperty<K extends PropertyKey, V = unknown> = Record<K, V>
+
+export type ValueHasLength = ValueHasProperty<'length', number>
+
+export type ValueHasMethod<MethodName extends PropertyKey, Return = any> = ValueHasProperty<MethodName, (...args: any[]) => Return>
 
 // Utils
 export const NullProtoObj = (() => {
