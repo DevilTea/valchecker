@@ -206,33 +206,33 @@ describe('tests of `ExecutionChain<T>`', () => {
 		describe('case 1', () => {
 			it('should construct with sync value', () => {
 				const chain = new ExecutionChain('test')
-				expect(chain.value).toBe('test')
+				expect(chain.output).toBe('test')
 			})
 		})
 		describe('case 2', () => {
 			it('should construct with promise value', async () => {
 				const chain = new ExecutionChain(Promise.resolve('test'))
-				expect(await chain.value).toBe('test')
+				expect(await chain.output).toBe('test')
 			})
 		})
 		describe('case 3', () => {
 			it('should construct with sync error', () => {
 				const chain = new ExecutionChain(undefined, new Error('test'))
-				expect(() => chain.value).toThrow('test')
+				expect(() => chain.output).toThrow('test')
 			})
 		})
 		describe('case 4', () => {
 			it('should construct with another ExecutionChain', () => {
 				const original = new ExecutionChain('test')
 				const chain = new ExecutionChain(original)
-				expect(chain.value).toBe('test')
+				expect(chain.output).toBe('test')
 			})
 		})
 		describe('case 5', () => {
 			it('should chain with onfulfilled for sync value', () => {
 				const chain = new ExecutionChain('test')
 				const result = chain.then(v => v.toUpperCase())
-				expect(result.value).toBe('TEST')
+				expect(result.output).toBe('TEST')
 			})
 		})
 		describe('case 6', () => {
@@ -274,32 +274,32 @@ describe('tests of `ExecutionChain<T>`', () => {
 			it('should chain with onrejected for sync error', () => {
 				const chain = new ExecutionChain(undefined, new Error('test'))
 				const result = chain.then(null, _e => 'handled')
-				expect(result.value).toBe('handled')
+				expect(result.output).toBe('handled')
 			})
 		})
 		describe('case 8', () => {
 			it('should chain with promise value', async () => {
 				const chain = new ExecutionChain(Promise.resolve('test'))
 				const result = chain.then(v => v.toUpperCase())
-				expect(await result.value).toBe('TEST')
+				expect(await result.output).toBe('TEST')
 			})
 		})
 		describe('case 9', () => {
 			it('should get value for sync value', () => {
 				const chain = new ExecutionChain('test')
-				expect(chain.value).toBe('test')
+				expect(chain.output).toBe('test')
 			})
 		})
 		describe('case 10', () => {
 			it('should get value for promise value', async () => {
 				const chain = new ExecutionChain(Promise.resolve('test'))
-				expect(await chain.value).toBe('test')
+				expect(await chain.output).toBe('test')
 			})
 		})
 		describe('case 11', () => {
 			it('should throw error in value getter for sync error', () => {
 				const chain = new ExecutionChain(undefined, new Error('test'))
-				expect(() => chain.value).toThrow('test')
+				expect(() => chain.output).toThrow('test')
 			})
 		})
 	})
@@ -317,7 +317,7 @@ describe('tests of `ExecutionChain<T>`', () => {
 				const result = chain.then(() => {
 					throw new Error('callback error')
 				})
-				expect(() => result.value).toThrow('callback error')
+				expect(() => result.output).toThrow('callback error')
 			})
 		})
 		describe('case 3', () => {
@@ -326,7 +326,7 @@ describe('tests of `ExecutionChain<T>`', () => {
 				const result = chain.then(null, () => {
 					throw new Error('callback error')
 				})
-				expect(() => result.value).toThrow('callback error')
+				expect(() => result.output).toThrow('callback error')
 			})
 		})
 	})
@@ -346,13 +346,13 @@ describe('tests of `createExecutionChain`', () => {
 		describe('case 1', () => {
 			it('should create chain with no arguments', () => {
 				const chain = createExecutionChain()
-				expect(chain.value).toBeUndefined()
+				expect(chain.output).toBeUndefined()
 			})
 		})
 		describe('case 2', () => {
 			it('should create chain with value', () => {
 				const chain = createExecutionChain('test')
-				expect(chain.value).toBe('test')
+				expect(chain.output).toBe('test')
 			})
 		})
 	})

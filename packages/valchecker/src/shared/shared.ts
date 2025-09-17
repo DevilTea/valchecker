@@ -120,7 +120,7 @@ export class ExecutionChain<T> implements PromiseLike<T> {
 		}
 	}
 
-	get value(): MaybePromise<T> {
+	get output(): MaybePromise<T> {
 		// 1. Async value
 		if (this.isPromiseLike(this._data[0])) {
 			return Promise.resolve(this._data[0])

@@ -104,8 +104,8 @@ const standard = createObject<any>({
 	version: 1,
 	vendor: 'valchecker',
 	/* v8 ignore next 3 */
-	validate(this: any, value: unknown) {
-		return this.execute(value)
+	validate(this: ValSchema, value: unknown) {
+		return this.execute(value).output
 	},
 })
 
@@ -234,7 +234,7 @@ function isSuccessResult<Output = any>(result: ExecutionResult<Output>): result 
 }
 
 function execute<Schema extends ValSchema>(schema: Schema, value: any): InferExecuteReturn<Schema> {
-	return schema.execute(value).value as InferExecuteReturn<Schema>
+	return schema.execute(value).output as InferExecuteReturn<Schema>
 }
 
 function isValid<Schema extends ValSchema>(schema: Schema, value: any): InferIsValidReturn<Schema> {
