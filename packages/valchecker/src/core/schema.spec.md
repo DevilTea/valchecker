@@ -41,7 +41,7 @@ Source File: `./schema.ts`
 - `InferValidateReturn`
   - Description: Type helper to infer the return type of validate method
   - Input: Schema type
-  - Output: ValidationResult or Promise<ValidationResult>
+  - Output: ExecutionResult or Promise<ExecutionResult>
 - `SchemaMessage`
   - Description: Type for schema validation messages
   - Input: Schema types
@@ -54,19 +54,19 @@ Source File: `./schema.ts`
   - Description: Type for schemas that don't transform their input
   - Input: Input and Output types
   - Output: Schema type with transformed: false
-- `ValidationFailureResult`
+- `ExecutionFailureResult`
   - Description: Type for validation failure results containing issues array
   - Input: N/A
   - Output: Object with issues array
-- `ValidationIssue`
+- `ExecutionIssue`
   - Description: Type for individual validation issues with code, message, path, and error
   - Input: N/A
   - Output: Validation issue object type
-- `ValidationResult`
+- `ExecutionResult`
   - Description: Union type for validation results (success or failure)
   - Input: Output type
   - Output: Success result or failure result
-- `ValidationSuccessResult`
+- `ExecutionSuccessResult`
   - Description: Type for validation success results containing value
   - Input: Output type
   - Output: Object with value property
@@ -92,7 +92,7 @@ Source File: `./schema.ts`
   - Output: New validation issue with prepended path
 
 ## Test Cases (as strictly required for 100% coverage)
-- `AbstractSchema.validate`
+- `AbstractSchema.execute`
   - Happy Path Cases
     - [ ] case 1: returns success result when validation succeeds
       - Input: `value: 'test'`, schema with successful validation

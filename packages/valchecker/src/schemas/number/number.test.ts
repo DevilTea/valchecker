@@ -28,7 +28,7 @@ describe('tests of `number`', () => {
 	describe('edge cases', () => {
 		it('case 1: Validate number values (allowNaN: false)', () => {
 			const schema = number()
-			const result = schema.validate(42)
+			const result = schema.execute(42)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(42)
@@ -37,7 +37,7 @@ describe('tests of `number`', () => {
 
 		it('case 2: Validate NaN (allowNaN: false)', () => {
 			const schema = number()
-			const result = schema.validate(Number.NaN)
+			const result = schema.execute(Number.NaN)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -47,7 +47,7 @@ describe('tests of `number`', () => {
 
 		it('case 3: Validate number values (allowNaN: true)', () => {
 			const schema = number(true)
-			const result = schema.validate(42)
+			const result = schema.execute(42)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(42)
@@ -56,7 +56,7 @@ describe('tests of `number`', () => {
 
 		it('case 4: Validate NaN (allowNaN: true)', () => {
 			const schema = number(true)
-			const result = schema.validate(Number.NaN)
+			const result = schema.execute(Number.NaN)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(Number.isNaN(result.value)).toBe(true)
@@ -65,7 +65,7 @@ describe('tests of `number`', () => {
 
 		it('case 5: Validate non-number values', () => {
 			const schema = number()
-			const result = schema.validate('string')
+			const result = schema.execute('string')
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -75,7 +75,7 @@ describe('tests of `number`', () => {
 
 		it('case 6: Validate special number values', () => {
 			const schema = number()
-			const result = schema.validate(Infinity)
+			const result = schema.execute(Infinity)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(Infinity)
@@ -84,7 +84,7 @@ describe('tests of `number`', () => {
 
 		it('case 7: Validate negative zero', () => {
 			const schema = number()
-			const result = schema.validate(-0)
+			const result = schema.execute(-0)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(-0)
@@ -98,7 +98,7 @@ describe('tests of `NumberSchema`', () => {
 	describe('happy path cases', () => {
 		it('case 1: Instantiate and validate', () => {
 			const schema = new NumberSchema({ meta: { allowNaN: false } })
-			const result = schema.validate(42)
+			const result = schema.execute(42)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(42)

@@ -23,13 +23,13 @@ Source File: `./lazy.ts`
       - Expected: Returns LazySchema instance
   - Edge Cases
     - [ ] case 1: Validate with lazy schema
-      - Input: `schema.validate('test')` where schema wraps a string schema
+      - Input: `schema.execute('test')` where schema wraps a string schema
       - Expected: Return success with the validated value
     - [ ] case 2: Validate with invalid input
-      - Input: `schema.validate(123)` where schema wraps a string schema
+      - Input: `schema.execute(123)` where schema wraps a string schema
       - Expected: Return failure with the underlying schema's error
 - `LazySchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new LazySchema({ meta: { getSchema: () => string() } }).validate('test')`
+      - Input: `new LazySchema({ meta: { getSchema: () => string() } }).execute('test')`
       - Expected: Returns success result with the value

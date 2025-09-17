@@ -23,13 +23,13 @@ Source File: `./union.ts`
       - Expected: Returns UnionSchema instance
   - Edge Cases
     - [ ] case 1: Validate value that passes first branch
-      - Input: `schema.validate('test')` where schema accepts string or number
+      - Input: `schema.execute('test')` where schema accepts string or number
       - Expected: Return success with the validated value from first matching branch
     - [ ] case 2: Validate value that passes second branch
-      - Input: `schema.validate(42)` where schema accepts string or number
+      - Input: `schema.execute(42)` where schema accepts string or number
       - Expected: Return success with the validated value from second matching branch
     - [ ] case 3: Validate value that fails all branches
-      - Input: `schema.validate(true)` where schema accepts string or number
+      - Input: `schema.execute(true)` where schema accepts string or number
       - Expected: Return failure with issues from all branches
     - [ ] case 4: Validate value that passes multiple branches
       - Input: N/A (union returns result from first successful branch)
@@ -37,5 +37,5 @@ Source File: `./union.ts`
 - `UnionSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new UnionSchema({ meta: { branches: [string(), number()] } }).validate('test')`
+      - Input: `new UnionSchema({ meta: { branches: [string(), number()] } }).execute('test')`
       - Expected: Returns success result with the value

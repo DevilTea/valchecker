@@ -12,7 +12,7 @@ Source File: `./pipe.ts`
   - Output: Pipeline that validates input through each schema in sequence
 
 ## Test Cases (as strictly required for 100% coverage)
-- `PipeSchema.validate`
+- `PipeSchema.execute`
   - Happy Path Cases
     - [ ] case 1: validates successfully through single step pipeline
       - Input: `value: 'test'`, pipeline with one successful schema

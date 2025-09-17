@@ -1,8 +1,8 @@
 import type { Simplify } from '../shared'
-import type { ValidationIssue } from './schema'
+import type { ExecutionIssue } from './schema'
 
 type UnknownErrorIssueCode = 'UNKNOWN_ERROR'
-type SchemaMessageFn<IssueCode extends string, Input> = (payload: { code: IssueCode, value: Input, path?: ValidationIssue['path'], error?: unknown }) => string
+type SchemaMessageFn<IssueCode extends string, Input> = (payload: { code: IssueCode, value: Input, path?: ExecutionIssue['path'], error?: unknown }) => string
 type SchemaMessageMap<IssueCode extends string, Input> = Simplify<
 	& Simplify<Partial<Record<UnknownErrorIssueCode, string | SchemaMessageFn<IssueCode, Input>>>>
 	& Simplify<Record<Exclude<IssueCode, UnknownErrorIssueCode>, string | SchemaMessageFn<IssueCode, Input>>>
@@ -13,7 +13,7 @@ function _resolveMessage({
 	payload,
 	message,
 }: {
-	payload: { code: string, value: any, path?: ValidationIssue['path'], error?: unknown }
+	payload: { code: string, value: any, path?: ExecutionIssue['path'], error?: unknown }
 	message?: SchemaMessage<string, any>
 }) {
 	if (message == null)
@@ -35,7 +35,7 @@ function resolveMessage({
 	defaultMessage,
 	message,
 }: {
-	payload: { code: string, value: any, path?: ValidationIssue['path'], error?: unknown }
+	payload: { code: string, value: any, path?: ExecutionIssue['path'], error?: unknown }
 	defaultMessage?: SchemaMessage<string, any>
 	message?: SchemaMessage<string, any>
 }) {

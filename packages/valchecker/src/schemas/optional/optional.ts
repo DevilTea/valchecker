@@ -16,13 +16,13 @@ class OptionalSchema<Schema extends ValSchema = ValSchema> extends AbstractSchem
 implementSchemaClass(
 	OptionalSchema,
 	{
-		isTransformed: ({ schema }) => schema.isTransformed,
-		validate: (value, { meta: { schema }, success }) => {
+		isTransformed: meta => meta.schema.isTransformed,
+		execute: (value, { meta: { schema }, success }) => {
 			if (value === void 0) {
 				return success(value)
 			}
 
-			return schema.validate(value)
+			return schema.execute(value)
 		},
 	},
 )

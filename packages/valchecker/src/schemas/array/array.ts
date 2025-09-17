@@ -1,9 +1,10 @@
-import type { DefineSchemaTypes, InferAsync, InferOutput, SchemaMessage, ValidationIssue, ValidationResult, ValSchema } from '../../core'
+import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, InferTransformed, SchemaMessage, ValSchema } from '../../core'
 import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
 import { createExecutionChain } from '../../shared'
 
 type ArraySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<T>
+	Transformed: InferTransformed<T>
 	Meta: { item: T }
 	Output: InferOutput<T>[]
 	IssueCode: 'EXPECTED_ARRAY'
@@ -20,18 +21,18 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_ARRAY: 'Expected an array.',
 		},
-		validate: (value, { meta, isTransformed, success, failure }) => {
+		execute: (value, { meta, isTransformed, success, failure }) => {
 			if (!Array.isArray(value))
 				return failure('EXPECTED_ARRAY')
 
 			const _value = isTransformed ? Array.from(value) : value
-			const issues: ValidationIssue[] = []
+			const issues: ExecutionIssue[] = []
 			const itemSchema = meta.item
 			let chain = createExecutionChain()
 			for (let i = 0; i < _value.length; i++) {
 				const item = _value[i]
 				chain = chain
-					.then(() => itemSchema.validate(item))
+					.then(() => itemSchema.execute(item))
 					.then((result) => {
 						if (isSuccessResult(result)) {
 							if (isTransformed) {
@@ -42,7 +43,7 @@ implementSchemaClass(
 						issues.push(...result.issues.map(issue => prependIssuePath(issue, [i])))
 					})
 			}
-			return chain.then<ValidationResult<any[]>>(() => issues.length === 0 ? success(_value) : failure(issues))
+			return chain.then<ExecutionResult<any[]>>(() => issues.length === 0 ? success(_value) : failure(issues))
 		},
 	},
 )

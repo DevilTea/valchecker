@@ -12,7 +12,7 @@ describe('tests of `optional`', () => {
 
 		it('case 2: Validate undefined value with optional schema', async () => {
 			const schema = optional(string())
-			const result = await schema.validate(undefined)
+			const result = await schema.execute(undefined)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(undefined)
@@ -21,7 +21,7 @@ describe('tests of `optional`', () => {
 
 		it('case 3: Validate valid value with optional schema', async () => {
 			const schema = optional(string())
-			const result = await schema.validate('test')
+			const result = await schema.execute('test')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('test')
@@ -32,7 +32,7 @@ describe('tests of `optional`', () => {
 	describe('edge cases', () => {
 		it('case 1: Validate null value with optional schema', async () => {
 			const schema = optional(string())
-			const result = await schema.validate(null)
+			const result = await schema.execute(null)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -42,7 +42,7 @@ describe('tests of `optional`', () => {
 
 		it('case 2: Validate invalid value with optional schema', async () => {
 			const schema = optional(string())
-			const result = await schema.validate(123)
+			const result = await schema.execute(123)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -62,12 +62,12 @@ describe('tests of `optional`', () => {
 
 			implementSchemaClass(SimpleTransformedSchema, {
 				isTransformed: () => true,
-				validate: (value, { success }) => success(`${value} transformed`),
+				execute: (value, { success }) => success(`${value} transformed`),
 			})
 
 			const transformedSchema = new SimpleTransformedSchema()
 			const schema = optional(transformedSchema)
-			const result = await schema.validate('input')
+			const result = await schema.execute('input')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('input transformed')
@@ -79,7 +79,7 @@ describe('tests of `optional`', () => {
 
 			implementSchemaClass(SimpleAsyncSchema, {
 				isTransformed: () => false,
-				validate: async (value, { success }) => {
+				execute: async (value, { success }) => {
 					// Simulate async operation
 					await new Promise(resolve => setTimeout(resolve, 1))
 					return success(`${value} async`)
@@ -88,7 +88,7 @@ describe('tests of `optional`', () => {
 
 			const asyncSchema = new SimpleAsyncSchema()
 			const schema = optional(asyncSchema)
-			const result = await schema.validate('input')
+			const result = await schema.execute('input')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('input async')
@@ -101,7 +101,7 @@ describe('tests of `OptionalSchema`', () => {
 	describe('happy path cases', () => {
 		it('case 1: Instantiate and validate undefined', async () => {
 			const schema = new OptionalSchema({ meta: { schema: string() } })
-			const result = await schema.validate(undefined)
+			const result = await schema.execute(undefined)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(undefined)
@@ -110,7 +110,7 @@ describe('tests of `OptionalSchema`', () => {
 
 		it('case 2: Instantiate and validate valid value', async () => {
 			const schema = new OptionalSchema({ meta: { schema: string() } })
-			const result = await schema.validate('test')
+			const result = await schema.execute('test')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('test')
@@ -124,12 +124,12 @@ describe('tests of `OptionalSchema`', () => {
 
 			implementSchemaClass(SimpleTransformedSchema, {
 				isTransformed: () => true,
-				validate: (value, { success }) => success(`${value} transformed`),
+				execute: (value, { success }) => success(`${value} transformed`),
 			})
 
 			const transformedSchema = new SimpleTransformedSchema()
 			const schema = new OptionalSchema({ meta: { schema: transformedSchema } })
-			const result = await schema.validate('input')
+			const result = await schema.execute('input')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('input transformed')

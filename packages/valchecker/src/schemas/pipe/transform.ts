@@ -1,4 +1,4 @@
-import type { DefineSchemaTypes, SchemaMessage, ValidationResult } from '../../core'
+import type { DefineSchemaTypes, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain, returnTrue } from '../../shared'
@@ -9,7 +9,7 @@ type PipeStepTransformSchemaTypes<Input, Result> = DefineSchemaTypes<{
 	Async: IsPromise<Result>
 	Transformed: true
 	Meta: { run: RunTransform<Input, Result> }
-	Input: ValidationResult<Input>
+	Input: ExecutionResult<Input>
 	Output: Awaited<Result>
 	IssueCode: 'TRANSFORM_FAILED'
 }>
@@ -22,13 +22,13 @@ implementSchemaClass(
 	PipeStepTransformSchema,
 	{
 		isTransformed: returnTrue,
-		validate: (lastResult, { meta, success, failure, issue }) => {
+		execute: (lastResult, { meta, success, failure, issue }) => {
 			if (isSuccessResult(lastResult) === false)
 				return createExecutionChain(lastResult)
 
 			return createExecutionChain()
 				.then(() => meta.run(lastResult.value))
-				.then<ValidationResult<any>, ValidationResult<any>>(
+				.then<ExecutionResult<any>, ExecutionResult<any>>(
 					transformed => success(transformed),
 					error => failure(issue('TRANSFORM_FAILED', { error })),
 				)

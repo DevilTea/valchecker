@@ -26,10 +26,10 @@ Source File: `./never.ts`
       - Expected: Returns NeverSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate any value
-      - Input: `schema.validate(anyValue)` for various types
+      - Input: `schema.execute(anyValue)` for various types
       - Expected: Always return failure with EXPECTED_NEVER issue
 - `NeverSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new NeverSchema().validate('test')`
+      - Input: `new NeverSchema().execute('test')`
       - Expected: Returns failure result with EXPECTED_NEVER issue

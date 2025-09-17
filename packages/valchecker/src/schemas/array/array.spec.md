@@ -23,22 +23,22 @@ Source File: `./array.ts`
       - Expected: Returns ArraySchema instance
   - Edge Cases
     - [ ] case 1: Validate empty array
-      - Input: `schema.validate([])` where schema expects string items
+      - Input: `schema.execute([])` where schema expects string items
       - Expected: Return success with empty array
     - [ ] case 2: Validate array with valid items
-      - Input: `schema.validate(['a', 'b'])` where schema expects string items
+      - Input: `schema.execute(['a', 'b'])` where schema expects string items
       - Expected: Return success with the validated array
     - [ ] case 3: Validate array with invalid items
-      - Input: `schema.validate(['a', 123])` where schema expects string items
+      - Input: `schema.execute(['a', 123])` where schema expects string items
       - Expected: Return failure with issues for invalid items
     - [ ] case 4: Validate non-array value
-      - Input: `schema.validate('not an array')` where schema expects string items
+      - Input: `schema.execute('not an array')` where schema expects string items
       - Expected: Return failure with EXPECTED_ARRAY error
     - [ ] case 5: Validate array with mixed valid/invalid items
-      - Input: `schema.validate(['valid', 123, 'also valid'])` where schema expects string items
+      - Input: `schema.execute(['valid', 123, 'also valid'])` where schema expects string items
       - Expected: Return failure with issue only for the invalid item at index 1
 - `ArraySchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new ArraySchema({ meta: { item: string() } }).validate(['test'])`
+      - Input: `new ArraySchema({ meta: { item: string() } }).execute(['test'])`
       - Expected: Returns success result with the validated array

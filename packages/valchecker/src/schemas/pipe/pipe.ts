@@ -1,4 +1,4 @@
-import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValidationFailureResult, ValidationResult, ValSchema } from '../../core'
+import type { DefineSchemaTypes, ExecutionFailureResult, ExecutionResult, InferAsync, InferInput, InferOutput, InferTransformed, ValSchema } from '../../core'
 import type { Equal, ExecutionChain, IsPromise, MaybePromise } from '../../shared'
 import type { PipeStepCheckSchemaMessage, RunCheck, RunCheckResult, RunCheckUtils, True } from './check'
 import type { PipeStepFallbackSchemaMessage } from './fallback'
@@ -13,7 +13,7 @@ type PipeStepValSchema = AbstractSchema<{
 	readonly async: any
 	readonly transformed: any
 	readonly meta: any
-	readonly input: ValidationResult<any>
+	readonly input: ExecutionResult<any>
 	readonly output: any
 	readonly issueCode: any
 }>
@@ -92,7 +92,7 @@ class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Outp
 	fallback<
 		Result extends MaybePromise<Output>,
 	>(
-		rule: (failure: ValidationFailureResult) => Result,
+		rule: (failure: ExecutionFailureResult) => Result,
 		message?: PipeStepFallbackSchemaMessage<Output, IsPromise<Result>>,
 	): PipeSchema<NextAsync<Async, IsPromise<Result>>, true, Input, Awaited<Result>> {
 		return this['~step'](new PipeStepFallbackSchema({
@@ -106,11 +106,11 @@ implementSchemaClass(
 	PipeSchema,
 	{
 		isTransformed: meta => meta.steps.some(step => step.isTransformed),
-		validate: (value, { meta }) => {
+		execute: (value, { meta }) => {
 			const [source, ...rest] = meta.steps
-			let chain = createExecutionChain(source.validate(value)) as ExecutionChain<ValidationResult<any>>
+			let chain = createExecutionChain(source.execute(value)) as ExecutionChain<ExecutionResult<any>>
 			for (const step of rest) {
-				chain = chain.then(result => step.validate(result))
+				chain = chain.then(result => step.execute(result))
 			}
 			return chain
 		},

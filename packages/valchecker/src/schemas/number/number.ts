@@ -17,7 +17,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_NUMBER: 'Expected number.',
 		},
-		validate: (value, { meta, success, failure }) => (
+		execute: (value, { meta, success, failure }) => (
 			(typeof value === 'number' && meta.allowNaN)
 			|| (typeof value === 'number' && !Number.isNaN(value))
 		)

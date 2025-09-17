@@ -15,7 +15,7 @@ describe('tests of `unknown`', () => {
 		describe('case 1: Validate various input types', () => {
 			it('should accept null', async () => {
 				const schema = unknown()
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(null)
@@ -23,7 +23,7 @@ describe('tests of `unknown`', () => {
 			})
 			it('should accept number', async () => {
 				const schema = unknown()
-				const result = await schema.validate(42)
+				const result = await schema.execute(42)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(42)
@@ -31,7 +31,7 @@ describe('tests of `unknown`', () => {
 			})
 			it('should accept string', async () => {
 				const schema = unknown()
-				const result = await schema.validate('string')
+				const result = await schema.execute('string')
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe('string')
@@ -40,7 +40,7 @@ describe('tests of `unknown`', () => {
 			it('should accept object', async () => {
 				const schema = unknown()
 				const obj = {}
-				const result = await schema.validate(obj)
+				const result = await schema.execute(obj)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(obj)
@@ -49,7 +49,7 @@ describe('tests of `unknown`', () => {
 			it('should accept array', async () => {
 				const schema = unknown()
 				const arr: unknown[] = []
-				const result = await schema.validate(arr)
+				const result = await schema.execute(arr)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(arr)
@@ -64,7 +64,7 @@ describe('tests of `UnknownSchema`', () => {
 		describe('case 1: Instantiate and validate', () => {
 			it('should validate successfully', async () => {
 				const schema = new UnknownSchema()
-				const result = await schema.validate('test')
+				const result = await schema.execute('test')
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe('test')

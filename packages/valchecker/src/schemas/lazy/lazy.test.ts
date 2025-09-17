@@ -14,7 +14,7 @@ describe('tests of `lazy`', () => {
 	describe('edge cases', () => {
 		it('case 1: Validate with lazy schema', () => {
 			const schema = lazy(() => string())
-			const result = schema.validate('test')
+			const result = schema.execute('test')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('test')
@@ -23,7 +23,7 @@ describe('tests of `lazy`', () => {
 
 		it('case 2: Validate with invalid input', () => {
 			const schema = lazy(() => string())
-			const result = schema.validate(123)
+			const result = schema.execute(123)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -37,7 +37,7 @@ describe('tests of `LazySchema`', () => {
 	describe('happy path cases', () => {
 		it('case 1: Instantiate and validate', () => {
 			const schema = new LazySchema({ meta: { getSchema: () => string() } })
-			const result = schema.validate('test')
+			const result = schema.execute('test')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('test')

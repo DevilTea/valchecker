@@ -16,7 +16,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_SYMBOL: 'Expected symbol.',
 		},
-		validate: (value, { success, failure }) => typeof value === 'symbol'
+		execute: (value, { success, failure }) => typeof value === 'symbol'
 			? success(value)
 			: failure('EXPECTED_SYMBOL'),
 	},

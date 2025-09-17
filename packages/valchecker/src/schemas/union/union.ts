@@ -1,4 +1,4 @@
-import type { DefineSchemaTypes, InferAsync, InferOutput, InferTransformed, ValidationIssue, ValidationResult, ValidationSuccessResult, ValSchema } from '../../core'
+import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferAsync, InferOutput, InferTransformed, ValSchema } from '../../core'
 import type { Equal } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain } from '../../shared'
@@ -36,9 +36,9 @@ implementSchemaClass(
 	UnionSchema,
 	{
 		isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
-		validate: (value, { meta, failure }) => {
-			const issues: ValidationIssue[] = []
-			let isValid: ValidationSuccessResult<any> | null = null
+		execute: (value, { meta, failure }) => {
+			const issues: ExecutionIssue[] = []
+			let isValid: ExecutionSuccessResult<any> | null = null
 			if (meta.branches.length === 0) {
 				return failure('NO_BRANCHES_PROVIDED')
 			}
@@ -50,7 +50,7 @@ implementSchemaClass(
 						return
 
 					return createExecutionChain()
-						.then(() => branch.validate(value))
+						.then(() => branch.execute(value))
 						.then((result) => {
 							if (isSuccessResult(result)) {
 								isValid = result
@@ -60,7 +60,7 @@ implementSchemaClass(
 						})
 				})
 			}
-			return chain.then<ValidationResult<any>>(() => (isValid || failure(issues)))
+			return chain.then<ExecutionResult<any>>(() => (isValid || failure(issues)))
 		},
 	},
 )

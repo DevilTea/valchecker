@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { AbstractSchema, implementSchemaClass } from '../../core'
 import { pipe, PipeSchema } from './pipe'
 
-describe('tests of `PipeSchema.validate`', () => {
+describe('tests of `PipeSchema.execute`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: validates successfully through single step pipeline', () => {
 			it('should return success', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new TestSchema()] } })
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -24,11 +24,11 @@ describe('tests of `PipeSchema.validate`', () => {
 				class Step2Schema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(Step1Schema, {
-					validate: value => ({ value: `${value} step1` }),
+					execute: value => ({ value: `${value} step1` }),
 				})
 
 				implementSchemaClass(Step2Schema, {
-					validate: value => ({ value: `${value.value} step2` }),
+					execute: value => ({ value: `${value.value} step2` }),
 				})
 
 				const pipeline = new PipeSchema({
@@ -36,7 +36,7 @@ describe('tests of `PipeSchema.validate`', () => {
 						steps: [new Step1Schema(), new Step2Schema()],
 					},
 				})
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({ value: 'test step1 step2' })
 			})
 		})
@@ -46,11 +46,11 @@ describe('tests of `PipeSchema.validate`', () => {
 				class AsyncSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(AsyncSchema, {
-					validate: value => Promise.resolve({ value: `${value} async` }),
+					execute: value => Promise.resolve({ value: `${value} async` }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new AsyncSchema()] } })
-				const result = await pipeline.validate('test')
+				const result = await pipeline.execute('test')
 				expect(result).toEqual({ value: 'test async' })
 			})
 		})
@@ -61,11 +61,11 @@ describe('tests of `PipeSchema.validate`', () => {
 				class FailureSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SuccessSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				implementSchemaClass(FailureSchema, {
-					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+					execute: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 				})
 
 				const pipeline = new PipeSchema({
@@ -73,7 +73,7 @@ describe('tests of `PipeSchema.validate`', () => {
 						steps: [new SuccessSchema(), new FailureSchema()],
 					},
 				})
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({
 					issues: [{
 						code: 'TEST_ERROR',
@@ -93,15 +93,15 @@ describe('tests of `PipeSchema.validate`', () => {
 				class SuccessSchema2 extends AbstractSchema<{ async: false, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SuccessSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				implementSchemaClass(FailureSchema, {
-					validate: (_value, { failure, issue }) => failure(issue('MIDDLE_ERROR')),
+					execute: (_value, { failure, issue }) => failure(issue('MIDDLE_ERROR')),
 				})
 
 				implementSchemaClass(SuccessSchema2, {
-					validate: (value, { success, failure }) => {
+					execute: (value, { success, failure }) => {
 						if ('value' in value) {
 							return success(value.value)
 						}
@@ -114,7 +114,7 @@ describe('tests of `PipeSchema.validate`', () => {
 						steps: [new SuccessSchema(), new FailureSchema(), new SuccessSchema2()],
 					},
 				})
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({
 					issues: [{
 						code: 'MIDDLE_ERROR',
@@ -131,11 +131,11 @@ describe('tests of `PipeSchema.validate`', () => {
 				class AsyncSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: any, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SyncSchema, {
-					validate: value => ({ value: `${value} sync` }),
+					execute: value => ({ value: `${value} sync` }),
 				})
 
 				implementSchemaClass(AsyncSchema, {
-					validate: value => Promise.resolve({ value: `${value.value} async` }),
+					execute: value => Promise.resolve({ value: `${value.value} async` }),
 				})
 
 				const pipeline = new PipeSchema({
@@ -143,7 +143,7 @@ describe('tests of `PipeSchema.validate`', () => {
 						steps: [new SyncSchema(), new AsyncSchema()],
 					},
 				})
-				const result = await pipeline.validate('test')
+				const result = await pipeline.execute('test')
 				expect(result).toEqual({ value: 'test sync async' })
 			})
 		})
@@ -157,7 +157,7 @@ describe('tests of `PipeSchema.check`', () => {
 				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new BaseSchema()] } })
@@ -171,13 +171,13 @@ describe('tests of `PipeSchema.check`', () => {
 				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new BaseSchema()] } })
 					.check(() => true)
 
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -187,13 +187,13 @@ describe('tests of `PipeSchema.check`', () => {
 				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new BaseSchema()] } })
 					.check(() => false)
 
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({
 					issues: [{
 						code: 'CHECK_FAILED',
@@ -213,7 +213,7 @@ describe('tests of `PipeSchema.transform`', () => {
 				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new BaseSchema()] } })
@@ -227,13 +227,13 @@ describe('tests of `PipeSchema.transform`', () => {
 				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new BaseSchema()] } })
 					.transform(value => `${value} transformed`)
 
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({ value: 'test transformed' })
 			})
 		})
@@ -247,7 +247,7 @@ describe('tests of `PipeSchema.fallback`', () => {
 				class BaseSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(BaseSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new BaseSchema()] } })
@@ -261,13 +261,13 @@ describe('tests of `PipeSchema.fallback`', () => {
 				class FailureSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(FailureSchema, {
-					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+					execute: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new FailureSchema()] } })
 					.fallback(() => 'fallback value')
 
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({ value: 'fallback value' })
 			})
 		})
@@ -277,13 +277,13 @@ describe('tests of `PipeSchema.fallback`', () => {
 				class SuccessSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(SuccessSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = new PipeSchema({ meta: { steps: [new SuccessSchema()] } })
 					.fallback(() => 'fallback value')
 
-				const result = pipeline.validate('test')
+				const result = pipeline.execute('test')
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -297,7 +297,7 @@ describe('tests of `pipe`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const pipeline = pipe(new TestSchema())

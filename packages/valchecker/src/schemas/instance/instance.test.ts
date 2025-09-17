@@ -26,7 +26,7 @@ describe('tests of `instance`', () => {
 			it('should accept instance of the class', async () => {
 				const schema = instance(TestClass)
 				const instance_ = new TestClass()
-				const result = await schema.validate(instance_)
+				const result = await schema.execute(instance_)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(instance_)
@@ -36,7 +36,7 @@ describe('tests of `instance`', () => {
 		describe('case 2: Validate non-instance values', () => {
 			it('should reject plain object', async () => {
 				const schema = instance(TestClass)
-				const result = await schema.validate({})
+				const result = await schema.execute({})
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -48,7 +48,7 @@ describe('tests of `instance`', () => {
 			})
 			it('should reject null', async () => {
 				const schema = instance(TestClass)
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -60,7 +60,7 @@ describe('tests of `instance`', () => {
 			})
 			it('should reject string', async () => {
 				const schema = instance(TestClass)
-				const result = await schema.validate('string')
+				const result = await schema.execute('string')
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -80,7 +80,7 @@ describe('tests of `InstanceSchema`', () => {
 			it('should validate successfully', async () => {
 				const schema = new InstanceSchema({ meta: { constructor_: TestClass } })
 				const instance_ = new TestClass()
-				const result = await schema.validate(instance_)
+				const result = await schema.execute(instance_)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(instance_)

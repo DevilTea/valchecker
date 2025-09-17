@@ -21,7 +21,7 @@ describe('tests of `boolean`', () => {
 		describe('case 1: Validate boolean values', () => {
 			it('should accept true', async () => {
 				const schema = boolean()
-				const result = await schema.validate(true)
+				const result = await schema.execute(true)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(true)
@@ -29,7 +29,7 @@ describe('tests of `boolean`', () => {
 			})
 			it('should accept false', async () => {
 				const schema = boolean()
-				const result = await schema.validate(false)
+				const result = await schema.execute(false)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(false)
@@ -39,7 +39,7 @@ describe('tests of `boolean`', () => {
 		describe('case 2: Validate non-boolean values', () => {
 			it('should reject number', async () => {
 				const schema = boolean()
-				const result = await schema.validate(1)
+				const result = await schema.execute(1)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -51,7 +51,7 @@ describe('tests of `boolean`', () => {
 			})
 			it('should reject string', async () => {
 				const schema = boolean()
-				const result = await schema.validate('string')
+				const result = await schema.execute('string')
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -63,7 +63,7 @@ describe('tests of `boolean`', () => {
 			})
 			it('should reject null', async () => {
 				const schema = boolean()
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -75,7 +75,7 @@ describe('tests of `boolean`', () => {
 			})
 			it('should reject object', async () => {
 				const schema = boolean()
-				const result = await schema.validate({})
+				const result = await schema.execute({})
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -94,7 +94,7 @@ describe('tests of `BooleanSchema`', () => {
 		describe('case 1: Instantiate and validate', () => {
 			it('should validate successfully', async () => {
 				const schema = new BooleanSchema()
-				const result = await schema.validate(true)
+				const result = await schema.execute(true)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(true)

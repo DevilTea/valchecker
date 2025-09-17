@@ -1,4 +1,4 @@
-import type { DefineSchemaTypes, SchemaMessage, ValidationIssue, ValidationResult } from '../../core'
+import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise, MaybePromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain, createObject, returnTrue } from '../../shared'
@@ -7,7 +7,7 @@ type True<T> = true & { readonly '~output': T }
 
 interface RunCheckUtils<Input> {
 	readonly narrow: <T extends Input>() => True<T>
-	readonly addIssue: (issue: ValidationIssue) => void
+	readonly addIssue: (issue: ExecutionIssue) => void
 }
 
 type RunCheckResult = MaybePromise<void | boolean | string | True<any>>
@@ -17,7 +17,7 @@ type RunCheck<Input = any, Result extends RunCheckResult = RunCheckResult> = (va
 type PipeStepCheckSchemaTypes<Input, Result extends RunCheckResult> = DefineSchemaTypes<{
 	Async: IsPromise<Result>
 	Meta: { run: RunCheck<Input, Result> }
-	Input: ValidationResult<Input>
+	Input: ExecutionResult<Input>
 	Output: Result extends MaybePromise<True<infer T>> ? T : Input
 	IssueCode: 'CHECK_FAILED'
 }>
@@ -30,18 +30,18 @@ implementSchemaClass(
 	PipeStepCheckSchema,
 	{
 		isTransformed: () => false,
-		validate: (lastResult, { meta, success, failure, issue }) => {
+		execute: (lastResult, { meta, success, failure, issue }) => {
 			if (isSuccessResult(lastResult) === false)
 				return createExecutionChain(lastResult)
 
-			const issues: ValidationIssue[] = []
+			const issues: ExecutionIssue[] = []
 			const utils = createObject({
 				narrow: returnTrue,
-				addIssue: (issue: ValidationIssue) => issues.push(issue),
+				addIssue: (issue: ExecutionIssue) => issues.push(issue),
 			} as any as RunCheckUtils<any>)
 			return createExecutionChain()
 				.then(() => meta.run(lastResult.value, utils))
-				.then<ValidationResult<any>, ValidationResult<any>>(
+				.then<ExecutionResult<any>, ExecutionResult<any>>(
 					(result) => {
 						if (typeof result === 'boolean') {
 							return result ? success(lastResult.value) : failure([...issues, issue('CHECK_FAILED')])

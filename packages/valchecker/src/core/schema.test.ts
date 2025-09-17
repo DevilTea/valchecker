@@ -1,4 +1,4 @@
-import type { ValidationIssue, ValidationResult } from './schema'
+import type { ExecutionIssue, ExecutionResult } from './schema'
 import { describe, expect, it } from 'vitest'
 import {
 	AbstractSchema,
@@ -7,18 +7,18 @@ import {
 	prependIssuePath,
 } from './schema'
 
-describe('tests of `AbstractSchema.validate`', () => {
+describe('tests of `AbstractSchema.execute`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: returns success result when validation succeeds', () => {
 			it('should return success result', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const schema = new TestSchema()
-				const result = schema.validate('test')
+				const result = schema.execute('test')
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -28,11 +28,11 @@ describe('tests of `AbstractSchema.validate`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+					execute: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 				})
 
 				const schema = new TestSchema()
-				const result = schema.validate('invalid')
+				const result = schema.execute('invalid')
 				expect(result).toEqual({
 					issues: [{
 						code: 'TEST_ERROR',
@@ -48,11 +48,11 @@ describe('tests of `AbstractSchema.validate`', () => {
 				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => Promise.resolve({ value }),
+					execute: value => Promise.resolve({ value }),
 				})
 
 				const schema = new TestSchema()
-				const result = await schema.validate('test')
+				const result = await schema.execute('test')
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -62,11 +62,11 @@ describe('tests of `AbstractSchema.validate`', () => {
 				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: (_value, { failure, issue }) => Promise.resolve(failure(issue('TEST_ERROR'))),
+					execute: (_value, { failure, issue }) => Promise.resolve(failure(issue('TEST_ERROR'))),
 				})
 
 				const schema = new TestSchema()
-				const result = await schema.validate('invalid')
+				const result = await schema.execute('invalid')
 				expect(result).toEqual({
 					issues: [{
 						code: 'TEST_ERROR',
@@ -84,11 +84,11 @@ describe('tests of `AbstractSchema.validate`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: () => { throw new Error('sync error') },
+					execute: () => { throw new Error('sync error') },
 				})
 
 				const schema = new TestSchema()
-				const result = schema.validate('test')
+				const result = schema.execute('test')
 				expect(result).toEqual({
 					issues: [{
 						code: 'UNKNOWN_ERROR',
@@ -105,11 +105,11 @@ describe('tests of `AbstractSchema.validate`', () => {
 				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: () => Promise.reject(new Error('async error')),
+					execute: () => Promise.reject(new Error('async error')),
 				})
 
 				const schema = new TestSchema()
-				const result = await schema.validate('test')
+				const result = await schema.execute('test')
 				expect(result).toEqual({
 					issues: [{
 						code: 'UNKNOWN_ERROR',
@@ -126,13 +126,13 @@ describe('tests of `AbstractSchema.validate`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+					execute: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 				})
 
 				const schema = new TestSchema({
 					message: { TEST_ERROR: 'Custom error message' },
 				})
-				const result = schema.validate('invalid')
+				const result = schema.execute('invalid')
 				expect(result).toEqual({
 					issues: [{
 						code: 'TEST_ERROR',
@@ -150,11 +150,11 @@ describe('tests of `AbstractSchema.validate`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: () => 'invalid' as any,
+					execute: () => 'invalid' as any,
 				})
 
 				const schema = new TestSchema()
-				const result = schema.validate('test')
+				const result = schema.execute('test')
 				expect(result).toBe('invalid')
 			})
 		})
@@ -168,7 +168,7 @@ describe('tests of `AbstractSchema.isValid`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const schema = new TestSchema()
@@ -182,7 +182,7 @@ describe('tests of `AbstractSchema.isValid`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+					execute: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 				})
 
 				const schema = new TestSchema()
@@ -196,7 +196,7 @@ describe('tests of `AbstractSchema.isValid`', () => {
 				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => Promise.resolve({ value }),
+					execute: value => Promise.resolve({ value }),
 				})
 
 				const schema = new TestSchema()
@@ -210,7 +210,7 @@ describe('tests of `AbstractSchema.isValid`', () => {
 				class TestSchema extends AbstractSchema<{ async: true, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: (_value, { failure, issue }) => Promise.resolve(failure(issue('TEST_ERROR'))),
+					execute: (_value, { failure, issue }) => Promise.resolve(failure(issue('TEST_ERROR'))),
 				})
 
 				const schema = new TestSchema()
@@ -228,11 +228,11 @@ describe('tests of `implementSchemaClass`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 				})
 
 				const schema = new TestSchema()
-				expect(typeof schema.validate).toBe('function')
+				expect(typeof schema.execute).toBe('function')
 				expect(typeof schema.isValid).toBe('function')
 			})
 		})
@@ -242,12 +242,12 @@ describe('tests of `implementSchemaClass`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: false, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
+					execute: (_value, { failure, issue }) => failure(issue('TEST_ERROR')),
 					defaultMessage: { TEST_ERROR: 'Default test error' },
 				})
 
 				const schema = new TestSchema()
-				const result = schema.validate('invalid')
+				const result = schema.execute('invalid')
 				expect(result).toEqual({
 					issues: [{
 						code: 'TEST_ERROR',
@@ -263,7 +263,7 @@ describe('tests of `implementSchemaClass`', () => {
 				class TestSchema extends AbstractSchema<{ async: false, transformed: true, meta: null, input: string, output: string, issueCode: 'TEST_ERROR' }> {}
 
 				implementSchemaClass(TestSchema, {
-					validate: value => ({ value }),
+					execute: value => ({ value }),
 					isTransformed: () => true,
 				})
 
@@ -278,14 +278,14 @@ describe('tests of `isSuccessResult`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: returns true for success result', () => {
 			it('should return true', () => {
-				const result: ValidationResult<string> = { value: 'test' }
+				const result: ExecutionResult<string> = { value: 'test' }
 				expect(isSuccessResult(result)).toBe(true)
 			})
 		})
 
 		describe('case 2: returns false for failure result', () => {
 			it('should return false', () => {
-				const result: ValidationResult<string> = { issues: [{ code: 'ERROR', message: 'Error message' }] }
+				const result: ExecutionResult<string> = { issues: [{ code: 'ERROR', message: 'Error message' }] }
 				expect(isSuccessResult(result)).toBe(false)
 			})
 		})
@@ -296,7 +296,7 @@ describe('tests of `prependIssuePath`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: prepends path to issue without existing path', () => {
 			it('should prepend path', () => {
-				const issue: ValidationIssue = { code: 'ERROR', message: 'Error message' }
+				const issue: ExecutionIssue = { code: 'ERROR', message: 'Error message' }
 				const result = prependIssuePath(issue, ['root', 'field'])
 				expect(result).toEqual({
 					code: 'ERROR',
@@ -308,7 +308,7 @@ describe('tests of `prependIssuePath`', () => {
 
 		describe('case 2: prepends path to issue with existing path', () => {
 			it('should prepend path to existing path', () => {
-				const issue: ValidationIssue = { code: 'ERROR', message: 'Error message', path: ['nested'] }
+				const issue: ExecutionIssue = { code: 'ERROR', message: 'Error message', path: ['nested'] }
 				const result = prependIssuePath(issue, ['root'])
 				expect(result).toEqual({
 					code: 'ERROR',

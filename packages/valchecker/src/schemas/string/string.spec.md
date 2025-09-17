@@ -26,13 +26,13 @@ Source File: `./string.ts`
       - Expected: Returns StringSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate string values
-      - Input: `schema.validate('hello')`, `schema.validate('')`
+      - Input: `schema.execute('hello')`, `schema.execute('')`
       - Expected: All return success with the string value
     - [ ] case 2: Validate non-string values
-      - Input: `schema.validate(123)`, `schema.validate(null)`, `schema.validate({})`, `schema.validate([])`
+      - Input: `schema.execute(123)`, `schema.execute(null)`, `schema.execute({})`, `schema.execute([])`
       - Expected: All return failure with EXPECTED_STRING issue
 - `StringSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new StringSchema().validate('test')`
+      - Input: `new StringSchema().execute('test')`
       - Expected: Returns success result with the string value

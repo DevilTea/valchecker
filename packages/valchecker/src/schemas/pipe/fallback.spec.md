@@ -16,7 +16,7 @@ Source File: `./fallback.ts`
   - Description: Schema class implementing fallback logic. If previous result is success, passes through. If failure, runs fallback and returns its result as success, or failure if fallback throws/rejects.
 
 ## Test Cases (as strictly required for 100% coverage)
-- `PipeStepFallbackSchema.validate`
+- `PipeStepFallbackSchema.execute`
   - Happy Path Cases
     - [ ] case 1: returns original success if lastResult is success
       - Input: `lastResult: { value: 'ok' }`, `meta: { fallback: () => 'fallback' }`

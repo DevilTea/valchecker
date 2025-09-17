@@ -6,36 +6,34 @@ import { resolveMessage } from './message'
 
 type SchemaMessage<T extends SchemaTypes = SchemaTypes> = _SchemaMessage<T['issueCode'], T['input']>
 
-interface ValidationSuccessResult<Output> extends StandardSchemaV1.SuccessResult<Output> {}
-interface ValidationIssue extends StandardSchemaV1.Issue {
+interface ExecutionSuccessResult<Output> extends StandardSchemaV1.SuccessResult<Output> {}
+interface ExecutionIssue extends StandardSchemaV1.Issue {
 	readonly code: string
 	readonly error?: unknown
 }
-interface ValidationFailureResult extends StandardSchemaV1.FailureResult {
-	readonly issues: ValidationIssue[]
+interface ExecutionFailureResult extends StandardSchemaV1.FailureResult {
+	readonly issues: ExecutionIssue[]
 }
-type ValidationResult<Output> = ValidationSuccessResult<Output> | ValidationFailureResult
+type ExecutionResult<Output> = ExecutionSuccessResult<Output> | ExecutionFailureResult
 
 interface StandardProps<T extends SchemaTypes> extends StandardSchemaV1.Props<T['input'], T['output']> {
 	readonly version: 1
 	readonly vendor: 'valchecker'
-	readonly validate: (value: unknown) => MaybePromise<ValidationResult<T['output']>>
-	readonly types?: T | undefined
 }
 
-type ValidationUtils<Meta, Output, IssueCode extends string> = Equal<Output, never> extends true
+type ExecutionUtils<Meta, Output, IssueCode extends string> = Equal<Output, never> extends true
 	? {
 			readonly meta: Meta
 			readonly isTransformed: boolean
-			readonly issue: (code: IssueCode, payload?: { path?: ValidationIssue['path'], error?: unknown, message?: string }) => ValidationIssue
-			readonly failure: (issue: IssueCode | ValidationIssue | ValidationIssue[]) => ValidationFailureResult
+			readonly issue: (code: IssueCode, payload?: { path?: ExecutionIssue['path'], error?: unknown, message?: string }) => ExecutionIssue
+			readonly failure: (issue: IssueCode | ExecutionIssue | ExecutionIssue[]) => ExecutionFailureResult
 		}
 	: {
 			readonly meta: Meta
 			readonly isTransformed: boolean
-			readonly success: (value: Output) => ValidationSuccessResult<Output>
-			readonly issue: (code: IssueCode, payload?: { path?: ValidationIssue['path'], error?: unknown, message?: string }) => ValidationIssue
-			readonly failure: (issue: IssueCode | ValidationIssue | ValidationIssue[]) => ValidationFailureResult
+			readonly success: (value: Output) => ExecutionSuccessResult<Output>
+			readonly issue: (code: IssueCode, payload?: { path?: ExecutionIssue['path'], error?: unknown, message?: string }) => ExecutionIssue
+			readonly failure: (issue: IssueCode | ExecutionIssue | ExecutionIssue[]) => ExecutionFailureResult
 		}
 
 type AbstractSchemaConstructorPayload<T extends SchemaTypes> = Simplify<
@@ -47,6 +45,7 @@ type AbstractSchemaConstructorPayload<T extends SchemaTypes> = Simplify<
  * Base class for all schemas.
  */
 abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj implements StandardSchemaV1<T['input'], T['output']> {
+	public readonly '~types': T = null!
 	public meta: T['meta']
 	private '~message': SchemaMessage<T>
 
@@ -62,15 +61,14 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 	}
 
 	private '~impl'(): any { throwNotImplementedError() }
-	private get '~transformed'(): ((meta: T['meta']) => boolean) { return this['~impl']()['~transformed'] }
+	private get '~transformed'(): ((meta: this['meta']) => boolean) { return this['~impl']()['~transformed'] }
 	private get '~defaultMessage'(): SchemaMessage<T> { return this['~impl']()['~defaultMessage'] }
-	private get '~validate'(): (value: T['input'], utils: ValidationUtils<T['meta'], T['output'], T['issueCode']>) => MaybePromise<ValidationResult<T['output']> | ExecutionChain<ValidationResult<T['output']>>> { return this['~impl']()['~validate'] }
+	private get '~execute'(): (value: T['input'], utils: ExecutionUtils<T['meta'], T['output'], T['issueCode']>) => ExecutionResult<T['output']> | ExecutionChain<ExecutionResult<T['output']>> { return this['~impl']()['~validate'] }
 
 	get '~standard'(): StandardProps<T> { return this['~impl']()['~standard'] }
-
 	get isTransformed() { return this['~transformed'](this.meta) }
 
-	validate(value: T['input']): InferValidateReturn<this> {
+	execute(value: T['input']): ExecutionResult<T['output']> {
 		const utils = createObject({
 			meta: this.meta,
 			isTransformed: this.isTransformed,
@@ -92,22 +90,17 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 					return { issues: issue }
 				return { issues: [issue as any] }
 			},
-		} as ValidationUtils<T['meta'], T['output'], T['issueCode']>)
-		try {
-			const result = createExecutionChain(this['~validate'](value, utils)).value
-			if (result instanceof Promise) {
-				return result.catch(error => ({ issues: [utils.issue('UNKNOWN_ERROR', { error })] })) as any
-			}
-
-			return result as any
-		}
-		catch (error) {
-			return { issues: [utils.issue('UNKNOWN_ERROR', { error })] } as any
-		}
+		} as ExecutionUtils<T['meta'], T['output'], T['issueCode']>)
+		return createExecutionChain()
+			.then(() => this['~execute'](value, utils))
+			.then(
+				result => result,
+				error => ({ issues: [utils.issue('UNKNOWN_ERROR', { error })] }),
+			)
 	}
 
 	isValid(value: T['input']): InferIsValidReturn<this> {
-		const result = this.validate(value)
+		const result = this.execute(value)
 		if (result instanceof Promise) {
 			return result.then(isSuccessResult) as any
 		}
@@ -120,7 +113,7 @@ const standard = createObject<any>({
 	vendor: 'valchecker',
 	/* v8 ignore next 3 */
 	validate(this: any, value: unknown) {
-		return this.validate(value)
+		return this.execute(value)
 	},
 })
 
@@ -129,18 +122,18 @@ function implementSchemaClass<Schema extends AbstractSchema>(
 	{
 		isTransformed,
 		defaultMessage,
-		validate,
+		execute,
 	}: {
 		isTransformed?: Schema['~transformed']
 		defaultMessage?: Schema['~defaultMessage']
-		validate: Schema['~validate']
+		execute: Schema['~execute']
 	},
 ) {
 	const impl = createObject<any>({
 		'~standard': standard,
 		'~transformed': isTransformed || returnFalse,
 		'~defaultMessage': defaultMessage,
-		'~validate': validate,
+		'~execute': execute,
 	})
 	Class.prototype['~impl'] = () => impl
 }
@@ -161,7 +154,7 @@ interface _ResolvedSchemaTypesParam {
 	Input: any
 	Output: any
 	IssueCode: string
-	Result: MaybePromise<ValidationResult<any>>
+	Result: MaybePromise<ExecutionResult<any>>
 }
 
 interface ResolvedSchemaTypesParam<P extends _RawSchemaTypesParam> extends _ResolvedSchemaTypesParam {
@@ -185,10 +178,10 @@ interface ResolvedSchemaTypesParam<P extends _RawSchemaTypesParam> extends _Reso
 		: (P extends { IssueCode: infer IssueCode extends string } ? IssueCode : never) | UnknownErrorIssueCode | (string & {})
 	Result: [
 		true extends this['Async']
-			? Promise<ValidationResult<this['Output']>>
+			? Promise<ExecutionResult<this['Output']>>
 			: never,
 		false extends this['Async']
-			? ValidationResult<this['Output']>
+			? ExecutionResult<this['Output']>
 			: never,
 	][number]
 }
@@ -206,25 +199,25 @@ type SchemaTypes = _SchemaTypes<_ResolvedSchemaTypesParam>
 
 type DefineSchemaTypes<P extends _RawSchemaTypesParam> = _SchemaTypes<ResolvedSchemaTypesParam<P>>
 
-type InferAsync<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~standard']['types']>['async']
-type InferTransformed<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~standard']['types']>['transformed']
-type InferMeta<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~standard']['types']>['meta']
-type InferInput<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~standard']['types']>['input']
-type InferOutput<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~standard']['types']>['output']
-type InferIssueCode<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~standard']['types']>['issueCode']
+type InferAsync<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['async']
+type InferTransformed<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['transformed']
+type InferMeta<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['meta']
+type InferInput<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['input']
+type InferOutput<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['output']
+type InferIssueCode<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['issueCode']
 type InferValidateReturn<Schema extends (ValSchema | AbstractSchema)>
 = (true extends InferAsync<Schema>
-	? Promise<ValidationResult<InferOutput<Schema>>>
+	? Promise<ExecutionResult<InferOutput<Schema>>>
 	: never)
 | (false extends InferAsync<Schema>
-	? ValidationResult<InferOutput<Schema>>
+	? ExecutionResult<InferOutput<Schema>>
 	: never)
 type InferIsValidReturn<Schema extends (ValSchema | AbstractSchema)>
 = (true extends InferAsync<Schema>
-	? Promise<ValidationResult<InferOutput<Schema>>>
+	? Promise<ExecutionResult<InferOutput<Schema>>>
 	: never)
 | (false extends InferAsync<Schema>
-	? ValidationResult<InferOutput<Schema>>
+	? ExecutionResult<InferOutput<Schema>>
 	: never)
 
 type ValSchema<Output = any> = AbstractSchema<{
@@ -245,19 +238,23 @@ type UntransformedValSchema<Input = any, Output = Input> = AbstractSchema<{
 	readonly issueCode: any
 }>
 
-function prependIssuePath(issue: ValidationIssue, path: PropertyKey[]): ValidationIssue {
+function prependIssuePath(issue: ExecutionIssue, path: PropertyKey[]): ExecutionIssue {
 	return {
 		...issue,
 		path: [...path, ...(issue.path || [])],
 	}
 }
 
-function isSuccessResult<Output = any>(result: ValidationResult<Output>): result is ValidationSuccessResult<Output> {
+function isSuccessResult<Output = any>(result: ExecutionResult<Output>): result is ExecutionSuccessResult<Output> {
 	return 'value' in result
 }
 
 export type {
 	DefineSchemaTypes,
+	ExecutionFailureResult,
+	ExecutionIssue,
+	ExecutionResult,
+	ExecutionSuccessResult,
 	InferAsync,
 	InferInput,
 	InferIssueCode,
@@ -269,10 +266,6 @@ export type {
 	SchemaMessage,
 	SchemaTypes,
 	UntransformedValSchema,
-	ValidationFailureResult,
-	ValidationIssue,
-	ValidationResult,
-	ValidationSuccessResult,
 	ValSchema,
 }
 

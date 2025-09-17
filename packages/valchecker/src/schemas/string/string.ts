@@ -16,7 +16,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_STRING: 'Expected string.',
 		},
-		validate: (value, { success, failure }) => typeof value === 'string'
+		execute: (value, { success, failure }) => typeof value === 'string'
 			? success(value)
 			: failure('EXPECTED_STRING'),
 	},

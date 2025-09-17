@@ -13,7 +13,7 @@ class LazySchema<T extends ValSchema> extends AbstractSchema<LazySchemaTypes<T>>
 implementSchemaClass(
 	LazySchema,
 	{
-		validate: (value, { meta }) => meta.getSchema().validate(value),
+		execute: (value, { meta }) => meta.getSchema().execute(value),
 	},
 )
 

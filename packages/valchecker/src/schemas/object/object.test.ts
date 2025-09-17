@@ -21,7 +21,7 @@ describe('tests of `object`', () => {
 	describe('edge cases', () => {
 		it('case 1: Validate object with valid properties', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate({ name: 'John' })
+			const result = await schema.execute({ name: 'John' })
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({ name: 'John' })
@@ -30,7 +30,7 @@ describe('tests of `object`', () => {
 
 		it('case 2: Validate object with invalid properties', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate({ name: 123 })
+			const result = await schema.execute({ name: 123 })
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -41,7 +41,7 @@ describe('tests of `object`', () => {
 
 		it('case 3: Validate object with missing properties', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate({})
+			const result = await schema.execute({})
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -52,7 +52,7 @@ describe('tests of `object`', () => {
 
 		it('case 4: Validate object with extra properties', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate({ name: 'John', age: 30 })
+			const result = await schema.execute({ name: 'John', age: 30 })
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({ name: 'John', age: 30 })
@@ -61,7 +61,7 @@ describe('tests of `object`', () => {
 
 		it('case 5: Validate non-object value', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate('not an object')
+			const result = await schema.execute('not an object')
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -71,7 +71,7 @@ describe('tests of `object`', () => {
 
 		it('case 6: Validate null value', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate(null)
+			const result = await schema.execute(null)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -81,7 +81,7 @@ describe('tests of `object`', () => {
 
 		it('case 7: Validate array value', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate([])
+			const result = await schema.execute([])
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -95,7 +95,7 @@ describe('tests of `object`', () => {
 				age: number(),
 				active: string(), // This will fail since boolean != string
 			})
-			const result = await schema.validate({
+			const result = await schema.execute({
 				name: 'John',
 				age: 30,
 				active: true,
@@ -110,7 +110,7 @@ describe('tests of `object`', () => {
 
 		it('case 9: Validate undefined value', async () => {
 			const schema = object({ name: string() })
-			const result = await schema.validate(undefined)
+			const result = await schema.execute(undefined)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -120,7 +120,7 @@ describe('tests of `object`', () => {
 
 		it('case 10: Validate with custom error message', async () => {
 			const schema = object({ name: string() }, { EXPECTED_OBJECT: 'Custom error message' })
-			const result = await schema.validate('invalid')
+			const result = await schema.execute('invalid')
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -130,7 +130,7 @@ describe('tests of `object`', () => {
 
 		it('case 11: Validate with optional properties present', async () => {
 			const schema = object({ name: string(), optional: optional(string()) })
-			const result = await schema.validate({ name: 'John', optional: 'value' })
+			const result = await schema.execute({ name: 'John', optional: 'value' })
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({ name: 'John', optional: 'value' })
@@ -139,7 +139,7 @@ describe('tests of `object`', () => {
 
 		it('case 12: Validate with optional properties missing', async () => {
 			const schema = object({ name: string(), optional: optional(string()) })
-			const result = await schema.validate({ name: 'John' })
+			const result = await schema.execute({ name: 'John' })
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({ name: 'John', optional: undefined })
@@ -148,7 +148,7 @@ describe('tests of `object`', () => {
 
 		it('case 13: Validate empty object struct', async () => {
 			const schema = object({})
-			const result = await schema.validate({})
+			const result = await schema.execute({})
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({})
@@ -161,12 +161,12 @@ describe('tests of `object`', () => {
 
 			implementSchemaClass(SimpleTransformedSchema, {
 				isTransformed: () => true,
-				validate: (value, { success }) => success(`${value} transformed`),
+				execute: (value, { success }) => success(`${value} transformed`),
 			})
 
 			const transformedSchema = new SimpleTransformedSchema()
 			const schema = object({ name: transformedSchema })
-			const result = await schema.validate({ name: 'test' })
+			const result = await schema.execute({ name: 'test' })
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({ name: 'test transformed' })
@@ -179,7 +179,7 @@ describe('tests of `ObjectSchema`', () => {
 	describe('happy path cases', () => {
 		it('case 1: Instantiate and validate simple object', async () => {
 			const schema = new ObjectSchema({ meta: { struct: { name: string() } } })
-			const result = await schema.validate({ name: 'test' })
+			const result = await schema.execute({ name: 'test' })
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({ name: 'test' })
@@ -191,12 +191,12 @@ describe('tests of `ObjectSchema`', () => {
 
 			implementSchemaClass(SimpleTransformedSchema, {
 				isTransformed: () => true,
-				validate: (value, { success }) => success(`${value} transformed`),
+				execute: (value, { success }) => success(`${value} transformed`),
 			})
 
 			const transformedSchema = new SimpleTransformedSchema()
 			const schema = new ObjectSchema({ meta: { struct: { name: transformedSchema } } })
-			const result = await schema.validate({ name: 'test' })
+			const result = await schema.execute({ name: 'test' })
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({ name: 'test transformed' })
@@ -207,7 +207,7 @@ describe('tests of `ObjectSchema`', () => {
 	describe('edge cases', () => {
 		it('case 1: Validate empty object struct', async () => {
 			const schema = new ObjectSchema({ meta: { struct: {} } })
-			const result = await schema.validate({})
+			const result = await schema.execute({})
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual({})

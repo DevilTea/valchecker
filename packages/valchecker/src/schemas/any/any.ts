@@ -10,7 +10,7 @@ class AnySchema extends AbstractSchema<AnySchemaTypes> {}
 implementSchemaClass(
 	AnySchema,
 	{
-		validate: (value, { success }) => success(value),
+		execute: (value, { success }) => success(value),
 	},
 )
 

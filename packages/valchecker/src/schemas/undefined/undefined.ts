@@ -16,7 +16,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_UNDEFINED: 'Expected undefined.',
 		},
-		validate: (value, { success, failure }) => value === void 0
+		execute: (value, { success, failure }) => value === void 0
 			? success(value)
 			: failure('EXPECTED_UNDEFINED'),
 	},

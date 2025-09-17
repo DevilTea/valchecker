@@ -26,13 +26,13 @@ Source File: `./symbol.ts`
       - Expected: Returns SymbolSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate symbol values
-      - Input: `schema.validate(Symbol())`, `schema.validate(Symbol('test'))`
+      - Input: `schema.execute(Symbol())`, `schema.execute(Symbol('test'))`
       - Expected: All return success with the symbol value
     - [ ] case 2: Validate non-symbol values
-      - Input: `schema.validate('string')`, `schema.validate(123)`, `schema.validate(null)`, `schema.validate({})`
+      - Input: `schema.execute('string')`, `schema.execute(123)`, `schema.execute(null)`, `schema.execute({})`
       - Expected: All return failure with EXPECTED_SYMBOL issue
 - `SymbolSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new SymbolSchema().validate(Symbol('test'))`
+      - Input: `new SymbolSchema().execute(Symbol('test'))`
       - Expected: Returns success result with the symbol value

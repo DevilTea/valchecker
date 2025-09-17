@@ -15,7 +15,7 @@ describe('tests of `array`', () => {
 	describe('edge cases', () => {
 		it('case 1: Validate empty array', async () => {
 			const schema = array(string())
-			const result = await schema.validate([])
+			const result = await schema.execute([])
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual([])
@@ -24,7 +24,7 @@ describe('tests of `array`', () => {
 
 		it('case 2: Validate array with valid items', async () => {
 			const schema = array(string())
-			const result = await schema.validate(['a', 'b'])
+			const result = await schema.execute(['a', 'b'])
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual(['a', 'b'])
@@ -33,7 +33,7 @@ describe('tests of `array`', () => {
 
 		it('case 3: Validate array with invalid items', async () => {
 			const schema = array(string())
-			const result = await schema.validate(['a', 123])
+			const result = await schema.execute(['a', 123])
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -44,7 +44,7 @@ describe('tests of `array`', () => {
 
 		it('case 4: Validate non-array value', async () => {
 			const schema = array(string())
-			const result = await schema.validate('not an array')
+			const result = await schema.execute('not an array')
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -54,7 +54,7 @@ describe('tests of `array`', () => {
 
 		it('case 5: Validate array with mixed valid/invalid items', async () => {
 			const schema = array(string())
-			const result = await schema.validate(['valid', 123, 'also valid'])
+			const result = await schema.execute(['valid', 123, 'also valid'])
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -65,7 +65,7 @@ describe('tests of `array`', () => {
 
 		it('case 6: Validate array with multiple invalid items', async () => {
 			const schema = array(number())
-			const result = await schema.validate([42, 'invalid', true, 3.14])
+			const result = await schema.execute([42, 'invalid', true, 3.14])
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(2)
@@ -80,12 +80,12 @@ describe('tests of `array`', () => {
 
 			implementSchemaClass(SimpleTransformedSchema, {
 				isTransformed: () => true,
-				validate: (value, { success }) => success(`${value} transformed`),
+				execute: (value, { success }) => success(`${value} transformed`),
 			})
 
 			const transformedSchema = new SimpleTransformedSchema()
 			const schema = array(transformedSchema)
-			const result = await schema.validate(['test'])
+			const result = await schema.execute(['test'])
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual(['test transformed'])
@@ -98,7 +98,7 @@ describe('tests of `ArraySchema`', () => {
 	describe('happy path cases', () => {
 		it('case 1: Instantiate and validate', async () => {
 			const schema = new ArraySchema({ meta: { item: string() } })
-			const result = await schema.validate(['test'])
+			const result = await schema.execute(['test'])
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toEqual(['test'])

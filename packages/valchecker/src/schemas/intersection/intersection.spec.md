@@ -23,13 +23,13 @@ Source File: `./intersection.ts`
       - Expected: Returns IntersectionSchema instance
   - Edge Cases
     - [ ] case 1: Validate value that passes all branches
-      - Input: `schema.validate('test')` where schema requires string and has length > 0
+      - Input: `schema.execute('test')` where schema requires string and has length > 0
       - Expected: Return success with the validated value
     - [ ] case 2: Validate value that fails some branches
-      - Input: `schema.validate(123)` where schema requires string and number
+      - Input: `schema.execute(123)` where schema requires string and number
       - Expected: Return failure with issues from failing branches
     - [ ] case 3: Validate value that fails all branches
-      - Input: `schema.validate(true)` where schema requires string and number
+      - Input: `schema.execute(true)` where schema requires string and number
       - Expected: Return failure with issues from all branches
     - [ ] case 4: Validate with empty intersection (should not be possible due to type constraints)
       - Input: N/A (type system prevents empty intersections)
@@ -37,5 +37,5 @@ Source File: `./intersection.ts`
 - `IntersectionSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new IntersectionSchema({ meta: { branches: [string(), number()] } }).validate('test')`
+      - Input: `new IntersectionSchema({ meta: { branches: [string(), number()] } }).execute('test')`
       - Expected: Returns success result with the value

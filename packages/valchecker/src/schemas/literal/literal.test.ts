@@ -34,7 +34,7 @@ describe('tests of `literal`', () => {
 	describe('edge cases', () => {
 		it('case 1: Validate matching string literal', () => {
 			const schema = literal('hello')
-			const result = schema.validate('hello')
+			const result = schema.execute('hello')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('hello')
@@ -43,7 +43,7 @@ describe('tests of `literal`', () => {
 
 		it('case 2: Validate matching number literal', () => {
 			const schema = literal(42)
-			const result = schema.validate(42)
+			const result = schema.execute(42)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(42)
@@ -52,7 +52,7 @@ describe('tests of `literal`', () => {
 
 		it('case 3: Validate matching boolean literal', () => {
 			const schema = literal(true)
-			const result = schema.validate(true)
+			const result = schema.execute(true)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(true)
@@ -61,7 +61,7 @@ describe('tests of `literal`', () => {
 
 		it('case 4: Validate matching bigint literal', () => {
 			const schema = literal(123n)
-			const result = schema.validate(123n)
+			const result = schema.execute(123n)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(123n)
@@ -71,7 +71,7 @@ describe('tests of `literal`', () => {
 		it('case 5: Validate matching symbol literal', () => {
 			const sym = Symbol('test')
 			const schema = literal(sym)
-			const result = schema.validate(sym)
+			const result = schema.execute(sym)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe(sym)
@@ -80,7 +80,7 @@ describe('tests of `literal`', () => {
 
 		it('case 6: Validate NaN literal', () => {
 			const schema = literal(Number.NaN)
-			const result = schema.validate(Number.NaN)
+			const result = schema.execute(Number.NaN)
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(Number.isNaN(result.value)).toBe(true)
@@ -89,7 +89,7 @@ describe('tests of `literal`', () => {
 
 		it('case 7: Validate non-matching value', () => {
 			const schema = literal('hello')
-			const result = schema.validate('world')
+			const result = schema.execute('world')
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -99,7 +99,7 @@ describe('tests of `literal`', () => {
 
 		it('case 8: Validate NaN against non-NaN literal', () => {
 			const schema = literal(42)
-			const result = schema.validate(Number.NaN)
+			const result = schema.execute(Number.NaN)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -109,7 +109,7 @@ describe('tests of `literal`', () => {
 
 		it('case 9: Validate non-NaN against NaN literal', () => {
 			const schema = literal(Number.NaN)
-			const result = schema.validate(42)
+			const result = schema.execute(42)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -123,7 +123,7 @@ describe('tests of `LiteralSchema`', () => {
 	describe('happy path cases', () => {
 		it('case 1: Instantiate and validate', () => {
 			const schema = new LiteralSchema({ meta: { value: 'test' } })
-			const result = schema.validate('test')
+			const result = schema.execute('test')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('test')

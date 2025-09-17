@@ -26,13 +26,13 @@ Source File: `./instance.ts`
       - Expected: Returns InstanceSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate instance of the constructor
-      - Input: `schema.validate(new MyClass())`
+      - Input: `schema.execute(new MyClass())`
       - Expected: Return success with the instance
     - [ ] case 2: Validate non-instance values
-      - Input: `schema.validate({})`, `schema.validate(null)`, `schema.validate('string')`
+      - Input: `schema.execute({})`, `schema.execute(null)`, `schema.execute('string')`
       - Expected: All return failure with INVALID_INSTANCE issue
 - `InstanceSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new InstanceSchema({ meta: { constructor_: MyClass } }).validate(new MyClass())`
+      - Input: `new InstanceSchema({ meta: { constructor_: MyClass } }).execute(new MyClass())`
       - Expected: Returns success result with the instance

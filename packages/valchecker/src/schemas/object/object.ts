@@ -1,4 +1,4 @@
-import type { DefineSchemaTypes, InferAsync, InferOutput, SchemaMessage, ValidationIssue, ValidationResult, ValSchema } from '../../core'
+import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, SchemaMessage, ValSchema } from '../../core'
 import type { Simplify } from '../../shared'
 import type { OptionalSchema } from '../optional'
 import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
@@ -32,14 +32,14 @@ implementSchemaClass(
 			EXPECTED_OBJECT: 'Expected an object.',
 		},
 		isTransformed: ({ struct }) => Object.values(struct).some(schema => schema.isTransformed),
-		validate: (value, { meta, isTransformed, success, failure }) => {
+		execute: (value, { meta, isTransformed, success, failure }) => {
 			if (typeof value !== 'object' || value == null || Array.isArray(value))
 				return failure('EXPECTED_OBJECT')
 
 			const output: Record<PropertyKey, any> = isTransformed
 				? Object.defineProperties({}, Object.getOwnPropertyDescriptors(value))
 				: value
-			const issues: ValidationIssue[] = []
+			const issues: ExecutionIssue[] = []
 			const struct = meta.struct
 			const keys = Reflect.ownKeys(struct)
 			let chain = createExecutionChain()
@@ -47,7 +47,7 @@ implementSchemaClass(
 				const itemSchema = struct[key]!
 				const itemValue = (value as any)[key]
 				chain = chain
-					.then(() => itemSchema.validate(itemValue))
+					.then(() => itemSchema.execute(itemValue))
 					.then((result) => {
 						if (isSuccessResult(result)) {
 							if (isTransformed) {
@@ -59,7 +59,7 @@ implementSchemaClass(
 						issues.push(...result.issues.map(issue => prependIssuePath(issue, [key])))
 					})
 			}
-			return chain.then<ValidationResult<Record<PropertyKey, any>>>(() => issues.length === 0 ? success(output) : failure(issues))
+			return chain.then<ExecutionResult<Record<PropertyKey, any>>>(() => issues.length === 0 ? success(output) : failure(issues))
 		},
 	},
 )

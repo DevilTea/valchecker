@@ -1,4 +1,4 @@
-import type { DefineSchemaTypes, InferAsync, InferOutput, UntransformedValSchema, ValidationIssue } from '../../core'
+import type { DefineSchemaTypes, ExecutionIssue, InferAsync, InferOutput, UntransformedValSchema } from '../../core'
 import type { Equal } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain } from '../../shared'
@@ -29,8 +29,8 @@ implementSchemaClass(
 	IntersectionSchema,
 	{
 		isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
-		validate: (value, { meta, success, failure }) => {
-			const issues: ValidationIssue[] = []
+		execute: (value, { meta, success, failure }) => {
+			const issues: ExecutionIssue[] = []
 			let isValid = true
 			let chain = createExecutionChain()
 			for (const branch of meta.branches) {
@@ -40,7 +40,7 @@ implementSchemaClass(
 						return
 
 					return createExecutionChain()
-						.then(() => branch.validate(value))
+						.then(() => branch.execute(value))
 						.then((result) => {
 							if (!isSuccessResult(result)) {
 								isValid = false

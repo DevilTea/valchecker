@@ -18,7 +18,7 @@ describe('tests of `intersection`', () => {
 			const stringSchema1 = string()
 			const stringSchema2 = string()
 			const schema = intersection(stringSchema1, stringSchema2)
-			const result = await schema.validate('test')
+			const result = await schema.execute('test')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('test')
@@ -29,7 +29,7 @@ describe('tests of `intersection`', () => {
 			const stringSchema = string()
 			const numberSchema = number()
 			const schema = intersection(stringSchema, numberSchema)
-			const result = await schema.validate('test')
+			const result = await schema.execute('test')
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1)
@@ -41,7 +41,7 @@ describe('tests of `intersection`', () => {
 			const stringSchema = string()
 			const numberSchema = number()
 			const schema = intersection(stringSchema, numberSchema)
-			const result = await schema.validate(true)
+			const result = await schema.execute(true)
 			expect(isSuccessResult(result)).toBe(false)
 			if (!isSuccessResult(result)) {
 				expect(result.issues).toHaveLength(1) // Only first failure due to early return optimization
@@ -55,7 +55,7 @@ describe('tests of `IntersectionSchema`', () => {
 	describe('happy path cases', () => {
 		it('case 1: Instantiate and validate', async () => {
 			const schema = new IntersectionSchema({ meta: { branches: [string(), string()] } })
-			const result = await schema.validate('test')
+			const result = await schema.execute('test')
 			expect(isSuccessResult(result)).toBe(true)
 			if (isSuccessResult(result)) {
 				expect(result.value).toBe('test')

@@ -16,7 +16,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_NEVER: 'Expected never.',
 		},
-		validate: (_value, { failure }) => failure('EXPECTED_NEVER'),
+		execute: (_value, { failure }) => failure('EXPECTED_NEVER'),
 	},
 )
 

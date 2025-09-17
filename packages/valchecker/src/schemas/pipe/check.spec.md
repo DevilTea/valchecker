@@ -20,7 +20,7 @@ Source File: `./check.ts`
   - Output: Validation result based on check function outcome
 
 ## Test Cases (as strictly required for 100% coverage)
-- `PipeStepCheckSchema.validate`
+- `PipeStepCheckSchema.execute`
   - Happy Path Cases
     - [ ] case 1: returns success when check function returns true
       - Input: `lastResult: { value: 'test' }`, `meta: { check: () => true }`

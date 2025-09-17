@@ -10,7 +10,7 @@ class UnknownSchema extends AbstractSchema<UnknownSchemaTypes> {}
 implementSchemaClass(
 	UnknownSchema,
 	{
-		validate: (value, { success }) => success(value),
+		execute: (value, { success }) => success(value),
 	},
 )
 

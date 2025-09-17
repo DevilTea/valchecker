@@ -34,38 +34,38 @@ Source File: `./optional.ts`
       - Input: `optional(string())`
       - Expected: Returns OptionalSchema instance
     - [ ] case 2: Validate undefined value with optional schema
-      - Input: `schema.validate(undefined)` where schema is optional(string())
+      - Input: `schema.execute(undefined)` where schema is optional(string())
       - Expected: Return success with undefined value
     - [ ] case 3: Validate valid value with optional schema
-      - Input: `schema.validate('test')` where schema is optional(string())
+      - Input: `schema.execute('test')` where schema is optional(string())
       - Expected: Return success with the validated value
   - Edge Cases
     - [ ] case 1: Validate null value with optional schema
-      - Input: `schema.validate(null)` where schema is optional(string())
+      - Input: `schema.execute(null)` where schema is optional(string())
       - Expected: Return failure (null is not undefined)
     - [ ] case 2: Validate invalid value with optional schema
-      - Input: `schema.validate(123)` where schema is optional(string())
+      - Input: `schema.execute(123)` where schema is optional(string())
       - Expected: Return failure with validation error from wrapped schema
     - [ ] case 3: Double optional wrapping
       - Input: `optional(optional(string()))`
       - Expected: Returns OptionalSchema (should unwrap the inner optional)
     - [ ] case 4: Optional with transformed schema
-      - Input: `optional(transformedSchema).validate('input')`
+      - Input: `optional(transformedSchema).execute('input')`
       - Expected: Return success with transformed value
     - [ ] case 5: Optional with async schema
-      - Input: `await optional(asyncSchema).validate('input')`
+      - Input: `await optional(asyncSchema).execute('input')`
       - Expected: Return success after async validation
 - `OptionalSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate undefined
-      - Input: `new OptionalSchema({ meta: { schema: string() } }).validate(undefined)`
+      - Input: `new OptionalSchema({ meta: { schema: string() } }).execute(undefined)`
       - Expected: Returns success result with undefined
     - [ ] case 2: Instantiate and validate valid value
-      - Input: `new OptionalSchema({ meta: { schema: string() } }).validate('test')`
+      - Input: `new OptionalSchema({ meta: { schema: string() } }).execute('test')`
       - Expected: Returns success result with validated value
   - Edge Cases
     - [ ] case 1: Validate with transformed inner schema
-      - Input: `new OptionalSchema({ meta: { schema: transformedSchema } }).validate('input')`
+      - Input: `new OptionalSchema({ meta: { schema: transformedSchema } }).execute('input')`
       - Expected: Returns success result with transformed value
 - `unwrapOptional`
   - Happy Path Cases

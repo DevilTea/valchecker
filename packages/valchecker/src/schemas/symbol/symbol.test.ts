@@ -22,7 +22,7 @@ describe('tests of `symbol`', () => {
 			it('should accept anonymous symbol', async () => {
 				const schema = symbol()
 				const sym = Symbol('anonymous')
-				const result = await schema.validate(sym)
+				const result = await schema.execute(sym)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(sym)
@@ -31,7 +31,7 @@ describe('tests of `symbol`', () => {
 			it('should accept named symbol', async () => {
 				const schema = symbol()
 				const sym = Symbol('test')
-				const result = await schema.validate(sym)
+				const result = await schema.execute(sym)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(sym)
@@ -41,7 +41,7 @@ describe('tests of `symbol`', () => {
 		describe('case 2: Validate non-symbol values', () => {
 			it('should reject string', async () => {
 				const schema = symbol()
-				const result = await schema.validate('string')
+				const result = await schema.execute('string')
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -53,7 +53,7 @@ describe('tests of `symbol`', () => {
 			})
 			it('should reject number', async () => {
 				const schema = symbol()
-				const result = await schema.validate(123)
+				const result = await schema.execute(123)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -65,7 +65,7 @@ describe('tests of `symbol`', () => {
 			})
 			it('should reject null', async () => {
 				const schema = symbol()
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -77,7 +77,7 @@ describe('tests of `symbol`', () => {
 			})
 			it('should reject object', async () => {
 				const schema = symbol()
-				const result = await schema.validate({})
+				const result = await schema.execute({})
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -97,7 +97,7 @@ describe('tests of `SymbolSchema`', () => {
 			it('should validate successfully', async () => {
 				const schema = new SymbolSchema()
 				const sym = Symbol('test')
-				const result = await schema.validate(sym)
+				const result = await schema.execute(sym)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(sym)

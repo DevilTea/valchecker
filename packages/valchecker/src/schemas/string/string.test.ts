@@ -21,7 +21,7 @@ describe('tests of `string`', () => {
 		describe('case 1: Validate string values', () => {
 			it('should accept non-empty string', async () => {
 				const schema = string()
-				const result = await schema.validate('hello')
+				const result = await schema.execute('hello')
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe('hello')
@@ -29,7 +29,7 @@ describe('tests of `string`', () => {
 			})
 			it('should accept empty string', async () => {
 				const schema = string()
-				const result = await schema.validate('')
+				const result = await schema.execute('')
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe('')
@@ -39,7 +39,7 @@ describe('tests of `string`', () => {
 		describe('case 2: Validate non-string values', () => {
 			it('should reject number', async () => {
 				const schema = string()
-				const result = await schema.validate(123)
+				const result = await schema.execute(123)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -51,7 +51,7 @@ describe('tests of `string`', () => {
 			})
 			it('should reject null', async () => {
 				const schema = string()
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -63,7 +63,7 @@ describe('tests of `string`', () => {
 			})
 			it('should reject object', async () => {
 				const schema = string()
-				const result = await schema.validate({})
+				const result = await schema.execute({})
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -75,7 +75,7 @@ describe('tests of `string`', () => {
 			})
 			it('should reject array', async () => {
 				const schema = string()
-				const result = await schema.validate([])
+				const result = await schema.execute([])
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -94,7 +94,7 @@ describe('tests of `StringSchema`', () => {
 		describe('case 1: Instantiate and validate', () => {
 			it('should validate successfully', async () => {
 				const schema = new StringSchema()
-				const result = await schema.validate('test')
+				const result = await schema.execute('test')
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe('test')

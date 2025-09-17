@@ -2,14 +2,14 @@ import type { RunCheck } from './check'
 import { describe, expect, it } from 'vitest'
 import { defineRunCheck, PipeStepCheckSchema } from './check'
 
-describe('tests of `PipeStepCheckSchema.validate`', () => {
+describe('tests of `PipeStepCheckSchema.execute`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: returns success when check function returns true', () => {
 			it('should return success', () => {
 				const checkFn: RunCheck<string> = () => true
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -19,7 +19,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				const checkFn: RunCheck<string> = () => {}
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -29,7 +29,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				const checkFn: RunCheck<string> = () => false
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'CHECK_FAILED',
@@ -45,7 +45,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				const checkFn: RunCheck<string> = () => 'error message'
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'CHECK_FAILED',
@@ -63,7 +63,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				}
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'CUSTOM_ERROR',
@@ -78,7 +78,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				const checkFn: RunCheck<string> = async () => true
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = await schema.validate(lastResult as any)
+				const result = await schema.execute(lastResult as any)
 				expect(result).toEqual({ value: 'test' })
 			})
 		})
@@ -88,7 +88,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				const checkFn: RunCheck<string> = async () => false
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = await schema.validate(lastResult as any)
+				const result = await schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'CHECK_FAILED',
@@ -106,7 +106,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				const checkFn: RunCheck<string> = () => true
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({ issues: [{ code: 'PREVIOUS_ERROR' }] })
 			})
 		})
@@ -118,7 +118,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				}
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'CHECK_FAILED',
@@ -137,7 +137,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				}
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = await schema.validate(lastResult as any)
+				const result = await schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'CHECK_FAILED',
@@ -157,7 +157,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				}
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [
 						{ code: 'CUSTOM_ERROR', message: 'Custom error' },
@@ -179,7 +179,7 @@ describe('tests of `PipeStepCheckSchema.validate`', () => {
 				}
 				const schema = new PipeStepCheckSchema({ meta: { run: checkFn } })
 				const lastResult = { value: 'test' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [
 						{ code: 'CUSTOM_ERROR', message: 'Custom error' },

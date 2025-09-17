@@ -32,28 +32,28 @@ Source File: `./number.ts`
       - Expected: Returns NumberSchema instance with allowNaN: true and custom message
   - Edge Cases
     - [ ] case 1: Validate number values (allowNaN: false)
-      - Input: `schema.validate(42)` where schema doesn't allow NaN
+      - Input: `schema.execute(42)` where schema doesn't allow NaN
       - Expected: Return success with the validated number
     - [ ] case 2: Validate NaN (allowNaN: false)
-      - Input: `schema.validate(NaN)` where schema doesn't allow NaN
+      - Input: `schema.execute(NaN)` where schema doesn't allow NaN
       - Expected: Return failure with EXPECTED_NUMBER error
     - [ ] case 3: Validate number values (allowNaN: true)
-      - Input: `schema.validate(42)` where schema allows NaN
+      - Input: `schema.execute(42)` where schema allows NaN
       - Expected: Return success with the validated number
     - [ ] case 4: Validate NaN (allowNaN: true)
-      - Input: `schema.validate(NaN)` where schema allows NaN
+      - Input: `schema.execute(NaN)` where schema allows NaN
       - Expected: Return success with NaN
     - [ ] case 5: Validate non-number values
-      - Input: `schema.validate('string')` where schema doesn't allow NaN
+      - Input: `schema.execute('string')` where schema doesn't allow NaN
       - Expected: Return failure with EXPECTED_NUMBER error
     - [ ] case 6: Validate special number values
-      - Input: `schema.validate(Infinity)` where schema doesn't allow NaN
+      - Input: `schema.execute(Infinity)` where schema doesn't allow NaN
       - Expected: Return success with Infinity
     - [ ] case 7: Validate negative zero
-      - Input: `schema.validate(-0)` where schema doesn't allow NaN
+      - Input: `schema.execute(-0)` where schema doesn't allow NaN
       - Expected: Return success with -0
 - `NumberSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new NumberSchema({ meta: { allowNaN: false } }).validate(42)`
+      - Input: `new NumberSchema({ meta: { allowNaN: false } }).execute(42)`
       - Expected: Returns success result with the value

@@ -26,13 +26,13 @@ Source File: `./boolean.ts`
       - Expected: Returns BooleanSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate boolean values
-      - Input: `schema.validate(true)`, `schema.validate(false)`
+      - Input: `schema.execute(true)`, `schema.execute(false)`
       - Expected: All return success with the boolean value
     - [ ] case 2: Validate non-boolean values
-      - Input: `schema.validate(1)`, `schema.validate('string')`, `schema.validate(null)`, `schema.validate({})`
+      - Input: `schema.execute(1)`, `schema.execute('string')`, `schema.execute(null)`, `schema.execute({})`
       - Expected: All return failure with EXPECTED_BOOLEAN issue
 - `BooleanSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new BooleanSchema().validate(true)`
+      - Input: `new BooleanSchema().execute(true)`
       - Expected: Returns success result with the value

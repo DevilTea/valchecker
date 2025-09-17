@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defineRunTransform, PipeStepTransformSchema } from './transform'
 
-describe('tests of `PipeStepTransformSchema.validate`', () => {
+describe('tests of `PipeStepTransformSchema.execute`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: transforms value successfully', () => {
 			it('should return transformed value', () => {
@@ -11,7 +11,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 					},
 				})
 
-				const result = transformStep.validate({ value: 'test' })
+				const result = transformStep.execute({ value: 'test' })
 				expect(result).toEqual({ value: 'test transformed' })
 			})
 		})
@@ -24,7 +24,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 					},
 				})
 
-				const result = await transformStep.validate({ value: 'test' })
+				const result = await transformStep.execute({ value: 'test' })
 				expect(result).toEqual({ value: 'test async transformed' })
 			})
 		})
@@ -45,7 +45,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 					}],
 				}
 
-				const result = transformStep.validate(failureResult)
+				const result = transformStep.execute(failureResult)
 				expect(result).toEqual(failureResult)
 			})
 		})
@@ -62,7 +62,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 					},
 				})
 
-				const result = transformStep.validate({ value: 'test' })
+				const result = transformStep.execute({ value: 'test' })
 				expect(result).toEqual({
 					issues: [{
 						code: 'TRANSFORM_FAILED',
@@ -84,7 +84,7 @@ describe('tests of `PipeStepTransformSchema.validate`', () => {
 					},
 				})
 
-				const result = await transformStep.validate({ value: 'test' })
+				const result = await transformStep.execute({ value: 'test' })
 				expect(result).toEqual({
 					issues: [{
 						code: 'TRANSFORM_FAILED',

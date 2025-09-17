@@ -1,15 +1,15 @@
-import type { DefineSchemaTypes, SchemaMessage, ValidationFailureResult, ValidationResult } from '../../core'
+import type { DefineSchemaTypes, ExecutionFailureResult, ExecutionResult, SchemaMessage } from '../../core'
 import type { MaybePromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
 import { createExecutionChain, returnTrue } from '../../shared'
 
-type FallbackFn<T = any> = (failure: ValidationFailureResult) => MaybePromise<T>
+type FallbackFn<T = any> = (failure: ExecutionFailureResult) => MaybePromise<T>
 
 type PipeStepFallbackSchemaTypes<Output, Async extends boolean> = DefineSchemaTypes<{
 	Async: Async
 	Transformed: true
 	Meta: { run: FallbackFn<Output> }
-	Input: ValidationResult<Output>
+	Input: ExecutionResult<Output>
 	Output: Output
 	IssueCode: 'FALLBACK_FAILED'
 }>
@@ -22,13 +22,13 @@ implementSchemaClass(
 	PipeStepFallbackSchema,
 	{
 		isTransformed: returnTrue,
-		validate: (lastResult, { meta, success, failure, issue }) => {
+		execute: (lastResult, { meta, success, failure, issue }) => {
 			if (isSuccessResult(lastResult))
 				return createExecutionChain(lastResult)
 
 			return createExecutionChain()
 				.then(() => meta.run(lastResult))
-				.then<ValidationResult<any>, ValidationResult<any>>(
+				.then<ExecutionResult<any>, ExecutionResult<any>>(
 					fallbackValue => success(fallbackValue),
 					error => failure(issue('FALLBACK_FAILED', { error })),
 				)

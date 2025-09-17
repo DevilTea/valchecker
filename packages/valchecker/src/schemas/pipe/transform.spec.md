@@ -113,6 +113,6 @@ The schema is fully type-safe:
 
 PipeStepTransformSchema integrates seamlessly with the pipeline system:
 - Works with both sync and async transform functions
-- Properly handles ValidationResult types from previous steps
+- Properly handles ExecutionResult types from previous steps
 - Can be chained with other pipeline steps
 - Maintains type safety throughout the pipeline

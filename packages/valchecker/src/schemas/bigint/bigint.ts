@@ -16,7 +16,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_BIGINT: 'Expected bigint.',
 		},
-		validate: (value, { success, failure }) => typeof value === 'bigint'
+		execute: (value, { success, failure }) => typeof value === 'bigint'
 			? success(value)
 			: failure('EXPECTED_BIGINT'),
 	},

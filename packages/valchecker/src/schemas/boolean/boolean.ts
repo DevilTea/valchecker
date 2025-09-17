@@ -16,7 +16,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_BOOLEAN: 'Expected boolean.',
 		},
-		validate: (value, { success, failure }) => typeof value === 'boolean'
+		execute: (value, { success, failure }) => typeof value === 'boolean'
 			? success(value)
 			: failure('EXPECTED_BOOLEAN'),
 	},

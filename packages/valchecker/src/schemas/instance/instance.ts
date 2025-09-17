@@ -17,7 +17,7 @@ implementSchemaClass(
 		defaultMessage: {
 			INVALID_INSTANCE: 'Invalid instance.',
 		},
-		validate: (value, { meta, success, failure }) => value instanceof meta.constructor_
+		execute: (value, { meta, success, failure }) => value instanceof meta.constructor_
 			? success(value)
 			: failure('INVALID_INSTANCE'),
 	},

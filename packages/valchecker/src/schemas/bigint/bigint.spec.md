@@ -26,13 +26,13 @@ Source File: `./bigint.ts`
       - Expected: Returns BigintSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate bigint values
-      - Input: `schema.validate(123n)`, `schema.validate(BigInt(456))`
+      - Input: `schema.execute(123n)`, `schema.execute(BigInt(456))`
       - Expected: All return success with the bigint value
     - [ ] case 2: Validate non-bigint values
-      - Input: `schema.validate(123)`, `schema.validate('string')`, `schema.validate(null)`, `schema.validate({})`
+      - Input: `schema.execute(123)`, `schema.execute('string')`, `schema.execute(null)`, `schema.execute({})`
       - Expected: All return failure with EXPECTED_BIGINT issue
 - `BigintSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new BigintSchema().validate(789n)`
+      - Input: `new BigintSchema().execute(789n)`
       - Expected: Returns success result with the value

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PipeStepFallbackSchema } from './fallback'
 
-describe('tests of `PipeStepFallbackSchema.validate`', () => {
+describe('tests of `PipeStepFallbackSchema.execute`', () => {
 	describe('happy path cases', () => {
 		describe('case 1: returns original success if lastResult is success', () => {
 			it('should return the original success result', () => {
@@ -9,7 +9,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 					meta: { run: () => 'fallback' },
 				})
 				const lastResult = { value: 'ok' }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({ value: 'ok' })
 			})
 		})
@@ -20,7 +20,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 					meta: { run: () => 'fallback' },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({ value: 'fallback' })
 			})
 		})
@@ -31,7 +31,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 					meta: { run: async () => 'async' },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
-				const result = await schema.validate(lastResult as any)
+				const result = await schema.execute(lastResult as any)
 				expect(result).toEqual({ value: 'async' })
 			})
 		})
@@ -44,7 +44,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 					meta: { run: () => { throw new Error('fail') } },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
-				const result = schema.validate(lastResult as any)
+				const result = schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'FALLBACK_FAILED',
@@ -62,7 +62,7 @@ describe('tests of `PipeStepFallbackSchema.validate`', () => {
 					meta: { run: async () => { throw new Error('fail') } },
 				})
 				const lastResult = { issues: [{ code: 'PREVIOUS_ERROR' }] }
-				const result = await schema.validate(lastResult as any)
+				const result = await schema.execute(lastResult as any)
 				expect(result).toEqual({
 					issues: [{
 						code: 'FALLBACK_FAILED',

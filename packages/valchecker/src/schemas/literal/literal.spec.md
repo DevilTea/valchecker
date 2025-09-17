@@ -35,31 +35,31 @@ Source File: `./literal.ts`
       - Expected: Returns LiteralSchema instance
   - Edge Cases
     - [ ] case 1: Validate matching string literal
-      - Input: `schema.validate('hello')` where schema expects 'hello'
+      - Input: `schema.execute('hello')` where schema expects 'hello'
       - Expected: Return success with the validated value
     - [ ] case 2: Validate matching number literal
-      - Input: `schema.validate(42)` where schema expects 42
+      - Input: `schema.execute(42)` where schema expects 42
       - Expected: Return success with the validated value
     - [ ] case 3: Validate matching boolean literal
-      - Input: `schema.validate(true)` where schema expects true
+      - Input: `schema.execute(true)` where schema expects true
       - Expected: Return success with the validated value
     - [ ] case 4: Validate matching bigint literal
-      - Input: `schema.validate(123n)` where schema expects 123n
+      - Input: `schema.execute(123n)` where schema expects 123n
       - Expected: Return success with the validated value
     - [ ] case 5: Validate matching symbol literal
-      - Input: `schema.validate(sym)` where schema expects sym
+      - Input: `schema.execute(sym)` where schema expects sym
       - Expected: Return success with the validated value
     - [ ] case 6: Validate NaN literal
-      - Input: `schema.validate(NaN)` where schema expects NaN
+      - Input: `schema.execute(NaN)` where schema expects NaN
       - Expected: Return success with NaN
     - [ ] case 7: Validate non-matching value
-      - Input: `schema.validate('world')` where schema expects 'hello'
+      - Input: `schema.execute('world')` where schema expects 'hello'
       - Expected: Return failure with INVALID_LITERAL error
     - [ ] case 8: Validate NaN against non-NaN literal
-      - Input: `schema.validate(NaN)` where schema expects 42
+      - Input: `schema.execute(NaN)` where schema expects 42
       - Expected: Return failure with INVALID_LITERAL error
 - `LiteralSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new LiteralSchema({ meta: { value: 'test' } }).validate('test')`
+      - Input: `new LiteralSchema({ meta: { value: 'test' } }).execute('test')`
       - Expected: Returns success result with the value

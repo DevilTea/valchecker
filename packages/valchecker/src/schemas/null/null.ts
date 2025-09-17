@@ -16,7 +16,7 @@ implementSchemaClass(
 		defaultMessage: {
 			EXPECTED_NULL: 'Expected null.',
 		},
-		validate: (value, { success, failure }) => value === null
+		execute: (value, { success, failure }) => value === null
 			? success(value)
 			: failure('EXPECTED_NULL'),
 	},

@@ -23,10 +23,10 @@ Source File: `./any.ts`
       - Expected: Returns AnySchema instance
   - Edge Cases
     - [ ] case 1: Validate various input types
-      - Input: `schema.validate(null)`, `schema.validate(42)`, `schema.validate("string")`, `schema.validate({})`, `schema.validate([])`
+      - Input: `schema.execute(null)`, `schema.execute(42)`, `schema.execute("string")`, `schema.execute({})`, `schema.execute([])`
       - Expected: All return success with the input value
 - `AnySchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new AnySchema().validate(anyValue)`
+      - Input: `new AnySchema().execute(anyValue)`
       - Expected: Returns success result with the value

@@ -21,7 +21,7 @@ describe('tests of `null_`', () => {
 		describe('case 1: Validate null value', () => {
 			it('should accept null', async () => {
 				const schema = null_()
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(null)
@@ -31,7 +31,7 @@ describe('tests of `null_`', () => {
 		describe('case 2: Validate non-null values', () => {
 			it('should reject undefined', async () => {
 				const schema = null_()
-				const result = await schema.validate(undefined)
+				const result = await schema.execute(undefined)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -43,7 +43,7 @@ describe('tests of `null_`', () => {
 			})
 			it('should reject number', async () => {
 				const schema = null_()
-				const result = await schema.validate(0)
+				const result = await schema.execute(0)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -55,7 +55,7 @@ describe('tests of `null_`', () => {
 			})
 			it('should reject string', async () => {
 				const schema = null_()
-				const result = await schema.validate('')
+				const result = await schema.execute('')
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -67,7 +67,7 @@ describe('tests of `null_`', () => {
 			})
 			it('should reject object', async () => {
 				const schema = null_()
-				const result = await schema.validate({})
+				const result = await schema.execute({})
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -86,7 +86,7 @@ describe('tests of `NullSchema`', () => {
 		describe('case 1: Instantiate and validate', () => {
 			it('should validate successfully', async () => {
 				const schema = new NullSchema()
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(true)
 				if (isSuccessResult(result)) {
 					expect(result.value).toBe(null)

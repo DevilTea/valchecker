@@ -26,13 +26,13 @@ Source File: `./undefined.ts`
       - Expected: Returns UndefinedSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate undefined value
-      - Input: `schema.validate(undefined)`
+      - Input: `schema.execute(undefined)`
       - Expected: Return success with undefined value
     - [ ] case 2: Validate non-undefined values
-      - Input: `schema.validate(null)`, `schema.validate(0)`, `schema.validate('')`, `schema.validate({})`
+      - Input: `schema.execute(null)`, `schema.execute(0)`, `schema.execute('')`, `schema.execute({})`
       - Expected: All return failure with EXPECTED_UNDEFINED issue
 - `UndefinedSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new UndefinedSchema().validate(undefined)`
+      - Input: `new UndefinedSchema().execute(undefined)`
       - Expected: Returns success result with undefined value

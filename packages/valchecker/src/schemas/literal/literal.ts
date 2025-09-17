@@ -17,7 +17,7 @@ implementSchemaClass(
 		defaultMessage: {
 			INVALID_LITERAL: 'Invalid value.',
 		},
-		validate: (value, { meta, success, failure }) => {
+		execute: (value, { meta, success, failure }) => {
 			if (Number.isNaN(meta.value)) {
 				return Number.isNaN(value)
 					? success(value as any)

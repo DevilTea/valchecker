@@ -21,7 +21,7 @@ describe('tests of `never`', () => {
 		describe('case 1: Validate any value', () => {
 			it('should reject null', async () => {
 				const schema = never()
-				const result = await schema.validate(null)
+				const result = await schema.execute(null)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -33,7 +33,7 @@ describe('tests of `never`', () => {
 			})
 			it('should reject number', async () => {
 				const schema = never()
-				const result = await schema.validate(42)
+				const result = await schema.execute(42)
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -45,7 +45,7 @@ describe('tests of `never`', () => {
 			})
 			it('should reject string', async () => {
 				const schema = never()
-				const result = await schema.validate('string')
+				const result = await schema.execute('string')
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -57,7 +57,7 @@ describe('tests of `never`', () => {
 			})
 			it('should reject object', async () => {
 				const schema = never()
-				const result = await schema.validate({})
+				const result = await schema.execute({})
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()
@@ -76,7 +76,7 @@ describe('tests of `NeverSchema`', () => {
 		describe('case 1: Instantiate and validate', () => {
 			it('should validate and fail', async () => {
 				const schema = new NeverSchema()
-				const result = await schema.validate('test')
+				const result = await schema.execute('test')
 				expect(isSuccessResult(result)).toBe(false)
 				if (!isSuccessResult(result)) {
 					expect(result.issues).toBeDefined()

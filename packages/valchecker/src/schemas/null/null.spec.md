@@ -26,13 +26,13 @@ Source File: `./null.ts`
       - Expected: Returns NullSchema instance with custom message
   - Edge Cases
     - [ ] case 1: Validate null value
-      - Input: `schema.validate(null)`
+      - Input: `schema.execute(null)`
       - Expected: Return success with null value
     - [ ] case 2: Validate non-null values
-      - Input: `schema.validate(undefined)`, `schema.validate(0)`, `schema.validate('')`, `schema.validate({})`
+      - Input: `schema.execute(undefined)`, `schema.execute(0)`, `schema.execute('')`, `schema.execute({})`
       - Expected: All return failure with EXPECTED_NULL issue
 - `NullSchema`
   - Happy Path Cases
     - [ ] case 1: Instantiate and validate
-      - Input: `new NullSchema().validate(null)`
+      - Input: `new NullSchema().execute(null)`
       - Expected: Returns success result with null value
