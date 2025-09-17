@@ -227,11 +227,11 @@ type InferIsValidReturn<Schema extends (ValSchema | AbstractSchema)>
 	? ValidationResult<InferOutput<Schema>>
 	: never)
 
-type ValSchema<Input = any, Output = Input> = AbstractSchema<{
+type ValSchema<Output = any> = AbstractSchema<{
 	readonly async: any
 	readonly transformed: any
 	readonly meta: any
-	readonly input: Input
+	readonly input: any
 	readonly output: Output
 	readonly issueCode: any
 }>
