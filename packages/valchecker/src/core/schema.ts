@@ -68,7 +68,7 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 	get '~standard'(): StandardProps<T> { return this['~impl']()['~standard'] }
 	get isTransformed() { return this['~transformed'](this.meta) }
 
-	execute(value: T['input']): ExecutionResult<T['output']> {
+	execute(value: T['input']): ExecutionChain<ExecutionResult<T['output']>> {
 		const utils = createObject({
 			meta: this.meta,
 			isTransformed: this.isTransformed,
@@ -97,14 +97,6 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 				result => result,
 				error => ({ issues: [utils.issue('UNKNOWN_ERROR', { error })] }),
 			)
-	}
-
-	isValid(value: T['input']): InferIsValidReturn<this> {
-		const result = this.execute(value)
-		if (result instanceof Promise) {
-			return result.then(isSuccessResult) as any
-		}
-		return isSuccessResult(result) as any
 	}
 }
 
@@ -176,14 +168,6 @@ interface ResolvedSchemaTypesParam<P extends _RawSchemaTypesParam> extends _Reso
 	IssueCode: Equal<P, any> extends true
 		? string
 		: (P extends { IssueCode: infer IssueCode extends string } ? IssueCode : never) | UnknownErrorIssueCode | (string & {})
-	Result: [
-		true extends this['Async']
-			? Promise<ExecutionResult<this['Output']>>
-			: never,
-		false extends this['Async']
-			? ExecutionResult<this['Output']>
-			: never,
-	][number]
 }
 
 interface _SchemaTypes<P extends _ResolvedSchemaTypesParam> extends StandardSchemaV1.Types<P['Input'], P['Output']> {
@@ -205,7 +189,7 @@ type InferMeta<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema
 type InferInput<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['input']
 type InferOutput<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['output']
 type InferIssueCode<Schema extends (ValSchema | AbstractSchema)> = NonNullable<Schema['~types']>['issueCode']
-type InferValidateReturn<Schema extends (ValSchema | AbstractSchema)>
+type InferExecuteReturn<Schema extends (ValSchema | AbstractSchema)>
 = (true extends InferAsync<Schema>
 	? Promise<ExecutionResult<InferOutput<Schema>>>
 	: never)
@@ -214,10 +198,10 @@ type InferValidateReturn<Schema extends (ValSchema | AbstractSchema)>
 	: never)
 type InferIsValidReturn<Schema extends (ValSchema | AbstractSchema)>
 = (true extends InferAsync<Schema>
-	? Promise<ExecutionResult<InferOutput<Schema>>>
+	? Promise<boolean>
 	: never)
 | (false extends InferAsync<Schema>
-	? ExecutionResult<InferOutput<Schema>>
+	? boolean
 	: never)
 
 type ValSchema<Output = any> = AbstractSchema<{
@@ -249,6 +233,18 @@ function isSuccessResult<Output = any>(result: ExecutionResult<Output>): result 
 	return 'value' in result
 }
 
+function execute<Schema extends ValSchema>(schema: Schema, value: any): InferExecuteReturn<Schema> {
+	return schema.execute(value).value as InferExecuteReturn<Schema>
+}
+
+function isValid<Schema extends ValSchema>(schema: Schema, value: any): InferIsValidReturn<Schema> {
+	const result = execute(schema, value)
+	if (result instanceof Promise) {
+		return result.then(isSuccessResult) as InferIsValidReturn<Schema>
+	}
+	return isSuccessResult(result) as InferIsValidReturn<Schema>
+}
+
 export type {
 	DefineSchemaTypes,
 	ExecutionFailureResult,
@@ -256,13 +252,13 @@ export type {
 	ExecutionResult,
 	ExecutionSuccessResult,
 	InferAsync,
+	InferExecuteReturn,
 	InferInput,
 	InferIssueCode,
 	InferIsValidReturn,
 	InferMeta,
 	InferOutput,
 	InferTransformed,
-	InferValidateReturn,
 	SchemaMessage,
 	SchemaTypes,
 	UntransformedValSchema,
@@ -271,7 +267,9 @@ export type {
 
 export {
 	AbstractSchema,
+	execute,
 	implementSchemaClass,
 	isSuccessResult,
+	isValid,
 	prependIssuePath,
 }

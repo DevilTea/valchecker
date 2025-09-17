@@ -38,7 +38,7 @@ Source File: `./schema.ts`
   - Description: Type helper to infer if a schema is transformed
   - Input: Schema type
   - Output: Boolean indicating if schema transforms input
-- `InferValidateReturn`
+- `InferExecuteReturn`
   - Description: Type helper to infer the return type of validate method
   - Input: Schema type
   - Output: ExecutionResult or Promise<ExecutionResult>
