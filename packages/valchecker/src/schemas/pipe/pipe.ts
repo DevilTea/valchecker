@@ -1,10 +1,9 @@
 import type { DefineSchemaTypes, ExecutionFailureResult, ExecutionResult, InferAsync, InferInput, InferOutput, InferTransformed, ValSchema } from '../../core'
-import type { Equal, ExecutionChain, IsPromise, MaybePromise } from '../../shared'
+import type { Equal, IsPromise, MaybePromise } from '../../shared'
 import type { PipeStepCheckSchemaMessage, RunCheck, RunCheckResult, RunCheckUtils, True } from './check'
 import type { PipeStepFallbackSchemaMessage } from './fallback'
 import type { PipeStepTransformSchemaMessage, RunTransform } from './transform'
 import { AbstractSchema, implementSchemaClass } from '../../core'
-import { createExecutionChain } from '../../shared'
 import { PipeStepCheckSchema } from './check'
 import { PipeStepFallbackSchema } from './fallback'
 import { PipeStepTransformSchema } from './transform'
@@ -108,7 +107,7 @@ implementSchemaClass(
 		isTransformed: meta => meta.steps.some(step => step.isTransformed),
 		execute: (value, { meta }) => {
 			const [source, ...rest] = meta.steps
-			let chain = createExecutionChain(source.execute(value)) as ExecutionChain<ExecutionResult<any>>
+			let chain = source.execute(value)
 			for (const step of rest) {
 				chain = chain.then(result => step.execute(result))
 			}
