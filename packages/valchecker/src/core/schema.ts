@@ -63,7 +63,7 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 	private '~impl'(): any { throwNotImplementedError() }
 	private get '~transformed'(): ((meta: this['meta']) => boolean) { return this['~impl']()['~transformed'] }
 	private get '~defaultMessage'(): SchemaMessage<T> { return this['~impl']()['~defaultMessage'] }
-	private get '~execute'(): (value: T['input'], utils: ExecutionUtils<T['meta'], T['output'], T['issueCode']>) => ExecutionResult<T['output']> | ExecutionChain<ExecutionResult<T['output']>> { return this['~impl']()['~validate'] }
+	private get '~execute'(): (value: T['input'], utils: ExecutionUtils<T['meta'], T['output'], T['issueCode']>) => ExecutionResult<T['output']> | ExecutionChain<ExecutionResult<T['output']>> { return this['~impl']()['~execute'] }
 
 	get '~standard'(): StandardProps<T> { return this['~impl']()['~standard'] }
 	get isTransformed() { return this['~transformed'](this.meta) }
