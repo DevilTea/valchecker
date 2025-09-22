@@ -4,30 +4,31 @@ import type { OptionalSchema } from '../optional'
 import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
 import { createExecutionChain } from '../../shared'
 
+type ObjectSchemaStruct = Record<PropertyKey, ValSchema>
 type ObjectSchemaModes = 'default' | 'loose' | 'strict'
 
-type ObjectSchemaTypes<Struct extends Record<PropertyKey, ValSchema>, Mode extends ObjectSchemaModes> = DefineSchemaTypes<{
+type ObjectSchemaTypes<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> = DefineSchemaTypes<{
 	Async: InferObjectAsync<Struct>
 	Meta: { struct: Struct, mode: Mode }
 	Output: InferObjectOutput<Struct, Mode>
 	IssueCode: 'EXPECTED_OBJECT' | (Equal<Mode, 'strict'> extends true ? 'UNEXPECTED_KEY' : never)
 }>
 
-type ObjectSchemaMessage<O extends Record<PropertyKey, ValSchema>, Mode extends ObjectSchemaModes> = SchemaMessage<ObjectSchemaTypes<O, Mode>>
+type ObjectSchemaMessage<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> = SchemaMessage<ObjectSchemaTypes<Struct, Mode>>
 
-type InferObjectAsync<O extends Record<PropertyKey, ValSchema>> = {
-	[K in keyof O]: InferAsync<O[K]>
-}[keyof O] extends false ? false : true
+type InferObjectAsync<Struct extends ObjectSchemaStruct> = {
+	[K in keyof Struct]: InferAsync<Struct[K]>
+}[keyof Struct] extends false ? false : true
 
-type InferObjectOutput<O extends Record<PropertyKey, ValSchema>, Mode extends ObjectSchemaModes> = Simplify<{
-	[K in keyof O as O[K] extends OptionalSchema ? K : never]?: InferOutput<O[K]>
+type InferObjectOutput<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> = Simplify<{
+	[K in keyof Struct as Struct[K] extends OptionalSchema ? K : never]?: InferOutput<Struct[K]>
 } & {
-	[K in keyof O as O[K] extends OptionalSchema ? never : K]: InferOutput<O[K]>
+	[K in keyof Struct as Struct[K] extends OptionalSchema ? never : K]: InferOutput<Struct[K]>
 } & (
 	Equal<Mode, 'loose'> extends true ? Record<PropertyKey, unknown> : unknown
 )>
 
-class ObjectSchema<O extends Record<PropertyKey, ValSchema>, Mode extends ObjectSchemaModes> extends AbstractSchema<ObjectSchemaTypes<O, Mode>> {}
+class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> extends AbstractSchema<ObjectSchemaTypes<Struct, Mode>> {}
 
 implementSchemaClass(
 	ObjectSchema,
@@ -80,15 +81,24 @@ implementSchemaClass(
 	},
 )
 
-function object<O extends Record<PropertyKey, ValSchema>>(struct: O, message?: ObjectSchemaMessage<O, 'default'>): ObjectSchema<O, 'default'> {
+/**
+ * Creates an object schema. (Extra keys are ignored.)
+ */
+function object<Struct extends ObjectSchemaStruct>(struct: Struct, message?: ObjectSchemaMessage<Struct, 'default'>): ObjectSchema<Struct, 'default'> {
 	return new ObjectSchema({ meta: { struct, mode: 'default' }, message })
 }
 
-function looseObject<O extends Record<PropertyKey, ValSchema>>(struct: O, message?: ObjectSchemaMessage<O, 'loose'>): ObjectSchema<O, 'loose'> {
+/**
+ * Creates a loose object schema. (Extra keys are kept.)
+ */
+function looseObject<Struct extends ObjectSchemaStruct>(struct: Struct, message?: ObjectSchemaMessage<Struct, 'loose'>): ObjectSchema<Struct, 'loose'> {
 	return new ObjectSchema({ meta: { struct, mode: 'loose' }, message })
 }
 
-function strictObject<O extends Record<PropertyKey, ValSchema>>(struct: O, message?: ObjectSchemaMessage<O, 'strict'>): ObjectSchema<O, 'strict'> {
+/**
+ * Creates a strict object schema. (Extra keys are not allowed.)
+ */
+function strictObject<Struct extends ObjectSchemaStruct>(struct: Struct, message?: ObjectSchemaMessage<Struct, 'strict'>): ObjectSchema<Struct, 'strict'> {
 	return new ObjectSchema({ meta: { struct, mode: 'strict' }, message })
 }
 
