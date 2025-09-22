@@ -1,0 +1,184 @@
+# shared.spec.md
+
+Source File: `./shared.ts`
+Test File: [`./shared.test.ts`](./shared.test.ts)
+
+## Functionality Summary
+- Shared utilities and types for valchecker, including type helpers, object creation, and execution chaining.
+
+## Exported Items
+- `AnyFn`
+    - **Description**: Type for any function.
+    - **Input**: N/A (type definition).
+    - **Output**: Function type.
+- `Simplify`
+    - **Description**: Simplifies a type by expanding it.
+    - **Input**: N/A (type definition).
+    - **Output**: Simplified type.
+- `Optional`
+    - **Description**: Makes a type optional (T | undefined).
+    - **Input**: N/A (type definition).
+    - **Output**: T | undefined.
+- `IsAllPropsOptional`
+    - **Description**: Checks if all properties of a type are optional.
+    - **Input**: N/A (type definition).
+    - **Output**: Boolean.
+- `Equal`
+    - **Description**: Checks if two types are equal.
+    - **Input**: N/A (type definition).
+    - **Output**: Boolean.
+- `MaybePromise`
+    - **Description**: Type that may be a promise.
+    - **Input**: N/A (type definition).
+    - **Output**: T | Promise<T>.
+- `IsPromise`
+    - **Description**: Checks if a type is a promise.
+    - **Input**: N/A (type definition).
+    - **Output**: Boolean.
+- `ValueHasProperty`
+    - **Description**: Type for value with a property.
+    - **Input**: N/A (type definition).
+    - **Output**: Record<K, V>.
+- `ValueHasLength`
+    - **Description**: Type for value with length property.
+    - **Input**: N/A (type definition).
+    - **Output**: Record<'length', number>.
+- `ValueHasMethod`
+    - **Description**: Type for value with a method.
+    - **Input**: N/A (type definition).
+    - **Output**: Record<MethodName, function>.
+- `NullProtoObj`
+    - **Description**: Constructor for null-prototype objects.
+    - **Input**: N/A (constant).
+    - **Output**: Constructor function.
+- `createObject`
+    - **Description**: Creates an object with null prototype.
+    - **Input**: Optional object to copy properties from.
+    - **Output**: New object.
+- `throwNotImplementedError`
+    - **Description**: Throws a not implemented error.
+    - **Input**: N/A.
+    - **Output**: Never returns.
+- `expectNever`
+    - **Description**: Throws an error for unexpected never values.
+    - **Input**: Optional value.
+    - **Output**: Never returns.
+- `returnTrue`
+    - **Description**: Returns true.
+    - **Input**: N/A.
+    - **Output**: true.
+- `returnFalse`
+    - **Description**: Returns false.
+    - **Input**: N/A.
+    - **Output**: false.
+- `ExecutionChain`
+    - **Description**: Class for handling execution chains with sync/async.
+    - **Input**: Value or error.
+    - **Output**: ExecutionChain instance.
+- `createExecutionChain`
+    - **Description**: Creates an ExecutionChain.
+    - **Input**: Optional value.
+    - **Output**: ExecutionChain.
+
+## Test Cases
+- `AnyFn`
+    - **Note**: Type-only, not runtime testable.
+- `Simplify`
+    - **Note**: Type-only, not runtime testable.
+- `Optional`
+    - **Note**: Type-only, not runtime testable.
+- `IsAllPropsOptional`
+    - **Note**: Type-only, not runtime testable.
+- `Equal`
+    - **Note**: Type-only, not runtime testable.
+- `MaybePromise`
+    - **Note**: Type-only, not runtime testable.
+- `IsPromise`
+    - **Note**: Type-only, not runtime testable.
+- `ValueHasProperty`
+    - **Note**: Type-only, not runtime testable.
+- `ValueHasLength`
+    - **Note**: Type-only, not runtime testable.
+- `ValueHasMethod`
+    - **Note**: Type-only, not runtime testable.
+- `NullProtoObj`
+    - **Happy Path Cases**
+        - [ ] **[NullProtoObj.happy.1]** Case 1: Instantiate NullProtoObj.
+            - **Input**: new NullProtoObj().
+            - **Expected**: Object with null prototype.
+- `createObject`
+    - **Happy Path Cases**
+        - [ ] **[createObject.happy.1]** Case 1: Create empty object.
+            - **Input**: No args.
+            - **Expected**: Object with null prototype.
+        - [ ] **[createObject.happy.2]** Case 1: Create object with properties.
+            - **Input**: { a: 1 }.
+            - **Expected**: Object with properties and null prototype.
+- `throwNotImplementedError`
+    - **Happy Path Cases**
+        - [ ] **[throwNotImplementedError.happy.1]** Case 1: Call the function.
+            - **Input**: N/A.
+            - **Expected**: Throws 'Method not implemented.'.
+- `expectNever`
+    - **Happy Path Cases**
+        - [ ] **[expectNever.happy.1]** Case 1: Call with value.
+            - **Input**: 'test'.
+            - **Expected**: Throws error with value.
+- `returnTrue`
+    - **Happy Path Cases**
+        - [ ] **[returnTrue.happy.1]** Case 1: Call the function.
+            - **Input**: N/A.
+            - **Expected**: true.
+- `returnFalse`
+    - **Happy Path Cases**
+        - [ ] **[returnFalse.happy.1]** Case 1: Call the function.
+            - **Input**: N/A.
+            - **Expected**: false.
+- `ExecutionChain`
+    - **Happy Path Cases**
+        - [ ] **[ExecutionChain.happy.1]** Case 1: Create with sync value.
+            - **Input**: 'value'.
+            - **Expected**: Chain with value.
+        - [ ] **[ExecutionChain.happy.2]** Case 1: Create with promise.
+            - **Input**: Promise.resolve('async').
+            - **Expected**: Chain with promise.
+        - [ ] **[ExecutionChain.happy.3]** Case 1: Create with sync error.
+            - **Input**: undefined, 'error'.
+            - **Expected**: Chain with error.
+        - [ ] **[ExecutionChain.happy.4]** Case 1: then with sync value.
+            - **Input**: Chain with 'val', then(v => v + '2').
+            - **Expected**: Chain with 'val2'.
+        - [ ] **[ExecutionChain.happy.5]** Case 1: then with promise.
+            - **Input**: Chain with promise, then.
+            - **Expected**: Chain with resolved.
+        - [ ] **[ExecutionChain.happy.6]** Case 1: output sync.
+            - **Input**: Chain with 'val'.
+            - **Expected**: 'val'.
+        - [ ] **[ExecutionChain.happy.7]** Case 1: output promise.
+            - **Input**: Chain with promise.
+            - **Expected**: Promise.
+    - **Edge Cases**
+        - [ ] **[ExecutionChain.edge.1]** Case 1: then without callbacks.
+            - **Input**: Chain, then().
+            - **Expected**: Same chain.
+        - [ ] **[ExecutionChain.edge.2]** Case 1: Copy from another chain.
+            - **Input**: new ExecutionChain(chain).
+            - **Expected**: Same data.
+    - **Error Cases**
+        - [ ] **[ExecutionChain.error.1]** Case 1: Invalid constructor args.
+            - **Input**: Promise and error.
+            - **Expected**: Throws error.
+        - [ ] **[ExecutionChain.error.2]** Case 1: then throws.
+            - **Input**: Chain, then(() => throw 'err').
+            - **Expected**: Chain with error.
+        - [ ] **[ExecutionChain.error.3]** Case 1: output throws error.
+            - **Input**: Chain with error.
+            - **Expected**: Throws error.
+- `createExecutionChain`
+    - **Happy Path Cases**
+        - [ ] **[createExecutionChain.happy.1]** Case 1: Create without value.
+            - **Input**: N/A.
+            - **Expected**: Chain with undefined.
+        - [ ] **[createExecutionChain.happy.2]** Case 1: Create with value.
+            - **Input**: 'val'.
+            - **Expected**: Chain with 'val'.
