@@ -16,6 +16,7 @@
 		"url": "https://github.com/DevilTea/valchecker/issues"
 	},
 	"keywords": [],
+	"sideEffects": false,
 	"exports": {
 		".": {
 			"import": {
