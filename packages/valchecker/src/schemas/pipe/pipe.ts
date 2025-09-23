@@ -6,6 +6,7 @@ import type { PipeStepTransformSchemaMessage, RunTransform } from './transform'
 import { AbstractSchema, implementSchemaClass } from '../../core'
 import { PipeStepCheckSchema } from './check'
 import { PipeStepFallbackSchema } from './fallback'
+import { PipeStepRunSchema } from './run'
 import { PipeStepTransformSchema } from './transform'
 
 type PipeStepValSchema = AbstractSchema<{
@@ -74,11 +75,7 @@ class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Outp
 	>(
 		rule: RunTransform<Output, Result>,
 		message?: PipeStepTransformSchemaMessage<Output, Result>,
-	): PipeSchema<NextAsync<Async, IsPromise<Result>>, true, Input, Awaited<Result>>
-	transform(
-		rule: RunTransform,
-		message?: PipeStepTransformSchemaMessage<any, any>,
-	): PipeSchema<any, any, any, any> {
+	): PipeSchema<NextAsync<Async, IsPromise<Result>>, true, Input, Awaited<Result>> {
 		return this['~step'](new PipeStepTransformSchema({
 			meta: { run: rule },
 			message,
@@ -97,6 +94,18 @@ class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Outp
 		return this['~step'](new PipeStepFallbackSchema({
 			meta: { run: rule },
 			message,
+		}))
+	}
+
+	/**
+	 * Add a run step that runs another schema.
+	 */
+	run<
+		Schema extends ValSchema,
+	>(schema: Schema,
+	): PipeSchema<NextAsync<Async, InferAsync<Schema>>, Transformed extends true ? true : InferTransformed<Schema>, Input, InferOutput<Schema>> {
+		return this['~step'](new PipeStepRunSchema({
+			meta: { schema },
 		}))
 	}
 }
