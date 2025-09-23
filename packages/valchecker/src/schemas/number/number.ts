@@ -9,6 +9,7 @@ type NumberSchemaTypes = DefineSchemaTypes<{
 
 type NumberSchemaMessage = SchemaMessage<NumberSchemaTypes>
 
+/* @__NO_SIDE_EFFECTS__ */
 class NumberSchema extends AbstractSchema<NumberSchemaTypes> {}
 
 implementSchemaClass(
@@ -26,6 +27,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a number schema. (Not allows NaN)
  */

@@ -30,6 +30,8 @@ type PipeSchemaTypes<Async extends boolean, Transformed extends boolean, Input, 
 	Input: Input
 	Output: Output
 }>
+
+/* @__NO_SIDE_EFFECTS__ */
 class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Output> extends AbstractSchema<PipeSchemaTypes<Async, Transformed, Input, Output>> {
 	private '~step'(step: PipeStepValSchema): PipeSchema<any, any, any, any> {
 		return new PipeSchema({
@@ -128,6 +130,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 function pipe<Source extends ValSchema>(source: Source): PipeSchema<InferAsync<Source>, InferTransformed<Source>, InferInput<Source>, InferOutput<Source>> {
 	return new PipeSchema({ meta: { steps: [source] } })
 }

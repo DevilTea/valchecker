@@ -8,6 +8,7 @@ type LazySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<T>
 }>
 
+/* @__NO_SIDE_EFFECTS__ */
 class LazySchema<T extends ValSchema> extends AbstractSchema<LazySchemaTypes<T>> {}
 
 implementSchemaClass(
@@ -17,6 +18,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a lazy schema.
  */

@@ -8,6 +8,7 @@ type BigintSchemaTypes = DefineSchemaTypes<{
 
 type BigintSchemaMessage = SchemaMessage<BigintSchemaTypes>
 
+/* @__NO_SIDE_EFFECTS__ */
 class BigintSchema extends AbstractSchema<BigintSchemaTypes> {}
 
 implementSchemaClass(
@@ -22,6 +23,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a bigint schema.
  */

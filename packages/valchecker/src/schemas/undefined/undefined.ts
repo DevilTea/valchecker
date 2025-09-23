@@ -8,6 +8,7 @@ type UndefinedSchemaTypes = DefineSchemaTypes<{
 
 type UndefinedSchemaMessage = SchemaMessage<UndefinedSchemaTypes>
 
+/* @__NO_SIDE_EFFECTS__ */
 class UndefinedSchema extends AbstractSchema<UndefinedSchemaTypes> {}
 
 implementSchemaClass(
@@ -22,6 +23,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates an undefined schema.
  */

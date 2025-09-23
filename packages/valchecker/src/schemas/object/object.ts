@@ -27,6 +27,7 @@ type InferObjectOutput<Struct extends ObjectSchemaStruct, Mode extends ObjectSch
 	Equal<Mode, 'loose'> extends true ? Record<PropertyKey, unknown> : unknown
 )>
 
+/* @__NO_SIDE_EFFECTS__ */
 class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> extends AbstractSchema<ObjectSchemaTypes<Struct, Mode>> {}
 
 implementSchemaClass(
@@ -91,6 +92,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates an object schema. (Extra keys are ignored.)
  */
@@ -98,6 +100,7 @@ function object<Struct extends ObjectSchemaStruct>(struct: Struct, message?: Obj
 	return new ObjectSchema({ meta: { struct, mode: 'default' }, message })
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a loose object schema. (Extra keys are kept.)
  */
@@ -105,6 +108,7 @@ function looseObject<Struct extends ObjectSchemaStruct>(struct: Struct, message?
 	return new ObjectSchema({ meta: { struct, mode: 'loose' }, message })
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a strict object schema. (Extra keys are not allowed.)
  */

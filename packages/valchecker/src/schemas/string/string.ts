@@ -8,6 +8,7 @@ type StringSchemaTypes = DefineSchemaTypes<{
 
 type StringSchemaMessage = SchemaMessage<StringSchemaTypes>
 
+/* @__NO_SIDE_EFFECTS__ */
 class StringSchema extends AbstractSchema<StringSchemaTypes> {}
 
 implementSchemaClass(
@@ -22,6 +23,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a string schema.
  */

@@ -29,6 +29,7 @@ type InferUnionOutput<Branches extends ValSchema[], T = never> = Branches extend
 		? unknown
 		: T
 
+/* @__NO_SIDE_EFFECTS__ */
 class UnionSchema<Branches extends ValSchema[]> extends AbstractSchema<UnionSchemaTypes<Branches>> {}
 
 implementSchemaClass(
@@ -75,6 +76,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a union schema.
  */

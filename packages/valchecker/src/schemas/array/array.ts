@@ -11,6 +11,7 @@ type ArraySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 
 type ArraySchemaMessage<T extends ValSchema> = SchemaMessage<ArraySchemaTypes<T>>
 
+/* @__NO_SIDE_EFFECTS__ */
 class ArraySchema<T extends ValSchema> extends AbstractSchema<ArraySchemaTypes<T>> {}
 
 implementSchemaClass(
@@ -60,6 +61,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 function array<T extends ValSchema>(item: T, message?: ArraySchemaMessage<T>): ArraySchema<T> {
 	return new ArraySchema({ meta: { item }, message })
 }

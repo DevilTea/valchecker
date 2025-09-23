@@ -11,6 +11,7 @@ type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<Schema> | undefined
 }>
 
+/* @__NO_SIDE_EFFECTS__ */
 class OptionalSchema<Schema extends ValSchema = ValSchema> extends AbstractSchema<OptionalSchemaTypes<Schema>> {}
 
 implementSchemaClass(
@@ -29,6 +30,7 @@ implementSchemaClass(
 
 type UnwrapOptional<Schema extends ValSchema> = Schema extends OptionalSchema<infer InnerSchema extends ValSchema> ? InnerSchema : Schema
 
+/* @__NO_SIDE_EFFECTS__ */
 function unwrapOptional<Schema extends ValSchema>(schema: Schema): UnwrapOptional<Schema> {
 	if (schema instanceof OptionalSchema) {
 		return schema.meta.schema
@@ -36,6 +38,7 @@ function unwrapOptional<Schema extends ValSchema>(schema: Schema): UnwrapOptiona
 	return schema as UnwrapOptional<Schema>
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 function optional<Schema extends ValSchema>(schema: Schema): OptionalSchema<UnwrapOptional<Schema>> {
 	return new OptionalSchema({ meta: { schema: unwrapOptional(schema) } })
 }

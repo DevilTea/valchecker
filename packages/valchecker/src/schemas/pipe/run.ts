@@ -9,6 +9,7 @@ type PipeStepRunSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<Schema>
 }>
 
+/* @__NO_SIDE_EFFECTS__ */
 class PipeStepRunSchema<Schema extends ValSchema> extends AbstractSchema<PipeStepRunSchemaTypes<Schema>> {}
 
 implementSchemaClass(

@@ -5,6 +5,7 @@ type UnknownSchemaTypes = DefineSchemaTypes<{
 	Output: unknown
 }>
 
+/* @__NO_SIDE_EFFECTS__ */
 class UnknownSchema extends AbstractSchema<UnknownSchemaTypes> {}
 
 implementSchemaClass(
@@ -14,6 +15,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates an unknown schema.
  */

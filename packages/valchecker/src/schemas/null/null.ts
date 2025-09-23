@@ -8,6 +8,7 @@ type NullSchemaTypes = DefineSchemaTypes<{
 
 type NullSchemaMessage = SchemaMessage<NullSchemaTypes>
 
+/* @__NO_SIDE_EFFECTS__ */
 class NullSchema extends AbstractSchema<NullSchemaTypes> {}
 
 implementSchemaClass(
@@ -22,6 +23,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a null schema.
  */

@@ -8,6 +8,7 @@ type SymbolSchemaTypes = DefineSchemaTypes<{
 
 type SymbolSchemaMessage = SchemaMessage<SymbolSchemaTypes>
 
+/* @__NO_SIDE_EFFECTS__ */
 class SymbolSchema extends AbstractSchema<SymbolSchemaTypes> {}
 
 implementSchemaClass(
@@ -22,6 +23,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a symbol schema.
  */

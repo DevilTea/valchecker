@@ -8,6 +8,7 @@ type NeverSchemaTypes = DefineSchemaTypes<{
 
 type NeverSchemaMessage = SchemaMessage<NeverSchemaTypes>
 
+/* @__NO_SIDE_EFFECTS__ */
 class NeverSchema extends AbstractSchema<NeverSchemaTypes> {}
 
 implementSchemaClass(
@@ -20,6 +21,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a never schema.
  */

@@ -22,6 +22,7 @@ export type ValueHasLength = ValueHasProperty<'length', number>
 export type ValueHasMethod<MethodName extends PropertyKey, Return = any> = ValueHasProperty<MethodName, (...args: any[]) => Return>
 
 // Utils
+/* @__NO_SIDE_EFFECTS__ */
 export const NullProtoObj = (() => {
 	const constructor = (function () {}) as unknown as new () => any
 	constructor.prototype = Object.create(null)
@@ -29,6 +30,7 @@ export const NullProtoObj = (() => {
 	return constructor
 })()
 
+/* @__NO_SIDE_EFFECTS__ */
 export function createObject<T extends Record<any, any> = Record<any, any>>(obj?: T): T {
 	const _obj = new NullProtoObj() as T
 	if (obj) {
@@ -37,18 +39,22 @@ export function createObject<T extends Record<any, any> = Record<any, any>>(obj?
 	return _obj
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 export function throwNotImplementedError(): never {
 	throw new Error('Method not implemented.')
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 export function expectNever(value?: never): never {
 	throw new Error(`Expected never, but got: ${value}`)
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 export function returnTrue() {
 	return true
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 export function returnFalse() {
 	return false
 }

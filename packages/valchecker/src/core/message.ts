@@ -28,8 +28,10 @@ function _resolveMessage({
 	return _resolveMessage({ payload, message: message[payload.code] })
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 const defaultInvalidValueMessage = 'Invalid value.'
 
+/* @__NO_SIDE_EFFECTS__ */
 function resolveMessage({
 	payload,
 	defaultMessage,

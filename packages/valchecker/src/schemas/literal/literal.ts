@@ -9,6 +9,7 @@ type LiteralSchemaTypes<L extends string | number | boolean | bigint | symbol> =
 
 type LiteralSchemaMessage<L extends string | number | boolean | bigint | symbol> = SchemaMessage<LiteralSchemaTypes<L>>
 
+/* @__NO_SIDE_EFFECTS__ */
 class LiteralSchema<L extends string | number | boolean | bigint | symbol> extends AbstractSchema<LiteralSchemaTypes<L>> {}
 
 implementSchemaClass(
@@ -31,6 +32,7 @@ implementSchemaClass(
 	},
 )
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a literal schema.
  */

@@ -41,6 +41,7 @@ type AbstractSchemaConstructorPayload<T extends SchemaTypes> = Simplify<
 	& { message?: SchemaMessage<T> }
 >
 
+/* @__NO_SIDE_EFFECTS__ */
 /**
  * Base class for all schemas.
  */
@@ -113,6 +114,7 @@ const standard = createObject<any>({
 	},
 })
 
+/* @__NO_SIDE_EFFECTS__ */
 function implementSchemaClass<Schema extends AbstractSchema>(
 	Class: new (...args: any[]) => Schema,
 	{
@@ -226,6 +228,7 @@ type UntransformedValSchema<Input = any, Output = Input> = AbstractSchema<{
 	readonly issueCode: any
 }>
 
+/* @__NO_SIDE_EFFECTS__ */
 function prependIssuePath(issue: ExecutionIssue, path: PropertyKey[]): ExecutionIssue {
 	return {
 		...issue,
@@ -233,14 +236,17 @@ function prependIssuePath(issue: ExecutionIssue, path: PropertyKey[]): Execution
 	}
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 function isSuccessResult<Output = any>(result: ExecutionResult<Output>): result is ExecutionSuccessResult<Output> {
 	return 'value' in result
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 function execute<Schema extends ValSchema>(schema: Schema, value: any): InferExecuteReturn<Schema> {
 	return schema.execute(value) as InferExecuteReturn<Schema>
 }
 
+/* @__NO_SIDE_EFFECTS__ */
 function isValid<Schema extends ValSchema>(schema: Schema, value: any): InferIsValidReturn<Schema> {
 	const result = execute(schema, value)
 	if (result instanceof Promise) {
