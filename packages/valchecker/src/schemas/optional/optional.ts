@@ -17,12 +17,12 @@ implementSchemaClass(
 	OptionalSchema,
 	{
 		isTransformed: meta => meta.schema.isTransformed,
-		execute: (value, { meta: { schema }, success }) => {
+		execute: (value, { meta, success }) => {
 			if (value === void 0) {
 				return success(value)
 			}
 
-			return schema.execute(value)
+			return meta.schema.execute(value)
 		},
 	},
 )

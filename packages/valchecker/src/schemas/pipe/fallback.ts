@@ -1,7 +1,7 @@
 import type { DefineSchemaTypes, ExecutionFailureResult, ExecutionResult, SchemaMessage } from '../../core'
 import type { MaybePromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
-import { createExecutionChain, returnTrue } from '../../shared'
+import { returnTrue } from '../../shared'
 
 type FallbackFn<T = any> = (failure: ExecutionFailureResult) => MaybePromise<T>
 
@@ -24,14 +24,17 @@ implementSchemaClass(
 		isTransformed: returnTrue,
 		execute: (lastResult, { meta, success, failure, issue }) => {
 			if (isSuccessResult(lastResult))
-				return createExecutionChain(lastResult)
+				return lastResult
 
-			return createExecutionChain()
-				.then(() => meta.run(lastResult))
-				.then<ExecutionResult<any>, ExecutionResult<any>>(
-					fallbackValue => success(fallbackValue),
-					error => failure(issue('FALLBACK_FAILED', { error })),
-				)
+			try {
+				const fallbackValue = meta.run(lastResult)
+				if (fallbackValue instanceof Promise)
+					return fallbackValue.then(success).catch(error => failure(issue('FALLBACK_FAILED', { error })))
+				return success(fallbackValue)
+			}
+			catch (error) {
+				return failure(issue('FALLBACK_FAILED', { error }))
+			}
 		},
 	},
 )

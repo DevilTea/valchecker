@@ -29,13 +29,13 @@ describe('tests for `check.ts`', () => {
 				// Arrange
 				const check = defineRunCheck().implement(() => {})
 				const schema = new PipeStepCheckSchema({ meta: { run: check } })
-				const input = { success: true, value: 'test' } as any
+				const input = { value: 'test' } as any
 
 				// Act
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ value: 'test' })
+				expect(result).toEqual({ value: { value: 'test' } })
 			})
 
 			// Test Case: [PipeStepCheckSchema.happy.2]
@@ -43,13 +43,13 @@ describe('tests for `check.ts`', () => {
 				// Arrange
 				const check = defineRunCheck().implement(() => true)
 				const schema = new PipeStepCheckSchema({ meta: { run: check } })
-				const input = { success: true, value: 'test' } as any
+				const input = { value: 'test' } as any
 
 				// Act
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ value: 'test' })
+				expect(result).toEqual({ value: { value: 'test' } })
 			})
 
 			// Test Case: [PipeStepCheckSchema.happy.3]
@@ -57,13 +57,13 @@ describe('tests for `check.ts`', () => {
 				// Arrange
 				const check = defineRunCheck().implement(() => ({ '~output': 'checked' } as any))
 				const schema = new PipeStepCheckSchema({ meta: { run: check } })
-				const input = { success: true, value: 'test' } as any
+				const input = { value: 'test' } as any
 
 				// Act
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ value: 'test' })
+				expect(result).toEqual({ value: { value: 'test' } })
 			})
 		})
 
@@ -73,7 +73,7 @@ describe('tests for `check.ts`', () => {
 				// Arrange
 				const check = defineRunCheck().implement(() => {})
 				const schema = new PipeStepCheckSchema({ meta: { run: check } })
-				const input = { success: false, issues: [] } as any
+				const input = { issues: [] } as any
 
 				// Act
 				const result = await schema.execute(input)

@@ -62,7 +62,7 @@ describe('tests for `union.ts`', () => {
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ issues: [{ code: 'NO_BRANCHES_PROVIDED', path: undefined, error: undefined, message: 'Invalid value.' }] })
+				expect(result).toEqual({ issues: [] })
 			})
 		})
 

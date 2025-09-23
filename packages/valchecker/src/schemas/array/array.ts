@@ -1,6 +1,5 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, InferTransformed, SchemaMessage, ValSchema } from '../../core'
 import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
-import { createExecutionChain } from '../../shared'
 
 type ArraySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<T>
@@ -25,25 +24,38 @@ implementSchemaClass(
 			if (!Array.isArray(value))
 				return failure('EXPECTED_ARRAY')
 
-			const _value = isTransformed ? Array.from(value) : value
+			const output = isTransformed ? Array.from(value) : value
 			const issues: ExecutionIssue[] = []
 			const itemSchema = meta.item
-			let chain = createExecutionChain()
-			for (let i = 0; i < _value.length; i++) {
-				const item = _value[i]
-				chain = chain
-					.then(() => itemSchema.execute(item))
-					.then((result) => {
-						if (isSuccessResult(result)) {
-							if (isTransformed) {
-								_value[i] = result.value
-							}
-							return
-						}
-						issues.push(...result.issues.map(issue => prependIssuePath(issue, [i])))
-					})
+
+			function processResult(result: ExecutionResult<any>, index: number) {
+				if (isSuccessResult(result)) {
+					if (isTransformed) {
+						output[index] = result.value
+					}
+					return
+				}
+				issues.push(...result.issues.map(issue => prependIssuePath(issue, [index])))
 			}
-			return chain.then<ExecutionResult<any[]>>(() => issues.length === 0 ? success(_value) : failure(issues))
+
+			let promise: Promise<void> | null = null
+			for (let i = 0; i < output.length; i++) {
+				const item = output[i]
+				const result = itemSchema.execute(item)
+
+				if (promise == null) {
+					if (result instanceof Promise)
+						promise = result.then(result => processResult(result, i))
+					else
+						processResult(result, i)
+				}
+				else {
+					promise = promise.then(() => result).then(result => processResult(result, i))
+				}
+			}
+			return promise == null
+				? (issues.length === 0 ? success(output) : failure(issues))
+				: promise.then(() => issues.length === 0 ? success(output) : failure(issues))
 		},
 	},
 )

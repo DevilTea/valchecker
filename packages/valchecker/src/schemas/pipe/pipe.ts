@@ -107,11 +107,14 @@ implementSchemaClass(
 		isTransformed: meta => meta.steps.some(step => step.isTransformed),
 		execute: (value, { meta }) => {
 			const [source, ...rest] = meta.steps
-			let chain = source.execute(value)
+			let result: MaybePromise<ExecutionResult<any>> = source.execute(value)
 			for (const step of rest) {
-				chain = chain.then(result => step.execute(result))
+				if (result instanceof Promise)
+					result = result.then(result => step.execute(result))
+				else
+					result = step.execute(result)
 			}
-			return chain
+			return result
 		},
 	},
 )

@@ -1,7 +1,6 @@
-import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferAsync, InferOutput, InferTransformed, ValSchema } from '../../core'
+import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, InferTransformed, ValSchema } from '../../core'
 import type { Equal } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
-import { createExecutionChain } from '../../shared'
 
 type UnionSchemaTypes<Branches extends ValSchema[]> = DefineSchemaTypes<{
 	Async: InferUnionAsync<Branches>
@@ -36,31 +35,42 @@ implementSchemaClass(
 	UnionSchema,
 	{
 		isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
-		execute: (value, { meta, failure }) => {
+		execute: (value, { meta, success, failure }) => {
 			const issues: ExecutionIssue[] = []
-			let isValid: ExecutionSuccessResult<any> | null = null
-			if (meta.branches.length === 0) {
-				return failure('NO_BRANCHES_PROVIDED')
+			let isValid = false
+
+			function processResult(result: ExecutionResult<any>) {
+				if (isSuccessResult(result)) {
+					isValid = true
+					return
+				}
+				issues.push(...result.issues)
 			}
 
-			let chain = createExecutionChain()
+			let promise: Promise<void> | null = null
+
 			for (const branch of meta.branches) {
-				chain = chain.then(() => {
+				const result = branch.execute(value)
+				if (promise == null) {
+					// Early return if already valid
 					if (isValid)
-						return
+						break
 
-					return createExecutionChain()
-						.then(() => branch.execute(value))
-						.then((result) => {
-							if (isSuccessResult(result)) {
-								isValid = result
-								return
-							}
-							issues.push(...result.issues)
-						})
-				})
+					if (result instanceof Promise)
+						promise = result.then(processResult)
+					else
+						processResult(result)
+				}
+				else {
+					promise = promise.then(() => isValid
+						// Early return if already valid
+						? void 0
+						: Promise.resolve(result).then(processResult))
+				}
 			}
-			return chain.then<ExecutionResult<any>>(() => (isValid || failure(issues)))
+			return promise == null
+				? (isValid ? success(value) : failure(issues))
+				: promise.then(() => isValid ? success(value) : failure(issues))
 		},
 	},
 )

@@ -1,7 +1,7 @@
 import type { DefineSchemaTypes, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
-import { createExecutionChain, returnTrue } from '../../shared'
+import { returnTrue } from '../../shared'
 
 type RunTransform<Input = any, Result = any> = (value: Input) => Result
 
@@ -24,14 +24,17 @@ implementSchemaClass(
 		isTransformed: returnTrue,
 		execute: (lastResult, { meta, success, failure, issue }) => {
 			if (isSuccessResult(lastResult) === false)
-				return createExecutionChain(lastResult)
+				return lastResult
 
-			return createExecutionChain()
-				.then(() => meta.run(lastResult.value))
-				.then<ExecutionResult<any>, ExecutionResult<any>>(
-					transformed => success(transformed),
-					error => failure(issue('TRANSFORM_FAILED', { error })),
-				)
+			try {
+				const transformed = meta.run(lastResult.value)
+				if (transformed instanceof Promise)
+					return transformed.then(success).catch(error => failure(issue('TRANSFORM_FAILED', { error })))
+				return success(transformed)
+			}
+			catch (error) {
+				return failure(issue('TRANSFORM_FAILED', { error }))
+			}
 		},
 	},
 )

@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
-import type { Equal, ExecutionChain, IsAllPropsOptional, MaybePromise, Simplify } from '../shared'
+import type { Equal, IsAllPropsOptional, MaybePromise, Simplify } from '../shared'
 import type { SchemaMessage as _SchemaMessage, UnknownErrorIssueCode } from './message'
-import { createExecutionChain, createObject, NullProtoObj, returnFalse, throwNotImplementedError } from '../shared'
+import { createObject, NullProtoObj, returnFalse, throwNotImplementedError } from '../shared'
 import { resolveMessage } from './message'
 
 type SchemaMessage<T extends SchemaTypes = SchemaTypes> = _SchemaMessage<T['issueCode'], T['input']>
@@ -63,12 +63,12 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 	private '~impl'(): any { throwNotImplementedError() }
 	private get '~transformed'(): ((meta: this['meta']) => boolean) { return this['~impl']()['~transformed'] }
 	private get '~defaultMessage'(): SchemaMessage<T> { return this['~impl']()['~defaultMessage'] }
-	private get '~execute'(): (value: T['input'], utils: ExecutionUtils<T['meta'], T['output'], T['issueCode']>) => ExecutionResult<T['output']> | Promise<ExecutionResult<T['output']>> | ExecutionChain<ExecutionResult<T['output']>> { return this['~impl']()['~execute'] }
+	private get '~execute'(): (value: T['input'], utils: ExecutionUtils<T['meta'], T['output'], T['issueCode']>) => MaybePromise<ExecutionResult<T['output']>> { return this['~impl']()['~execute'] }
 
 	get '~standard'(): StandardProps<T> { return this['~impl']()['~standard'] }
 	get isTransformed() { return this['~transformed'](this.meta) }
 
-	execute(value: T['input']): ExecutionChain<ExecutionResult<T['output']>> {
+	execute(value: T['input']): MaybePromise<ExecutionResult<T['output']>> {
 		const utils = createObject({
 			meta: this.meta,
 			isTransformed: this.isTransformed,
@@ -91,12 +91,16 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 				return { issues: [issue as any] }
 			},
 		} as ExecutionUtils<T['meta'], T['output'], T['issueCode']>)
-		return createExecutionChain()
-			.then(() => this['~execute'](value, utils))
-			.then(
-				result => result,
-				error => ({ issues: [utils.issue('UNKNOWN_ERROR', { error })] }),
-			)
+
+		try {
+			const result = this['~execute'](value, utils)
+			if (result instanceof Promise)
+				return result.catch(error => ({ issues: [utils.issue('UNKNOWN_ERROR', { error })] }))
+			return result
+		}
+		catch (error) {
+			return { issues: [utils.issue('UNKNOWN_ERROR', { error })] }
+		}
 	}
 }
 
@@ -105,7 +109,7 @@ const standard = createObject<any>({
 	vendor: 'valchecker',
 	/* v8 ignore next 3 */
 	validate(this: ValSchema, value: unknown) {
-		return this.execute(value).output
+		return this.execute(value)
 	},
 })
 
@@ -234,7 +238,7 @@ function isSuccessResult<Output = any>(result: ExecutionResult<Output>): result 
 }
 
 function execute<Schema extends ValSchema>(schema: Schema, value: any): InferExecuteReturn<Schema> {
-	return schema.execute(value).output as InferExecuteReturn<Schema>
+	return schema.execute(value) as InferExecuteReturn<Schema>
 }
 
 function isValid<Schema extends ValSchema>(schema: Schema, value: any): InferIsValidReturn<Schema> {

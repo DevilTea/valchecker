@@ -1,7 +1,7 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise, MaybePromise } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
-import { createExecutionChain, createObject, returnTrue } from '../../shared'
+import { createObject, returnTrue } from '../../shared'
 
 type True<T> = true & { readonly '~output': T }
 
@@ -32,27 +32,34 @@ implementSchemaClass(
 		isTransformed: () => false,
 		execute: (lastResult, { meta, success, failure, issue }) => {
 			if (isSuccessResult(lastResult) === false)
-				return createExecutionChain(lastResult)
+				return lastResult
 
+			const lastSuccessResult = lastResult
 			const issues: ExecutionIssue[] = []
 			const utils = createObject({
 				narrow: returnTrue,
 				addIssue: (issue: ExecutionIssue) => issues.push(issue),
 			} as any as RunCheckUtils<any>)
-			return createExecutionChain()
-				.then(() => meta.run(lastResult.value, utils))
-				.then<ExecutionResult<any>, ExecutionResult<any>>(
-					(result) => {
-						if (typeof result === 'boolean') {
-							return result ? success(lastResult.value) : failure([...issues, issue('CHECK_FAILED')])
-						}
-						if (typeof result === 'string') {
-							return failure([...issues, issue('CHECK_FAILED', { message: result })])
-						}
-						return issues.length === 0 ? success(lastResult.value) : failure(issues)
-					},
-					error => failure([...issues, issue('CHECK_FAILED', { error })]),
-				)
+
+			function processReturnValue(returnValue: Awaited<RunCheckResult>) {
+				if (typeof returnValue === 'boolean') {
+					return returnValue ? success(lastSuccessResult) : failure([...issues, issue('CHECK_FAILED')])
+				}
+				if (typeof returnValue === 'string') {
+					return failure([...issues, issue('CHECK_FAILED', { message: returnValue })])
+				}
+				return issues.length === 0 ? success(lastSuccessResult) : failure(issues)
+			}
+
+			try {
+				const returnValue = meta.run(lastResult.value, utils)
+				if (returnValue instanceof Promise)
+					return returnValue.then(processReturnValue).catch(error => failure([...issues, issue('CHECK_FAILED', { error })]))
+				return processReturnValue(returnValue)
+			}
+			catch (error) {
+				return failure([...issues, issue('CHECK_FAILED', { error })])
+			}
 		},
 	},
 )
