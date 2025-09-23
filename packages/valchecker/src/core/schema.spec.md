@@ -148,9 +148,9 @@ Test File: [`./schema.test.ts`](./schema.test.ts)
             - **Input**: Payload with meta: null.
             - **Expected**: Handles null meta.
     - **Error Cases** (if applicable)
-        - [ ] **[AbstractSchema.error.1]** Case 1: Instantiate without required payload if any.
-            - **Input**: Invalid payload.
-            - **Expected**: Throws error if required.
+        - [ ] **[AbstractSchema.error.1]** Case 1: Execute without implementation throws.
+            - **Input**: Call execute on unimplemented schema.
+            - **Expected**: Throws not implemented error.initions and utilities for valchecker, including base classes, types, and execution helpers.
 - `execute`
     - **Happy Path Cases**
         - [ ] **[execute.happy.1]** Case 1: Execute a simple success schema.

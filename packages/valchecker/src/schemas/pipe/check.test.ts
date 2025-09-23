@@ -65,6 +65,20 @@ describe('tests for `check.ts`', () => {
 				// Assert
 				expect(result).toEqual({ value: { value: 'test' } })
 			})
+
+			// Test Case: [PipeStepCheckSchema.happy.4]
+			it('should execute with success, async check returns true', async () => {
+				// Arrange
+				const check = defineRunCheck().implement(() => Promise.resolve(true))
+				const schema = new PipeStepCheckSchema({ meta: { run: check } })
+				const input = { value: 'test' } as any
+
+				// Act
+				const result = await schema.execute(input)
+
+				// Assert
+				expect(result).toEqual({ value: { value: 'test' } })
+			})
 		})
 
 		describe('edge cases', () => {

@@ -56,9 +56,14 @@ describe('tests for `schema.ts`', () => {
 
 		describe('error cases', () => {
 			// Test Case: [AbstractSchema.error.1]
-			it('should throw if required payload missing', () => {
-				// Assuming some schemas require payload, but AbstractSchema doesn't, so maybe skip or test subclass
-				expect(true).toBe(true) // Placeholder
+			it('should throw not implemented when not implemented', () => {
+				class TestSchema extends AbstractSchema {
+					constructor() {
+						super()
+					}
+				}
+				const schema = new TestSchema()
+				expect(() => schema.execute('value')).toThrow()
 			})
 		})
 	})

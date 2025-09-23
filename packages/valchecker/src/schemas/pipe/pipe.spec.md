@@ -55,10 +55,13 @@ Test File: [`./pipe.test.ts`](./pipe.test.ts)
         - [ ] **[PipeSchema.happy.4]** Case 1: Add fallback step.
             - **Input**: Call fallback on schema.
             - **Expected**: New schema with added step.
-        - [ ] **[PipeSchema.happy.5]** Case 1: Execute pipe with success.
+        - [ ] **[PipeSchema.happy.5]** Case 1: Add run step.
+            - **Input**: Call run with another schema.
+            - **Expected**: New schema with added step.
+        - [ ] **[PipeSchema.happy.6]** Case 1: Execute pipe with success.
             - **Input**: Pipe with success steps.
             - **Expected**: Chained execution result.
-        - [ ] **[PipeSchema.happy.6]** Case 1: Execute pipe with failure and fallback.
+        - [ ] **[PipeSchema.happy.7]** Case 1: Execute pipe with failure and fallback.
             - **Input**: Pipe with failing step and fallback.
             - **Expected**: Fallback result.
     - **Edge Cases**

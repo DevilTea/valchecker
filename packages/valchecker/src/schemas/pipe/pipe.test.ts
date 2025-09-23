@@ -54,6 +54,28 @@ describe('tests for `pipe.ts`', () => {
 			})
 
 			// Test Case: [PipeSchema.happy.5]
+			it('should add run step', () => {
+				const source = createTestSchema(() => ({ value: 'test' }))
+				const pipeSchema = new PipeSchema({ meta: { steps: [source] } })
+				const runSchema = createTestSchema(() => ({ value: 'run' }))
+				const withRun = pipeSchema.run(runSchema)
+				expect(withRun.meta.steps).toHaveLength(2)
+			})
+
+			// Test Case: [PipeSchema.happy.9]
+			it('should add run step with transformed schema', () => {
+				const source = createTestSchema(() => ({ value: 'test' }))
+				const pipeSchema = new PipeSchema({ meta: { steps: [source] } })
+				// Create a transformed schema
+				const transformedSchema = createTestSchema(() => ({ value: 'transformed' }))
+				// Mock isTransformed
+				Object.defineProperty(transformedSchema, 'isTransformed', { value: true })
+				const withRun = pipeSchema.run(transformedSchema)
+				expect(withRun.meta.steps).toHaveLength(2)
+				expect(withRun.isTransformed).toBe(true)
+			})
+
+			// Test Case: [PipeSchema.happy.6]
 			it('should execute pipe with success', async () => {
 				const source = createTestSchema(() => ({ value: 'start' }))
 				const step1 = createTestSchema(result => ({ value: `${result.value}1` }))
@@ -62,7 +84,16 @@ describe('tests for `pipe.ts`', () => {
 				expect(result).toEqual({ value: 'start1' })
 			})
 
-			// Test Case: [PipeSchema.happy.6]
+			// Test Case: [PipeSchema.happy.8]
+			it('should execute pipe with async step', async () => {
+				const source = createTestSchema(() => ({ value: 'start' }))
+				const asyncStep = createTestSchema(result => Promise.resolve({ value: `${result.value} async` }))
+				const pipeSchema = new PipeSchema({ meta: { steps: [source, asyncStep] } })
+				const result = await pipeSchema.execute('input')
+				expect(result).toEqual({ value: 'start async' })
+			})
+
+			// Test Case: [PipeSchema.happy.7]
 			it('should execute pipe with failure and fallback', async () => {
 				const source = createTestSchema(() => ({ issues: [{ code: 'fail' }] }))
 				const fallbackStep = createTestSchema(() => ({ value: 'fallback' }))
