@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
 import { returnTrue } from '../../shared'
 
 type RunTransform<Input = any, Result = any> = (value: Input) => Result
@@ -24,7 +24,7 @@ implementSchemaClass(
 	{
 		isTransformed: returnTrue,
 		execute: (lastResult, { meta, success, failure, issue }) => {
-			if (isSuccessResult(lastResult) === false)
+			if (isSuccess(lastResult) === false)
 				return lastResult
 
 			try {

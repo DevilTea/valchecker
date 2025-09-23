@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, InferTransformed, ValSchema } from '../../core'
 import type { Equal } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
 
 type UnionSchemaTypes<Branches extends ValSchema[]> = DefineSchemaTypes<{
 	Async: InferUnionAsync<Branches>
@@ -41,7 +41,7 @@ implementSchemaClass(
 			let isValid = false
 
 			function processResult(result: ExecutionResult<any>) {
-				if (isSuccessResult(result)) {
+				if (isSuccess(result)) {
 					isValid = true
 					return
 				}

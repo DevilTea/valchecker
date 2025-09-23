@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, ExecutionResult, InferAsync, InferInput, InferOutput, InferTransformed, ValSchema } from '../../core'
-import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
 
 type PipeStepRunSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<Schema>
@@ -17,7 +17,7 @@ implementSchemaClass(
 	{
 		isTransformed: meta => meta.schema.isTransformed,
 		execute: (lastResult, { meta }) => {
-			if (isSuccessResult(lastResult) === false)
+			if (isSuccess(lastResult) === false)
 				return lastResult
 
 			return meta.schema.execute(lastResult.value)

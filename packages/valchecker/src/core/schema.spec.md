@@ -87,7 +87,7 @@ Test File: [`./schema.test.ts`](./schema.test.ts)
     - **Description**: Implements the schema class with execution logic.
     - **Input**: Class constructor, isTransformed, defaultMessage, execute function.
     - **Output**: Modifies the class prototype.
-- `isSuccessResult`
+- `isSuccess`
     - **Description**: Checks if an execution result is successful.
     - **Input**: Execution result.
     - **Output**: Boolean.
@@ -180,16 +180,16 @@ Test File: [`./schema.test.ts`](./schema.test.ts)
         - [ ] **[implementSchemaClass.error.1]** Case 1: Invalid execute function.
             - **Input**: Class, invalid execute.
             - **Expected**: Throws or handles gracefully.
-- `isSuccessResult`
+- `isSuccess`
     - **Happy Path Cases**
-        - [ ] **[isSuccessResult.happy.1]** Case 1: Check success result.
+        - [ ] **[isSuccess.happy.1]** Case 1: Check success result.
             - **Input**: { value: 'test' }.
             - **Expected**: true.
-        - [ ] **[isSuccessResult.happy.2]** Case 1: Check failure result.
+        - [ ] **[isSuccess.happy.2]** Case 1: Check failure result.
             - **Input**: { issues: [] }.
             - **Expected**: false.
     - **Edge Cases**
-        - [ ] **[isSuccessResult.edge.1]** Case 1: Check result with both value and issues (invalid).
+        - [ ] **[isSuccess.edge.1]** Case 1: Check result with both value and issues (invalid).
             - **Input**: Invalid result object.
             - **Expected**: Based on 'value' in.
 - `isValid`

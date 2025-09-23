@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise, MaybePromise } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
 import { createObject, returnTrue } from '../../shared'
 
 type True<T> = true & { readonly '~output': T }
@@ -32,7 +32,7 @@ implementSchemaClass(
 	{
 		isTransformed: () => false,
 		execute: (lastResult, { meta, success, failure, issue }) => {
-			if (isSuccessResult(lastResult) === false)
+			if (isSuccess(lastResult) === false)
 				return lastResult
 
 			const lastSuccessResult = lastResult

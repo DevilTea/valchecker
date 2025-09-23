@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, UntransformedValSchema } from '../../core'
 import type { Equal } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccessResult } from '../../core'
+import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
 
 type IntersectionSchemaTypes<Branches extends UntransformedValSchema[]> = DefineSchemaTypes<{
 	Async: InferIntersectionAsync<Branches>
@@ -33,7 +33,7 @@ implementSchemaClass(
 			const issues: ExecutionIssue[] = []
 
 			function processResult(result: ExecutionResult<any>) {
-				if (isSuccessResult(result)) {
+				if (isSuccess(result)) {
 					return
 				}
 				issues.push(...result.issues)

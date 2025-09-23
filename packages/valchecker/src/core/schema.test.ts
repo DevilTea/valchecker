@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AbstractSchema, execute, implementSchemaClass, isSuccessResult, isValid, prependIssuePath } from './schema'
+import { AbstractSchema, execute, implementSchemaClass, isSuccess, isValid, prependIssuePath } from './schema'
 
 // Specification: ./schema.spec.md
 
@@ -196,26 +196,26 @@ describe('tests for `schema.ts`', () => {
 		})
 	})
 
-	describe('`isSuccessResult`', () => {
+	describe('`isSuccess`', () => {
 		describe('happy path cases', () => {
-			// Test Case: [isSuccessResult.happy.1]
+			// Test Case: [isSuccess.happy.1]
 			it('should return true for success result', () => {
 				const result = { value: 'test' }
-				expect(isSuccessResult(result)).toBe(true)
+				expect(isSuccess(result)).toBe(true)
 			})
 
-			// Test Case: [isSuccessResult.happy.2]
+			// Test Case: [isSuccess.happy.2]
 			it('should return false for failure result', () => {
 				const result = { issues: [] }
-				expect(isSuccessResult(result)).toBe(false)
+				expect(isSuccess(result)).toBe(false)
 			})
 		})
 
 		describe('edge cases', () => {
-			// Test Case: [isSuccessResult.edge.1]
+			// Test Case: [isSuccess.edge.1]
 			it('should check based on value in', () => {
 				const result = { value: 'test', issues: [] } as any
-				expect(isSuccessResult(result)).toBe(true)
+				expect(isSuccess(result)).toBe(true)
 			})
 		})
 	})

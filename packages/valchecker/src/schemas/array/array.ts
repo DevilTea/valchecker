@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, InferTransformed, SchemaMessage, ValSchema } from '../../core'
-import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
+import { AbstractSchema, implementSchemaClass, isSuccess, prependIssuePath } from '../../core'
 
 type ArraySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<T>
@@ -30,7 +30,7 @@ implementSchemaClass(
 			const itemSchema = meta.item
 
 			function processResult(result: ExecutionResult<any>, index: number) {
-				if (isSuccessResult(result)) {
+				if (isSuccess(result)) {
 					if (isTransformed) {
 						output[index] = result.value
 					}

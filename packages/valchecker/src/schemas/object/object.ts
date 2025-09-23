@@ -1,7 +1,7 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, SchemaMessage, ValSchema } from '../../core'
 import type { Equal, Simplify } from '../../shared'
 import type { OptionalSchema } from '../optional'
-import { AbstractSchema, implementSchemaClass, isSuccessResult, prependIssuePath } from '../../core'
+import { AbstractSchema, implementSchemaClass, isSuccess, prependIssuePath } from '../../core'
 
 type ObjectSchemaStruct = Record<PropertyKey, ValSchema>
 type ObjectSchemaModes = 'default' | 'loose' | 'strict'
@@ -61,7 +61,7 @@ implementSchemaClass(
 				: {}
 
 			function processResult(result: ExecutionResult<any>, key: string | symbol) {
-				if (isSuccessResult(result)) {
+				if (isSuccess(result)) {
 					if ((mode === 'loose') && (isTransformed === false))
 						return
 					output[key] = result.value
