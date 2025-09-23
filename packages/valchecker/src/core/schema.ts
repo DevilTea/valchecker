@@ -212,22 +212,13 @@ type InferIsValidReturn<Schema extends (ValSchema | AbstractSchema)>
 		? boolean
 		: MaybePromise<boolean>
 
-type ValSchema<Output = any> = AbstractSchema<{
-	readonly async: any
-	readonly transformed: any
-	readonly meta: any
-	readonly input: any
-	readonly output: Output
-	readonly issueCode: any
-}>
-
-type UntransformedValSchema<Input = any, Output = Input> = AbstractSchema<{
-	readonly async: any
-	readonly transformed: false
-	readonly meta: any
-	readonly input: Input
-	readonly output: Output
-	readonly issueCode: any
+type ValSchema<Props extends _RawSchemaTypesParam = any> = AbstractSchema<{
+	readonly async: Equal<Props['Async'], true> extends true ? true : Equal<Props['Async'], false> extends true ? false : any
+	readonly transformed: Equal<Props['Transformed'], true> extends true ? true : Equal<Props['Transformed'], false> extends true ? false : any
+	readonly meta: Props extends { Meta: infer Meta } ? Meta : any
+	readonly input: Props extends { Input: infer Input } ? Input : any
+	readonly output: Props extends { Output: infer Output } ? Output : any
+	readonly issueCode: Props extends { IssueCode: infer IssueCode extends string } ? IssueCode : any
 }>
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -276,7 +267,6 @@ export type {
 	InferTransformed,
 	SchemaMessage,
 	SchemaTypes,
-	UntransformedValSchema,
 	ValSchema,
 }
 

@@ -9,14 +9,7 @@ import { PipeStepFallbackSchema } from './fallback'
 import { PipeStepRunSchema } from './run'
 import { PipeStepTransformSchema } from './transform'
 
-type PipeStepValSchema = AbstractSchema<{
-	readonly async: any
-	readonly transformed: any
-	readonly meta: any
-	readonly input: ExecutionResult<any>
-	readonly output: any
-	readonly issueCode: any
-}>
+type PipeStepValSchema = ValSchema<{ Input: ExecutionResult<any> }>
 type PipeSteps = [ValSchema, ...PipeStepValSchema[]]
 
 type NextAsync<NewValue extends boolean, LastValue extends boolean> = Equal<NewValue, false> extends true ? LastValue : true

@@ -1,6 +1,8 @@
-import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, UntransformedValSchema } from '../../core'
+import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, ValSchema } from '../../core'
 import type { Equal } from '../../shared'
 import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
+
+type UntransformedValSchema = ValSchema<{ Transformed: false }>
 
 type IntersectionSchemaTypes<Branches extends UntransformedValSchema[]> = DefineSchemaTypes<{
 	Async: InferIntersectionAsync<Branches>
