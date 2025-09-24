@@ -20,27 +20,25 @@ class ArraySchema<T extends ValSchema> extends AbstractSchema<ArraySchemaTypes<T
 				defaultMessage: {
 					EXPECTED_ARRAY: 'Expected an array.',
 				},
-				execute: (value, { meta, isTransformed, success, failure }) => {
+				execute: (value, { meta, success, failure }) => {
 					if (!Array.isArray(value))
 						return failure('EXPECTED_ARRAY')
 
-					const output = isTransformed ? Array.from(value) : value
+					const output = Array.from(value)
 					const issues: ExecutionIssue[] = []
 					const itemSchema = meta.item
 
 					function processResult(result: ExecutionResult<any>, index: number) {
 						if (isSuccess(result)) {
-							if (isTransformed) {
-								output[index] = result.value
-							}
+							output[index] = result.value
 							return
 						}
 						issues.push(...result.issues.map(issue => prependIssuePath(issue, [index])))
 					}
 
 					let promise: Promise<void> | null = null
-					for (let i = 0; i < output.length; i++) {
-						const item = output[i]
+					for (let i = 0; i < value.length; i++) {
+						const item = value[i]
 						const result = itemSchema.execute(item)
 
 						if (promise == null) {
