@@ -24,7 +24,6 @@ type InferIntersectionOutput<Branches extends UntransformedValSchema[], T = neve
 		? unknown
 		: T
 
-/* @__NO_SIDE_EFFECTS__ */
 class IntersectionSchema<Branches extends UntransformedValSchema[]> extends AbstractSchema<IntersectionSchemaTypes<Branches>> {}
 
 implementSchemaClass(

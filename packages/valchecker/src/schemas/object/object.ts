@@ -27,7 +27,6 @@ type InferObjectOutput<Struct extends ObjectSchemaStruct, Mode extends ObjectSch
 	Equal<Mode, 'loose'> extends true ? Record<PropertyKey, unknown> : unknown
 )>
 
-/* @__NO_SIDE_EFFECTS__ */
 class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> extends AbstractSchema<ObjectSchemaTypes<Struct, Mode>> {}
 
 implementSchemaClass(

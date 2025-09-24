@@ -5,7 +5,6 @@ type AnySchemaTypes = DefineSchemaTypes<{
 	Output: any
 }>
 
-/* @__NO_SIDE_EFFECTS__ */
 class AnySchema extends AbstractSchema<AnySchemaTypes> {}
 
 implementSchemaClass(

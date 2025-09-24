@@ -9,7 +9,6 @@ type NumberSchemaTypes = DefineSchemaTypes<{
 
 type NumberSchemaMessage = SchemaMessage<NumberSchemaTypes>
 
-/* @__NO_SIDE_EFFECTS__ */
 class NumberSchema extends AbstractSchema<NumberSchemaTypes> {}
 
 implementSchemaClass(

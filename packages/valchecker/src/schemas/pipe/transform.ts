@@ -16,7 +16,6 @@ type PipeStepTransformSchemaTypes<Input, Result> = DefineSchemaTypes<{
 
 type PipeStepTransformSchemaMessage<Input, Result> = SchemaMessage<PipeStepTransformSchemaTypes<Input, Result>>
 
-/* @__NO_SIDE_EFFECTS__ */
 class PipeStepTransformSchema<Input, Result> extends AbstractSchema<PipeStepTransformSchemaTypes<Input, Result>> {}
 
 implementSchemaClass(

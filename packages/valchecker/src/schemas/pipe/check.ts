@@ -24,7 +24,6 @@ type PipeStepCheckSchemaTypes<Input, Result extends RunCheckResult> = DefineSche
 
 type PipeStepCheckSchemaMessage<Input, Result extends RunCheckResult> = SchemaMessage<PipeStepCheckSchemaTypes<Input, Result>>
 
-/* @__NO_SIDE_EFFECTS__ */
 class PipeStepCheckSchema<Input, Result extends RunCheckResult> extends AbstractSchema<PipeStepCheckSchemaTypes<Input, Result>> {}
 
 implementSchemaClass(

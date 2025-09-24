@@ -11,7 +11,6 @@ type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<Schema> | undefined
 }>
 
-/* @__NO_SIDE_EFFECTS__ */
 class OptionalSchema<Schema extends ValSchema = ValSchema> extends AbstractSchema<OptionalSchemaTypes<Schema>> {}
 
 implementSchemaClass(

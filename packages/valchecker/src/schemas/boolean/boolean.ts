@@ -8,7 +8,6 @@ type BooleanSchemaTypes = DefineSchemaTypes<{
 
 type BooleanSchemaMessage = SchemaMessage<BooleanSchemaTypes>
 
-/* @__NO_SIDE_EFFECTS__ */
 class BooleanSchema extends AbstractSchema<BooleanSchemaTypes> {}
 
 implementSchemaClass(

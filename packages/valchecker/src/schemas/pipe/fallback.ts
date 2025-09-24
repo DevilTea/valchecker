@@ -16,7 +16,6 @@ type PipeStepFallbackSchemaTypes<Output, Async extends boolean> = DefineSchemaTy
 
 type PipeStepFallbackSchemaMessage<Output, Async extends boolean> = SchemaMessage<PipeStepFallbackSchemaTypes<Output, Async>>
 
-/* @__NO_SIDE_EFFECTS__ */
 class PipeStepFallbackSchema<Output, Async extends boolean> extends AbstractSchema<PipeStepFallbackSchemaTypes<Output, Async>> {}
 
 implementSchemaClass(

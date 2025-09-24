@@ -9,7 +9,6 @@ type InstanceSchemaTypes<T> = DefineSchemaTypes<{
 
 type InstanceSchemaMessage<T> = SchemaMessage<InstanceSchemaTypes<T>>
 
-/* @__NO_SIDE_EFFECTS__ */
 class InstanceSchema<T> extends AbstractSchema<InstanceSchemaTypes<T>> {}
 
 implementSchemaClass(
