@@ -35,7 +35,7 @@ describe('tests for `check.ts`', () => {
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ value: { value: 'test' } })
+				expect(result).toEqual({ value: 'test' })
 			})
 
 			// Test Case: [PipeStepCheckSchema.happy.2]
@@ -49,7 +49,7 @@ describe('tests for `check.ts`', () => {
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ value: { value: 'test' } })
+				expect(result).toEqual({ value: 'test' })
 			})
 
 			// Test Case: [PipeStepCheckSchema.happy.3]
@@ -63,7 +63,7 @@ describe('tests for `check.ts`', () => {
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ value: { value: 'test' } })
+				expect(result).toEqual({ value: 'test' })
 			})
 
 			// Test Case: [PipeStepCheckSchema.happy.4]
@@ -77,7 +77,7 @@ describe('tests for `check.ts`', () => {
 				const result = await schema.execute(input)
 
 				// Assert
-				expect(result).toEqual({ value: { value: 'test' } })
+				expect(result).toEqual({ value: 'test' })
 			})
 		})
 

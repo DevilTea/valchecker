@@ -31,7 +31,7 @@ implementSchemaClass(
 	PipeStepCheckSchema,
 	{
 		isTransformed: () => false,
-		execute: (lastResult, { meta, success, failure, issue }) => {
+		execute: (lastResult, { meta, failure, issue }) => {
 			if (isSuccess(lastResult) === false)
 				return lastResult
 
@@ -44,12 +44,12 @@ implementSchemaClass(
 
 			function processReturnValue(returnValue: Awaited<RunCheckResult>) {
 				if (typeof returnValue === 'boolean') {
-					return returnValue ? success(lastSuccessResult) : failure([...issues, issue('CHECK_FAILED')])
+					return returnValue ? lastSuccessResult : failure([...issues, issue('CHECK_FAILED')])
 				}
 				if (typeof returnValue === 'string') {
 					return failure([...issues, issue('CHECK_FAILED', { message: returnValue })])
 				}
-				return issues.length === 0 ? success(lastSuccessResult) : failure(issues)
+				return issues.length === 0 ? lastSuccessResult : failure(issues)
 			}
 
 			try {
