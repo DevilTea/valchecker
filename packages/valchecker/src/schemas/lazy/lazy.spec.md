@@ -7,10 +7,6 @@ Test File: [`./lazy.test.ts`](./lazy.test.ts)
 - Lazy schema that evaluates a schema getter function lazily.
 
 ## Exported Items
-- `LazySchemaTypes`
-    - **Description**: Type for lazy schema types.
-    - **Input**: Schema getter.
-    - **Output**: DefineSchemaTypes with input/output from schema.
 - `LazySchema`
     - **Description**: Class for lazy validation.
     - **Input**: Meta with getSchema.
@@ -21,8 +17,6 @@ Test File: [`./lazy.test.ts`](./lazy.test.ts)
     - **Output**: LazySchema instance.
 
 ## Test Cases
-- `LazySchemaTypes`
-    - **Note**: Type-only, not runtime testable.
 - `LazySchema`
     - **Happy Path Cases**
         - [ ] **[LazySchema.happy.1]** Case 1: Execute with valid input for lazy schema.

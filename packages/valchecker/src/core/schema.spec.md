@@ -67,10 +67,6 @@ Test File: [`./schema.test.ts`](./schema.test.ts)
     - **Description**: Base schema types interface.
     - **Input**: N/A (type definition).
     - **Output**: An object with async, transformed, meta, input, output, issueCode.
-- `UntransformedValSchema`
-    - **Description**: Type for untransformed schemas.
-    - **Input**: N/A (type definition).
-    - **Output**: A schema with transformed: false.
 - `ValSchema`
     - **Description**: Type for general schemas.
     - **Input**: N/A (type definition).
@@ -130,8 +126,6 @@ Test File: [`./schema.test.ts`](./schema.test.ts)
 - `SchemaMessage`
     - **Note**: Type-only, not runtime testable.
 - `SchemaTypes`
-    - **Note**: Type-only, not runtime testable.
-- `UntransformedValSchema`
     - **Note**: Type-only, not runtime testable.
 - `ValSchema`
     - **Note**: Type-only, not runtime testable.

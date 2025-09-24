@@ -7,14 +7,6 @@ Test File: [`./number.test.ts`](./number.test.ts)
 - Number schema for validating that input is a number value, with optional NaN allowance.
 
 ## Exported Items
-- `NumberSchemaTypes`
-    - **Description**: Type for number schema types.
-    - **Input**: N/A (type definition).
-    - **Output**: DefineSchemaTypes with meta allowNaN, output number, issue code EXPECTED_NUMBER.
-- `NumberSchemaMessage`
-    - **Description**: Type for messages in number schema.
-    - **Input**: N/A (type definition).
-    - **Output**: SchemaMessage type.
 - `NumberSchema`
     - **Description**: Class for number validation.
     - **Input**: Meta with allowNaN.
@@ -25,10 +17,6 @@ Test File: [`./number.test.ts`](./number.test.ts)
     - **Output**: NumberSchema instance.
 
 ## Test Cases
-- `NumberSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
-- `NumberSchemaMessage`
-    - **Note**: Type-only, not runtime testable.
 - `NumberSchema`
     - **Happy Path Cases**
         - [ ] **[NumberSchema.happy.1]** Case 1: Execute with number value, allowNaN false.

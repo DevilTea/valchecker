@@ -7,10 +7,6 @@ Test File: [`./optional.test.ts`](./optional.test.ts)
 - Optional schema for making another schema optional, allowing undefined values to pass through.
 
 ## Exported Items
-- `OptionalSchemaTypes`
-    - **Description**: Type for optional schema types.
-    - **Input**: Schema.
-    - **Output**: DefineSchemaTypes with output as schema output or undefined.
 - `OptionalSchema`
     - **Description**: Class for optional validation.
     - **Input**: Meta with schema.
@@ -29,8 +25,6 @@ Test File: [`./optional.test.ts`](./optional.test.ts)
     - **Output**: Unwrapped schema.
 
 ## Test Cases
-- `OptionalSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
 - `OptionalSchema`
     - **Happy Path Cases**
         - [ ] **[OptionalSchema.happy.1]** Case 1: Execute with undefined input.

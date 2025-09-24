@@ -7,22 +7,6 @@ Test File: [`./pipe.test.ts`](./pipe.test.ts)
 - Pipe schema implementation for chaining validation, transformation, and fallback steps on schema execution results.
 
 ## Exported Items
-- `PipeStepValSchema`
-    - **Description**: Type for pipe step schemas that operate on execution results.
-    - **Input**: N/A (type definition).
-    - **Output**: Schema with input as ExecutionResult.
-- `PipeSteps`
-    - **Description**: Type for array of pipe steps, starting with a ValSchema.
-    - **Input**: N/A (type definition).
-    - **Output**: Tuple of schemas.
-- `NextAsync`
-    - **Description**: Type to determine if pipe becomes async based on new step.
-    - **Input**: N/A (type definition).
-    - **Output**: Boolean.
-- `PipeSchemaTypes`
-    - **Description**: Schema types for PipeSchema.
-    - **Input**: N/A (type definition).
-    - **Output**: Defined schema types.
 - `PipeSchema`
     - **Description**: Class for pipe schemas with methods to add steps.
     - **Input**: Meta with steps.
@@ -33,14 +17,6 @@ Test File: [`./pipe.test.ts`](./pipe.test.ts)
     - **Output**: PipeSchema instance.
 
 ## Test Cases
-- `PipeStepValSchema`
-    - **Note**: Type-only, not runtime testable.
-- `PipeSteps`
-    - **Note**: Type-only, not runtime testable.
-- `NextAsync`
-    - **Note**: Type-only, not runtime testable.
-- `PipeSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
 - `PipeSchema`
     - **Happy Path Cases**
         - [ ] **[PipeSchema.happy.1]** Case 1: Instantiate PipeSchema.

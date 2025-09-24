@@ -7,14 +7,6 @@ Test File: [`./null.test.ts`](./null.test.ts)
 - Null schema that validates if the value is null.
 
 ## Exported Items
-- `NullSchemaTypes`
-    - **Description**: Type for null schema types.
-    - **Input**: N/A.
-    - **Output**: DefineSchemaTypes with output null, issue code EXPECTED_NULL.
-- `NullSchemaMessage`
-    - **Description**: Type for null schema message.
-    - **Input**: N/A.
-    - **Output**: SchemaMessage for NullSchemaTypes.
 - `NullSchema`
     - **Description**: Class for null validation.
     - **Input**: Message optional.
@@ -25,10 +17,6 @@ Test File: [`./null.test.ts`](./null.test.ts)
     - **Output**: NullSchema instance.
 
 ## Test Cases
-- `NullSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
-- `NullSchemaMessage`
-    - **Note**: Type-only, not runtime testable.
 - `NullSchema`
     - **Happy Path Cases**
         - [ ] **[NullSchema.happy.1]** Case 1: Execute with null.

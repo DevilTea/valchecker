@@ -7,10 +7,6 @@ Test File: [`./intersection.test.ts`](./intersection.test.ts)
 - Intersection schema for validating that input satisfies all provided branch schemas.
 
 ## Exported Items
-- `IntersectionSchemaTypes`
-    - **Description**: Type for intersection schema types.
-    - **Input**: Branches array.
-    - **Output**: DefineSchemaTypes with meta branches, output intersection of branch outputs.
 - `IntersectionSchema`
     - **Description**: Class for intersection validation.
     - **Input**: Meta with branches.
@@ -21,8 +17,6 @@ Test File: [`./intersection.test.ts`](./intersection.test.ts)
     - **Output**: IntersectionSchema instance.
 
 ## Test Cases
-- `IntersectionSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
 - `IntersectionSchema`
     - **Happy Path Cases**
         - [ ] **[IntersectionSchema.happy.1]** Case 1: Execute with value satisfying all branches.

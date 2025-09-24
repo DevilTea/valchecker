@@ -7,14 +7,6 @@ Test File: [`./symbol.test.ts`](./symbol.test.ts)
 - Symbol schema for validating that input is a symbol value.
 
 ## Exported Items
-- `SymbolSchemaTypes`
-    - **Description**: Type for symbol schema types.
-    - **Input**: N/A (type definition).
-    - **Output**: DefineSchemaTypes with output symbol, issue code EXPECTED_SYMBOL.
-- `SymbolSchemaMessage`
-    - **Description**: Type for messages in symbol schema.
-    - **Input**: N/A (type definition).
-    - **Output**: SchemaMessage type.
 - `SymbolSchema`
     - **Description**: Class for symbol validation.
     - **Input**: Optional message.
@@ -25,10 +17,6 @@ Test File: [`./symbol.test.ts`](./symbol.test.ts)
     - **Output**: SymbolSchema instance.
 
 ## Test Cases
-- `SymbolSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
-- `SymbolSchemaMessage`
-    - **Note**: Type-only, not runtime testable.
 - `SymbolSchema`
     - **Happy Path Cases**
         - [ ] **[SymbolSchema.happy.1]** Case 1: Execute with symbol value.

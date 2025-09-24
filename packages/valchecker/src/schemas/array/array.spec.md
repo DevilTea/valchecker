@@ -7,14 +7,6 @@ Test File: [`./array.test.ts`](./array.test.ts)
 - Array schema for validating that input is an array and validating each item with a provided item schema.
 
 ## Exported Items
-- `ArraySchemaTypes`
-    - **Description**: Type for array schema types.
-    - **Input**: N/A (type definition).
-    - **Output**: DefineSchemaTypes with meta item, output array of item outputs, issue code EXPECTED_ARRAY.
-- `ArraySchemaMessage`
-    - **Description**: Type for messages in array schema.
-    - **Input**: N/A (type definition).
-    - **Output**: SchemaMessage type.
 - `ArraySchema`
     - **Description**: Class for array validation.
     - **Input**: Meta with item schema.
@@ -25,10 +17,6 @@ Test File: [`./array.test.ts`](./array.test.ts)
     - **Output**: ArraySchema instance.
 
 ## Test Cases
-- `ArraySchemaTypes`
-    - **Note**: Type-only, not runtime testable.
-- `ArraySchemaMessage`
-    - **Note**: Type-only, not runtime testable.
 - `ArraySchema`
     - **Happy Path Cases**
         - [ ] **[ArraySchema.happy.1]** Case 1: Execute with array of valid items.

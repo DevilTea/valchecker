@@ -7,14 +7,6 @@ Test File: [`./boolean.test.ts`](./boolean.test.ts)
 - Boolean schema for validating that input is a boolean value.
 
 ## Exported Items
-- `BooleanSchemaTypes`
-    - **Description**: Type for boolean schema types.
-    - **Input**: N/A (type definition).
-    - **Output**: DefineSchemaTypes with output boolean, issue code EXPECTED_BOOLEAN.
-- `BooleanSchemaMessage`
-    - **Description**: Type for messages in boolean schema.
-    - **Input**: N/A (type definition).
-    - **Output**: SchemaMessage type.
 - `BooleanSchema`
     - **Description**: Class for boolean validation.
     - **Input**: Optional message.
@@ -25,10 +17,6 @@ Test File: [`./boolean.test.ts`](./boolean.test.ts)
     - **Output**: BooleanSchema instance.
 
 ## Test Cases
-- `BooleanSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
-- `BooleanSchemaMessage`
-    - **Note**: Type-only, not runtime testable.
 - `BooleanSchema`
     - **Happy Path Cases**
         - [ ] **[BooleanSchema.happy.1]** Case 1: Execute with true value.

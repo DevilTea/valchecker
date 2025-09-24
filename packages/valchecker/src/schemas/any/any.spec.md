@@ -7,10 +7,6 @@ Test File: [`./any.test.ts`](./any.test.ts)
 - Any schema that accepts any value and always succeeds.
 
 ## Exported Items
-- `AnySchemaTypes`
-    - **Description**: Type for any schema types.
-    - **Input**: N/A.
-    - **Output**: DefineSchemaTypes with output any.
 - `AnySchema`
     - **Description**: Class for any validation.
     - **Input**: N/A.
@@ -21,8 +17,6 @@ Test File: [`./any.test.ts`](./any.test.ts)
     - **Output**: AnySchema instance.
 
 ## Test Cases
-- `AnySchemaTypes`
-    - **Note**: Type-only, not runtime testable.
 - `AnySchema`
     - **Happy Path Cases**
         - [ ] **[AnySchema.happy.1]** Case 1: Execute with any input.

@@ -7,14 +7,6 @@ Test File: [`./literal.test.ts`](./literal.test.ts)
 - Literal schema for validating that input exactly matches a specified value, with special handling for NaN.
 
 ## Exported Items
-- `LiteralSchemaTypes`
-    - **Description**: Type for literal schema types.
-    - **Input**: N/A (type definition).
-    - **Output**: DefineSchemaTypes with meta value, output L, issue code INVALID_LITERAL.
-- `LiteralSchemaMessage`
-    - **Description**: Type for messages in literal schema.
-    - **Input**: N/A (type definition).
-    - **Output**: SchemaMessage type.
 - `LiteralSchema`
     - **Description**: Class for literal validation.
     - **Input**: Meta with value L.
@@ -25,10 +17,6 @@ Test File: [`./literal.test.ts`](./literal.test.ts)
     - **Output**: LiteralSchema<L>.
 
 ## Test Cases
-- `LiteralSchemaTypes`
-    - **Note**: Type-only, not runtime testable.
-- `LiteralSchemaMessage`
-    - **Note**: Type-only, not runtime testable.
 - `LiteralSchema`
     - **Happy Path Cases**
         - [ ] **[LiteralSchema.happy.1]** Case 1: Execute with matching string value.
