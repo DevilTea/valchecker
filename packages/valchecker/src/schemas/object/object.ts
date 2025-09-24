@@ -37,7 +37,7 @@ class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaM
 					UNEXPECTED_KEY: 'Key is not expected.',
 				},
 				isTransformed: ({ struct }) => Object.values(struct).some(schema => schema.isTransformed),
-				execute: (value, { meta, isTransformed, success, failure }) => {
+				execute: (value, { meta, success, failure }) => {
 					if (typeof value !== 'object' || value == null || Array.isArray(value))
 						return failure('EXPECTED_OBJECT')
 
@@ -54,15 +54,11 @@ class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaM
 
 					const issues: ExecutionIssue[] = []
 					const output: Record<PropertyKey, any> = mode === 'loose'
-						? isTransformed
-							? Object.defineProperties({}, Object.getOwnPropertyDescriptors(value))
-							: value
+						? Object.defineProperties({}, Object.getOwnPropertyDescriptors(value))
 						: {}
 
 					function processResult(result: ExecutionResult<any>, key: string | symbol) {
 						if (isSuccess(result)) {
-							if ((mode === 'loose') && (isTransformed === false))
-								return
 							output[key] = result.value
 							return
 						}
