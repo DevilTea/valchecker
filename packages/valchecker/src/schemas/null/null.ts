@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type NullSchemaTypes = DefineSchemaTypes<{
 	Output: null
@@ -10,7 +10,7 @@ type NullSchemaMessage = SchemaMessage<NullSchemaTypes>
 
 class NullSchema extends AbstractSchema<NullSchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			NullSchema,
 			{
 				defaultMessage: {

@@ -61,6 +61,8 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 		this['~message'] = payload.message
 	}
 
+	implementSchemaClass = implementSchemaClass
+
 	abstract setup(): void
 
 	private '~impl'(): any {

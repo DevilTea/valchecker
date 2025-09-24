@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type LiteralSchemaTypes<L extends string | number | boolean | bigint | symbol> = DefineSchemaTypes<{
 	Meta: { value: L }
@@ -11,7 +11,7 @@ type LiteralSchemaMessage<L extends string | number | boolean | bigint | symbol>
 
 class LiteralSchema<L extends string | number | boolean | bigint | symbol> extends AbstractSchema<LiteralSchemaTypes<L>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			LiteralSchema,
 			{
 				defaultMessage: {

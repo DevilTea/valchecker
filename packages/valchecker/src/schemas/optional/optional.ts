@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, InferTransformed, ValSchema } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<Schema>
@@ -13,7 +13,7 @@ type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 
 class OptionalSchema<Schema extends ValSchema = ValSchema> extends AbstractSchema<OptionalSchemaTypes<Schema>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			OptionalSchema,
 			{
 				isTransformed: meta => meta.schema.isTransformed,

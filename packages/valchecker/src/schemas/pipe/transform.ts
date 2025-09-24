@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
+import { AbstractSchema, isSuccess } from '../../core'
 import { returnTrue } from '../../shared'
 
 type RunTransform<Input = any, Result = any> = (value: Input) => Result
@@ -18,7 +18,7 @@ type PipeStepTransformSchemaMessage<Input, Result> = SchemaMessage<PipeStepTrans
 
 class PipeStepTransformSchema<Input, Result> extends AbstractSchema<PipeStepTransformSchemaTypes<Input, Result>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			PipeStepTransformSchema,
 			{
 				isTransformed: returnTrue,

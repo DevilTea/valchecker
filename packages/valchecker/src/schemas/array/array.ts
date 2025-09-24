@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, InferTransformed, SchemaMessage, ValSchema } from '../../core'
-import { AbstractSchema, implementSchemaClass, isSuccess, prependIssuePath } from '../../core'
+import { AbstractSchema, isSuccess, prependIssuePath } from '../../core'
 
 type ArraySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<T>
@@ -13,7 +13,7 @@ type ArraySchemaMessage<T extends ValSchema> = SchemaMessage<ArraySchemaTypes<T>
 
 class ArraySchema<T extends ValSchema> extends AbstractSchema<ArraySchemaTypes<T>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			ArraySchema,
 			{
 				isTransformed: meta => meta.item.isTransformed,

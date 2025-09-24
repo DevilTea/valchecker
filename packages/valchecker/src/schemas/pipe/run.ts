@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, ExecutionResult, InferAsync, InferInput, InferOutput, InferTransformed, ValSchema } from '../../core'
-import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
+import { AbstractSchema, isSuccess } from '../../core'
 
 type PipeStepRunSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<Schema>
@@ -11,7 +11,7 @@ type PipeStepRunSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 
 class PipeStepRunSchema<Schema extends ValSchema> extends AbstractSchema<PipeStepRunSchemaTypes<Schema>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			PipeStepRunSchema,
 			{
 				isTransformed: meta => meta.schema.isTransformed,

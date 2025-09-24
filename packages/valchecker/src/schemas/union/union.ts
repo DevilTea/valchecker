@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, InferTransformed, ValSchema } from '../../core'
 import type { Equal } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
+import { AbstractSchema, isSuccess } from '../../core'
 
 type UnionSchemaTypes<Branches extends ValSchema[]> = DefineSchemaTypes<{
 	Async: InferUnionAsync<Branches>
@@ -31,7 +31,7 @@ type InferUnionOutput<Branches extends ValSchema[], T = never> = Branches extend
 
 class UnionSchema<Branches extends ValSchema[]> extends AbstractSchema<UnionSchemaTypes<Branches>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			UnionSchema,
 			{
 				isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),

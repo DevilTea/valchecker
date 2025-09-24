@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type NeverSchemaTypes = DefineSchemaTypes<{
 	Output: never
@@ -10,7 +10,7 @@ type NeverSchemaMessage = SchemaMessage<NeverSchemaTypes>
 
 class NeverSchema extends AbstractSchema<NeverSchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			NeverSchema,
 			{
 				defaultMessage: {

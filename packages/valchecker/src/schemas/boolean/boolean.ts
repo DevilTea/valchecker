@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type BooleanSchemaTypes = DefineSchemaTypes<{
 	Output: boolean
@@ -10,7 +10,7 @@ type BooleanSchemaMessage = SchemaMessage<BooleanSchemaTypes>
 
 class BooleanSchema extends AbstractSchema<BooleanSchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			BooleanSchema,
 			{
 				defaultMessage: {

@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionFailureResult, ExecutionResult, SchemaMessage } from '../../core'
 import type { MaybePromise } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
+import { AbstractSchema, isSuccess } from '../../core'
 import { returnTrue } from '../../shared'
 
 type FallbackFn<T = any> = (failure: ExecutionFailureResult) => MaybePromise<T>
@@ -18,7 +18,7 @@ type PipeStepFallbackSchemaMessage<Output, Async extends boolean> = SchemaMessag
 
 class PipeStepFallbackSchema<Output, Async extends boolean> extends AbstractSchema<PipeStepFallbackSchemaTypes<Output, Async>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			PipeStepFallbackSchema,
 			{
 				isTransformed: returnTrue,

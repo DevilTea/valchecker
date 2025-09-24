@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, ValSchema } from '../../core'
 import type { Equal } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
+import { AbstractSchema, isSuccess } from '../../core'
 
 type UntransformedValSchema = ValSchema<{ Transformed: false }>
 
@@ -26,7 +26,7 @@ type InferIntersectionOutput<Branches extends UntransformedValSchema[], T = neve
 
 class IntersectionSchema<Branches extends UntransformedValSchema[]> extends AbstractSchema<IntersectionSchemaTypes<Branches>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			IntersectionSchema,
 			{
 				isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),

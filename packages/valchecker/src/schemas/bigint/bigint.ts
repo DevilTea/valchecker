@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type BigintSchemaTypes = DefineSchemaTypes<{
 	Output: bigint
@@ -10,7 +10,7 @@ type BigintSchemaMessage = SchemaMessage<BigintSchemaTypes>
 
 class BigintSchema extends AbstractSchema<BigintSchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			BigintSchema,
 			{
 				defaultMessage: {

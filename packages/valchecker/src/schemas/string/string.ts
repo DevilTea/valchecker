@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type StringSchemaTypes = DefineSchemaTypes<{
 	Output: string
@@ -10,7 +10,7 @@ type StringSchemaMessage = SchemaMessage<StringSchemaTypes>
 
 class StringSchema extends AbstractSchema<StringSchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			StringSchema,
 			{
 				defaultMessage: {

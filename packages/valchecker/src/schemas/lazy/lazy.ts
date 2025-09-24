@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, InferAsync, InferInput, InferOutput, ValSchema } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type LazySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 	Async: InferAsync<T>
@@ -10,7 +10,7 @@ type LazySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 
 class LazySchema<T extends ValSchema> extends AbstractSchema<LazySchemaTypes<T>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			LazySchema,
 			{
 				execute: (value, { meta }) => meta.getSchema().execute(value),

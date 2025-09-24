@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type SymbolSchemaTypes = DefineSchemaTypes<{
 	Output: symbol
@@ -10,7 +10,7 @@ type SymbolSchemaMessage = SchemaMessage<SymbolSchemaTypes>
 
 class SymbolSchema extends AbstractSchema<SymbolSchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			SymbolSchema,
 			{
 				defaultMessage: {

@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type InstanceSchemaTypes<T> = DefineSchemaTypes<{
 	Meta: { constructor_: new (...args: any[]) => T }
@@ -11,7 +11,7 @@ type InstanceSchemaMessage<T> = SchemaMessage<InstanceSchemaTypes<T>>
 
 class InstanceSchema<T> extends AbstractSchema<InstanceSchemaTypes<T>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			InstanceSchema,
 			{
 				defaultMessage: {

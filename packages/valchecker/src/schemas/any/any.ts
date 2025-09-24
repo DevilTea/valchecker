@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type AnySchemaTypes = DefineSchemaTypes<{
 	Output: any
@@ -7,7 +7,7 @@ type AnySchemaTypes = DefineSchemaTypes<{
 
 class AnySchema extends AbstractSchema<AnySchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			AnySchema,
 			{
 				execute: (value, { success }) => success(value),

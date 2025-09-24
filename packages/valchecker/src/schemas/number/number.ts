@@ -1,5 +1,5 @@
 import type { DefineSchemaTypes, SchemaMessage } from '../../core'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 
 type NumberSchemaTypes = DefineSchemaTypes<{
 	Meta: { allowNaN: boolean }
@@ -11,7 +11,7 @@ type NumberSchemaMessage = SchemaMessage<NumberSchemaTypes>
 
 class NumberSchema extends AbstractSchema<NumberSchemaTypes> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			NumberSchema,
 			{
 				defaultMessage: {
@@ -28,7 +28,6 @@ class NumberSchema extends AbstractSchema<NumberSchemaTypes> {
 	}
 }
 
-/* @__NO_SIDE_EFFECTS__ */
 /**
  * Creates a number schema. (Not allows NaN)
  */

@@ -1,7 +1,7 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, InferAsync, InferOutput, SchemaMessage, ValSchema } from '../../core'
 import type { Equal, Simplify } from '../../shared'
 import type { OptionalSchema } from '../optional'
-import { AbstractSchema, implementSchemaClass, isSuccess, prependIssuePath } from '../../core'
+import { AbstractSchema, isSuccess, prependIssuePath } from '../../core'
 
 type ObjectSchemaStruct = Record<PropertyKey, ValSchema>
 type ObjectSchemaModes = 'default' | 'loose' | 'strict'
@@ -29,7 +29,7 @@ type InferObjectOutput<Struct extends ObjectSchemaStruct, Mode extends ObjectSch
 
 class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> extends AbstractSchema<ObjectSchemaTypes<Struct, Mode>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			ObjectSchema,
 			{
 				defaultMessage: {

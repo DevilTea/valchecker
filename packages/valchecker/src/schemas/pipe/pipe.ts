@@ -3,7 +3,7 @@ import type { Equal, IsPromise, MaybePromise } from '../../shared'
 import type { PipeStepCheckSchemaMessage, RunCheck, RunCheckResult, RunCheckUtils, True } from './check'
 import type { PipeStepFallbackSchemaMessage } from './fallback'
 import type { PipeStepTransformSchemaMessage, RunTransform } from './transform'
-import { AbstractSchema, implementSchemaClass } from '../../core'
+import { AbstractSchema } from '../../core'
 import { PipeStepCheckSchema } from './check'
 import { PipeStepFallbackSchema } from './fallback'
 import { PipeStepRunSchema } from './run'
@@ -26,7 +26,7 @@ type PipeSchemaTypes<Async extends boolean, Transformed extends boolean, Input, 
 
 class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Output> extends AbstractSchema<PipeSchemaTypes<Async, Transformed, Input, Output>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			PipeSchema,
 			{
 				isTransformed: meta => meta.steps.some(step => step.isTransformed),

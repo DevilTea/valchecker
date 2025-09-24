@@ -1,6 +1,6 @@
 import type { DefineSchemaTypes, ExecutionIssue, ExecutionResult, SchemaMessage } from '../../core'
 import type { IsPromise, MaybePromise } from '../../shared'
-import { AbstractSchema, implementSchemaClass, isSuccess } from '../../core'
+import { AbstractSchema, isSuccess } from '../../core'
 import { createObject, returnTrue } from '../../shared'
 
 type True<T> = true & { readonly '~output': T }
@@ -26,7 +26,7 @@ type PipeStepCheckSchemaMessage<Input, Result extends RunCheckResult> = SchemaMe
 
 class PipeStepCheckSchema<Input, Result extends RunCheckResult> extends AbstractSchema<PipeStepCheckSchemaTypes<Input, Result>> {
 	setup() {
-		implementSchemaClass(
+		this.implementSchemaClass(
 			PipeStepCheckSchema,
 			{
 				isTransformed: () => false,
