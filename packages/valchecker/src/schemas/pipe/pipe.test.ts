@@ -11,10 +11,13 @@ describe('tests for `pipe.ts`', () => {
 			constructor() {
 				super()
 			}
+
+			setup() {
+				implementSchemaClass(TestSchema, {
+					execute: executeFn,
+				})
+			}
 		}
-		implementSchemaClass(TestSchema, {
-			execute: executeFn,
-		})
 		return new TestSchema()
 	}
 

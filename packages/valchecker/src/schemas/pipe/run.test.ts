@@ -14,10 +14,13 @@ describe('tests for `run.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(NestedSchema, {
+							execute: () => ({ value: 'nested' }),
+						})
+					}
 				}
-				implementSchemaClass(NestedSchema, {
-					execute: () => ({ value: 'nested' }),
-				})
 
 				const nested = new NestedSchema()
 				const runSchema = new PipeStepRunSchema({ meta: { schema: nested } })
@@ -33,10 +36,13 @@ describe('tests for `run.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(NestedSchema, {
+							execute: () => ({ value: 'nested' }),
+						})
+					}
 				}
-				implementSchemaClass(NestedSchema, {
-					execute: () => ({ value: 'nested' }),
-				})
 
 				const nested = new NestedSchema()
 				const runSchema = new PipeStepRunSchema({ meta: { schema: nested } })
@@ -50,10 +56,13 @@ describe('tests for `run.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(NestedSchema, {
+							execute: () => Promise.resolve({ value: 'async' }),
+						})
+					}
 				}
-				implementSchemaClass(NestedSchema, {
-					execute: () => Promise.resolve({ value: 'async' }),
-				})
 
 				const nested = new NestedSchema()
 				const runSchema = new PipeStepRunSchema({ meta: { schema: nested } })
@@ -69,10 +78,13 @@ describe('tests for `run.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(NestedSchema, {
+							execute: () => ({ issues: [{ code: 'nested_fail' }] } as any),
+						})
+					}
 				}
-				implementSchemaClass(NestedSchema, {
-					execute: () => ({ issues: [{ code: 'nested_fail' }] } as any),
-				})
 
 				const nested = new NestedSchema()
 				const runSchema = new PipeStepRunSchema({ meta: { schema: nested } })

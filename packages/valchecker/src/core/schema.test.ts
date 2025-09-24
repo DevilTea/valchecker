@@ -14,10 +14,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ value: 'test' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ value: 'test' }),
-				})
 
 				const schema = new TestSchema()
 				expect(schema).toBeInstanceOf(AbstractSchema)
@@ -29,10 +32,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super({ message: 'testMessage' } as any)
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ value: 'test' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ value: 'test' }),
-				})
 
 				expect(() => new TestSchema()).not.toThrow()
 			})
@@ -45,10 +51,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super({} as any)
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ value: 'test' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ value: 'test' }),
-				})
 
 				expect(() => new TestSchema()).not.toThrow()
 			})
@@ -61,6 +70,8 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {}
 				}
 				const schema = new TestSchema()
 				expect(() => schema.execute('value')).toThrow()
@@ -76,10 +87,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ value: 'success' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ value: 'success' }),
-				})
 
 				const schema = new TestSchema()
 				const result = await execute(schema, 'input')
@@ -92,10 +106,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ issues: [{ code: 'fail', message: 'failed' }] }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ issues: [{ code: 'fail', message: 'failed' }] }),
-				})
 
 				const schema = new TestSchema()
 				const result = await execute(schema, 'input')
@@ -110,10 +127,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => Promise.resolve({ value: 'async' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => Promise.resolve({ value: 'async' }),
-				})
 
 				const schema = new TestSchema()
 				const result = await execute(schema, 'input')
@@ -128,10 +148,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => { throw new Error('test error') },
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => { throw new Error('test error') },
-				})
 
 				const schema = new TestSchema()
 				const result = await execute(schema, 'input')
@@ -150,10 +173,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ value: 'impl' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ value: 'impl' }),
-				})
 
 				const schema = new TestSchema()
 				expect(schema['~standard'].vendor).toBe('valchecker')
@@ -170,11 +196,14 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							isTransformed: () => true,
+							execute: () => ({ value: 'transformed' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					isTransformed: () => true,
-					execute: () => ({ value: 'transformed' }),
-				})
 
 				const schema = new TestSchema()
 				expect(schema.isTransformed).toBe(true)
@@ -188,6 +217,8 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {}
 				}
 				expect(() => implementSchemaClass(TestSchema, {
 					execute: null as any,
@@ -228,10 +259,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ value: 'valid' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ value: 'valid' }),
-				})
 
 				const schema = new TestSchema()
 				const valid = await isValid(schema, 'input')
@@ -244,10 +278,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => ({ issues: [{ code: 'invalid', message: 'invalid' }] }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => ({ issues: [{ code: 'invalid', message: 'invalid' }] }),
-				})
 
 				const schema = new TestSchema()
 				const valid = await isValid(schema, 'input')
@@ -262,10 +299,13 @@ describe('tests for `schema.ts`', () => {
 					constructor() {
 						super()
 					}
+
+					setup() {
+						implementSchemaClass(TestSchema, {
+							execute: () => Promise.resolve({ value: 'async' }),
+						})
+					}
 				}
-				implementSchemaClass(TestSchema, {
-					execute: () => Promise.resolve({ value: 'async' }),
-				})
 
 				const schema = new TestSchema()
 				const valid = await isValid(schema, 'input')
