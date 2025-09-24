@@ -8,19 +8,21 @@ type BigintSchemaTypes = DefineSchemaTypes<{
 
 type BigintSchemaMessage = SchemaMessage<BigintSchemaTypes>
 
-class BigintSchema extends AbstractSchema<BigintSchemaTypes> {}
-
-implementSchemaClass(
-	BigintSchema,
-	{
-		defaultMessage: {
-			EXPECTED_BIGINT: 'Expected bigint.',
-		},
-		execute: (value, { success, failure }) => typeof value === 'bigint'
-			? success(value)
-			: failure('EXPECTED_BIGINT'),
-	},
-)
+class BigintSchema extends AbstractSchema<BigintSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			BigintSchema,
+			{
+				defaultMessage: {
+					EXPECTED_BIGINT: 'Expected bigint.',
+				},
+				execute: (value, { success, failure }) => typeof value === 'bigint'
+					? success(value)
+					: failure('EXPECTED_BIGINT'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

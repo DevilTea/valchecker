@@ -8,19 +8,21 @@ type UndefinedSchemaTypes = DefineSchemaTypes<{
 
 type UndefinedSchemaMessage = SchemaMessage<UndefinedSchemaTypes>
 
-class UndefinedSchema extends AbstractSchema<UndefinedSchemaTypes> {}
-
-implementSchemaClass(
-	UndefinedSchema,
-	{
-		defaultMessage: {
-			EXPECTED_UNDEFINED: 'Expected undefined.',
-		},
-		execute: (value, { success, failure }) => value === void 0
-			? success(value)
-			: failure('EXPECTED_UNDEFINED'),
-	},
-)
+class UndefinedSchema extends AbstractSchema<UndefinedSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			UndefinedSchema,
+			{
+				defaultMessage: {
+					EXPECTED_UNDEFINED: 'Expected undefined.',
+				},
+				execute: (value, { success, failure }) => value === void 0
+					? success(value)
+					: failure('EXPECTED_UNDEFINED'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

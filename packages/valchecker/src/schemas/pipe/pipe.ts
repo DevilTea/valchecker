@@ -25,6 +25,26 @@ type PipeSchemaTypes<Async extends boolean, Transformed extends boolean, Input, 
 }>
 
 class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Output> extends AbstractSchema<PipeSchemaTypes<Async, Transformed, Input, Output>> {
+	setup() {
+		implementSchemaClass(
+			PipeSchema,
+			{
+				isTransformed: meta => meta.steps.some(step => step.isTransformed),
+				execute: (value, { meta }) => {
+					const [source, ...rest] = meta.steps
+					let result: MaybePromise<ExecutionResult<any>> = source.execute(value)
+					for (const step of rest) {
+						if (result instanceof Promise)
+							result = result.then(result => step.execute(result))
+						else
+							result = step.execute(result)
+					}
+					return result
+				},
+			},
+		)
+	}
+
 	private '~step'(step: PipeStepValSchema): PipeSchema<any, any, any, any> {
 		return new PipeSchema({
 			meta: {
@@ -103,24 +123,6 @@ class PipeSchema<Async extends boolean, Transformed extends boolean, Input, Outp
 		}))
 	}
 }
-
-implementSchemaClass(
-	PipeSchema,
-	{
-		isTransformed: meta => meta.steps.some(step => step.isTransformed),
-		execute: (value, { meta }) => {
-			const [source, ...rest] = meta.steps
-			let result: MaybePromise<ExecutionResult<any>> = source.execute(value)
-			for (const step of rest) {
-				if (result instanceof Promise)
-					result = result.then(result => step.execute(result))
-				else
-					result = step.execute(result)
-			}
-			return result
-		},
-	},
-)
 
 /* @__NO_SIDE_EFFECTS__ */
 function pipe<Source extends ValSchema>(source: Source): PipeSchema<InferAsync<Source>, InferTransformed<Source>, InferInput<Source>, InferOutput<Source>> {

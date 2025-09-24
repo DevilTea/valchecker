@@ -8,19 +8,21 @@ type SymbolSchemaTypes = DefineSchemaTypes<{
 
 type SymbolSchemaMessage = SchemaMessage<SymbolSchemaTypes>
 
-class SymbolSchema extends AbstractSchema<SymbolSchemaTypes> {}
-
-implementSchemaClass(
-	SymbolSchema,
-	{
-		defaultMessage: {
-			EXPECTED_SYMBOL: 'Expected symbol.',
-		},
-		execute: (value, { success, failure }) => typeof value === 'symbol'
-			? success(value)
-			: failure('EXPECTED_SYMBOL'),
-	},
-)
+class SymbolSchema extends AbstractSchema<SymbolSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			SymbolSchema,
+			{
+				defaultMessage: {
+					EXPECTED_SYMBOL: 'Expected symbol.',
+				},
+				execute: (value, { success, failure }) => typeof value === 'symbol'
+					? success(value)
+					: failure('EXPECTED_SYMBOL'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

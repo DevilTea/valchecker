@@ -8,17 +8,19 @@ type NeverSchemaTypes = DefineSchemaTypes<{
 
 type NeverSchemaMessage = SchemaMessage<NeverSchemaTypes>
 
-class NeverSchema extends AbstractSchema<NeverSchemaTypes> {}
-
-implementSchemaClass(
-	NeverSchema,
-	{
-		defaultMessage: {
-			EXPECTED_NEVER: 'Expected never.',
-		},
-		execute: (_value, { failure }) => failure('EXPECTED_NEVER'),
-	},
-)
+class NeverSchema extends AbstractSchema<NeverSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			NeverSchema,
+			{
+				defaultMessage: {
+					EXPECTED_NEVER: 'Expected never.',
+				},
+				execute: (_value, { failure }) => failure('EXPECTED_NEVER'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

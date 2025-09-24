@@ -29,51 +29,53 @@ type InferUnionOutput<Branches extends ValSchema[], T = never> = Branches extend
 		? unknown
 		: T
 
-class UnionSchema<Branches extends ValSchema[]> extends AbstractSchema<UnionSchemaTypes<Branches>> {}
+class UnionSchema<Branches extends ValSchema[]> extends AbstractSchema<UnionSchemaTypes<Branches>> {
+	setup() {
+		implementSchemaClass(
+			UnionSchema,
+			{
+				isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
+				execute: (value, { meta, success, failure }) => {
+					const issues: ExecutionIssue[] = []
+					let isValid = false
 
-implementSchemaClass(
-	UnionSchema,
-	{
-		isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
-		execute: (value, { meta, success, failure }) => {
-			const issues: ExecutionIssue[] = []
-			let isValid = false
+					function processResult(result: ExecutionResult<any>) {
+						if (isSuccess(result)) {
+							isValid = true
+							return
+						}
+						issues.push(...result.issues)
+					}
 
-			function processResult(result: ExecutionResult<any>) {
-				if (isSuccess(result)) {
-					isValid = true
-					return
-				}
-				issues.push(...result.issues)
-			}
+					let promise: Promise<void> | null = null
 
-			let promise: Promise<void> | null = null
+					for (const branch of meta.branches) {
+						const result = branch.execute(value)
+						if (promise == null) {
+							// Early return if already valid
+							if (isValid)
+								break
 
-			for (const branch of meta.branches) {
-				const result = branch.execute(value)
-				if (promise == null) {
-					// Early return if already valid
-					if (isValid)
-						break
-
-					if (result instanceof Promise)
-						promise = result.then(processResult)
-					else
-						processResult(result)
-				}
-				else {
-					promise = promise.then(() => isValid
-						// Early return if already valid
-						? void 0
-						: Promise.resolve(result).then(processResult))
-				}
-			}
-			return promise == null
-				? (isValid ? success(value) : failure(issues))
-				: promise.then(() => isValid ? success(value) : failure(issues))
-		},
-	},
-)
+							if (result instanceof Promise)
+								promise = result.then(processResult)
+							else
+								processResult(result)
+						}
+						else {
+							promise = promise.then(() => isValid
+								// Early return if already valid
+								? void 0
+								: Promise.resolve(result).then(processResult))
+						}
+					}
+					return promise == null
+						? (isValid ? success(value) : failure(issues))
+						: promise.then(() => isValid ? success(value) : failure(issues))
+				},
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

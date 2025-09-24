@@ -11,21 +11,23 @@ type OptionalSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<Schema> | undefined
 }>
 
-class OptionalSchema<Schema extends ValSchema = ValSchema> extends AbstractSchema<OptionalSchemaTypes<Schema>> {}
+class OptionalSchema<Schema extends ValSchema = ValSchema> extends AbstractSchema<OptionalSchemaTypes<Schema>> {
+	setup() {
+		implementSchemaClass(
+			OptionalSchema,
+			{
+				isTransformed: meta => meta.schema.isTransformed,
+				execute: (value, { meta, success }) => {
+					if (value === void 0) {
+						return success(value)
+					}
 
-implementSchemaClass(
-	OptionalSchema,
-	{
-		isTransformed: meta => meta.schema.isTransformed,
-		execute: (value, { meta, success }) => {
-			if (value === void 0) {
-				return success(value)
-			}
-
-			return meta.schema.execute(value)
-		},
-	},
-)
+					return meta.schema.execute(value)
+				},
+			},
+		)
+	}
+}
 
 type UnwrapOptional<Schema extends ValSchema> = Schema extends OptionalSchema<infer InnerSchema extends ValSchema> ? InnerSchema : Schema
 

@@ -9,22 +9,24 @@ type NumberSchemaTypes = DefineSchemaTypes<{
 
 type NumberSchemaMessage = SchemaMessage<NumberSchemaTypes>
 
-class NumberSchema extends AbstractSchema<NumberSchemaTypes> {}
-
-implementSchemaClass(
-	NumberSchema,
-	{
-		defaultMessage: {
-			EXPECTED_NUMBER: 'Expected number.',
-		},
-		execute: (value, { meta, success, failure }) => (
-			(typeof value === 'number' && meta.allowNaN)
-			|| (typeof value === 'number' && !Number.isNaN(value))
+class NumberSchema extends AbstractSchema<NumberSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			NumberSchema,
+			{
+				defaultMessage: {
+					EXPECTED_NUMBER: 'Expected number.',
+				},
+				execute: (value, { meta, success, failure }) => (
+					(typeof value === 'number' && meta.allowNaN)
+					|| (typeof value === 'number' && !Number.isNaN(value))
+				)
+					? success(value)
+					: failure('EXPECTED_NUMBER'),
+			},
 		)
-			? success(value)
-			: failure('EXPECTED_NUMBER'),
-	},
-)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

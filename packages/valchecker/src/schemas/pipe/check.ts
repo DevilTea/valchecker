@@ -24,45 +24,47 @@ type PipeStepCheckSchemaTypes<Input, Result extends RunCheckResult> = DefineSche
 
 type PipeStepCheckSchemaMessage<Input, Result extends RunCheckResult> = SchemaMessage<PipeStepCheckSchemaTypes<Input, Result>>
 
-class PipeStepCheckSchema<Input, Result extends RunCheckResult> extends AbstractSchema<PipeStepCheckSchemaTypes<Input, Result>> {}
+class PipeStepCheckSchema<Input, Result extends RunCheckResult> extends AbstractSchema<PipeStepCheckSchemaTypes<Input, Result>> {
+	setup() {
+		implementSchemaClass(
+			PipeStepCheckSchema,
+			{
+				isTransformed: () => false,
+				execute: (lastResult, { meta, failure, issue }) => {
+					if (isSuccess(lastResult) === false)
+						return lastResult
 
-implementSchemaClass(
-	PipeStepCheckSchema,
-	{
-		isTransformed: () => false,
-		execute: (lastResult, { meta, failure, issue }) => {
-			if (isSuccess(lastResult) === false)
-				return lastResult
+					const lastSuccessResult = lastResult
+					const issues: ExecutionIssue[] = []
+					const utils = createObject({
+						narrow: returnTrue,
+						addIssue: (issue: ExecutionIssue) => issues.push(issue),
+					} as any as RunCheckUtils<any>)
 
-			const lastSuccessResult = lastResult
-			const issues: ExecutionIssue[] = []
-			const utils = createObject({
-				narrow: returnTrue,
-				addIssue: (issue: ExecutionIssue) => issues.push(issue),
-			} as any as RunCheckUtils<any>)
+					function processReturnValue(returnValue: Awaited<RunCheckResult>) {
+						if (typeof returnValue === 'boolean') {
+							return returnValue ? lastSuccessResult : failure([...issues, issue('CHECK_FAILED')])
+						}
+						if (typeof returnValue === 'string') {
+							return failure([...issues, issue('CHECK_FAILED', { message: returnValue })])
+						}
+						return issues.length === 0 ? lastSuccessResult : failure(issues)
+					}
 
-			function processReturnValue(returnValue: Awaited<RunCheckResult>) {
-				if (typeof returnValue === 'boolean') {
-					return returnValue ? lastSuccessResult : failure([...issues, issue('CHECK_FAILED')])
-				}
-				if (typeof returnValue === 'string') {
-					return failure([...issues, issue('CHECK_FAILED', { message: returnValue })])
-				}
-				return issues.length === 0 ? lastSuccessResult : failure(issues)
-			}
-
-			try {
-				const returnValue = meta.run(lastResult.value, utils)
-				if (returnValue instanceof Promise)
-					return returnValue.then(processReturnValue).catch(error => failure([...issues, issue('CHECK_FAILED', { error })]))
-				return processReturnValue(returnValue)
-			}
-			catch (error) {
-				return failure([...issues, issue('CHECK_FAILED', { error })])
-			}
-		},
-	},
-)
+					try {
+						const returnValue = meta.run(lastResult.value, utils)
+						if (returnValue instanceof Promise)
+							return returnValue.then(processReturnValue).catch(error => failure([...issues, issue('CHECK_FAILED', { error })]))
+						return processReturnValue(returnValue)
+					}
+					catch (error) {
+						return failure([...issues, issue('CHECK_FAILED', { error })])
+					}
+				},
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 function defineRunCheck<Input>(): ({ implement: <Run extends RunCheck<Input>>(run: Run) => Run }) {

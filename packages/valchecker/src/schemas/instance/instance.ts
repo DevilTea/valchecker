@@ -9,19 +9,21 @@ type InstanceSchemaTypes<T> = DefineSchemaTypes<{
 
 type InstanceSchemaMessage<T> = SchemaMessage<InstanceSchemaTypes<T>>
 
-class InstanceSchema<T> extends AbstractSchema<InstanceSchemaTypes<T>> {}
-
-implementSchemaClass(
-	InstanceSchema,
-	{
-		defaultMessage: {
-			INVALID_INSTANCE: 'Invalid instance.',
-		},
-		execute: (value, { meta, success, failure }) => value instanceof meta.constructor_
-			? success(value)
-			: failure('INVALID_INSTANCE'),
-	},
-)
+class InstanceSchema<T> extends AbstractSchema<InstanceSchemaTypes<T>> {
+	setup() {
+		implementSchemaClass(
+			InstanceSchema,
+			{
+				defaultMessage: {
+					INVALID_INSTANCE: 'Invalid instance.',
+				},
+				execute: (value, { meta, success, failure }) => value instanceof meta.constructor_
+					? success(value)
+					: failure('INVALID_INSTANCE'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

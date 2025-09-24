@@ -5,14 +5,16 @@ type UnknownSchemaTypes = DefineSchemaTypes<{
 	Output: unknown
 }>
 
-class UnknownSchema extends AbstractSchema<UnknownSchemaTypes> {}
-
-implementSchemaClass(
-	UnknownSchema,
-	{
-		execute: (value, { success }) => success(value),
-	},
-)
+class UnknownSchema extends AbstractSchema<UnknownSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			UnknownSchema,
+			{
+				execute: (value, { success }) => success(value),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

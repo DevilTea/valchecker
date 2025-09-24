@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { Equal, IsAllPropsOptional, MaybePromise, Simplify } from '../shared'
 import type { SchemaMessage as _SchemaMessage, UnknownErrorIssueCode } from './message'
-import { createObject, NullProtoObj, returnFalse, throwNotImplementedError } from '../shared'
+import { createObject, NullProtoObj, returnFalse } from '../shared'
 import { resolveMessage } from './message'
 
 type SchemaMessage<T extends SchemaTypes = SchemaTypes> = _SchemaMessage<T['issueCode'], T['input']>
@@ -61,7 +61,13 @@ abstract class AbstractSchema<T extends SchemaTypes = any> extends NullProtoObj 
 		this['~message'] = payload.message
 	}
 
-	private '~impl'(): any { throwNotImplementedError() }
+	abstract setup(): void
+
+	private '~impl'(): any {
+		this.setup()
+		return this.constructor.prototype['~impl']()
+	}
+
 	private get '~transformed'(): ((meta: this['meta']) => boolean) { return this['~impl']()['~transformed'] }
 	private get '~defaultMessage'(): SchemaMessage<T> { return this['~impl']()['~defaultMessage'] }
 	private get '~execute'(): (value: T['input'], utils: ExecutionUtils<T['meta'], T['output'], T['issueCode']>) => MaybePromise<ExecutionResult<T['output']>> { return this['~impl']()['~execute'] }
@@ -132,13 +138,17 @@ function implementSchemaClass<Schema extends AbstractSchema>(
 		execute: Schema['~execute']
 	},
 ) {
+	if ((Class.prototype['~impl'] as any).done)
+		return
 	const impl = createObject<any>({
 		'~standard': standard,
 		'~transformed': isTransformed || returnFalse,
 		'~defaultMessage': defaultMessage,
 		'~execute': execute,
 	})
-	Class.prototype['~impl'] = () => impl
+	const injected = () => impl
+	injected.done = true
+	Class.prototype['~impl'] = injected
 }
 
 interface _RawSchemaTypesParam {

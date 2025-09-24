@@ -27,69 +27,71 @@ type InferObjectOutput<Struct extends ObjectSchemaStruct, Mode extends ObjectSch
 	Equal<Mode, 'loose'> extends true ? Record<PropertyKey, unknown> : unknown
 )>
 
-class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> extends AbstractSchema<ObjectSchemaTypes<Struct, Mode>> {}
+class ObjectSchema<Struct extends ObjectSchemaStruct, Mode extends ObjectSchemaModes> extends AbstractSchema<ObjectSchemaTypes<Struct, Mode>> {
+	setup() {
+		implementSchemaClass(
+			ObjectSchema,
+			{
+				defaultMessage: {
+					EXPECTED_OBJECT: 'Expected an object.',
+					UNEXPECTED_KEY: 'Key is not expected.',
+				},
+				isTransformed: ({ struct }) => Object.values(struct).some(schema => schema.isTransformed),
+				execute: (value, { meta, isTransformed, success, failure }) => {
+					if (typeof value !== 'object' || value == null || Array.isArray(value))
+						return failure('EXPECTED_OBJECT')
 
-implementSchemaClass(
-	ObjectSchema,
-	{
-		defaultMessage: {
-			EXPECTED_OBJECT: 'Expected an object.',
-			UNEXPECTED_KEY: 'Key is not expected.',
-		},
-		isTransformed: ({ struct }) => Object.values(struct).some(schema => schema.isTransformed),
-		execute: (value, { meta, isTransformed, success, failure }) => {
-			if (typeof value !== 'object' || value == null || Array.isArray(value))
-				return failure('EXPECTED_OBJECT')
+					const mode = meta.mode
+					const struct = meta.struct
+					const knownKeys = new Set(Reflect.ownKeys(struct))
 
-			const mode = meta.mode
-			const struct = meta.struct
-			const knownKeys = new Set(Reflect.ownKeys(struct))
+					if (mode === 'strict') {
+						for (const key of Reflect.ownKeys(value)) {
+							if (!knownKeys.has(key))
+								return failure('UNEXPECTED_KEY')
+						}
+					}
 
-			if (mode === 'strict') {
-				for (const key of Reflect.ownKeys(value)) {
-					if (!knownKeys.has(key))
-						return failure('UNEXPECTED_KEY')
-				}
-			}
+					const issues: ExecutionIssue[] = []
+					const output: Record<PropertyKey, any> = mode === 'loose'
+						? isTransformed
+							? Object.defineProperties({}, Object.getOwnPropertyDescriptors(value))
+							: value
+						: {}
 
-			const issues: ExecutionIssue[] = []
-			const output: Record<PropertyKey, any> = mode === 'loose'
-				? isTransformed
-					? Object.defineProperties({}, Object.getOwnPropertyDescriptors(value))
-					: value
-				: {}
+					function processResult(result: ExecutionResult<any>, key: string | symbol) {
+						if (isSuccess(result)) {
+							if ((mode === 'loose') && (isTransformed === false))
+								return
+							output[key] = result.value
+							return
+						}
+						issues.push(...result.issues.map(issue => prependIssuePath(issue, [key])))
+					}
 
-			function processResult(result: ExecutionResult<any>, key: string | symbol) {
-				if (isSuccess(result)) {
-					if ((mode === 'loose') && (isTransformed === false))
-						return
-					output[key] = result.value
-					return
-				}
-				issues.push(...result.issues.map(issue => prependIssuePath(issue, [key])))
-			}
-
-			let promise: Promise<void> | null = null
-			for (const key of knownKeys) {
-				const itemSchema = struct[key]!
-				const item = (value as any)[key]
-				const result = itemSchema.execute(item)
-				if (promise == null) {
-					if (result instanceof Promise)
-						promise = result.then(result => processResult(result, key))
-					else
-						processResult(result, key)
-				}
-				else {
-					promise = promise.then(() => result).then(result => processResult(result, key))
-				}
-			}
-			return promise == null
-				? (issues.length === 0 ? success(output) : failure(issues))
-				: promise.then(() => issues.length === 0 ? success(output) : failure(issues))
-		},
-	},
-)
+					let promise: Promise<void> | null = null
+					for (const key of knownKeys) {
+						const itemSchema = struct[key]!
+						const item = (value as any)[key]
+						const result = itemSchema.execute(item)
+						if (promise == null) {
+							if (result instanceof Promise)
+								promise = result.then(result => processResult(result, key))
+							else
+								processResult(result, key)
+						}
+						else {
+							promise = promise.then(() => result).then(result => processResult(result, key))
+						}
+					}
+					return promise == null
+						? (issues.length === 0 ? success(output) : failure(issues))
+						: promise.then(() => issues.length === 0 ? success(output) : failure(issues))
+				},
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

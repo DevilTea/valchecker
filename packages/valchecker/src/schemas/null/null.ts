@@ -8,19 +8,21 @@ type NullSchemaTypes = DefineSchemaTypes<{
 
 type NullSchemaMessage = SchemaMessage<NullSchemaTypes>
 
-class NullSchema extends AbstractSchema<NullSchemaTypes> {}
-
-implementSchemaClass(
-	NullSchema,
-	{
-		defaultMessage: {
-			EXPECTED_NULL: 'Expected null.',
-		},
-		execute: (value, { success, failure }) => value === null
-			? success(value)
-			: failure('EXPECTED_NULL'),
-	},
-)
+class NullSchema extends AbstractSchema<NullSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			NullSchema,
+			{
+				defaultMessage: {
+					EXPECTED_NULL: 'Expected null.',
+				},
+				execute: (value, { success, failure }) => value === null
+					? success(value)
+					: failure('EXPECTED_NULL'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

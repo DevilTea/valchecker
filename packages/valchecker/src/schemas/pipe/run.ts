@@ -9,20 +9,22 @@ type PipeStepRunSchemaTypes<Schema extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<Schema>
 }>
 
-class PipeStepRunSchema<Schema extends ValSchema> extends AbstractSchema<PipeStepRunSchemaTypes<Schema>> {}
+class PipeStepRunSchema<Schema extends ValSchema> extends AbstractSchema<PipeStepRunSchemaTypes<Schema>> {
+	setup() {
+		implementSchemaClass(
+			PipeStepRunSchema,
+			{
+				isTransformed: meta => meta.schema.isTransformed,
+				execute: (lastResult, { meta }) => {
+					if (isSuccess(lastResult) === false)
+						return lastResult
 
-implementSchemaClass(
-	PipeStepRunSchema,
-	{
-		isTransformed: meta => meta.schema.isTransformed,
-		execute: (lastResult, { meta }) => {
-			if (isSuccess(lastResult) === false)
-				return lastResult
-
-			return meta.schema.execute(lastResult.value)
-		},
-	},
-)
+					return meta.schema.execute(lastResult.value)
+				},
+			},
+		)
+	}
+}
 
 export {
 	PipeStepRunSchema,

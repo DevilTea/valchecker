@@ -24,48 +24,50 @@ type InferIntersectionOutput<Branches extends UntransformedValSchema[], T = neve
 		? unknown
 		: T
 
-class IntersectionSchema<Branches extends UntransformedValSchema[]> extends AbstractSchema<IntersectionSchemaTypes<Branches>> {}
+class IntersectionSchema<Branches extends UntransformedValSchema[]> extends AbstractSchema<IntersectionSchemaTypes<Branches>> {
+	setup() {
+		implementSchemaClass(
+			IntersectionSchema,
+			{
+				isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
+				execute: (value, { meta, success, failure }) => {
+					const issues: ExecutionIssue[] = []
 
-implementSchemaClass(
-	IntersectionSchema,
-	{
-		isTransformed: ({ branches }) => branches.length > 0 && branches.some(branch => branch.isTransformed),
-		execute: (value, { meta, success, failure }) => {
-			const issues: ExecutionIssue[] = []
+					function processResult(result: ExecutionResult<any>) {
+						if (isSuccess(result)) {
+							return
+						}
+						issues.push(...result.issues)
+					}
 
-			function processResult(result: ExecutionResult<any>) {
-				if (isSuccess(result)) {
-					return
-				}
-				issues.push(...result.issues)
-			}
+					let promise: Promise<void> | null = null
+					for (const branch of meta.branches) {
+						const result = branch.execute(value)
+						if (promise == null) {
+							// Early return if already invalid
+							if (issues.length > 0)
+								break
 
-			let promise: Promise<void> | null = null
-			for (const branch of meta.branches) {
-				const result = branch.execute(value)
-				if (promise == null) {
-					// Early return if already invalid
-					if (issues.length > 0)
-						break
-
-					if (result instanceof Promise)
-						promise = result.then(processResult)
-					else
-						processResult(result)
-				}
-				else {
-					promise = promise.then(() => issues.length > 0
-						// Early return if already invalid
-						? void 0
-						: Promise.resolve(result).then(processResult))
-				}
-			}
-			return promise == null
-				? (issues.length === 0 ? success(value) : failure(issues))
-				: promise.then(() => issues.length === 0 ? success(value) : failure(issues))
-		},
-	},
-)
+							if (result instanceof Promise)
+								promise = result.then(processResult)
+							else
+								processResult(result)
+						}
+						else {
+							promise = promise.then(() => issues.length > 0
+								// Early return if already invalid
+								? void 0
+								: Promise.resolve(result).then(processResult))
+						}
+					}
+					return promise == null
+						? (issues.length === 0 ? success(value) : failure(issues))
+						: promise.then(() => issues.length === 0 ? success(value) : failure(issues))
+				},
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

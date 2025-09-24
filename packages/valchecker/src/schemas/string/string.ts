@@ -8,19 +8,21 @@ type StringSchemaTypes = DefineSchemaTypes<{
 
 type StringSchemaMessage = SchemaMessage<StringSchemaTypes>
 
-class StringSchema extends AbstractSchema<StringSchemaTypes> {}
-
-implementSchemaClass(
-	StringSchema,
-	{
-		defaultMessage: {
-			EXPECTED_STRING: 'Expected string.',
-		},
-		execute: (value, { success, failure }) => typeof value === 'string'
-			? success(value)
-			: failure('EXPECTED_STRING'),
-	},
-)
+class StringSchema extends AbstractSchema<StringSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			StringSchema,
+			{
+				defaultMessage: {
+					EXPECTED_STRING: 'Expected string.',
+				},
+				execute: (value, { success, failure }) => typeof value === 'string'
+					? success(value)
+					: failure('EXPECTED_STRING'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

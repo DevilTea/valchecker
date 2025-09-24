@@ -8,19 +8,21 @@ type BooleanSchemaTypes = DefineSchemaTypes<{
 
 type BooleanSchemaMessage = SchemaMessage<BooleanSchemaTypes>
 
-class BooleanSchema extends AbstractSchema<BooleanSchemaTypes> {}
-
-implementSchemaClass(
-	BooleanSchema,
-	{
-		defaultMessage: {
-			EXPECTED_BOOLEAN: 'Expected boolean.',
-		},
-		execute: (value, { success, failure }) => typeof value === 'boolean'
-			? success(value)
-			: failure('EXPECTED_BOOLEAN'),
-	},
-)
+class BooleanSchema extends AbstractSchema<BooleanSchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			BooleanSchema,
+			{
+				defaultMessage: {
+					EXPECTED_BOOLEAN: 'Expected boolean.',
+				},
+				execute: (value, { success, failure }) => typeof value === 'boolean'
+					? success(value)
+					: failure('EXPECTED_BOOLEAN'),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

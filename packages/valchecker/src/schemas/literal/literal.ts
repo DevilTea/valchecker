@@ -9,27 +9,29 @@ type LiteralSchemaTypes<L extends string | number | boolean | bigint | symbol> =
 
 type LiteralSchemaMessage<L extends string | number | boolean | bigint | symbol> = SchemaMessage<LiteralSchemaTypes<L>>
 
-class LiteralSchema<L extends string | number | boolean | bigint | symbol> extends AbstractSchema<LiteralSchemaTypes<L>> {}
+class LiteralSchema<L extends string | number | boolean | bigint | symbol> extends AbstractSchema<LiteralSchemaTypes<L>> {
+	setup() {
+		implementSchemaClass(
+			LiteralSchema,
+			{
+				defaultMessage: {
+					INVALID_LITERAL: 'Invalid value.',
+				},
+				execute: (value, { meta, success, failure }) => {
+					if (Number.isNaN(meta.value)) {
+						return Number.isNaN(value)
+							? success(value as any)
+							: failure('INVALID_LITERAL')
+					}
 
-implementSchemaClass(
-	LiteralSchema,
-	{
-		defaultMessage: {
-			INVALID_LITERAL: 'Invalid value.',
-		},
-		execute: (value, { meta, success, failure }) => {
-			if (Number.isNaN(meta.value)) {
-				return Number.isNaN(value)
-					? success(value as any)
-					: failure('INVALID_LITERAL')
-			}
-
-			return value === meta.value
-				? success(value as any)
-				: failure('INVALID_LITERAL')
-		},
-	},
-)
+					return value === meta.value
+						? success(value as any)
+						: failure('INVALID_LITERAL')
+				},
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

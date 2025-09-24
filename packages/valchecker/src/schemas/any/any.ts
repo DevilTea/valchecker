@@ -5,14 +5,16 @@ type AnySchemaTypes = DefineSchemaTypes<{
 	Output: any
 }>
 
-class AnySchema extends AbstractSchema<AnySchemaTypes> {}
-
-implementSchemaClass(
-	AnySchema,
-	{
-		execute: (value, { success }) => success(value),
-	},
-)
+class AnySchema extends AbstractSchema<AnySchemaTypes> {
+	setup() {
+		implementSchemaClass(
+			AnySchema,
+			{
+				execute: (value, { success }) => success(value),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**

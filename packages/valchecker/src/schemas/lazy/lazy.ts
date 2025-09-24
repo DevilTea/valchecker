@@ -8,14 +8,16 @@ type LazySchemaTypes<T extends ValSchema> = DefineSchemaTypes<{
 	Output: InferOutput<T>
 }>
 
-class LazySchema<T extends ValSchema> extends AbstractSchema<LazySchemaTypes<T>> {}
-
-implementSchemaClass(
-	LazySchema,
-	{
-		execute: (value, { meta }) => meta.getSchema().execute(value),
-	},
-)
+class LazySchema<T extends ValSchema> extends AbstractSchema<LazySchemaTypes<T>> {
+	setup() {
+		implementSchemaClass(
+			LazySchema,
+			{
+				execute: (value, { meta }) => meta.getSchema().execute(value),
+			},
+		)
+	}
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 /**
