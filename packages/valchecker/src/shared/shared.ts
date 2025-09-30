@@ -3,6 +3,35 @@ export type AnyFn = (...args: any[]) => any
 
 export type Simplify<T> = { [P in keyof T]: T[P] } & {}
 
+export type Merge<A, B> = [A] extends [never]
+	? B
+	: [B] extends [never]
+			? A
+			: Omit<A, keyof B> & B
+
+/**
+ * Extracts the parameter types from all overloads of a function type. (Up to 5 overloads supported)
+ */
+export type OverloadParams<T> = T extends {
+	(...args: infer A): any
+	(...args: infer B): any
+	(...args: infer C): any
+	(...args: infer D): any
+	(...args: infer E): any
+} ? A | B | C | D | E : T extends {
+	(...args: infer A): any
+	(...args: infer B): any
+	(...args: infer C): any
+	(...args: infer D): any
+} ? A | B | C | D : T extends {
+	(...args: infer A): any
+	(...args: infer B): any
+	(...args: infer C): any
+} ? A | B | C : T extends {
+	(...args: infer A): any
+	(...args: infer B): any
+} ? A | B : never
+
 export type Optional<T> = T | undefined
 
 export type IsAllPropsOptional<T> = {
