@@ -1,6 +1,8 @@
 // Types
 export type AnyFn = (...args: any[]) => any
 
+export type IsAny<T> = 0 extends 1 & NoInfer<T> ? true : false
+
 export type Simplify<T> = { [P in keyof T]: T[P] } & {}
 
 export type Merge<A, B> = [A] extends [never]
@@ -39,6 +41,10 @@ export type IsAllPropsOptional<T> = {
 }[keyof T] extends true ? true : false
 
 export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false
+
+export type GetProp<O, K extends PropertyKey> = O extends Record<K, infer R> ? R : any
+
+export type UnionToIntersection<Union> = (Union extends unknown ? (distributedUnion: Union) => void : never) extends (mergedIntersection: infer Intersection) => void ? Intersection & Union : never
 
 export type MaybePromise<T> = T | Promise<T>
 
