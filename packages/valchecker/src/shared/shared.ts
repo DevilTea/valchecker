@@ -1,9 +1,12 @@
 // Types
-export type AnyFn = (...args: any[]) => any
+export type {
+	IsEqual,
+	Merge,
+	Simplify,
+	UnionToIntersection,
+} from 'type-fest'
 
-export type Simplify<T> = T extends object
-	? { [K in keyof T]: T[K] } & {}
-	: T
+export type AnyFn = (...args: any[]) => any
 
 /**
  * Extracts the parameter types from all overloads of a function type. (Up to 5 overloads supported)
@@ -56,12 +59,6 @@ export type Optional<T> = T | undefined
 export type IsAllPropsOptional<T> = {
 	[P in keyof T]-?: undefined extends T[P] ? true : false
 }[keyof T] extends true ? true : false
-
-export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false
-
-export type GetProp<O, K extends PropertyKey> = O extends Record<K, infer R> ? R : any
-
-export type UnionToIntersection<Union> = (Union extends unknown ? (distributedUnion: Union) => void : never) extends (mergedIntersection: infer Intersection) => void ? Intersection & Union : never
 
 export type MaybePromise<T> = T | Promise<T>
 
