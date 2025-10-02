@@ -1,7 +1,7 @@
 // import type { StandardSchemaV1 } from '@standard-schema/spec'
-// import type { AnyFn, Equal, GetProp, MaybePromise, UnionToIntersection } from '../shared'
+// import type { AnyFn, Equal, MaybePromise, OverloadParameters, OverloadReturnType, Simplify } from '../shared'
 
-// export interface ExecutionSuccessResult<Output> extends StandardSchemaV1.SuccessResult<Output> {}
+// export interface ExecutionSuccessResult<Output> extends StandardSchemaV1.SuccessResult<Output> { }
 // export interface ExecutionIssue<IssueCode extends string = string> extends StandardSchemaV1.Issue {
 // 	readonly code: IssueCode
 // 	readonly error?: unknown
@@ -17,106 +17,98 @@
 // 	input: unknown
 // 	output: unknown
 // 	issueCode: string
+// 	history: TSchemaContextHistoryItem[]
 // }
 
-// export type TSchemaContextPatch = Partial<TSchemaContext>
+// export type TSchemaContextHistoryItem = Omit<TSchemaContext, 'history'>
+
+// export type TSchemaContextPatch = Partial<Omit<TSchemaContext, 'history'>>
 
 // export interface TValchecker {
 // 	'~core': {
-// 		schemaContext: TSchemaContext | null
-// 		registeredPluginId: string | null
+// 		schemaContext: TSchemaContext
+// 		registeredSchemaId: string | null
 // 	}
 // }
 
 // // Infering
 // export type InferSchemaContext<V extends TValchecker> = V['~core']['schemaContext']
-// export type InferAsync<V extends TValchecker> = InferSchemaContext<V> extends TSchemaContext
-// 	? InferSchemaContext<V>['async']
-// 	: false
-// export type InferInput<V extends TValchecker> = InferSchemaContext<V> extends TSchemaContext
-// 	? InferSchemaContext<V>['input']
-// 	: unknown
-// export type InferOutput<V extends TValchecker> = InferSchemaContext<V> extends TSchemaContext
-// 	? InferSchemaContext<V>['output']
-// 	: unknown
-// export type InferIssueCode<V extends TValchecker> = InferSchemaContext<V> extends TSchemaContext
-// 	? InferSchemaContext<V>['issueCode']
-// 	: never
-// export type InferRegisteredPluginId<V extends TValchecker> = V['~core']['registeredPluginId'] extends string
-// 	? V['~core']['registeredPluginId']
+// export type InferAsync<V extends TValchecker> = InferSchemaContext<V>['async']
+// export type InferInput<V extends TValchecker> = InferSchemaContext<V>['input']
+// export type InferOutput<V extends TValchecker> = InferSchemaContext<V>['output']
+// export type InferIssueCode<V extends TValchecker> = InferSchemaContext<V>['issueCode']
+
+// export type InferRegisteredSchemaId<V extends TValchecker> = V['~core']['registeredSchemaId'] extends string
+// 	? V['~core']['registeredSchemaId']
 // 	: never
 
-// type PatchSchemaContext<CurrentSchemaContext extends TSchemaContext | null, Patch extends TSchemaContextPatch> = (
-// 	Equal<CurrentSchemaContext, any> extends true ? {
-// 		async: Patch extends { async: infer A extends boolean } ? A : boolean
-// 		input: Patch extends { input: infer I } ? I : unknown
-// 		output: Patch extends { output: infer O } ? O : unknown
-// 		issueCode: Patch extends { issueCode: infer C extends string } ? C : never
-// 	} : CurrentSchemaContext extends TSchemaContext ? {
-// 		async: Patch extends { async: infer A extends boolean }
-// 			? (A | CurrentSchemaContext['async']) extends false
-// 					? false
-// 					: true
-// 			: CurrentSchemaContext['async']
-// 		input: Patch extends { input: infer I } ? I : CurrentSchemaContext['input']
-// 		output: Patch extends { output: infer O } ? O : CurrentSchemaContext['output']
-// 		issueCode: Patch extends { issueCode: infer C extends string } ? (CurrentSchemaContext['issueCode'] | C) : CurrentSchemaContext['issueCode']
-// 	} : {
-// 		async: Patch extends { async: true } ? true : false
-// 		input: Patch extends { input: infer I } ? I : unknown
-// 		output: Patch extends { output: infer O } ? O : unknown
-// 		issueCode: Patch extends { issueCode: infer C extends string } ? C : never
-// 	}
+// type PatchSchemaContext<CurrentSchemaContext extends TSchemaContext, Patch extends TSchemaContextPatch> = (
+// 	Equal<CurrentSchemaContext, any> extends true
+// 		? {
+// 				async: Patch extends { async: infer A extends boolean } ? A : boolean
+// 				input: Patch extends { input: infer I } ? I : unknown
+// 				output: Patch extends { output: infer O } ? O : unknown
+// 				issueCode: Patch extends { issueCode: infer C extends string } ? C : string
+// 				history: TSchemaContextHistoryItem[]
+// 			}
+// 		: {
+// 				async: Patch extends { async: infer A extends boolean }
+// 					? (CurrentSchemaContext['async'] | A) extends false ? false : true
+// 					: CurrentSchemaContext['async']
+// 				input: Patch extends { input: infer I }
+// 					? I
+// 					: CurrentSchemaContext['input']
+// 				output: Patch extends { output: infer O }
+// 					? O
+// 					: CurrentSchemaContext['output']
+// 				issueCode: Patch extends { issueCode: infer C extends string }
+// 					? (CurrentSchemaContext['issueCode'] | C)
+// 					: CurrentSchemaContext['issueCode']
+// 				history: [...CurrentSchemaContext['history'], Simplify<Omit<CurrentSchemaContext, 'history'>>]
+// 			}
 // ) extends infer PatchedSchemaContext extends TSchemaContext
 // 	? PatchedSchemaContext
 // 	: never
 
-// type ExpectedValchecker<ExpectedSchemaContext extends Partial<TSchemaContext> | null> = ExpectedSchemaContext extends null
-// 	? Valchecker<null>
-// 	: Valchecker<{
-// 		async: ExpectedSchemaContext extends { async: infer A extends boolean } ? A : TSchemaContext['async']
-// 		input: ExpectedSchemaContext extends { input: infer I } ? I : TSchemaContext['input']
-// 		output: ExpectedSchemaContext extends { output: infer O } ? O : TSchemaContext['output']
-// 		issueCode: ExpectedSchemaContext extends { issueCode: infer C extends string } ? C : TSchemaContext['issueCode']
-// 	}>
+// type ExpectedValchecker<ExpectedSchemaContext extends Partial<TSchemaContext>> = Valchecker<{
+// 	async: ExpectedSchemaContext extends { async: infer A extends boolean } ? A : TSchemaContext['async']
+// 	input: ExpectedSchemaContext extends { input: infer I } ? I : TSchemaContext['input']
+// 	output: ExpectedSchemaContext extends { output: infer O } ? O : TSchemaContext['output']
+// 	issueCode: ExpectedSchemaContext extends { issueCode: infer C extends string } ? C : TSchemaContext['issueCode']
+// 	history: ExpectedSchemaContext extends { history: infer H extends TSchemaContextHistoryItem[] } ? H : TSchemaContextHistoryItem[]
+// }>
 
-// type ExtractSchemaMethods<Instance extends Valchecker> = UnionToIntersection<
-// 	{
-// 		[
-// 		M in keyof Instance as M extends `~(plugin) ${string}`
-// 			? M extends `~(plugin) ${InferRegisteredPluginId<Instance>}`
-// 				? Equal<Instance[M], any> extends true
-// 					? never
-// 					: M
-// 				: never
-// 			: never
-// 		]: Instance[M] extends { schemaMethods: infer S } ? S : never
-// 	} extends infer O ? O[keyof O] : never
-// > extends infer Methods
-// 	? [Methods] extends [never]
-// 			? unknown
-// 			: Methods
-// 	: never
+// type ExtractSchemaMethods<Instance extends Valchecker> = {
+// 	// Filtered to only registered schema definitions
+// 	[P in keyof Instance as P extends `~(schema) ${InferRegisteredSchemaId<Instance>}`
+// 		// Ensure it's an available method for current instance
+// 		? [Instance[P]] extends [never]
+// 				? never
+// 				: P extends `~(schema) ${string}:${infer MethodName extends string}`
+// 					? MethodName
+// 					: never
+// 		: never
+// 	]: Instance[P]
+// }
 
 // type Use<Instance extends Valchecker> = Omit<
 // 	Instance,
-// 	`~(plugin) ${string}`
+// 	`~(schema) ${string}`
 // > & ExtractSchemaMethods<Instance>
 
 // type Next<
-// 	Instance extends Valchecker,
 // 	Patch extends TSchemaContextPatch,
-// > = Use<
-// 	Valchecker<
-// 		PatchSchemaContext<InferSchemaContext<Instance>, Patch>,
-// 		InferRegisteredPluginId<Instance>
-// 	>
-// >
+// 	This extends Valchecker,
+// 	ExpectedThis extends Valchecker,
+// > = Use<Valchecker<
+// 	PatchSchemaContext<InferSchemaContext<This>, Patch>,
+// 	InferRegisteredSchemaId<This>
+// >> & { '~temp': { expectedThis: ExpectedThis, patch: Patch } }
 
-// type InitialValchecker<RegisteredPluginId extends string | null> = Use<Valchecker<null, RegisteredPluginId>>
+// type AnyValchecker = Valchecker<any, any>
 
 // // Schema Plugin
-// type AllSchemaPluginId = keyof { [P in keyof Valchecker as P extends `~(plugin) ${infer PluginId extends string}` ? PluginId : never]: any }
+// type AllSchemaId = keyof { [P in keyof Valchecker as P extends `~(schema) ${infer SchemaId extends string}` ? SchemaId : never]: any }
 
 // interface SchemaMethodUtils<
 // 	Input,
@@ -135,75 +127,46 @@
 // 	failure: (issue: IssueCode | ExecutionIssue | ExecutionIssue[]) => ExecutionFailureResult
 // 	issue: (code: IssueCode, payload?: { path?: ExecutionIssue['path'], error?: unknown, message?: string }) => ExecutionIssue
 // }
-// type AnyValchecker = Valchecker<any, any>
 
-// export type SchemaPlugin<PluginId extends AllSchemaPluginId = AllSchemaPluginId> = PluginId extends AllSchemaPluginId
+// export type SchemaPlugin<SchemaId extends AllSchemaId = AllSchemaId> = SchemaId extends AllSchemaId
 // 	? {
-// 			id: PluginId
-// 			implement: {
-// 				schemaMethods: GetProp<AnyValchecker[`~(plugin) ${PluginId}`], 'schemaMethods'> extends infer Methods extends Record<string, AnyFn>
-// 					? {
-// 							[M in keyof Methods]: (
-// 								utils: SchemaMethodUtils<
-
-// 								>,
-// 								...params: Parameters<Methods[M]>
-// 							) => void
-// 						}
-// 					: never
-// 			}
+// 			id: SchemaId
+// 			implement: AnyValchecker[`~(schema) ${SchemaId}`] extends infer MethodDef extends AnyFn
+// 				? (
+// 						utils: SchemaMethodUtils<
+// 							OverloadReturnType<MethodDef> extends { '~temp': { expectedThis: infer E extends Valchecker } }
+// 								? InferOutput<E>
+// 								: unknown,
+// 							InferIssueCode<OverloadReturnType<MethodDef>>
+// 						>,
+// 						params: OverloadParameters<MethodDef>,
+// 					) => void
+// 				: never
 // 		}
 // 	: never
 
 // interface Valchecker<
-// 	CurrentSchemaContext extends TSchemaContext | null = TSchemaContext | null,
-// 	RegisteredPluginId extends string | null = string | null,
+// 	CurrentSchemaContext extends TSchemaContext = TSchemaContext,
+// 	RegisteredSchemaId extends string | null = string | null,
 // > extends StandardSchemaV1<
-// 	InferInput<{ '~core': { schemaContext: CurrentSchemaContext, registeredPluginId: RegisteredPluginId } }>,
-// 	InferOutput<{ '~core': { schemaContext: CurrentSchemaContext, registeredPluginId: RegisteredPluginId } }>
+// 	InferInput<{ '~core': { schemaContext: CurrentSchemaContext, registeredSchemaId: RegisteredSchemaId } }>,
+// 	InferOutput<{ '~core': { schemaContext: CurrentSchemaContext, registeredSchemaId: RegisteredSchemaId } }>
 // > {
 // 	readonly '~core': {
 // 		schemaContext: CurrentSchemaContext
-// 		registeredPluginId: RegisteredPluginId
-// 	}
-// 	[P: `~(plugin) ${string}`]: {
-// 		schemaMethods: Record<string, any>
+// 		registeredSchemaId: RegisteredSchemaId
 // 	}
 // }
 
-// interface Valchecker {
-// 	'~(plugin) core:number': this extends infer This
-// 		? {
-// 				schemaMethods: This extends ExpectedValchecker<null>
-// 					? {
-// 							number: () => Next<This, { output: number, issueCode: 'core:not_number' }>
-// 						}
-// 					: Record<never, never>
-// 			}
-// 		: never
-// }
-// // const number = {
-// // 	id: 'core:number',
-// // 	implement: {
-// // 		schemaMethods: {
-// // 			number: (utils, n) => {},
-// // 		},
-// // 	},
-// // } satisfies SchemaPlugin<'core:number'>
-
-// interface Valchecker {
-// 	'~(plugin) core:string': this extends infer This
-// 		? {
-// 				schemaMethods: This extends ExpectedValchecker<null>
-// 					? { string: () => Next<This, { output: string }> }
-// 					: Record<never, never>
-// 			}
-// 		: never
+// export interface InitialSchemaContext {
+// 	async: false
+// 	input: unknown
+// 	output: unknown
+// 	issueCode: never
+// 	history: []
 // }
 
-// declare const v: InitialValchecker<'core:number' | 'core:string'>
-
-// v.string()
+// export type InitialValchecker<RegisteredSchemaId extends string | null> = Use<Valchecker<InitialSchemaContext, RegisteredSchemaId>>
 
 // export function createValchecker<Plugins extends SchemaPlugin[]>({
 // 	plugins,
@@ -211,9 +174,44 @@
 // 	plugins: [...Plugins]
 // }) {
 // 	const _schemaMethods = plugins.reduce((acc, plugin) => {
-// 		return plugin.implement.schemaMethods
-// 			? { ...acc, ...plugin.implement.schemaMethods }
-// 			: acc
+// 		return acc
 // 	}, {} as Record<string, any>)
 // 	return {} as InitialValchecker<Plugins extends [] ? null : Plugins[number]['id']>
 // }
+
+// // demo
+
+// type NumberSchemaExpectedThis = ExpectedValchecker<InitialSchemaContext>
+// type NumberSchema<This> = This extends NumberSchemaExpectedThis
+// 	? () => Next<{ output: number, issueCode: 'expected_number' }, This, NumberSchemaExpectedThis>
+// 	: never
+
+// type ToStringSchemaExpectedThis = ExpectedValchecker<{ output: { toString: (...params: any[]) => string } }>
+// type ToStringSchema<This> = This extends ToStringSchemaExpectedThis
+// 	? (...params: Parameters<InferOutput<This>['toString']>) => Next<{ output: string }, This, ToStringSchemaExpectedThis>
+// 	: never
+
+// interface Valchecker {
+// 	'~(schema) core:number': NumberSchema<this>
+// 	'~(schema) core:toString': ToStringSchema<this>
+// }
+
+// const number = {
+// 	id: 'core:number',
+// 	implement: (utils) => {
+// 		utils.addSuccessStep(v => typeof v === 'number'
+// 			? utils.success(v)
+// 			: utils.failure('expected_number'))
+// 	},
+// } satisfies SchemaPlugin<'core:number'>
+
+// const toString = {
+// 	id: 'core:toString',
+// 	implement: (utils, params) => {
+// 		utils.addSuccessStep(v => utils.success(v.toString(...params)))
+// 	},
+// } satisfies SchemaPlugin<'core:toString'>
+
+// declare const v: InitialValchecker<AllSchemaId>
+
+// const s = v.number().toString()

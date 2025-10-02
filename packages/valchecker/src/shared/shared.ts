@@ -1,38 +1,55 @@
 // Types
 export type AnyFn = (...args: any[]) => any
 
-export type IsAny<T> = 0 extends 1 & NoInfer<T> ? true : false
-
-export type Simplify<T> = { [P in keyof T]: T[P] } & {}
-
-export type Merge<A, B> = [A] extends [never]
-	? B
-	: [B] extends [never]
-			? A
-			: Omit<A, keyof B> & B
+export type Simplify<T> = T extends object
+	? { [K in keyof T]: T[K] } & {}
+	: T
 
 /**
  * Extracts the parameter types from all overloads of a function type. (Up to 5 overloads supported)
  */
-export type OverloadParams<T> = T extends {
-	(...args: infer A): any
-	(...args: infer B): any
-	(...args: infer C): any
-	(...args: infer D): any
-	(...args: infer E): any
-} ? A | B | C | D | E : T extends {
-	(...args: infer A): any
-	(...args: infer B): any
-	(...args: infer C): any
-	(...args: infer D): any
-} ? A | B | C | D : T extends {
-	(...args: infer A): any
-	(...args: infer B): any
-	(...args: infer C): any
-} ? A | B | C : T extends {
-	(...args: infer A): any
-	(...args: infer B): any
-} ? A | B : never
+export type OverloadParameters<T> = T extends {
+	(...args: infer P1): any
+	(...args: infer P2): any
+	(...args: infer P3): any
+	(...args: infer P4): any
+	(...args: infer P5): any
+} ? P1 | P2 | P3 | P4 | P5 : T extends {
+	(...args: infer P1): any
+	(...args: infer P2): any
+	(...args: infer P3): any
+	(...args: infer P4): any
+} ? P1 | P2 | P3 | P4 : T extends {
+	(...args: infer P1): any
+	(...args: infer P2): any
+	(...args: infer P3): any
+} ? P1 | P2 | P3 : T extends {
+	(...args: infer P1): any
+	(...args: infer P2): any
+} ? P1 | P2 : never
+
+/**
+ * Extracts the return types from all overloads of a function type. (Up to 5 overloads supported)
+ */
+export type OverloadReturnType<T> = T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+	(...args: any[]): infer R3
+	(...args: any[]): infer R4
+	(...args: any[]): infer R5
+} ? R1 | R2 | R3 | R4 | R5 : T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+	(...args: any[]): infer R3
+	(...args: any[]): infer R4
+} ? R1 | R2 | R3 | R4 : T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+	(...args: any[]): infer R3
+} ? R1 | R2 | R3 : T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+} ? R1 | R2 : never
 
 export type Optional<T> = T | undefined
 
