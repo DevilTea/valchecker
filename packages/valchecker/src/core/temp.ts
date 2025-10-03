@@ -208,6 +208,12 @@
 // 	) => void
 // }
 
+// type AAA = OverloadParametersAndReturnType<(NumberSchemaDef & { This: Valchecker<any> })['number']> extends infer Tuple extends [any, any]
+// 	? Tuple extends any
+// 		? Tuple[0][0]
+// 		: never
+// 	: never
+
 // const number = {
 // 	number: () => { },
 // 	looseNumber: () => { },
