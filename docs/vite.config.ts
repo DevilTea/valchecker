@@ -4,5 +4,5 @@ import { groupIconVitePlugin as VitepressGroupIcon } from 'vitepress-plugin-grou
 export default defineConfig({
 	plugins: [
 		VitepressGroupIcon(),
-	],
+	] as any,
 })
