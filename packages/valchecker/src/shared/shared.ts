@@ -1,60 +1,103 @@
+import type * as t from 'type-fest'
+
 // Types
+export type {
+	Class,
+	IsEqual,
+	Simplify,
+	UnionToIntersection,
+	ValueOf,
+} from 'type-fest'
+
+export type IsExactlyAnyOrUnknown<T> = t.IsAny<T> extends true
+	? true
+	: t.IsUnknown<T> extends true
+		? true
+		: false
+
 export type AnyFn = (...args: any[]) => any
 
-export type Simplify<T> = { [P in keyof T]: T[P] } & {}
-
-export type Optional<T> = T | undefined
-
-export type IsAllPropsOptional<T> = {
-	[P in keyof T]-?: undefined extends T[P] ? true : false
-}[keyof T] extends true ? true : false
-
-export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false
+/**
+ * Extracts the parameters and return type of overloads in a function type as a union of tuples. (Up to 5 overloads supported)
+ */
+export type OverloadParametersAndReturnType<T> = T extends {
+	(...args: infer P1): infer R1
+	(...args: infer P2): infer R2
+	(...args: infer P3): infer R3
+	(...args: infer P4): infer R4
+	(...args: infer P5): infer R5
+} ? [P1, R1] | [P2, R2] | [P3, R3] | [P4, R4] | [P5, R5] : T extends {
+	(...args: infer P1): infer R1
+	(...args: infer P2): infer R2
+	(...args: infer P3): infer R3
+	(...args: infer P4): infer R4
+} ? [P1, R1] | [P2, R2] | [P3, R3] | [P4, R4] : T extends {
+	(...args: infer P1): infer R1
+	(...args: infer P2): infer R2
+	(...args: infer P3): infer R3
+} ? [P1, R1] | [P2, R2] | [P3, R3] : T extends {
+	(...args: infer P1): infer R1
+	(...args: infer P2): infer R2
+} ? [P1, R1] | [P2, R2] : T extends {
+	(...args: infer P1): infer R1
+} ? [P1, R1] : never
 
 export type MaybePromise<T> = T | Promise<T>
 
 export type IsPromise<T> = T extends Promise<any> ? true : Promise<any> extends T ? boolean : false
 
-export type ValueHasProperty<K extends PropertyKey, V = unknown> = Record<K, V>
-
-export type ValueHasLength = ValueHasProperty<'length', number>
-
-export type ValueHasMethod<MethodName extends PropertyKey, Return = any> = ValueHasProperty<MethodName, (...args: any[]) => Return>
+/**
+ * Extracts the return type of overloads in a function type as a union. (Up to 5 overloads supported)
+ */
+export type OverloadReturnType<T> = T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+	(...args: any[]): infer R3
+	(...args: any[]): infer R4
+	(...args: any[]): infer R5
+} ? R1 | R2 | R3 | R4 | R5 : T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+	(...args: any[]): infer R3
+	(...args: any[]): infer R4
+} ? R1 | R2 | R3 | R4 : T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+	(...args: any[]): infer R3
+} ? R1 | R2 | R3 : T extends {
+	(...args: any[]): infer R1
+	(...args: any[]): infer R2
+} ? R1 | R2 : T extends {
+	(...args: any[]): infer R1
+} ? R1 : never
 
 // Utils
-/* @__NO_SIDE_EFFECTS__ */
-export const NullProtoObj = (() => {
-	const constructor = (function () {}) as unknown as new () => any
-	constructor.prototype = Object.create(null)
-	Object.freeze(constructor.prototype)
-	return constructor
-})()
-
-/* @__NO_SIDE_EFFECTS__ */
-export function createObject<T extends Record<any, any> = Record<any, any>>(obj?: T): T {
-	const _obj = new NullProtoObj() as T
-	if (obj) {
-		Object.defineProperties(_obj, Object.getOwnPropertyDescriptors(obj))
-	}
-	return _obj
-}
-
-/* @__NO_SIDE_EFFECTS__ */
-export function throwNotImplementedError(): never {
-	throw new Error('Method not implemented.')
-}
-
-/* @__NO_SIDE_EFFECTS__ */
-export function expectNever(value?: never): never {
-	throw new Error(`Expected never, but got: ${value}`)
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export function returnTrue() {
 	return true
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export function returnFalse() {
-	return false
+export class Pipe<I = unknown, O = I> {
+	list: ((x: any) => any)[] = []
+
+	add<NewO>(fn: (x: O) => MaybePromise<NewO>): Pipe<I, NewO> {
+		this.list.push(fn)
+		return this as any
+	}
+
+	exec(x: I): MaybePromise<O> {
+		return this.list.reduce((v, fn) => {
+			if (v instanceof Promise) {
+				return v.then(fn)
+			}
+			return fn(v)
+		}, x as any)
+	}
 }
+
+/* @__NO_SIDE_EFFECTS__ */
+export function noop() {}
+
+/* @__NO_SIDE_EFFECTS__ */
+export const runtimeExecutionStepDefMarker = Symbol.for('valchecker:runtimeExecutionStepDefMarker')

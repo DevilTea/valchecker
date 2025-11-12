@@ -1,0 +1,275 @@
+import type { StandardSchemaV1 } from '@standard-schema/spec'
+import type { AnyFn, IsEqual, MaybePromise, OverloadParametersAndReturnType, UnionToIntersection, ValueOf } from '../shared'
+
+export interface ExecutionSuccessResult<Output> extends StandardSchemaV1.SuccessResult<Output> { }
+export interface ExecutionIssue<
+	IssueCode extends string = (string & {}),
+	IssuePayload = unknown,
+> extends StandardSchemaV1.Issue {
+	/** The code of the issue. */
+	readonly code: IssueCode
+	/** The payload of the issue. */
+	readonly payload: IssuePayload
+	/** The error message of the issue. */
+	readonly message: string
+	/** The path of the issue, if any. */
+	readonly path?: ReadonlyArray<PropertyKey> | undefined
+}
+export interface ExecutionFailureResult<Issue extends ExecutionIssue> extends StandardSchemaV1.FailureResult {
+	readonly issues: Issue[]
+}
+export type ExecutionResult<Output = unknown, Issue extends ExecutionIssue = ExecutionIssue> = ExecutionSuccessResult<Output> | ExecutionFailureResult<Issue>
+
+// T type
+export interface TStepPluginDef {
+	This: unknown
+}
+
+export interface TStepMethodMeta {
+	Name: string
+	ExpectedThis: DefineExpectedValchecker<any>
+	SelfIssue: ExecutionIssue
+}
+
+export interface TExecutionContext {
+	initial: boolean
+	async: boolean
+	input: unknown
+	output: unknown
+	issue: ExecutionIssue
+}
+
+export type TExecutionContextPatch = Partial<Omit<TExecutionContext, 'initial'>>
+
+export interface TValchecker {
+	'~core': {
+		executionStepContext: TExecutionContext
+		registeredExecutionStepPlugins: TStepPluginDef
+	}
+}
+
+// Infering
+export type InferExecutionContext<V extends TValchecker> = V['~core']['executionStepContext']
+export type InferAsync<V extends TValchecker> = InferExecutionContext<V>['async']
+export type InferInput<V extends TValchecker> = InferExecutionContext<V>['input']
+export type InferOutput<V extends TValchecker> = InferExecutionContext<V>['output']
+export type InferIssue<V extends TValchecker> = InferExecutionContext<V>['issue']
+export type InferRegisteredStepPluginDefs<V extends TValchecker> = V['~core']['registeredExecutionStepPlugins']
+export type InferAllIssue<V extends TValchecker> = ResolveStepMethodDefs<V, any> extends infer Def
+	? UnknownExceptionIssue<RegisteredStepMethodName<InferRegisteredStepPluginDefs<V>>>
+	| ValueOf<{
+		[M in RegisteredStepMethodName<InferRegisteredStepPluginDefs<V>>]: M extends keyof Def
+			? Def[M] extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
+				? Def[M]['Meta']['SelfIssue']
+				: never
+			: never
+	}>
+	: never
+
+type PatchExecutionContext<Current extends TExecutionContext, Patch extends TExecutionContextPatch | undefined> = (
+	IsEqual<Current, any> extends true
+		? {
+				initial: Patch extends { initial: infer I extends boolean } ? I : boolean
+				async: Patch extends { async: infer A extends boolean } ? A : boolean
+				input: Patch extends { input: infer I } ? I : unknown
+				output: Patch extends { output: infer O } ? O : unknown
+				issue: Patch extends { issue: infer I extends ExecutionIssue } ? I : ExecutionIssue
+			}
+		: {
+				initial: false
+				async: Patch extends { async: infer A extends boolean }
+					? (Current['async'] | A) extends false ? false : true
+					: Current['async']
+				input: Patch extends { input: infer I }
+					? I
+					: Current['input']
+				output: Patch extends { output: infer O }
+					? O
+					: Current['output']
+				issue: Patch extends { issue: infer I extends ExecutionIssue }
+					? (Current['issue'] | I)
+					: Current['issue']
+			}
+) extends infer Patched extends TExecutionContext
+	? Patched
+	: never
+
+type IsStepMethodDef<M> = [IsEqual<M, any>, IsEqual<M, unknown>, IsEqual<M, never>] extends [false, false, false]
+	// If one of the checks is true, then true
+	?	IsEqual<
+			M extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
+				?	IsEqual<M['Method'], never> extends true ? false : true
+				:	false,
+			false
+		> extends true
+		?	false
+		:	true
+	:	false
+
+type ResolveStepMethodDefs<Instance extends TValchecker, This = Instance> = UnionToIntersection<InferRegisteredStepPluginDefs<Instance>> & { This: This }
+
+type ExtractStepMethods<Instance extends Valchecker> = ResolveStepMethodDefs<Instance> extends infer Def
+	? {
+			[M in keyof Def as IsStepMethodDef<Def[M]> extends true ? M : never]: UnionToIntersection<Def[M] extends { Method: AnyFn } ? Def[M]['Method'] : never>
+		}
+	: never
+
+interface ValcheckerMehods<Instance extends Valchecker> {
+	execute: (value: InferInput<Instance>) => [
+		ExecutionResult<InferOutput<Instance>, InferIssue<Instance>>,
+		InferAsync<Instance>,
+	] extends [infer Result, infer IsAsync]
+		? IsAsync extends false
+			? Result
+			: IsAsync extends true
+				? Promise<Result>
+				: MaybePromise<Result>
+		: never
+	isSuccess: (result: ExecutionResult) => result is ExecutionSuccessResult<any>
+	isFailure: (result: ExecutionResult) => result is ExecutionFailureResult<any>
+}
+
+export type Use<Instance extends Valchecker> = Instance
+	& ExtractStepMethods<Instance>
+	& ValcheckerMehods<Instance>
+
+export type Next<
+	Patch extends TExecutionContextPatch | undefined,
+	This extends TValchecker,
+> = Use<Valchecker<
+	PatchExecutionContext<InferExecutionContext<This>, Patch>,
+	InferRegisteredStepPluginDefs<This>
+>>
+
+type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
+
+export interface Valchecker<
+	CurrentExecutionContext extends TExecutionContext = TExecutionContext,
+	RegisteredStepPlugins extends TStepPluginDef = TStepPluginDef,
+> extends StandardSchemaV1<
+	CurrentExecutionContext['input'],
+	CurrentExecutionContext['output']
+> {
+	readonly '~standard': {
+		version: 1
+		vendor: 'valchecker'
+		validate: (value: unknown) => MaybePromise<ExecutionResult>
+		types?: CurrentExecutionContext | undefined
+	}
+
+	readonly '~core': {
+		executionStepContext: CurrentExecutionContext
+		registeredExecutionStepPlugins: RegisteredStepPlugins
+		runtimeSteps: RuntimeStep[]
+	}
+
+	'~execute': (value: unknown) => MaybePromise<ExecutionResult<unknown, ExecutionIssue>>
+}
+
+// Impl
+export interface StepMethodUtils<
+	Input,
+	Output,
+	Issue extends ExecutionIssue,
+> {
+	addStep: (fn: (lastResult: ExecutionResult<Input, Issue>) => MaybePromise<ExecutionResult<Output, Issue>>) => void
+	addSuccessStep: (fn: (value: Input) => MaybePromise<ExecutionResult<Output, Issue>>) => void
+	addFailureStep: (fn: (issues: ExecutionIssue[]) => MaybePromise<ExecutionResult<Output, Issue>>) => void
+
+	isSuccess: (result: ExecutionResult) => result is ExecutionSuccessResult<any>
+	isFailure: (result: ExecutionResult) => result is ExecutionFailureResult<any>
+
+	prependIssuePath: (issue: ExecutionIssue, path: ExecutionIssue['path']) => ExecutionIssue
+
+	// message -> defaultMessage -> globalMessage -> fallbackMessage
+	resolveMessage: (
+		issueContent: {
+			code: string
+			payload: any
+			path?: PropertyKey[]
+		},
+		customMessage?: MessageHandler<any> | undefined | null,
+		defaultMessage?: MessageHandler<any> | undefined | null
+	) => string
+
+	success: (value: Output) => ExecutionSuccessResult<Output>
+	failure: (issue: Issue | Issue[]) => ExecutionFailureResult<Issue>
+	issue: (content: Issue) => Issue
+}
+
+type ResolveExpectedThis<Def extends TStepPluginDef> = UnionToIntersection<Def> extends infer D extends TStepPluginDef
+	? ValueOf<{ [M in keyof D as IsStepMethodDef<D[M]> extends true ? M : never]: D[M] extends { Type: 'ExecutionStep', Meta: infer Meta extends TStepMethodMeta }
+		? Meta['ExpectedThis']
+		: never
+	}>
+	: never
+
+export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToIntersection<StepPluginDef> & { This: Valchecker<any, StepPluginDef> }) extends infer Def extends TStepPluginDef
+	? {
+		[M in keyof Def as IsStepMethodDef<Def[M]> extends true ? M : never]: Def[M]extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
+			? OverloadParametersAndReturnType<UnionToIntersection<Def[M]['Method']> extends infer Method extends AnyFn ? Method : never> extends infer MethodTuple extends [params: any[], ret: Use<Valchecker>]
+				?	(
+						payload: {
+							utils: StepMethodUtils<
+								InferOutput<Def[M]['Meta']['ExpectedThis']>,
+								// If return type is Next<{ output: ... }>
+								MethodTuple[1] extends Next<{ output: infer O }, any>
+									// Extract the new output type
+									? O
+									// Fallback to current output type
+									: InferOutput<ResolveExpectedThis<StepPluginDef>>,
+								InferIssue<MethodTuple[1]>
+							>
+							params: MethodTuple[0]
+						}
+					) => void
+				: never
+			: never
+	} & {
+		readonly '~def'?: StepPluginDef
+	}
+	: never
+
+export type DefineExpectedValchecker<ExpectedExecutionContext extends Partial<TExecutionContext> = TExecutionContext> = Valchecker<{
+	initial: ExpectedExecutionContext extends { initial: infer I extends boolean } ? I : TExecutionContext['initial']
+	async: ExpectedExecutionContext extends { async: infer A extends boolean } ? A : TExecutionContext['async']
+	input: ExpectedExecutionContext extends { input: infer I } ? I : TExecutionContext['input']
+	output: ExpectedExecutionContext extends { output: infer O } ? O : TExecutionContext['output']
+	issue: ExpectedExecutionContext extends { issue: infer C extends ExecutionIssue } ? C : TExecutionContext['issue']
+}>
+
+export interface DefineStepMethodMeta<Meta extends {
+	Name: string
+	ExpectedThis: DefineExpectedValchecker<any>
+	SelfIssue?: ExecutionIssue<`${Meta['Name']}:${string}`>
+}> extends TStepMethodMeta {
+	Name: Meta['Name']
+	ExpectedThis: Meta['ExpectedThis']
+	SelfIssue: Meta extends { SelfIssue: ExecutionIssue }
+		? Meta['SelfIssue']
+		: never
+}
+
+export interface DefineStepMethod<Meta extends TStepMethodMeta, Method extends AnyFn> { Type: 'ExecutionStep', Meta: Meta, Method: Method }
+
+export type RegisteredStepMethodName<RegisteredStepPluginDefs extends TStepPluginDef> = Exclude<keyof UnionToIntersection<RegisteredStepPluginDefs>, 'This'> extends infer N extends string ? N : never
+export type UnknownExceptionIssue<M extends string = string> = ExecutionIssue<'core:unknown_exception', { method: M, value: unknown, error: unknown }>
+
+export type InitialValchecker<RegisteredStepPluginDefs extends TStepPluginDef> = Use<Valchecker<{
+	initial: true
+	async: false
+	input: unknown
+	output: unknown
+	issue: UnknownExceptionIssue<RegisteredStepMethodName<RegisteredStepPluginDefs>>
+}, RegisteredStepPluginDefs>>
+
+export type MessageHandler<Issue extends ExecutionIssue = ExecutionIssue>
+=	| string
+	| ((payload: Issue extends any
+		? {
+				path: NonNullable<Issue['path']>
+				code: Issue['code']
+				payload: Issue['payload']
+			}
+		: never
+	) => string | undefined | null)

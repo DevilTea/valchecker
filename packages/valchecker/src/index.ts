@@ -1,3 +1,3 @@
+export * from './allSteps/allSteps'
 export * from './core'
-export * from './schemas'
-export * from './shared'
+export * from './steps'
