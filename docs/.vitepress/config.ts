@@ -6,26 +6,46 @@ import { groupIconMdPlugin as MarkdownItGroupIcon } from 'vitepress-plugin-group
 export default defineConfig({
 	base: '/valchecker/',
 	title: 'valchecker',
-	description: 'Document for valchecker',
+	description: 'Modular runtime validation for TypeScript with full type inference',
 	themeConfig: {
 		// https://vitepress.dev/reference/default-theme-config
 		nav: [
-			{ text: 'Home', link: '/' },
-			{ text: 'Examples', link: '/markdown-examples' },
+			{ text: 'Guide', link: '/guide/quick-start' },
+			{ text: 'API Reference', link: '/api/overview' },
+			{ text: 'Examples', link: '/examples/async-validation' },
 		],
 
 		sidebar: [
 			{
+				text: 'Guide',
+				items: [
+					{ text: 'Quick Start', link: '/guide/quick-start' },
+					{ text: 'Core Philosophy', link: '/guide/core-philosophy' },
+				],
+			},
+			{
+				text: 'API Reference',
+				items: [
+					{ text: 'Overview', link: '/api/overview' },
+					{ text: 'Primitives', link: '/api/primitives' },
+					{ text: 'Structures', link: '/api/structures' },
+					{ text: 'Transforms', link: '/api/transforms' },
+					{ text: 'Helpers & Utilities', link: '/api/helpers' },
+				],
+			},
+			{
 				text: 'Examples',
 				items: [
-					{ text: 'Markdown Examples', link: '/markdown-examples' },
-					{ text: 'Runtime API Examples', link: '/api-examples' },
+					{ text: 'Async Validation', link: '/examples/async-validation' },
+					{ text: 'Custom Messages', link: '/examples/custom-messages' },
+					{ text: 'Fallback Chains', link: '/examples/fallback-chains' },
+					{ text: 'Issue Paths', link: '/examples/issue-paths' },
 				],
 			},
 		],
 
 		socialLinks: [
-			{ icon: 'github', link: 'https://github.com/vuejs/vitepress' },
+			{ icon: 'github', link: 'https://github.com/DevilTea/valchecker' },
 		],
 	},
 
