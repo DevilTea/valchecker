@@ -144,8 +144,8 @@ const schemaWithOptional = v.object({
 	age: [v.number()], // Wrap in array for optional
 })
 
-schema.execute({ name: 'John' })
-// { value: { name: 'John' } }
+schemaWithOptional.execute({ name: 'John' })
+// { value: { name: 'John', age: undefined } }
 ```
 
 ### Array
@@ -266,7 +266,10 @@ v.array(v.any()).toSliced(0, 10)
 // Array validations
 v.array(v.string()).min(1) // At least 1 item
 v.array(v.string()).max(10) // At most 10 items
-v.array(v.string()).toLength(5) // Exactly 5 items
+v.array(v.string()).min(5).max(5) // Exactly 5 items
+
+// Get array length
+v.array(v.string()).toLength() // Returns the length as a number
 ```
 
 ## Advanced Features
