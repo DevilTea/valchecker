@@ -8,6 +8,7 @@ export default deviltea(
 			'./agents_guides/*.md',
 			'./**/README.md',
 			'./benchmarks/PERFORMANCE_REPORT.md',
+			'./benchmarks/comparison/*.md',
 		],
 		typescript: {
 			overrides: {

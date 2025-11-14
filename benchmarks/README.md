@@ -16,10 +16,20 @@ pnpm bench:watch
 
 - **core.bench.ts**: Core functionality benchmarks including createValchecker, object validation, arrays, unions, and complex scenarios
 - **steps.bench.ts**: Individual step operation benchmarks including string operations, number validation, transformations, and chaining
+- **comparison/**: Integration files for comparing valchecker with other libraries using typescript-runtime-type-benchmarks
 
 ## Reports
 
 - **PERFORMANCE_REPORT.md**: Detailed performance analysis comparing baseline vs optimized implementation
+
+## Comparing with Other Libraries
+
+To compare valchecker with other popular validation libraries (zod, yup, joi, ajv, etc.), see:
+- **comparison/README.md**: Quick start guide for library comparison
+- **comparison/integration-guide.md**: Detailed step-by-step integration instructions
+- **comparison/valchecker-case.ts**: Ready-to-use case file for typescript-runtime-type-benchmarks
+
+The [typescript-runtime-type-benchmarks](https://github.com/moltar/typescript-runtime-type-benchmarks) project provides standardized benchmarks across 60+ validation libraries.
 
 ## Benchmark Categories
 
