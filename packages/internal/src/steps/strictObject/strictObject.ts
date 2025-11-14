@@ -1,7 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferAsync, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { Pipe } from '../../shared'
 
 declare namespace Internal {
 	export type Struct = Record<PropertyKey, Use<Valchecker> | [optional: Use<Valchecker>]>
@@ -140,37 +139,63 @@ export const strictObject = implStepPlugin<PluginDef>({
 				})
 			}
 
-			const pipe = new Pipe<void>()
 			const issues: ExecutionIssue<any, any>[] = []
 			const output: Record<PropertyKey, any> = {}
 
 			const processPropResult = (result: ExecutionResult, key: string | symbol) => {
 				if (isFailure(result)) {
-					issues.push(...result.issues.map(issue => prependIssuePath(issue, [key])))
+					// Optimize: avoid spread and map
+					for (const issue of result.issues) {
+						issues.push(prependIssuePath(issue, [key]))
+					}
 					return
 				}
 				output[key] = result.value
 			}
 
-			for (const key of knownKeys) {
+			// Optimize: Process properties without Pipe to reduce allocations
+			const keys = Array.from(knownKeys)
+			const keysLen = keys.length
+
+			// First pass: process synchronously until we hit async
+			for (let i = 0; i < keysLen; i++) {
+				const key = keys[i]
 				const isOptional = Array.isArray(struct[key]!)
 				const propSchema = Array.isArray(struct[key]!) ? struct[key]![0]! : struct[key]!
 				const propValue = (value as any)[key]
-				pipe.add(() => {
-					const propResult = (isOptional && propValue === void 0)
-						? success(propValue)
-						: propSchema['~execute'](propValue)
-					return propResult instanceof Promise
-						? propResult.then(r => processPropResult(r, key))
-						: processPropResult(propResult, key)
-				})
+
+				const propResult = (isOptional && propValue === void 0)
+					? success(propValue)
+					: propSchema['~execute'](propValue)
+
+				if (propResult instanceof Promise) {
+					// Hit async, process rest in promise chain
+					let chain = propResult.then(r => processPropResult(r, key))
+
+					// Chain remaining properties
+					for (let j = i + 1; j < keysLen; j++) {
+						const nextKey = keys[j]
+						const nextIsOptional = Array.isArray(struct[nextKey]!)
+						const nextPropSchema = Array.isArray(struct[nextKey]!) ? struct[nextKey]![0]! : struct[nextKey]!
+						const nextPropValue = (value as any)[nextKey]
+
+						chain = chain.then(() => {
+							const nextPropResult = (nextIsOptional && nextPropValue === void 0)
+								? success(nextPropValue)
+								: nextPropSchema['~execute'](nextPropValue)
+							return nextPropResult instanceof Promise
+								? nextPropResult.then(r => processPropResult(r, nextKey))
+								: processPropResult(nextPropResult, nextKey)
+						})
+					}
+
+					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
+				}
+
+				processPropResult(propResult, key)
 			}
 
-			const processResult = () => issues.length > 0 ? failure(issues) : success(output)
-			const result = pipe.exec()
-			return result instanceof Promise
-				? result.then(processResult)
-				: processResult()
+			return issues.length > 0 ? failure(issues) : success(output)
 		})
 	},
 })

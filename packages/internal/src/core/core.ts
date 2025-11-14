@@ -34,7 +34,21 @@ export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['pa
 	if (path == null || path.length === 0) {
 		return issue
 	}
-	(issue as any).path = [...path, ...(issue.path ?? [])]
+	// Optimize: Avoid spread operator for better performance
+	const existingPath = issue.path
+	if (existingPath == null || existingPath.length === 0) {
+		(issue as any).path = path
+	}
+	else {
+		const newPath = Array.from({ length: path.length + existingPath.length })
+		for (let i = 0; i < path.length; i++) {
+			newPath[i] = path[i]
+		}
+		for (let i = 0; i < existingPath.length; i++) {
+			newPath[path.length + i] = existingPath[i]
+		}
+		(issue as any).path = newPath
+	}
 	return issue
 }
 
@@ -84,6 +98,7 @@ export function createPipeExecutor(
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
 ): (value: unknown) => MaybePromise<ExecutionResult> {
 	return (value: unknown) => {
+		// Use optimized Pipe class
 		let pipe = new Pipe().add(v => ({ value: v } as ExecutionResult))
 		for (const s of runtimeSteps) {
 			pipe = pipe.add(s)

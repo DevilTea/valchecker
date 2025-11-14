@@ -87,12 +87,24 @@ export class Pipe<I = unknown, O = I> {
 	}
 
 	exec(x: I): MaybePromise<O> {
-		return this.list.reduce((v, fn) => {
-			if (v instanceof Promise) {
-				return v.then(fn)
+		// Optimized execution: Use for loop instead of reduce for better performance
+		const fns = this.list
+		const len = fns.length
+		let result: any = x
+
+		for (let i = 0; i < len; i++) {
+			// Check if current result is a promise
+			if (result instanceof Promise) {
+				// Once we hit async, chain all remaining functions
+				for (let j = i; j < len; j++) {
+					result = result.then(fns[j])
+				}
+				return result
 			}
-			return fn(v)
-		}, x as any)
+			// Execute function synchronously
+			result = fns[i](result)
+		}
+		return result
 	}
 }
 
