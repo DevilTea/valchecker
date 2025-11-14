@@ -10,6 +10,7 @@
 
 import type { ExecutionIssue, ExecutionResult, StepPluginImpl, TStepPluginDef } from './types'
 import { describe, expect, it } from 'vitest'
+import { runtimeExecutionStepDefMarker } from '../shared'
 import {
 	createPipeExecutor,
 	createValchecker,
@@ -27,7 +28,7 @@ describe('core module', () => {
 			const stepFn = (() => {}) as any
 			const result = implStepPlugin(stepFn)
 
-			expect((result as any)[Symbol.for('isValcheckerExecutionStep')]).toBe(true)
+			expect((result as any)[runtimeExecutionStepDefMarker]).toBe(true)
 			expect(result).toBe(stepFn)
 		})
 
@@ -44,7 +45,7 @@ describe('core module', () => {
 			const result2 = implStepPlugin(result1)
 
 			expect(result1).toBe(result2)
-			expect((result2 as any)[Symbol.for('isValcheckerExecutionStep')]).toBe(true)
+			expect((result2 as any)[runtimeExecutionStepDefMarker]).toBe(true)
 		})
 	})
 

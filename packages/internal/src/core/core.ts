@@ -11,11 +11,11 @@ import type {
 	StepPluginImpl,
 	TStepPluginDef,
 } from './types'
-import { Pipe } from '../shared'
+import { Pipe, runtimeExecutionStepDefMarker } from '../shared'
 
 /* @__NO_SIDE_EFFECTS__ */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(stepImpl: StepPluginImpl<StepPluginDef>): StepPluginImpl<StepPluginDef> {
-	(stepImpl as any)[Symbol.for('isValcheckerExecutionStep')] = true
+	(stepImpl as any)[runtimeExecutionStepDefMarker] = true
 	return stepImpl
 }
 
