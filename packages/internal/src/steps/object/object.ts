@@ -138,7 +138,7 @@ export const object = implStepPlugin<PluginDef>({
 
 			// First pass: process synchronously until we hit async
 			for (let i = 0; i < keysLen; i++) {
-				const key = keys[i]
+				const key = keys[i]!
 				const isOptional = Array.isArray(struct[key]!)
 				const propSchema = Array.isArray(struct[key]!) ? struct[key]![0]! : struct[key]!
 				const propValue = (value as any)[key]
@@ -153,7 +153,7 @@ export const object = implStepPlugin<PluginDef>({
 
 					// Chain remaining properties
 					for (let j = i + 1; j < keysLen; j++) {
-						const nextKey = keys[j]
+						const nextKey = keys[j]!
 						const nextIsOptional = Array.isArray(struct[nextKey]!)
 						const nextPropSchema = Array.isArray(struct[nextKey]!) ? struct[nextKey]![0]! : struct[nextKey]!
 						const nextPropValue = (value as any)[nextKey]

@@ -97,12 +97,18 @@ export class Pipe<I = unknown, O = I> {
 			if (result instanceof Promise) {
 				// Once we hit async, chain all remaining functions
 				for (let j = i; j < len; j++) {
-					result = result.then(fns[j])
+					const fn = fns[j]
+					if (fn) {
+						result = result.then(fn)
+					}
 				}
 				return result
 			}
 			// Execute function synchronously
-			result = fns[i](result)
+			const fn = fns[i]
+			if (fn) {
+				result = fn(result)
+			}
 		}
 		return result
 	}
