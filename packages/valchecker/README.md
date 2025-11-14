@@ -230,6 +230,33 @@ schema.execute(42) // { value: 42 }
 schema.execute('invalid') // { value: 0 }
 ```
 
+### Use
+
+Compose schemas by delegating validation to another schema:
+
+```typescript
+// Define a reusable email schema
+const emailSchema = v.string()
+	.toLowercase()
+	.toTrimmed()
+	.check(x => x.includes('@'))
+
+// Use it in another schema
+const userSchema = v.object({
+	email: v.unknown().use(emailSchema),
+	name: v.string(),
+})
+
+userSchema.execute({
+	email: '  TEST@EXAMPLE.COM  ',
+	name: 'John',
+})
+// { value: { email: 'test@example.com', name: 'John' } }
+
+// The current value is passed to the provided schema's execute() method,
+// and all transformations and validations from that schema are applied
+```
+
 ## String Operations
 
 Valchecker provides many built-in string manipulation steps:
