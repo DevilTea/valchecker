@@ -1,6 +1,6 @@
-import type { TStepPluginDef } from '../core'
-import { runtimeExecutionStepDefMarker } from '../shared'
-import * as _all from '../steps'
+import type { TStepPluginDef } from 'valchecker'
+import { runtimeExecutionStepDefMarker } from 'valchecker'
+import * as _all from 'valchecker'
 
 type AllSteps = typeof _all extends Record<string, infer Step extends { readonly '~def'?: TStepPluginDef }>
 	? Step[]

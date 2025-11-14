@@ -27,16 +27,6 @@
 				"types": "./dist/index.d.cts",
 				"default": "./dist/index.cjs"
 			}
-		},
-		"./allSteps": {
-			"import": {
-				"types": "./dist/allSteps/allSteps.d.mts",
-				"default": "./dist/allSteps/allSteps.mjs"
-			},
-			"require": {
-				"types": "./dist/allSteps/allSteps.d.cts",
-				"default": "./dist/allSteps/allSteps.cjs"
-			}
 		}
 	},
 	"main": "dist/index.cjs",
