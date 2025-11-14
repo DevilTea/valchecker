@@ -1,4 +1,2 @@
-export * from './allSteps'
-export * from './core'
-export * from './shared'
-export * from './steps'
+export * from '@valchecker/all-steps'
+export * from '@valchecker/internal'

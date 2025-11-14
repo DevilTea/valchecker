@@ -1,5 +1,5 @@
 {
-	"name": "valchecker",
+	"name": "@valchecker/all-steps",
 	"type": "module",
 	"publishConfig": {
 		"access": "public"
@@ -10,7 +10,7 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/DevilTea/valchecker.git",
-		"directory": "packages/valchecker"
+		"directory": "packages/all-steps"
 	},
 	"bugs": {
 		"url": "https://github.com/DevilTea/valchecker/issues"
@@ -44,7 +44,6 @@
 		"typecheck:test": "tsc --project ./tsconfig.tests.json --noEmit"
 	},
 	"dependencies": {
-		"@valchecker/all-steps": "workspace:*",
 		"@valchecker/internal": "workspace:*"
 	}
 }

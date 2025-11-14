@@ -1,6 +1,6 @@
 # Valchecker
 
-A powerful TypeScript validation library for schema-based data validation with full type inference and composability.
+A powerful and modular TypeScript validation library with full type inference, composable validation steps, and plugin architecture.
 
 ## Installation
 
@@ -12,188 +12,353 @@ pnpm add valchecker
 yarn add valchecker
 ```
 
-## Usage
-
-Import the library:
+## Quick Start
 
 ```typescript
-import * as v from 'valchecker'
-```
+import { allSteps, createValchecker } from 'valchecker'
 
-Valchecker provides a fluent API for defining schemas and validating data. It supports synchronous and asynchronous validation, type narrowing, data transformation, and error recovery.
+// Create a valchecker instance with all available steps
+const v = createValchecker({ steps: allSteps })
 
-### Basic Schema Examples
-
-#### String Schema
-
-```typescript
-const stringSchema = v.string()
-
-// Valid
-const result = v.execute(stringSchema, 'hello')
-if (v.isSuccess(result)) {
-	console.log(result.value) // 'hello'
-}
-
-// Invalid
-const invalidResult = v.execute(stringSchema, 123)
-console.log(v.isSuccess(invalidResult)) // false
-```
-
-#### Number Schema
-
-```typescript
-const numberSchema = v.number()
-
-// Valid
-const result = v.execute(numberSchema, 42)
-if (v.isSuccess(result)) {
-	console.log(result.value) // 42
-}
-
-// Allow NaN
-const numberWithNaNSchema = v.number(true)
-const nanResult = v.execute(numberWithNaNSchema, Number.NaN)
-console.log(v.isSuccess(nanResult)) // true
-```
-
-#### Object Schema
-
-```typescript
+// Define a schema
 const userSchema = v.object({
 	name: v.string(),
 	age: v.number(),
-	isActive: v.boolean(),
+	email: v.string(),
 })
 
-const validUser = {
+// Validate data
+const result = userSchema.execute({
 	name: 'John Doe',
 	age: 30,
-	isActive: true,
-}
+	email: 'john@example.com',
+})
 
-const result = v.execute(userSchema, validUser)
+// Check the result
 if (v.isSuccess(result)) {
-	console.log(result.value) // { name: 'John Doe', age: 30, isActive: true }
+	console.log(result.value) // Typed as { name: string; age: number; email: string }
+}
+else {
+	console.log(result.issues) // Array of validation issues
 }
 ```
 
-#### Array Schema
+## Core Concepts
+
+### Creating a Valchecker Instance
+
+Valchecker uses a plugin-based architecture. You need to create a valchecker instance with the steps (plugins) you want to use:
 
 ```typescript
-const stringArraySchema = v.array(v.string())
+import { allSteps, createValchecker } from 'valchecker'
 
-const result = v.execute(stringArraySchema, ['a', 'b', 'c'])
+// Or import only the steps you need
+import { createValchecker, number, object, string } from 'valchecker'
+
+// Use all available steps
+const v = createValchecker({ steps: allSteps })
+const v = createValchecker({ steps: [string, number, object] })
+```
+
+### Basic Validation
+
+Every schema has an `execute()` method that validates input and returns a result:
+
+```typescript
+const schema = v.string()
+const result = schema.execute('hello')
+
+// Check if validation succeeded
 if (v.isSuccess(result)) {
-	console.log(result.value) // ['a', 'b', 'c']
+	console.log(result.value) // 'hello'
+}
+else {
+	console.log(result.issues) // Array of validation errors
 }
 ```
 
-#### Union Schema
+## Basic Types
+
+### String
 
 ```typescript
-const stringOrNumberSchema = v.union(v.string(), v.number())
+const schema = v.string()
 
-// Valid for string
-const stringResult = v.execute(stringOrNumberSchema, 'hello')
-console.log(v.isSuccess(stringResult)) // true
-
-// Valid for number
-const numberResult = v.execute(stringOrNumberSchema, 42)
-console.log(v.isSuccess(numberResult)) // true
-
-// Invalid for boolean
-const booleanResult = v.execute(stringOrNumberSchema, true)
-console.log(v.isSuccess(booleanResult)) // false
+schema.execute('hello') // { value: 'hello' }
+schema.execute(123) // { issues: [{ code: 'string:expected_string', ... }] }
 ```
 
-### Advanced Features with Pipes
-
-Valchecker supports chaining operations using pipes for custom validation, transformation, and error handling.
-
-#### Custom Validation with Checks
+### Number
 
 ```typescript
-const emailSchema = v.pipe(v.string())
-	.check(value => value.includes('@'), 'Must contain @ symbol')
-	.check(value => value.includes('.'), 'Must contain dot')
-	.check(value => value.length >= 6, 'Must be at least 6 characters')
+const schema = v.number()
 
-const result = v.execute(emailSchema, 'user@example.com')
-console.log(v.isSuccess(result)) // true
+schema.execute(42) // { value: 42 }
+schema.execute('42') // { issues: [{ code: 'number:expected_number', ... }] }
+schema.execute(Number.NaN) // { issues: [{ code: 'number:expected_number', ... }] }
 ```
 
-#### Data Transformation
+### Boolean
 
 ```typescript
-const ageSchema = v.pipe(v.number())
-	.check(value => value >= 0, 'Age must be non-negative')
-	.check(value => value <= 150, 'Age must be realistic')
-	.transform(value => ({ age: value, isAdult: value >= 18 }))
+const schema = v.boolean()
 
-const result = v.execute(ageSchema, 25)
-if (v.isSuccess(result)) {
-	console.log(result.value) // { age: 25, isAdult: true }
-}
+schema.execute(true) // { value: true }
+schema.execute('true') // { issues: [{ code: 'boolean:expected_boolean', ... }] }
 ```
 
-#### Error Recovery with Fallback
+### Literal
 
 ```typescript
-const robustNumberSchema = v.pipe(v.number())
-	.check(value => value >= 0, 'Must be non-negative')
-	.fallback(() => 0) // Default to 0 if validation fails
+const schema = v.literal('hello')
 
-const result = v.execute(robustNumberSchema, -5)
-if (v.isSuccess(result)) {
-	console.log(result.value) // 0
-}
+schema.execute('hello') // { value: 'hello' }
+schema.execute('world') // { issues: [...] }
 ```
 
-### Asynchronous Operations
-
-Valchecker supports async checks, transforms, and fallbacks.
+### Null, Undefined, Unknown, Never
 
 ```typescript
-const asyncUserSchema = v.pipe(v.object({
+const nullSchema = v.null_()
+const undefinedSchema = v.undefined_()
+const unknownSchema = v.unknown()
+const neverSchema = v.never()
+```
+
+## Complex Types
+
+### Object
+
+```typescript
+const schema = v.object({
 	name: v.string(),
-	email: v.string(),
-}))
-	.transform(async (user) => {
-		// Simulate async operation
-		await new Promise(resolve => setTimeout(resolve, 10))
-		return {
-			...user,
-			id: `user_${Date.now()}`,
-			email: user.email.toLowerCase(),
-		}
+	age: v.number(),
+})
+
+schema.execute({ name: 'John', age: 30 })
+// { value: { name: 'John', age: 30 } }
+
+// Optional properties
+const schemaWithOptional = v.object({
+	name: v.string(),
+	age: [v.number()], // Wrap in array for optional
+})
+
+schema.execute({ name: 'John' })
+// { value: { name: 'John' } }
+```
+
+### Array
+
+```typescript
+const schema = v.array(v.string())
+
+schema.execute(['a', 'b', 'c'])
+// { value: ['a', 'b', 'c'] }
+
+schema.execute(['a', 123, 'c'])
+// { issues: [{ path: [1], code: 'string:expected_string', ... }] }
+```
+
+### Union
+
+```typescript
+const schema = v.union([v.string(), v.number()])
+
+schema.execute('hello') // { value: 'hello' }
+schema.execute(42) // { value: 42 }
+schema.execute(true) // { issues: [...] }
+```
+
+### Intersection
+
+```typescript
+const schema = v.intersection([
+	v.object({ name: v.string() }),
+	v.object({ age: v.number() }),
+])
+
+schema.execute({ name: 'John', age: 30 })
+// { value: { name: 'John', age: 30 } }
+```
+
+## Chainable Operations
+
+### Check
+
+Add custom validation logic:
+
+```typescript
+const positiveNumber = v.number()
+	.check(value => value > 0, 'Must be positive')
+
+positiveNumber.execute(5) // { value: 5 }
+positiveNumber.execute(-5) // { issues: [{ code: 'check:failed', message: 'Must be positive', ... }] }
+
+// Type narrowing with type guards
+const isString = (value: unknown): value is string => typeof value === 'string'
+const stringSchema = v.unknown().check(isString)
+```
+
+### Transform
+
+Transform validated data:
+
+```typescript
+const schema = v.string()
+	.transform(value => value.toUpperCase())
+
+schema.execute('hello') // { value: 'HELLO' }
+
+// Async transforms
+const asyncSchema = v.string()
+	.transform(async (value) => {
+		await someAsyncOperation()
+		return value.toUpperCase()
+	})
+```
+
+### Fallback
+
+Provide fallback values on validation failure:
+
+```typescript
+const schema = v.number()
+	.fallback(() => 0)
+
+schema.execute(42) // { value: 42 }
+schema.execute('invalid') // { value: 0 }
+```
+
+## String Operations
+
+Valchecker provides many built-in string manipulation steps:
+
+```typescript
+// String transformations
+v.string().toUppercase()
+v.string().toLowercase()
+v.string().toTrimmed()
+v.string().toTrimmedStart()
+v.string().toTrimmedEnd()
+
+// String validations
+v.string().startsWith('hello')
+v.string().endsWith('world')
+v.string().min(5)
+v.string().max(10)
+
+// Chaining
+const emailSchema = v.string()
+	.toTrimmed()
+	.toLowercase()
+	.check(value => value.includes('@'), 'Must be a valid email')
+```
+
+## Array Operations
+
+```typescript
+// Array transformations
+v.array(v.number()).toSorted()
+v.array(v.string()).toFiltered(x => x.length > 3)
+v.array(v.any()).toSliced(0, 10)
+
+// Array validations
+v.array(v.string()).min(1) // At least 1 item
+v.array(v.string()).max(10) // At most 10 items
+v.array(v.string()).toLength(5) // Exactly 5 items
+```
+
+## Advanced Features
+
+### Async Validation
+
+Valchecker automatically handles async operations:
+
+```typescript
+const schema = v.string()
+	.check(async (value) => {
+		const isAvailable = await checkUsernameAvailability(value)
+		return isAvailable || 'Username already taken'
+	})
+	.transform(async (value) => {
+		return await normalizeUsername(value)
 	})
 
-const result = await v.execute(asyncUserSchema, {
-	name: 'John Doe',
-	email: 'JOHN@EXAMPLE.COM',
+const result = await schema.execute('john_doe')
+```
+
+### Custom Error Messages
+
+```typescript
+// Global message handler
+const v = createValchecker({
+	steps: allSteps,
+	message: ({ code, payload }) => {
+		if (code === 'string:expected_string') {
+			return `Expected string but got ${typeof payload.value}`
+		}
+		return 'Validation failed'
+	},
 })
+
+// Per-step message
+const schema = v.string('Please provide a valid string')
+const schema2 = v.number().min(0, 'Must be non-negative')
+```
+
+### Nested Issues with Paths
+
+Validation issues include paths for nested structures:
+
+```typescript
+const schema = v.object({
+	user: v.object({
+		email: v.string(),
+	}),
+})
+
+const result = schema.execute({
+	user: {
+		email: 123,
+	},
+})
+
+// result.issues[0].path === ['user', 'email']
+```
+
+### Type Inference
+
+Valchecker provides full TypeScript type inference:
+
+```typescript
+const schema = v.object({
+	name: v.string(),
+	age: v.number(),
+})
+	.transform(user => ({
+		...user,
+		isAdult: user.age >= 18,
+	}))
+
+const result = schema.execute({ name: 'John', age: 30 })
+
 if (v.isSuccess(result)) {
-	console.log(result.value.id) // 'user_<timestamp>'
-	console.log(result.value.email) // 'john@example.com'
+	// result.value is typed as:
+	// { name: string; age: number; isAdult: boolean }
+	console.log(result.value.isAdult)
 }
 ```
 
-## More Examples
+## Utility Functions
 
-For comprehensive usage examples, see [`src/examples.test.ts`](./src/examples.test.ts) in the source code, which contains detailed test cases demonstrating various features.
+```typescript
+// Check if result is successful
+v.isSuccess(result) // Type guard: result is { value: T }
 
-## API Reference
-
-Valchecker provides the following main functions:
-
-- `v.string()`, `v.number()`, `v.boolean()`, etc. - Basic schema constructors
-- `v.object(shape)`, `v.array(itemSchema)`, `v.union(...schemas)` - Composite schemas
-- `v.pipe(schema).check(...).transform(...).fallback(...)` - Pipe operations
-- `v.execute(schema, input)` - Execute validation (sync or async)
-- `v.isSuccess(result)`, `v.isValid(schema, input)` - Result checking
-
-For full API documentation, visit the [documentation site](https://github.com/DevilTea/valchecker/tree/main/docs).
+// Check if result is failure
+v.isFailure(result) // Type guard: result is { issues: ExecutionIssue[] }
+```
 
 ## License
 

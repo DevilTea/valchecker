@@ -10,9 +10,9 @@
  * - Future verification: Testing the filter logic ensures new steps with proper markers are included.
  */
 
+import { runtimeExecutionStepDefMarker } from '@valchecker/internal'
+import * as stepsModule from '@valchecker/internal'
 import { describe, expect, it } from 'vitest'
-import { runtimeExecutionStepDefMarker } from '../shared'
-import * as stepsModule from '../steps'
 import { allSteps } from './allSteps'
 
 describe('allSteps', () => {

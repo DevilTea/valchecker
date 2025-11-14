@@ -162,7 +162,13 @@ importers:
         specifier: 'catalog:'
         version: 3.0.5(typescript@5.9.2)
 
-  packages/valchecker:
+  packages/all-steps:
+    dependencies:
+      '@valchecker/internal':
+        specifier: workspace:*
+        version: link:../internal
+
+  packages/internal:
     dependencies:
       '@standard-schema/spec':
         specifier: 'catalog:'
@@ -170,6 +176,15 @@ importers:
       type-fest:
         specifier: ^5.0.1
         version: 5.0.1
+
+  packages/valchecker:
+    dependencies:
+      '@valchecker/all-steps':
+        specifier: workspace:*
+        version: link:../all-steps
+      '@valchecker/internal':
+        specifier: workspace:*
+        version: link:../internal
 
 packages:
 
