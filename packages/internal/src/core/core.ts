@@ -110,7 +110,7 @@ export function createPipeExecutor(
 			if (result instanceof Promise) {
 				// Once we hit async, chain all remaining steps
 				for (let j = i; j < len; j++) {
-					result = result.then(runtimeSteps[j])
+					result = result.then(runtimeSteps[j]!)
 				}
 				return result
 			}

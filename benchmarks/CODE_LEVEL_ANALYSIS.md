@@ -15,7 +15,7 @@ const v = createValchecker({ steps: [string, object, array] })
 const schema = v.object({ name: v.string(), age: v.number() })
 
 // Execution pattern (internal)
-schema._exec(value) → createPipeExecutor() → loop through runtimeSteps
+schema._exec(value) -> createPipeExecutor() -> loop through runtimeSteps
 ```
 
 **Characteristics:**
@@ -33,7 +33,7 @@ import { object, string, number } from 'valibot'
 const schema = object({ name: string(), age: number() })
 
 // Execution pattern
-validate(schema, value) → direct function call → minimal overhead
+validate(schema, value) -> direct function call -> minimal overhead
 ```
 
 **Characteristics:**
@@ -50,7 +50,7 @@ import { z } from 'zod'
 const schema = z.object({ name: z.string(), age: z.number() })
 
 // Execution pattern
-schema.parse(value) → ZodObject.parse() → prototype chain lookup → validation
+schema.parse(value) -> ZodObject.parse() -> prototype chain lookup -> validation
 ```
 
 **Characteristics:**
@@ -79,7 +79,7 @@ addSuccessStep((value) => {
 })
 
 // Invocation chain:
-// schema._exec() → createPipeExecutor() → loop runtimeSteps → step function → return result object
+// schema._exec() -> createPipeExecutor() -> loop runtimeSteps -> step function -> return result object
 ```
 
 **Cost breakdown (estimated cycles):**
@@ -95,15 +95,17 @@ addSuccessStep((value) => {
 ### Valibot
 ```typescript
 // Simplified representation
-export const string = () => (value: unknown) => {
-  if (typeof value === 'string') {
-    return { success: true, data: value }
-  }
-  return { success: false, issues: [{ message: 'Expected string' }] }
+export function string() {
+	return (value: unknown) => {
+		if (typeof value === 'string') {
+			return { success: true, data: value }
+		}
+		return { success: false, issues: [{ message: 'Expected string' }] }
+	}
 }
 
 // Invocation:
-// validator(value) → direct call → return
+// validator(value) -> direct call -> return
 ```
 
 **Cost breakdown (estimated cycles):**
@@ -131,24 +133,24 @@ addSuccessStep((value) => {
     { key: 'name', isOptional: false, schema: nameSchema },
     { key: 'age', isOptional: false, schema: ageSchema }
   ]
-  
+
   // Type check
   if (typeof value !== 'object' || value == null || Array.isArray(value)) {
     return failure(...)
   }
-  
+
   const issues = []
   const output = {}
-  
+
   // Property validation loop
   for (let i = 0; i < keysLen; i++) {
     const { key, isOptional, schema } = propsMeta[i]!  // Array access
     const propValue = (value as any)[key]  // Dynamic property access
-    
+
     const propResult = (isOptional && propValue === void 0)
       ? success(propValue)
       : schema['~execute'](propValue)  // Recursive _exec call
-    
+
     // Handle result...
     if (isFailure(propResult)) {
       for (const issue of propResult.issues!) {
@@ -158,7 +160,7 @@ addSuccessStep((value) => {
       output[key] = propResult.value!
     }
   }
-  
+
   return issues.length > 0 ? failure(issues) : success(output)
 })
 ```
@@ -179,20 +181,24 @@ addSuccessStep((value) => {
 ### Valibot (Estimated)
 ```typescript
 // Simplified representation
-export const object = (shape) => (value) => {
-  if (typeof value !== 'object' || !value) return failure()
-  
-  const validators = [
-    { key: 'name', validator: stringValidator },
-    { key: 'age', validator: numberValidator }
-  ]
-  
-  for (const { key, validator } of validators) {
-    const result = validator(value[key])  // Direct function call
-    if (!result.success) return result
-  }
-  
-  return success(value)
+export function object(shape) {
+	return (value) => {
+		if (typeof value !== 'object' || !value)
+			return failure()
+
+		const validators = [
+			{ key: 'name', validator: stringValidator },
+			{ key: 'age', validator: numberValidator }
+		]
+
+		for (const { key, validator } of validators) {
+			const result = validator(value[key]) // Direct function call
+			if (!result.success)
+				return result
+		}
+
+		return success(value)
+	}
 }
 ```
 
@@ -219,7 +225,7 @@ export const object = (shape) => (value) => {
 **Problem:**
 ```typescript
 // Every _exec() call creates new context
-schema._exec(value) → {
+schema._exec(value) -> {
   createPipeExecutor() // Creates new function closure
   return executor(value)  // Executes steps
 }
@@ -232,19 +238,23 @@ schema._exec(value) → {
 **Problem:**
 ```typescript
 // Heavy result objects with full metadata
-const success = (value) => ({
-  isSuccess: true,
-  isFailure: false,
-  value,
-  issues: undefined
-})
+function success(value) {
+	return {
+		isSuccess: true,
+		isFailure: false,
+		value,
+		issues: undefined
+	}
+}
 
-const failure = (issues) => ({
-  isSuccess: false,
-  isFailure: true,
-  value: undefined,
-  issues: Array.isArray(issues) ? issues : [issues]
-})
+function failure(issues) {
+	return {
+		isSuccess: false,
+		isFailure: true,
+		value: undefined,
+		issues: Array.isArray(issues) ? issues : [issues]
+	}
+}
 ```
 
 **Impact:** ~30 cycles per object creation
@@ -255,7 +265,7 @@ const failure = (issues) => ({
 ```typescript
 // prependIssuePath creates new objects for every nested validation
 for (const issue of result.issues!) {
-  issues.push(prependIssuePath(issue, [key]))  // Creates new issue object
+	issues.push(prependIssuePath(issue, [key])) // Creates new issue object
 }
 ```
 
@@ -267,8 +277,8 @@ for (const issue of result.issues!) {
 ```typescript
 // Schema is "compiled" on every use
 const schema = v.object({ name: v.string() })
-schema._exec(value1)  // Full setup
-schema._exec(value2)  // Full setup again
+schema._exec(value1) // Full setup
+schema._exec(value2) // Full setup again
 ```
 
 **Impact:** All setup costs paid repeatedly
@@ -282,14 +292,14 @@ schema._exec(value2)  // Full setup again
 **Current:**
 ```typescript
 // string validator goes through full execution pipeline
-schema._exec(value) → createPipeExecutor() → loop → typecheck → return
+schema._exec(value) -> createPipeExecutor() -> loop -> typecheck -> return
 ```
 
 **Proposed:**
 ```typescript
 // Add fast path that skips execution context for simple validators
 if (schema._isSimple && schema._steps.length === 1) {
-  return schema._steps[0].fn(value)  // Direct call
+	return schema._steps[0].fn(value) // Direct call
 }
 // Fall back to full pipeline for complex schemas
 ```
@@ -300,19 +310,19 @@ if (schema._isSimple && schema._steps.length === 1) {
 **Proposed:**
 ```typescript
 class CompiledSchema {
-  private _compiled?: (value: unknown) => Result
-  
-  _exec(value: unknown) {
-    if (!this._compiled) {
-      this._compiled = this._compile()  // Compile once
-    }
-    return this._compiled(value)
-  }
-  
-  private _compile() {
-    // Generate optimized validator function
-    // Inline simple checks, pre-compute metadata, etc.
-  }
+	private _compiled?: (value: unknown) => Result
+
+	_exec(value: unknown) {
+		if (!this._compiled) {
+			this._compiled = this._compile() // Compile once
+		}
+		return this._compiled(value)
+	}
+
+	private _compile() {
+		// Generate optimized validator function
+		// Inline simple checks, pre-compute metadata, etc.
+	}
 }
 ```
 
@@ -321,20 +331,20 @@ class CompiledSchema {
 ### 5.3 Lighter Result Objects (MEDIUM IMPACT)
 **Current:**
 ```typescript
-type Result = {
-  isSuccess: boolean
-  isFailure: boolean
-  value: any | undefined
-  issues: Issue[] | undefined
+interface Result {
+	isSuccess: boolean
+	isFailure: boolean
+	value: any | undefined
+	issues: Issue[] | undefined
 }
 ```
 
 **Proposed:**
 ```typescript
 // Use discriminated union
-type Result = 
-  | { ok: true, value: any }
-  | { ok: false, issues: Issue[] }
+type Result
+  = | { ok: true, value: any }
+  	| { ok: false, issues: Issue[] }
 
 // Or use single-property pattern
 type Result = { value: any } | { issues: Issue[] }
@@ -347,21 +357,21 @@ type Result = { value: any } | { issues: Issue[] }
 ```typescript
 // Pool for frequently allocated objects
 const resultPool = {
-  success: [] as SuccessResult[],
-  failure: [] as FailureResult[],
-  
-  getSuccess(value) {
-    const result = this.success.pop() || { ok: true, value: undefined }
-    result.value = value
-    return result
-  },
-  
-  recycle(result) {
-    if (result.ok) {
-      result.value = undefined
-      this.success.push(result)
-    }
-  }
+	success: [] as SuccessResult[],
+	failure: [] as FailureResult[],
+
+	getSuccess(value) {
+		const result = this.success.pop() || { ok: true, value: undefined }
+		result.value = value
+		return result
+	},
+
+	recycle(result) {
+		if (result.ok) {
+			result.value = undefined
+			this.success.push(result)
+		}
+	}
 }
 ```
 
@@ -371,7 +381,7 @@ const resultPool = {
 **Current:**
 ```typescript
 for (const issue of result.issues!) {
-  issues.push(prependIssuePath(issue, [key]))  // Function call + object creation
+	issues.push(prependIssuePath(issue, [key])) // Function call + object creation
 }
 ```
 
@@ -379,16 +389,16 @@ for (const issue of result.issues!) {
 ```typescript
 // Inline the path prepending
 for (const issue of result.issues!) {
-  issues.push({
-    ...issue,
-    path: [key, ...issue.path]  // Still creates new object but no function call
-  })
+	issues.push({
+		...issue,
+		path: [key, ...issue.path] // Still creates new object but no function call
+	})
 }
 
 // Or mutate in place (breaking change)
 for (const issue of result.issues!) {
-  issue.path.unshift(key)
-  issues.push(issue)
+	issue.path.unshift(key)
+	issues.push(issue)
 }
 ```
 
@@ -414,26 +424,27 @@ for (const issue of result.issues!) {
 
 ```typescript
 // Valibot in practice (conceptual)
-const stringValidator = (v) => typeof v === 'string' ? success(v) : failure()
+const stringValidator = v => typeof v === 'string' ? success(v) : failure()
 
-const objectValidator = (shape) => {
-  const validators = Object.entries(shape).map(([k, v]) => [k, v])
-  return (value) => {
-    for (const [key, validator] of validators) {
-      const result = validator(value[key])
-      if (!result.success) return result
-    }
-    return success(value)
-  }
+function objectValidator(shape) {
+	const validators = Object.entries(shape).map(([k, v]) => [k, v])
+	return (value) => {
+		for (const [key, validator] of validators) {
+			const result = validator(value[key])
+			if (!result.success)
+				return result
+		}
+		return success(value)
+	}
 }
 
 // Usage
 const schema = objectValidator({
-  name: stringValidator,
-  age: numberValidator
+	name: stringValidator,
+	age: numberValidator
 })
 
-schema(value)  // Direct function call, no layers
+schema(value) // Direct function call, no layers
 ```
 
 **Why it's fast:**
@@ -448,13 +459,13 @@ Valchecker's plugin system adds necessary overhead:
 ```typescript
 // Plugin definition requires more structure
 addSuccessStep((value) => {
-  // validation logic
+	// validation logic
 })
 
 // Execution requires step iteration
 for (let i = 0; i < runtimeSteps.length; i++) {
-  result = runtimeSteps[i]!(result)
-  // check for async, errors, etc.
+	result = runtimeSteps[i]!(result)
+	// check for async, errors, etc.
 }
 ```
 

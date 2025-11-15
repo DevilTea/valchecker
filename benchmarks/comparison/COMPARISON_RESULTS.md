@@ -1,6 +1,6 @@
 # Valchecker vs Other Validation Libraries - Benchmark Comparison
 
-**Date:** 2025-11-15  
+**Date:** 2024-11-15  
 **Node.js Version:** v20.19.5  
 **Benchmark Tool:** Benchmark.js
 
