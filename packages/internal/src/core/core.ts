@@ -115,7 +115,7 @@ export function createPipeExecutor(
 				return result
 			}
 			// Execute step synchronously
-			result = runtimeSteps[i](result)
+			result = runtimeSteps[i]!(result)
 		}
 		return result
 	}

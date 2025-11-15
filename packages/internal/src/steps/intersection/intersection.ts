@@ -94,7 +94,7 @@ export const intersection = implStepPlugin<PluginDef>({
 				if (isInvalid)
 					break
 
-				const branchResult = branches[i]['~execute'](value)
+				const branchResult = branches[i]!['~execute'](value)
 
 				if (branchResult instanceof Promise) {
 					// Hit async, chain remaining branches
@@ -104,7 +104,7 @@ export const intersection = implStepPlugin<PluginDef>({
 					})
 
 					for (let j = i + 1; j < len; j++) {
-						const jBranch = branches[j]
+						const jBranch = branches[j]!
 						chain = chain.then((invalid) => {
 							if (invalid)
 								return true
