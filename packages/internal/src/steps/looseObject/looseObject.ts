@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferAsync, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferAsync, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 
@@ -97,6 +97,19 @@ export const looseObject = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, resolveMessage, failure, isFailure, prependIssuePath },
 		params: [struct, message],
 	}) => {
+		// Pre-compute metadata for each property to avoid repeated lookups
+		const keys = Reflect.ownKeys(struct)
+		const keysLen = keys.length
+		const propsMeta: Array<{ key: PropertyKey, isOptional: boolean, schema: Use<Valchecker> }> = []
+
+		for (let i = 0; i < keysLen; i++) {
+			const key = keys[i]!
+			const prop = struct[key]!
+			const isOptional = Array.isArray(prop)
+			const schema = isOptional ? prop[0]! : prop
+			propsMeta.push({ key, isOptional, schema })
+		}
+
 		addSuccessStep((value) => {
 			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
 				return failure({
@@ -113,61 +126,79 @@ export const looseObject = implStepPlugin<PluginDef>({
 				})
 			}
 
-			// Optimized: Direct processing without Pipe overhead
-			const knownKeys = Array.from(Reflect.ownKeys(struct))
 			const issues: ExecutionIssue<any, any>[] = []
 			const output: Record<PropertyKey, any> = Object.defineProperties(
 				{},
 				Object.getOwnPropertyDescriptors(value),
 			)
 
-			const processPropResult = (result: ExecutionResult, key: string | symbol) => {
-				if (isFailure(result)) {
-					// Optimize: Avoid spread + map by using direct loop
-					for (const issue of result.issues!) {
-						issues.push(prependIssuePath(issue, [key]))
-					}
-				}
-				else {
-					output[key] = result.value!
-				}
-			}
-
+			// Inline processPropResult for better performance
 			// Process properties synchronously until we hit async
-			for (let i = 0; i < knownKeys.length; i++) {
-				const key = knownKeys[i]!
-				const isOptional = Array.isArray(struct[key]!)
-				const propSchema = Array.isArray(struct[key]!) ? struct[key]![0]! : struct[key]!
+			for (let i = 0; i < keysLen; i++) {
+				const { key, isOptional, schema } = propsMeta[i]!
 				const propValue = (value as any)[key]
 
 				const propResult = (isOptional && propValue === void 0)
 					? success(propValue)
-					: propSchema['~execute'](propValue)
+					: schema['~execute'](propValue)
 
 				if (propResult instanceof Promise) {
 					// Hit async, chain remaining properties
-					let chain = propResult.then(r => processPropResult(r, key))
+					let chain = propResult.then((r) => {
+						if (isFailure(r)) {
+							for (const issue of r.issues!) {
+								issues.push(prependIssuePath(issue, [key]))
+							}
+						}
+						else {
+							output[key] = r.value!
+						}
+					})
 
-					for (let j = i + 1; j < knownKeys.length; j++) {
-						const jKey = knownKeys[j]!
-						const jIsOptional = Array.isArray(struct[jKey]!)
-						const jPropSchema = Array.isArray(struct[jKey]!) ? struct[jKey]![0]! : struct[jKey]!
-						const jPropValue = (value as any)[jKey]
+					for (let j = i + 1; j < keysLen; j++) {
+						const nextMeta = propsMeta[j]!
+						const nextPropValue = (value as any)[nextMeta.key]
 
 						chain = chain.then(() => {
-							const jPropResult = (jIsOptional && jPropValue === void 0)
-								? success(jPropValue)
-								: jPropSchema['~execute'](jPropValue)
-							return jPropResult instanceof Promise
-								? jPropResult.then(r => processPropResult(r, jKey))
-								: (processPropResult(jPropResult, jKey), undefined)
+							const nextPropResult = (nextMeta.isOptional && nextPropValue === void 0)
+								? success(nextPropValue)
+								: nextMeta.schema['~execute'](nextPropValue)
+
+							if (nextPropResult instanceof Promise) {
+								return nextPropResult.then((r) => {
+									if (isFailure(r)) {
+										for (const issue of r.issues!) {
+											issues.push(prependIssuePath(issue, [nextMeta.key]))
+										}
+									}
+									else {
+										output[nextMeta.key] = r.value!
+									}
+								})
+							}
+
+							if (isFailure(nextPropResult)) {
+								for (const issue of nextPropResult.issues!) {
+									issues.push(prependIssuePath(issue, [nextMeta.key]))
+								}
+							}
+							else {
+								output[nextMeta.key] = nextPropResult.value!
+							}
 						})
 					}
 
 					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
 				}
 
-				processPropResult(propResult, key)
+				if (isFailure(propResult)) {
+					for (const issue of propResult.issues!) {
+						issues.push(prependIssuePath(issue, [key]))
+					}
+				}
+				else {
+					output[key] = propResult.value!
+				}
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)
