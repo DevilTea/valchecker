@@ -79,12 +79,12 @@ export const array = implStepPlugin<PluginDef>({
 			const processItemResult = (result: ExecutionResult, i: number) => {
 				if (isFailure(result)) {
 					// Optimize: Avoid spread and map by using direct loop
-					for (const issue of result.issues) {
+					for (const issue of result.issues!) {
 						issues.push(prependIssuePath(issue, [i]))
 					}
 				}
 				else {
-					output[i] = result.value
+					output[i] = result.value!
 				}
 			}
 

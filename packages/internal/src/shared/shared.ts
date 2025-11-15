@@ -78,38 +78,6 @@ export function returnTrue() {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export class Pipe<I = unknown, O = I> {
-	list: ((x: any) => any)[] = []
-
-	add<NewO>(fn: (x: O) => MaybePromise<NewO>): Pipe<I, NewO> {
-		this.list.push(fn)
-		return this as any
-	}
-
-	exec(x: I): MaybePromise<O> {
-		// Optimized execution: Use for loop instead of reduce for better performance
-		// Removed unnecessary null checks since list is never sparse
-		const fns = this.list
-		const len = fns.length
-		let result: any = x
-
-		for (let i = 0; i < len; i++) {
-			// Check if current result is a promise
-			if (result instanceof Promise) {
-				// Once we hit async, chain all remaining functions
-				for (let j = i; j < len; j++) {
-					result = result.then(fns[j])
-				}
-				return result
-			}
-			// Execute function synchronously
-			result = fns[i](result)
-		}
-		return result
-	}
-}
-
-/* @__NO_SIDE_EFFECTS__ */
 export function noop() {}
 
 /* @__NO_SIDE_EFFECTS__ */

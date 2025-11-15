@@ -124,12 +124,12 @@ export const object = implStepPlugin<PluginDef>({
 			const processPropResult = (result: ExecutionResult, key: string | symbol) => {
 				if (isFailure(result)) {
 					// Optimize: avoid spread and map
-					for (const issue of result.issues) {
+					for (const issue of result.issues!) {
 						issues.push(prependIssuePath(issue, [key]))
 					}
 					return
 				}
-				output[key] = result.value
+				output[key] = result.value!
 			}
 
 			// Optimize: Process properties without Pipe to reduce allocations

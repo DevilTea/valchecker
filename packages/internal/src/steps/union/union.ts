@@ -82,7 +82,7 @@ export const union = implStepPlugin<PluginDef>({
 			const processBranchResult = (result: ExecutionResult) => {
 				if (isFailure(result)) {
 					// Optimize: Avoid spread by using direct loop
-					for (const issue of result.issues) {
+					for (const issue of result.issues!) {
 						issues.push(issue)
 					}
 					return false

@@ -124,12 +124,12 @@ export const looseObject = implStepPlugin<PluginDef>({
 			const processPropResult = (result: ExecutionResult, key: string | symbol) => {
 				if (isFailure(result)) {
 					// Optimize: Avoid spread + map by using direct loop
-					for (const issue of result.issues) {
+					for (const issue of result.issues!) {
 						issues.push(prependIssuePath(issue, [key]))
 					}
 				}
 				else {
-					output[key] = result.value
+					output[key] = result.value!
 				}
 			}
 
