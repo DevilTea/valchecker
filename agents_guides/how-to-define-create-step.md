@@ -284,5 +284,23 @@ Follow this checklist to ensure your step is correctly implemented:
 - [ ] **Message Resolution**: All error messages use `resolveMessage()` to support custom, default, and global messages.
 - [ ] **Tree-Shaking**: The export includes the `/* @__NO_SIDE_EFFECTS__ */` comment.
 - [ ] **File Organization**: The step is in its own file (`/steps/stepName/stepName.ts`) and exported from `/steps/index.ts`.
+- [ ] **Tests**: Comprehensive tests are written following [How to Test a Step](./how-to-test-a-step.md).
+- [ ] **Benchmarks**: Performance benchmarks are created following [How to Create a Benchmark](./how-to-create-benchmark.md).
 
 > **Note**: Each step file should contain only one step method. This means each plugin will register only one method on the validation chain.
+
+## Development Workflow
+
+The recommended workflow for creating a step is:
+
+1. **Define the step** following this guide
+2. **Write comprehensive tests** following [How to Test a Step](./how-to-test-a-step.md)
+3. **Create performance benchmarks** following [How to Create a Benchmark](./how-to-create-benchmark.md)
+4. **Run verification**:
+   ```bash
+   pnpm lint      # Ensure code style compliance
+   pnpm typecheck # Verify TypeScript types
+   pnpm test      # Ensure all tests pass
+   pnpm bench     # Measure performance
+   ```
+5. **Review and iterate** based on test results and benchmark performance
