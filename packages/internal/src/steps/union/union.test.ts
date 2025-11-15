@@ -43,6 +43,61 @@ describe('union plugin', () => {
 			]).execute('hello')
 			expect(result).toEqual({ value: 'hello' })
 		})
+
+		it('should handle async branches with multiple branches (triggers chaining)', async () => {
+			const result = await v.union([
+				v.number(),
+				v.string().transform(async x => x.toUpperCase()),
+				v.string(),
+			]).execute('hello')
+			expect(result).toEqual({ value: 'hello' })
+		})
+
+		it('should handle async failure with chaining', async () => {
+			const result = await v.union([
+				v.number(),
+				v.string().transform(async (_x) => { throw new Error('fail') }),
+				v.string(),
+			]).execute('hello')
+			expect(result).toEqual({ value: 'hello' })
+		})
+
+		it('should handle mixed async and sync branches in chain', async () => {
+			let firstFail = true
+			const result = await v.union([
+				v.number(),
+				v.string().transform(x => firstFail ? (firstFail = false, Promise.reject(new Error('fail'))) : x),
+				v.string(),
+			]).execute('hello')
+			expect(result).toEqual({ value: 'hello' })
+		})
+
+		it('should handle async failure when no branch matches', async () => {
+			const result = await v.union([
+				v.number(),
+				v.string().transform(async (_x) => { throw new Error('fail') }),
+				v.number(),
+			]).execute('hello')
+			expect(result).toEqual({
+				issues: [
+					{
+						code: 'number:expected_number',
+						payload: { value: 'hello' },
+						message: 'Expected a number (NaN is not allowed).',
+					},
+					{
+						code: 'transform:failed',
+						payload: { value: 'hello', error: new Error('fail') },
+						message: 'Transform failed',
+					},
+					{
+						code: 'number:expected_number',
+						payload: { value: 'hello' },
+						message: 'Expected a number (NaN is not allowed).',
+					},
+				],
+			})
+		})
 	})
 
 	describe('invalid unions (matches no branches)', () => {

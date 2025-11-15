@@ -80,6 +80,45 @@ describe('strictObject plugin', () => {
 			}).execute({ value: 5 })
 			expect(result).toEqual({ value: { value: 10 } })
 		})
+
+		it('should handle async validation with multiple properties (triggers chaining)', async () => {
+			const asyncSchema = v.number().transform(async (x: number) => x * 2)
+			const result = await v.strictObject({
+				value: asyncSchema,
+				name: v.string(),
+				count: v.number(),
+			}).execute({ value: 5, name: 'test', count: 10 })
+			expect(result).toEqual({ value: { value: 10, name: 'test', count: 10 } })
+		})
+
+		it('should handle async failure in property chain', async () => {
+			const failSchema = v.number().transform(async (_x: number) => {
+				throw new Error('fail')
+			})
+			const result = await v.strictObject({
+				value: v.number().transform(async (x: number) => x * 2),
+				name: v.string(),
+				count: failSchema,
+			}).execute({ value: 5, name: 'test', count: 10 })
+			expect(result).toEqual({
+				issues: [{
+					code: 'transform:failed',
+					path: ['count'],
+					payload: { value: 10, error: new Error('fail') },
+					message: 'Transform failed',
+				}],
+			})
+		})
+
+		it('should handle mixed async and sync properties in chain', async () => {
+			let firstProp = true
+			const result = await v.strictObject({
+				value: v.number().transform((x: number) => firstProp ? (firstProp = false, Promise.resolve(x * 2)) : x),
+				name: v.string(),
+				count: v.number(),
+			}).execute({ value: 5, name: 'test', count: 10 })
+			expect(result).toEqual({ value: { value: 10, name: 'test', count: 10 } })
+		})
 	})
 
 	describe('invalid inputs (not objects)', () => {

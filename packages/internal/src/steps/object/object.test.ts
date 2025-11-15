@@ -260,6 +260,65 @@ describe('object plugin', () => {
 				},
 			})
 		})
+
+		it('should handle async property schemas with multiple properties (triggers chaining)', async () => {
+			const result = await v.object({
+				name: v.string().transform(async x => x.toUpperCase()),
+				age: v.number(),
+				city: v.string(),
+			}).execute({
+				name: 'john',
+				age: 30,
+				city: 'NYC',
+			})
+			expect(result).toEqual({
+				value: {
+					name: 'JOHN',
+					age: 30,
+					city: 'NYC',
+				},
+			})
+		})
+
+		it('should handle async failure in property chain', async () => {
+			const result = await v.object({
+				name: v.string().transform(async x => x.toUpperCase()),
+				age: v.number(),
+				city: v.string().transform(async (_x) => { throw new Error('fail') }),
+			}).execute({
+				name: 'john',
+				age: 30,
+				city: 'NYC',
+			})
+			expect(result).toEqual({
+				issues: [{
+					code: 'transform:failed',
+					path: ['city'],
+					payload: { value: 'NYC', error: new Error('fail') },
+					message: 'Transform failed',
+				}],
+			})
+		})
+
+		it('should handle mixed async and sync properties in chain', async () => {
+			let firstProp = true
+			const result = await v.object({
+				name: v.string().transform(x => firstProp ? (firstProp = false, Promise.resolve(x.toUpperCase())) : x),
+				age: v.number(),
+				city: v.string(),
+			}).execute({
+				name: 'john',
+				age: 30,
+				city: 'NYC',
+			})
+			expect(result).toEqual({
+				value: {
+					name: 'JOHN',
+					age: 30,
+					city: 'NYC',
+				},
+			})
+		})
 	})
 
 	describe('edge cases', () => {

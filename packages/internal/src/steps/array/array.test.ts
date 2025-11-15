@@ -167,6 +167,39 @@ describe('array plugin', () => {
 				}],
 			})
 		})
+
+		it('should handle async item validator with multiple items (triggers chaining)', async () => {
+			const result = await v.array(v.string().transform(async x => x.toUpperCase())).execute(['a', 'b', 'c'])
+			expect(result).toEqual({ value: ['A', 'B', 'C'] })
+		})
+
+		it('should handle async item validator with failure in chain', async () => {
+			const result = await v.array(v.string().transform(async (x) => {
+				if (x === 'fail')
+					throw new Error('fail')
+				return x
+			})).execute(['a', 'b', 'fail', 'd'])
+			expect(result).toEqual({
+				issues: [{
+					code: 'transform:failed',
+					path: [2],
+					payload: { value: 'fail', error: expect.any(Error) },
+					message: 'Transform failed',
+				}],
+			})
+		})
+
+		it('should handle mixed async and sync items in chain', async () => {
+			let firstItem = true
+			const result = await v.array(v.string().transform((x) => {
+				if (firstItem) {
+					firstItem = false
+					return Promise.resolve(x.toUpperCase())
+				}
+				return x.toLowerCase()
+			})).execute(['a', 'B', 'C'])
+			expect(result).toEqual({ value: ['A', 'b', 'c'] })
+		})
 	})
 
 	describe('edge cases', () => {
