@@ -159,7 +159,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 						const nextMeta = propsMeta[j]!
 						const nextPropValue = (value as any)[nextMeta.key]
 
-						chain = chain.then(() => {
+						chain = chain.then((): void | Promise<void> => {
 							const nextPropResult = (nextMeta.isOptional && nextPropValue === void 0)
 								? success(nextPropValue)
 								: nextMeta.schema['~execute'](nextPropValue)
