@@ -88,6 +88,7 @@ export class Pipe<I = unknown, O = I> {
 
 	exec(x: I): MaybePromise<O> {
 		// Optimized execution: Use for loop instead of reduce for better performance
+		// Removed unnecessary null checks since list is never sparse
 		const fns = this.list
 		const len = fns.length
 		let result: any = x
@@ -97,18 +98,12 @@ export class Pipe<I = unknown, O = I> {
 			if (result instanceof Promise) {
 				// Once we hit async, chain all remaining functions
 				for (let j = i; j < len; j++) {
-					const fn = fns[j]
-					if (fn) {
-						result = result.then(fn)
-					}
+					result = result.then(fns[j])
 				}
 				return result
 			}
 			// Execute function synchronously
-			const fn = fns[i]
-			if (fn) {
-				result = fn(result)
-			}
+			result = fns[i](result)
 		}
 		return result
 	}

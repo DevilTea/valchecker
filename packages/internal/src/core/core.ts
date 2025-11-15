@@ -34,18 +34,21 @@ export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['pa
 	if (path == null || path.length === 0) {
 		return issue
 	}
-	// Optimize: Avoid spread operator for better performance
+	// Optimize: Avoid spread operator and Array.from for better performance
 	const existingPath = issue.path
 	if (existingPath == null || existingPath.length === 0) {
 		(issue as any).path = path
 	}
 	else {
-		const newPath = Array.from({ length: path.length + existingPath.length })
-		for (let i = 0; i < path.length; i++) {
+		// Direct array allocation with known length is faster
+		const pathLen = path.length
+		const existingLen = existingPath.length
+		const newPath = Array.from({ length: pathLen + existingLen })
+		for (let i = 0; i < pathLen; i++) {
 			newPath[i] = path[i]
 		}
-		for (let i = 0; i < existingPath.length; i++) {
-			newPath[path.length + i] = existingPath[i]
+		for (let i = 0; i < existingLen; i++) {
+			newPath[pathLen + i] = existingPath[i]
 		}
 		(issue as any).path = newPath
 	}

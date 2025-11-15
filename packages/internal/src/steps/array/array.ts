@@ -1,7 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferAsync, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { Pipe } from '../../shared'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'array'
@@ -72,30 +71,48 @@ export const array = implStepPlugin<PluginDef>({
 				})
 			}
 
-			const pipe = new Pipe<void>()
+			// Optimized: Direct processing without Pipe overhead
 			const issues: ExecutionIssue[] = []
-			const output = [...value]
+			const len = value.length
+			const output = Array.from({ length: len })
+
 			const processItemResult = (result: ExecutionResult, i: number) => {
-				if (isFailure(result))
-					issues.push(...result.issues.map(issue => prependIssuePath(issue, [i])))
-				else
+				if (isFailure(result)) {
+					// Optimize: Avoid spread and map by using direct loop
+					for (const issue of result.issues) {
+						issues.push(prependIssuePath(issue, [i]))
+					}
+				}
+				else {
 					output[i] = result.value
-			}
-			for (let i = 0; i < value.length; i++) {
-				const itemValue = value[i]!
-				pipe.add(() => {
-					const itemResult = item['~execute'](itemValue)
-					return itemResult instanceof Promise
-						? itemResult.then(r => processItemResult(r, i))
-						: processItemResult(itemResult, i)
-				})
+				}
 			}
 
-			const processResult = () => issues.length > 0 ? failure(issues) : success(output)
-			const result = pipe.exec()
-			return result instanceof Promise
-				? result.then(processResult)
-				: processResult()
+			// Process items synchronously until we hit async
+			for (let i = 0; i < len; i++) {
+				const itemValue = value[i]!
+				const itemResult = item['~execute'](itemValue)
+
+				if (itemResult instanceof Promise) {
+					// Hit async, chain remaining items
+					let chain = itemResult.then(r => processItemResult(r, i))
+					for (let j = i + 1; j < len; j++) {
+						const jValue = value[j]!
+						const jIndex = j
+						chain = chain.then(() => {
+							const jResult = item['~execute'](jValue)
+							return jResult instanceof Promise
+								? jResult.then(r => processItemResult(r, jIndex))
+								: (processItemResult(jResult, jIndex), undefined)
+						})
+					}
+					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
+				}
+
+				processItemResult(itemResult, i)
+			}
+
+			return issues.length > 0 ? failure(issues) : success(output)
 		})
 	},
 })

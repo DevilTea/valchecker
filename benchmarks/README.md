@@ -18,10 +18,6 @@ pnpm bench:watch
 - **steps.bench.ts**: Individual step operation benchmarks including string operations, number validation, transformations, and chaining
 - **comparison/**: Integration files for comparing valchecker with other libraries using typescript-runtime-type-benchmarks
 
-## Reports
-
-- **PERFORMANCE_REPORT.md**: Detailed performance analysis comparing baseline vs optimized implementation
-
 ## Comparing with Other Libraries
 
 To compare valchecker with other popular validation libraries (zod, yup, joi, ajv, etc.), see:
@@ -51,9 +47,11 @@ The [typescript-runtime-type-benchmarks](https://github.com/moltar/typescript-ru
 
 ## Performance Highlights
 
-- **Array operations**: 5-6% improvement for large arrays (50-100 elements)
-- **String transformations**: 4-7% improvement
-- **Nested objects**: 2-4% improvement
-- **Core validation**: 0.2-0.9% improvement
+Current optimizations provide:
+- **Array operations**: 4-10% improvement for large arrays (50-100 elements)
+- **Union operations**: 1-7% improvement, especially with more branches
+- **Object operations**: 1-5% improvement across all sizes
+- **String/Number validators**: 2-3% improvement
+- **Validation failures**: 2-7% improvement
 
-See PERFORMANCE_REPORT.md for detailed analysis and optimization techniques.
+Run benchmarks to measure performance on your hardware.

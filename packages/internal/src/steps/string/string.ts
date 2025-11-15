@@ -51,21 +51,23 @@ export const string = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, resolveMessage, failure },
 		params: [message],
 	}) => {
-		addSuccessStep(
-			value => typeof value === 'string'
-				?	success(value)
-				:	failure({
+		addSuccessStep((value) => {
+			// Inline type check for better performance
+			if (typeof value === 'string') {
+				return success(value)
+			}
+			return failure({
+				code: 'string:expected_string',
+				payload: { value },
+				message: resolveMessage(
+					{
 						code: 'string:expected_string',
 						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'string:expected_string',
-								payload: { value },
-							},
-							message,
-							'Expected a string.',
-						),
-					}),
-		)
+					},
+					message,
+					'Expected a string.',
+				),
+			})
+		})
 	},
 })
