@@ -1,7 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferAsync, InferIssue, InferOutput, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { UnionToIntersection } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { Pipe } from '../../shared'
 
 declare namespace Internal {
 	export type Branches = [Use<Valchecker>, ...Use<Valchecker>[]]
@@ -75,34 +74,59 @@ export const intersection = implStepPlugin<PluginDef>({
 		params: [branches],
 	}) => {
 		addSuccessStep((value) => {
-			const pipe = new Pipe<void>()
+			// Optimized: Direct processing without Pipe overhead
 			const issues: ExecutionIssue[] = []
+			const len = branches.length
 			let isInvalid = false
 
 			const processBranchResult = (result: ExecutionResult) => {
 				if (isFailure(result)) {
-					issues.push(...result.issues)
+					// Optimize: Avoid spread by using direct loop
+					for (const issue of result.issues) {
+						issues.push(issue)
+					}
 					isInvalid = true
 				}
 			}
 
-			for (const branch of branches) {
-				pipe.add(() => {
-					if (isInvalid)
-						return
+			// Process branches synchronously until we hit async or failure
+			for (let i = 0; i < len; i++) {
+				if (isInvalid)
+					break
 
-					const branchResult = branch['~execute'](value)
-					return branchResult instanceof Promise
-						? branchResult.then(processBranchResult)
-						: processBranchResult(branchResult)
-				})
+				const branchResult = branches[i]['~execute'](value)
+
+				if (branchResult instanceof Promise) {
+					// Hit async, chain remaining branches
+					let chain = branchResult.then((r) => {
+						processBranchResult(r)
+						return isInvalid
+					})
+
+					for (let j = i + 1; j < len; j++) {
+						const jBranch = branches[j]
+						chain = chain.then((invalid) => {
+							if (invalid)
+								return true
+							const jResult = jBranch['~execute'](value)
+							return jResult instanceof Promise
+								? jResult.then((r) => {
+										processBranchResult(r)
+										return isInvalid
+									})
+								: (processBranchResult(jResult), isInvalid)
+						})
+					}
+
+					return chain.then(() =>
+						(isInvalid || issues.length > 0) ? failure(issues) : success(value),
+					)
+				}
+
+				processBranchResult(branchResult)
 			}
 
-			const processResult = () => (isInvalid || issues.length > 0) ? failure(issues) : success(value)
-			const result = pipe.exec()
-			return result instanceof Promise
-				? result.then(processResult)
-				: processResult()
+			return (isInvalid || issues.length > 0) ? failure(issues) : success(value)
 		})
 	},
 })
