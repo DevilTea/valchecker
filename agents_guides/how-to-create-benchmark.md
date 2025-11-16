@@ -1,10 +1,10 @@
 # How to Create a Benchmark for a Step
 
-This guide explains how to create performance benchmarks for step plugins in the Valchecker framework. Benchmarks are essential for tracking performance improvements and regressions over time.
+This guide explains how to create performance benchmarks for step plugins in the Valchecker framework. Benchmarks track performance improvements and regressions over time and help validate optimizations.
 
 ## Overview
 
-Benchmarks measure the execution speed (operations per second) of steps under controlled conditions. They help identify performance bottlenecks and validate that optimizations actually improve performance.
+Benchmarks measure the execution speed (ops/sec) and other statistics (e.g., mean execution time) for steps under controlled conditions. They help identify bottlenecks and validate whether optimizations improve runtime characteristics.
 
 ## When to Create Benchmarks
 
@@ -17,12 +17,11 @@ You should create a benchmark:
 
 ## Benchmark File Location
 
-Benchmarks are located in the `/benchmarks` directory at the repository root:
+Benchmarks live in the `benchmarks/` directory at the repository root. Organize files by purpose:
 
 ```
 benchmarks/
 ├── core.bench.ts           # Core functionality benchmarks
-├── steps.bench.ts          # Common step benchmarks
 ├── all-steps.bench.ts      # Comprehensive step coverage
 └── vitest.config.ts        # Benchmark configuration
 ```
@@ -217,9 +216,9 @@ describe('Fallback Operations', () => {
 pnpm bench
 ```
 
-### Run Specific Benchmark File
+### Run a specific benchmark file
 ```bash
-pnpm bench all-steps.bench.ts
+pnpm bench ./benchmarks/all-steps.bench.ts
 ```
 
 ### Watch Mode (for development)
@@ -309,7 +308,7 @@ describe('String Operations - Capitalize', () => {
 	})
 
 	// Chained operations
-	bench('capitalize - chained with toLowerCase', () => {
+	bench('capitalize - chained with toLowercase', () => {
 		const v = createValchecker({ steps: [string, toLowercase, capitalize] })
 		const schema = v.string().toLowercase().capitalize()
 		schema.execute('HELLO WORLD')

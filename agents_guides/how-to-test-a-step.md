@@ -163,7 +163,8 @@ describe('async operations', () => {
 	})
 
 	it('should handle async errors', async () => {
-		const result = await v.transform(async () => {
+		// `transform` is chained on a number schema here for correctness
+		const result = await v.number().transform(async () => {
 			throw new Error('fail')
 		}).execute(5)
 		expect(result).toEqual({

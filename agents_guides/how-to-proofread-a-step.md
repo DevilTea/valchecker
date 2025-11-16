@@ -1,6 +1,6 @@
 # How to Proofread a Step
 
-This document provides a checklist for reviewing a `step` source file. The goal is to ensure that every step merged into the codebase is high-quality, consistent, and correct.
+This document provides a checklist for reviewing a `step` source file. The goal is to ensure steps merged into the codebase are high-quality, consistent, and correct.
 
 This guide should be used as the standard for code reviews of any new or modified step.
 
