@@ -51,21 +51,23 @@ export const number = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, resolveMessage, failure },
 		params: [message],
 	}) => {
-		addSuccessStep(
-			value => (typeof value === 'number' && Number.isNaN(value) === false)
-				?	success(value)
-				:	failure({
+		addSuccessStep((value) => {
+			// Inline type check and NaN check for better performance
+			if (typeof value === 'number' && !Number.isNaN(value)) {
+				return success(value)
+			}
+			return failure({
+				code: 'number:expected_number',
+				payload: { value },
+				message: resolveMessage(
+					{
 						code: 'number:expected_number',
 						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'number:expected_number',
-								payload: { value },
-							},
-							message,
-							'Expected a number (NaN is not allowed).',
-						),
-					}),
-		)
+					},
+					message,
+					'Expected a number (NaN is not allowed).',
+				),
+			})
+		})
 	},
 })

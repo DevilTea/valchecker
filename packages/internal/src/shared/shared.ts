@@ -78,25 +78,6 @@ export function returnTrue() {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export class Pipe<I = unknown, O = I> {
-	list: ((x: any) => any)[] = []
-
-	add<NewO>(fn: (x: O) => MaybePromise<NewO>): Pipe<I, NewO> {
-		this.list.push(fn)
-		return this as any
-	}
-
-	exec(x: I): MaybePromise<O> {
-		return this.list.reduce((v, fn) => {
-			if (v instanceof Promise) {
-				return v.then(fn)
-			}
-			return fn(v)
-		}, x as any)
-	}
-}
-
-/* @__NO_SIDE_EFFECTS__ */
 export function noop() {}
 
 /* @__NO_SIDE_EFFECTS__ */

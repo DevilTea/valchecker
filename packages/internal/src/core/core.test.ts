@@ -923,5 +923,49 @@ describe('core module', () => {
 			const result = (chainedV as any).execute(5)
 			expect(result).toEqual({ value: 9 })
 		})
+
+		it('should handle synchronous exceptions in step execution', () => {
+			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
+				throwStep: ({ utils }: any) => {
+					utils.addStep((_result: ExecutionResult) => {
+						throw new Error('sync error')
+					})
+				},
+			} as any
+
+			const v = createValchecker({ steps: [mockStepImpl] })
+			const chainedV = (v as any).throwStep()
+
+			const result = (chainedV as any).execute('test')
+			expect(result).toEqual({
+				issues: [{
+					code: 'core:unknown_exception',
+					payload: { method: 'throwStep', value: { value: 'test' }, error: new Error('sync error') },
+					message: 'An unexpected error occurred during step execution',
+				}],
+			})
+		})
+
+		it('should handle async rejections in step execution', async () => {
+			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
+				asyncThrowStep: ({ utils }: any) => {
+					utils.addStep(async (_result: ExecutionResult) => {
+						throw new Error('async error')
+					})
+				},
+			} as any
+
+			const v = createValchecker({ steps: [mockStepImpl] })
+			const chainedV = (v as any).asyncThrowStep()
+
+			const result = await (chainedV as any).execute('test')
+			expect(result).toEqual({
+				issues: [{
+					code: 'core:unknown_exception',
+					payload: { method: 'asyncThrowStep', value: { value: 'test' }, error: new Error('async error') },
+					message: 'An unexpected error occurred during step execution',
+				}],
+			})
+		})
 	})
 })

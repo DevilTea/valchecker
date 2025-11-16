@@ -163,7 +163,8 @@ describe('async operations', () => {
 	})
 
 	it('should handle async errors', async () => {
-		const result = await v.transform(async () => {
+		// `transform` is chained on a number schema here for correctness
+		const result = await v.number().transform(async () => {
 			throw new Error('fail')
 		}).execute(5)
 		expect(result).toEqual({
@@ -300,3 +301,24 @@ it('should handle optional property missing', () => {
 	})
 })
 ```
+## Next Steps
+
+After writing comprehensive tests for your step:
+
+1. **Create performance benchmarks** following [How to Create a Benchmark](./how-to-create-benchmark.md)
+2. **Run verification**:
+   ```bash
+   pnpm lint      # Ensure code style compliance
+   pnpm typecheck # Verify TypeScript types
+   pnpm test      # Ensure all tests pass (including your new tests)
+   pnpm bench     # Measure performance with benchmarks
+   ```
+3. **Review test coverage** to ensure all edge cases are covered
+4. **Document any special testing considerations** in the step's JSDoc
+
+## Related Guides
+
+- [How to Define a Step](./how-to-define-create-step.md) - Step creation guide
+- [How to Create a Benchmark](./how-to-create-benchmark.md) - Benchmark creation guide
+- [How to Write a Test](./how-to-write-a-test.md) - General testing principles
+- [How to Proofread a Test for a Step](./how-to-proofread-a-test-for-step.md) - Test review guide

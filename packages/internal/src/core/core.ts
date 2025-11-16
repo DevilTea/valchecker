@@ -11,7 +11,7 @@ import type {
 	StepPluginImpl,
 	TStepPluginDef,
 } from './types'
-import { Pipe, runtimeExecutionStepDefMarker } from '../shared'
+import { runtimeExecutionStepDefMarker } from '../shared'
 
 /* @__NO_SIDE_EFFECTS__ */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(stepImpl: StepPluginImpl<StepPluginDef>): StepPluginImpl<StepPluginDef> {
@@ -34,7 +34,24 @@ export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['pa
 	if (path == null || path.length === 0) {
 		return issue
 	}
-	(issue as any).path = [...path, ...(issue.path ?? [])]
+	// Optimize: Avoid spread operator and Array.from for better performance
+	const existingPath = issue.path
+	if (existingPath == null || existingPath.length === 0) {
+		(issue as any).path = path
+	}
+	else {
+		// Direct array allocation with known length is faster
+		const pathLen = path.length
+		const existingLen = existingPath.length
+		const newPath = Array.from({ length: pathLen + existingLen })
+		for (let i = 0; i < pathLen; i++) {
+			newPath[i] = path[i]
+		}
+		for (let i = 0; i < existingLen; i++) {
+			newPath[pathLen + i] = existingPath[i]
+		}
+		(issue as any).path = newPath
+	}
 	return issue
 }
 
@@ -84,11 +101,23 @@ export function createPipeExecutor(
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
 ): (value: unknown) => MaybePromise<ExecutionResult> {
 	return (value: unknown) => {
-		let pipe = new Pipe().add(v => ({ value: v } as ExecutionResult))
-		for (const s of runtimeSteps) {
-			pipe = pipe.add(s)
+		// Optimized: Direct execution without Pipe overhead
+		const len = runtimeSteps.length
+		let result: any = { value } as ExecutionResult
+
+		for (let i = 0; i < len; i++) {
+			// Check if current result is a promise
+			if (result instanceof Promise) {
+				// Once we hit async, chain all remaining steps
+				for (let j = i; j < len; j++) {
+					result = result.then(runtimeSteps[j]!)
+				}
+				return result
+			}
+			// Execute step synchronously
+			result = runtimeSteps[i]!(result)
 		}
-		return pipe.exec(value)
+		return result
 	}
 }
 /* @__NO_SIDE_EFFECTS__ */

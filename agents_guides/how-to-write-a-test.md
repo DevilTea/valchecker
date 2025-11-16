@@ -1,20 +1,20 @@
 # How to Write a Test
 
-This document outlines the general standards and best practices for writing tests in the Valchecker project. The primary goal is to ensure all code is robust, error-free, and fully tested.
+This document outlines general standards and best practices for writing tests in the Valchecker project. The goal is to ensure code is robust, well-typed, and fully tested.
 
 ## Core Principle: 100% Coverage
 
-Every TypeScript source file (`.ts`) **must** be accompanied by a corresponding test file (`.test.ts`) that achieves **100% statement, branch, and function coverage**.
+Every TypeScript source file (`.ts`) **must** be accompanied by a test file (`.test.ts`) that achieves **100% statement, branch, and function coverage** related to the file's runtime behavior.
 
-Tests must validate the logic of the source file and handle all expected success and failure scenarios gracefully.
+Tests must validate the logic of the source file, including all success and failure scenarios, edge cases, overloads, and message/issue shapes.
 
 ## Test File Structure
 
-A test file should be organized as follows:
+Test files should be organized as follows:
 
 ### 1. Test Plan Comment
 
-Start every test file with a JSDoc comment that outlines the test plan. This plan serves as a clear guide for writing and reviewing the tests.
+Start every test file with a JSDoc comment that outlines the test plan. The plan serves as a reference for the reviewer and ensures the test’s goals are explicit.
 
 ```typescript
 /**
@@ -30,7 +30,7 @@ Start every test file with a JSDoc comment that outlines the test plan. This pla
 
 ### 2. Setup
 
-Import `vitest` utilities and any modules required for the test.
+Import `vitest` utilities and the modules required for the test.
 
 ```typescript
 import { describe, expect, it } from 'vitest'
@@ -59,14 +59,14 @@ describe('myFunction', () => {
 
 ## Test File Standards
 
-To ensure consistency and quality, every `.test.ts` file **must** adhere to the following standards:
+To ensure consistency and quality, every `.test.ts` file **must** adhere to these standards:
 
 1.  **Language**: All code, comments, and documentation must be in **English**.
 2.  **Indentation**: Use **tabs**, not spaces.
 3.  **Line Endings**: Use LF (`\n`).
 4.  **Test Plan**: Start every test file with a complete JSDoc test plan.
 5.  **Structure**: Use `describe` for grouping and `it` for individual test cases. Organize `describe` blocks logically (e.g., `valid inputs`, `invalid inputs`, `edge cases`).
-6.  **Strict Assertions**: Always use `expect(...).toEqual(...)` for complete and strict object/value validation. Avoid partial checks like `toMatchObject` or `toHaveProperty` where possible, as they can lead to less robust tests.
+6.  **Strict Assertions**: Prefer `expect(...).toEqual(...)` for full-object assertions. When necessary, `expect.any()` or partial checks (e.g., `expect.any(Error)`) are acceptable for result fields that vary unpredictably (e.g., runtime-generated messages or Error objects).
 
 ## Verification Workflow
 
@@ -81,6 +81,6 @@ After making any changes, run the full verification sequence to ensure code qual
 pnpm -w test --coverage.include=packages/valchecker/src/steps/max/max.ts packages/valchecker/src/steps/max/max.test.ts
 ```
 
-If any step fails, fix the issues and re-run the entire sequence from the beginning.
+If any step fails, fix the issues and re-run the entire verification sequence.
 
 ```

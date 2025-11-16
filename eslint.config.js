@@ -7,6 +7,9 @@ export default deviltea(
 			// eslint ignore globs here
 			'./agents_guides/*.md',
 			'./**/README.md',
+			'./benchmarks/PERFORMANCE_REPORT.md',
+			'./benchmarks/comparison/*.md',
+			'./benchmarks/CODE_LEVEL_ANALYSIS.md',
 		],
 		typescript: {
 			overrides: {

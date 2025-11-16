@@ -31,6 +31,40 @@ describe('intersection plugin', () => {
 			]).execute('hello')
 			expect(result).toEqual({ value: 'hello' })
 		})
+
+		it('should handle async branches with multiple branches (triggers chaining)', async () => {
+			const result = await v.intersection([
+				v.string().transform(async x => x),
+				v.string().transform(async x => x),
+				v.string().transform(async x => x),
+			]).execute('hello')
+			expect(result).toEqual({ value: 'hello' })
+		})
+
+		it('should handle async failure in chain', async () => {
+			const result = await v.intersection([
+				v.string().transform(async x => x),
+				v.string().transform(async x => x),
+				v.string().transform(async (_x) => { throw new Error('fail') }),
+			]).execute('hello')
+			expect(result).toEqual({
+				issues: [{
+					code: 'transform:failed',
+					payload: { value: 'hello', error: new Error('fail') },
+					message: 'Transform failed',
+				}],
+			})
+		})
+
+		it('should handle mixed async and sync branches in chain', async () => {
+			let firstBranch = true
+			const result = await v.intersection([
+				v.string().transform(x => firstBranch ? (firstBranch = false, Promise.resolve(x)) : x),
+				v.string(),
+				v.string(),
+			]).execute('hello')
+			expect(result).toEqual({ value: 'hello' })
+		})
 	})
 
 	describe('invalid inputs', () => {
