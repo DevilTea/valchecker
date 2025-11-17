@@ -91,10 +91,16 @@ export const union = implStepPlugin<PluginDef>({
 			}
 
 			// Try each branch synchronously until we hit async or find success
+			let isAsync = false
 			for (let i = 0; i < len; i++) {
+				if (isAsync) {
+					// Already in async mode, skip
+					continue
+				}
 				const branchResult = branches[i]!['~execute'](value)
 
 				if (branchResult instanceof Promise) {
+					isAsync = true
 					// Hit async, chain remaining branches
 					let chain = branchResult.then((r) => {
 						if (processBranchResult(r)) {
@@ -108,12 +114,10 @@ export const union = implStepPlugin<PluginDef>({
 						chain = chain.then((result) => {
 							if (result.success)
 								return result
-							const jResult = jBranch['~execute'](value)
-							return jResult instanceof Promise
-								? jResult.then(r => ({
-										success: processBranchResult(r),
-									}))
-								: ({ success: processBranchResult(jResult) })
+							return Promise.resolve(jBranch['~execute'](value))
+								.then(r => ({
+									success: processBranchResult(r),
+								}))
 						})
 					}
 

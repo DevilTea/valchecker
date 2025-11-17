@@ -89,22 +89,23 @@ export const array = implStepPlugin<PluginDef>({
 			}
 
 			// Process items synchronously until we hit async
+			let isAsync = false
 			for (let i = 0; i < len; i++) {
+				if (isAsync) {
+					// Already in async mode, skip
+					continue
+				}
 				const itemValue = value[i]!
 				const itemResult = item['~execute'](itemValue)
 
 				if (itemResult instanceof Promise) {
+					isAsync = true
 					// Hit async, chain remaining items
 					let chain = itemResult.then(r => processItemResult(r, i))
 					for (let j = i + 1; j < len; j++) {
 						const jValue = value[j]!
 						const jIndex = j
-						chain = chain.then(() => {
-							const jResult = item['~execute'](jValue)
-							return jResult instanceof Promise
-								? jResult.then(r => processItemResult(r, jIndex))
-								: (processItemResult(jResult, jIndex), undefined)
-						})
+						chain = chain.then(() => Promise.resolve(item['~execute'](jValue)).then(r => processItemResult(r, jIndex)))
 					}
 					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
 				}

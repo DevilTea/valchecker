@@ -134,7 +134,12 @@ export const object = implStepPlugin<PluginDef>({
 
 			// Inline processPropResult for better performance
 			// First pass: process synchronously until we hit async
+			let isAsync = false
 			for (let i = 0; i < keysLen; i++) {
+				if (isAsync) {
+					// Already in async mode, skip
+					continue
+				}
 				const { key, isOptional, schema } = propsMeta[i]!
 				const propValue = (value as any)[key]
 
@@ -143,6 +148,7 @@ export const object = implStepPlugin<PluginDef>({
 					: schema['~execute'](propValue)
 
 				if (propResult instanceof Promise) {
+					isAsync = true
 					// Hit async, process rest in promise chain
 					let chain = propResult.then((r) => {
 						if (isFailure(r)) {
@@ -161,12 +167,12 @@ export const object = implStepPlugin<PluginDef>({
 						const nextPropValue = (value as any)[nextMeta.key]
 
 						chain = chain.then((): void | Promise<void> => {
-							const nextPropResult = (nextMeta.isOptional && nextPropValue === void 0)
-								? success(nextPropValue)
-								: nextMeta.schema['~execute'](nextPropValue)
-
-							if (nextPropResult instanceof Promise) {
-								return nextPropResult.then((r) => {
+							return Promise.resolve(
+								(nextMeta.isOptional && nextPropValue === void 0)
+									? success(nextPropValue)
+									: nextMeta.schema['~execute'](nextPropValue),
+							)
+								.then((r) => {
 									if (isFailure(r)) {
 										for (const issue of r.issues!) {
 											issues.push(prependIssuePath(issue, [nextMeta.key]))
@@ -176,16 +182,6 @@ export const object = implStepPlugin<PluginDef>({
 										output[nextMeta.key] = r.value!
 									}
 								})
-							}
-
-							if (isFailure(nextPropResult)) {
-								for (const issue of nextPropResult.issues!) {
-									issues.push(prependIssuePath(issue, [nextMeta.key]))
-								}
-							}
-							else {
-								output[nextMeta.key] = nextPropResult.value!
-							}
 						})
 					}
 

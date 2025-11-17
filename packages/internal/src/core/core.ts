@@ -104,27 +104,51 @@ export function createPipeExecutor(
 		// Optimized: Direct execution without Pipe overhead
 		const len = runtimeSteps.length
 		let result: any = { value } as ExecutionResult
+		let isAsync = false
 
 		for (let i = 0; i < len; i++) {
+			if (isAsync) {
+				// Already in async mode, skip synchronous execution
+				continue
+			}
+			// Execute step synchronously
+			result = runtimeSteps[i]!(result)
 			// Check if current result is a promise
 			if (result instanceof Promise) {
+				isAsync = true
 				// Once we hit async, chain all remaining steps
-				for (let j = i; j < len; j++) {
+				for (let j = i + 1; j < len; j++) {
 					result = result.then(runtimeSteps[j]!)
 				}
 				return result
 			}
-			// Execute step synchronously
-			result = runtimeSteps[i]!(result)
 		}
 		return result
 	}
 }
+
+type ResolveMessageFn = (
+	issueContent: {
+		code: string
+		payload: any
+		path?: PropertyKey[]
+	},
+	customMessage?: MessageHandler<any> | undefined | null,
+	defaultMessage?: MessageHandler<any> | undefined | null
+) => string
+
+/* @__NO_SIDE_EFFECTS__ */
+function createResolveMessageFunction(
+	globalMessage?: MessageHandler<any> | undefined,
+): ResolveMessageFn {
+	return (...params) => resolveMessagePriority(...params, globalMessage)
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 function createExecutionStepMethodUtils(
 	method: string,
 	runtimeExecutions: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
-	globalMessage?: MessageHandler<any>,
+	resolveMessage: ResolveMessageFn,
 ): StepMethodUtils<any, any, any> {
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>,
@@ -154,7 +178,7 @@ function createExecutionStepMethodUtils(
 		isSuccess,
 		isFailure,
 		prependIssuePath,
-		resolveMessage: (...params) => resolveMessagePriority(...params, globalMessage),
+		resolveMessage,
 		success: value => ({ value }),
 		failure: issueOrIssues => ({ issues: [issueOrIssues].flat() }),
 		issue: content => content,
@@ -164,7 +188,7 @@ function createExecutionStepMethodUtils(
 /* @__NO_SIDE_EFFECTS__ */
 function createProxyHandler(
 	stepMethods: Record<PropertyKey, unknown>,
-	globalMessage: MessageHandler<any> | undefined,
+	resolveMessage: ResolveMessageFn,
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
 ) {
 	return {
@@ -176,14 +200,14 @@ function createProxyHandler(
 			return (...params: any[]) => {
 				const newInstance = createInstance(
 					stepMethods,
-					globalMessage,
+					resolveMessage,
 					runtimeSteps,
 				)
 				stepMethod({
 					utils: createExecutionStepMethodUtils(
 						p as string,
 						newInstance['~core'].runtimeSteps,
-						globalMessage,
+						resolveMessage,
 					),
 					params,
 				})
@@ -221,14 +245,14 @@ function createCoreProperties(
 /* @__NO_SIDE_EFFECTS__ */
 function createInstance(
 	stepMethods: Record<PropertyKey, unknown>,
-	globalMessage: MessageHandler<any> | undefined,
+	resolveMessage: ResolveMessageFn,
 	currentRuntimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
 ): any {
 	const runtimeSteps = [...currentRuntimeSteps]
 	const execute = createPipeExecutor(runtimeSteps)
 	const coreProperties = createCoreProperties(runtimeSteps, execute)
 
-	return new Proxy(coreProperties, createProxyHandler(stepMethods, globalMessage, runtimeSteps))
+	return new Proxy(coreProperties, createProxyHandler(stepMethods, resolveMessage, runtimeSteps))
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -251,10 +275,11 @@ export function createValchecker<
 	const stepMethods = steps.reduce((acc, def) => {
 		return ({ ...acc, ...def })
 	}, {} as Record<PropertyKey, unknown>)
+	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
 
 	return createInstance(
 		stepMethods,
-		globalMessage as any,
+		resolveMessage,
 		[],
 	) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }

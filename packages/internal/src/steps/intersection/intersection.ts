@@ -90,13 +90,19 @@ export const intersection = implStepPlugin<PluginDef>({
 			}
 
 			// Process branches synchronously until we hit async or failure
+			let isAsync = false
 			for (let i = 0; i < len; i++) {
 				if (isInvalid)
 					break
+				if (isAsync) {
+					// Already in async mode, skip
+					continue
+				}
 
 				const branchResult = branches[i]!['~execute'](value)
 
 				if (branchResult instanceof Promise) {
+					isAsync = true
 					// Hit async, chain remaining branches
 					let chain = branchResult.then((r) => {
 						processBranchResult(r)
@@ -108,13 +114,11 @@ export const intersection = implStepPlugin<PluginDef>({
 						chain = chain.then((invalid) => {
 							if (invalid)
 								return true
-							const jResult = jBranch['~execute'](value)
-							return jResult instanceof Promise
-								? jResult.then((r) => {
-										processBranchResult(r)
-										return isInvalid
-									})
-								: (processBranchResult(jResult), isInvalid)
+							return Promise.resolve(jBranch['~execute'](value))
+								.then((r) => {
+									processBranchResult(r)
+									return isInvalid
+								})
 						})
 					}
 
