@@ -105,8 +105,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 		// Pre-compute metadata for each property to avoid repeated lookups
 		const keys = Reflect.ownKeys(struct)
 		const keysLen = keys.length
-		const knownKeysSet = new Set(keys)
-		const propsMeta: Array<{ key: PropertyKey, isOptional: boolean, schema: Use<Valchecker> }> = []
+		const propsMeta: Array<{ key: string | symbol, isOptional: boolean, schema: Use<Valchecker> }> = []
 
 		for (let i = 0; i < keysLen; i++) {
 			const key = keys[i]!
@@ -132,31 +131,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 				})
 			}
 
-			// Check for unknown keys
-			const ownKeys = Array.from(Reflect.ownKeys(value))
-			const ownKeysLen = ownKeys.length
-			const unknownKeys: PropertyKey[] = []
-			for (let i = 0; i < ownKeysLen; i++) {
-				const key = ownKeys[i]!
-				if (!knownKeysSet.has(key)) {
-					unknownKeys.push(key)
-				}
-			}
-			if (unknownKeys.length > 0) {
-				return failure({
-					code: 'strictObject:unexpected_keys',
-					payload: { value, keys: unknownKeys },
-					message: resolveMessage(
-						{
-							code: 'strictObject:unexpected_keys',
-							payload: { value, keys: unknownKeys },
-						},
-						message,
-						'Unexpected object keys found.',
-					),
-				})
-			}
-
+			const ownKeysSet = new Set(Reflect.ownKeys(value))
 			const issues: ExecutionIssue<any, any>[] = []
 			const output: Record<PropertyKey, any> = {}
 
@@ -169,6 +144,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 					continue
 				}
 				const { key, isOptional, schema } = propsMeta[i]!
+				ownKeysSet.delete(key)
 				const propValue = (value as any)[key]
 
 				const propResult = (isOptional && propValue === void 0)
@@ -193,6 +169,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 					for (let j = i + 1; j < keysLen; j++) {
 						const nextMeta = propsMeta[j]!
 						const nextPropValue = (value as any)[nextMeta.key]
+						ownKeysSet.delete(nextMeta.key)
 
 						chain = chain.then((): void | Promise<void> => {
 							return Promise.resolve(
@@ -213,7 +190,24 @@ export const strictObject = implStepPlugin<PluginDef>({
 						})
 					}
 
-					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
+					return chain
+						.then(() => {
+							if (ownKeysSet.size > 0) {
+								issues.push({
+									code: 'strictObject:unexpected_keys',
+									payload: { value, keys: Array.from(ownKeysSet) },
+									message: resolveMessage(
+										{
+											code: 'strictObject:unexpected_keys',
+											payload: { value, keys: Array.from(ownKeysSet) },
+										},
+										message,
+										'Unexpected object keys found.',
+									),
+								})
+							}
+						})
+						.then(() => issues.length > 0 ? failure(issues) : success(output))
 				}
 
 				if (isFailure(propResult)) {
@@ -224,6 +218,21 @@ export const strictObject = implStepPlugin<PluginDef>({
 				else {
 					output[key] = propResult.value!
 				}
+			}
+
+			if (ownKeysSet.size > 0) {
+				issues.push({
+					code: 'strictObject:unexpected_keys',
+					payload: { value, keys: Array.from(ownKeysSet) },
+					message: resolveMessage(
+						{
+							code: 'strictObject:unexpected_keys',
+							payload: { value, keys: Array.from(ownKeysSet) },
+						},
+						message,
+						'Unexpected object keys found.',
+					),
+				})
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)
