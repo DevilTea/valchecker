@@ -114,7 +114,12 @@ type ExtractStepMethods<Instance extends Valchecker> = ResolveStepMethodDefs<Ins
 		}
 	: never
 
-interface ValcheckerMehods<Instance extends Valchecker> {
+interface OnlyInitialValcheckerMethods {
+	isSuccess: (result: ExecutionResult) => result is ExecutionSuccessResult<any>
+	isFailure: (result: ExecutionResult) => result is ExecutionFailureResult<any>
+}
+
+interface OnlyNotInitialValcheckerMethods<Instance extends Valchecker> {
 	execute: (value: InferInput<Instance>) => [
 		ExecutionResult<InferOutput<Instance>, InferIssue<Instance>>,
 		InferAsync<Instance>,
@@ -125,13 +130,20 @@ interface ValcheckerMehods<Instance extends Valchecker> {
 				? Promise<Result>
 				: MaybePromise<Result>
 		: never
-	isSuccess: (result: ExecutionResult) => result is ExecutionSuccessResult<any>
-	isFailure: (result: ExecutionResult) => result is ExecutionFailureResult<any>
 }
 
 export type Use<Instance extends Valchecker> = Instance
 	& ExtractStepMethods<Instance>
-	& ValcheckerMehods<Instance>
+	& (
+		InferExecutionContext<Instance>['initial'] extends false
+			? OnlyNotInitialValcheckerMethods<Instance>
+			: unknown
+	)
+	& (
+		InferExecutionContext<Instance>['initial'] extends true
+			? OnlyInitialValcheckerMethods
+			: unknown
+	)
 
 export type Next<
 	Patch extends TExecutionContextPatch | undefined,
