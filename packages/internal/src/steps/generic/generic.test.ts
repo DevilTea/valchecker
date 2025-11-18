@@ -63,6 +63,36 @@ describe('generic plugin', () => {
 			const result = schema.execute('world')
 			expect(result).toEqual({ value: 'world' })
 		})
+
+		it('should handle recursive structures using generic', () => {
+			interface MyNode {
+				id: number
+				children?: MyNode[]
+			}
+
+			const nodeSchema = v.object({
+				id: v.number(),
+				// Required to use a factory function with specifying return type `any` to avoid circular type reference.
+				children: [v.array(v.generic<{ output: MyNode }>((): any => nodeSchema))],
+			})
+
+			const result = nodeSchema.execute({
+				id: 1,
+				children: [
+					{ id: 2 },
+					{ id: 3, children: [{ id: 4 }] },
+				],
+			})
+			expect(result).toEqual({
+				value: {
+					id: 1,
+					children: [
+						{ id: 2 },
+						{ id: 3, children: [{ id: 4 }] },
+					],
+				},
+			})
+		})
 	})
 
 	describe('integration with other steps', () => {

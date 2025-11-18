@@ -61,9 +61,41 @@ export const generic = implStepPlugin<PluginDef>({
 		utils: { addStep },
 		params: [stepOrFactory],
 	}) => {
-		const step = typeof stepOrFactory === 'function' ? stepOrFactory() : stepOrFactory
-		for (const s of step['~core'].runtimeSteps) {
-			addStep(s)
+		// Handle factory function
+		if (typeof stepOrFactory === 'function') {
+			addStep((lastResult) => {
+				const runtimeSteps = stepOrFactory()['~core'].runtimeSteps
+				const len = runtimeSteps.length
+				let result: any = lastResult
+				let isAsync = false
+
+				for (let i = 0; i < len; i++) {
+					if (isAsync) {
+					// Already in async mode, skip synchronous execution
+						continue
+					}
+					// Execute step synchronously
+					result = runtimeSteps[i]!(result)
+					// Check if current result is a promise
+					if (result instanceof Promise) {
+						isAsync = true
+						// Once we hit async, chain all remaining steps
+						for (let j = i + 1; j < len; j++) {
+							result = result.then(runtimeSteps[j]!)
+						}
+						return result
+					}
+				}
+				return result
+			})
+		}
+		// Handle direct step
+		else {
+			const runtimeSteps = stepOrFactory['~core'].runtimeSteps
+			const len = runtimeSteps.length
+			for (let i = 0; i < len; i++) {
+				addStep(runtimeSteps[i]!)
+			}
 		}
 	},
 })
