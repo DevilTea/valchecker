@@ -3,7 +3,7 @@ import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../sh
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type Struct = Record<PropertyKey, Use<Valchecker> | [optional: Use<Valchecker>]>
+	export type Struct = Record<string, Use<Valchecker> | [optional: Use<Valchecker>]>
 
 	export type Async<
 		S extends Struct,
@@ -29,7 +29,7 @@ declare namespace Internal {
 
 	export type Issue<S extends Struct = never>
 	=	| ExecutionIssue<'strictObject:expected_object', { value: unknown }>
-		| ExecutionIssue<'strictObject:unexpected_keys', { value: unknown, keys: PropertyKey[] }>
+		| ExecutionIssue<'strictObject:unexpected_keys', { value: unknown, keys: string[] }>
 		| (
 			IsEqual<Struct, never> extends true
 				? never
@@ -103,9 +103,9 @@ export const strictObject = implStepPlugin<PluginDef>({
 		params: [struct, message],
 	}) => {
 		// Pre-compute metadata for each property to avoid repeated lookups
-		const keys = Reflect.ownKeys(struct)
+		const keys = Object.keys(struct)
 		const keysLen = keys.length
-		const propsMeta: Array<{ key: string | symbol, isOptional: boolean, schema: Use<Valchecker> }> = []
+		const propsMeta: Array<{ key: string, isOptional: boolean, schema: Use<Valchecker> }> = []
 
 		for (let i = 0; i < keysLen; i++) {
 			const key = keys[i]!
@@ -131,9 +131,9 @@ export const strictObject = implStepPlugin<PluginDef>({
 				})
 			}
 
-			const ownKeysSet = new Set(Reflect.ownKeys(value))
+			const ownKeysSet = new Set(Object.keys(value))
 			const issues: ExecutionIssue<any, any>[] = []
-			const output: Record<PropertyKey, any> = {}
+			const output: Record<string, any> = {}
 
 			// Inline processPropResult for better performance
 			// First pass: process synchronously until we hit async
