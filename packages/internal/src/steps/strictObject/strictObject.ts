@@ -133,10 +133,14 @@ export const strictObject = implStepPlugin<PluginDef>({
 			}
 
 			// Check for unknown keys
+			const ownKeys = Array.from(Reflect.ownKeys(value))
+			const ownKeysLen = ownKeys.length
 			const unknownKeys: PropertyKey[] = []
-			for (const key of Reflect.ownKeys(value)) {
-				if (!knownKeysSet.has(key))
+			for (let i = 0; i < ownKeysLen; i++) {
+				const key = ownKeys[i]!
+				if (!knownKeysSet.has(key)) {
 					unknownKeys.push(key)
+				}
 			}
 			if (unknownKeys.length > 0) {
 				return failure({
