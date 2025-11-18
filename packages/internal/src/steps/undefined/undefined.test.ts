@@ -17,14 +17,14 @@ const v = createValchecker({ steps: [undefined_, check] })
 describe('undefined plugin', () => {
 	describe('valid inputs', () => {
 		it('should pass for undefined', () => {
-			const result = v.undefined_().execute(undefined)
+			const result = v.undefined().execute(undefined)
 			expect(result).toEqual({ value: undefined })
 		})
 	})
 
 	describe('invalid inputs', () => {
 		it('should fail for number', () => {
-			const result = v.undefined_().execute(42)
+			const result = v.undefined().execute(42)
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -35,7 +35,7 @@ describe('undefined plugin', () => {
 		})
 
 		it('should fail for string', () => {
-			const result = v.undefined_().execute('hello')
+			const result = v.undefined().execute('hello')
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -46,7 +46,7 @@ describe('undefined plugin', () => {
 		})
 
 		it('should fail for boolean', () => {
-			const result = v.undefined_().execute(true)
+			const result = v.undefined().execute(true)
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -57,7 +57,7 @@ describe('undefined plugin', () => {
 		})
 
 		it('should fail for null', () => {
-			const result = v.undefined_().execute(null)
+			const result = v.undefined().execute(null)
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -68,7 +68,7 @@ describe('undefined plugin', () => {
 		})
 
 		it('should fail for object', () => {
-			const result = v.undefined_().execute({})
+			const result = v.undefined().execute({})
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -79,7 +79,7 @@ describe('undefined plugin', () => {
 		})
 
 		it('should fail for array', () => {
-			const result = v.undefined_().execute([])
+			const result = v.undefined().execute([])
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -90,7 +90,7 @@ describe('undefined plugin', () => {
 		})
 
 		it('should fail for bigint', () => {
-			const result = v.undefined_().execute(123n)
+			const result = v.undefined().execute(123n)
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -102,7 +102,7 @@ describe('undefined plugin', () => {
 
 		it('should fail for symbol', () => {
 			const sym = Symbol('test')
-			const result = v.undefined_().execute(sym)
+			const result = v.undefined().execute(sym)
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -115,7 +115,7 @@ describe('undefined plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.undefined_('Custom error message').execute(42)
+			const result = v.undefined('Custom error message').execute(42)
 			expect(result).toEqual({
 				issues: [{
 					code: 'undefined:expected_undefined',
@@ -128,14 +128,14 @@ describe('undefined plugin', () => {
 
 	describe('chaining', () => {
 		it('should chain with check', () => {
-			const result = v.undefined_()
+			const result = v.undefined()
 				.check(u => u === undefined)
 				.execute(undefined)
 			expect(result).toEqual({ value: undefined })
 		})
 
 		it('should fail chaining with check', () => {
-			const result = v.undefined_()
+			const result = v.undefined()
 				.check(u => u !== undefined)
 				.execute(undefined)
 			expect(result).toEqual({

@@ -3,39 +3,39 @@ import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
-	Name: 'null'
+	Name: 'undefined'
 	ExpectedThis: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'null:expected_null', { value: unknown }>
+	SelfIssue: ExecutionIssue<'undefined:expected_undefined', { value: unknown }>
 }>
 
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value is null.
+	 * Checks that the value is undefined.
 	 *
 	 * ---
 	 *
 	 * ### Example:
 	 * ```ts
-	 * import { createValchecker, null_ } from 'valchecker'
+	 * import { createValchecker, undefined_ } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [null_] })
-	 * const schema = v.null_()
-	 * const result = schema.execute(null)
+	 * const v = createValchecker({ steps: [undefined_] })
+	 * const schema = v.undefined_()
+	 * const result = schema.execute(undefined)
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'null:expected_null'`: The value is not null.
+	 * - `'undefined:expected_undefined'`: The value is not undefined.
 	 */
-	null_: DefineStepMethod<
+	undefined: DefineStepMethod<
 		Meta,
 		this['This'] extends Meta['ExpectedThis']
 			?	IsExactlyAnyOrUnknown<InferOutput<this['This']>> extends true
 				?	(message?: MessageHandler<Meta['SelfIssue']>) => Next<
 						{
-							output: null
+							output: undefined
 							issue: Meta['SelfIssue']
 						},
 						this['This']
@@ -46,24 +46,24 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const null_ = implStepPlugin<PluginDef>({
-	null_: ({
+export const undefined_ = implStepPlugin<PluginDef>({
+	undefined: ({
 		utils: { addSuccessStep, success, resolveMessage, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
-			value => value === null
+			value => value === void 0
 				?	success(value)
 				:	failure({
-						code: 'null:expected_null',
+						code: 'undefined:expected_undefined',
 						payload: { value },
 						message: resolveMessage(
 							{
-								code: 'null:expected_null',
+								code: 'undefined:expected_undefined',
 								payload: { value },
 							},
 							message,
-							'Expected null.',
+							'Expected undefined.',
 						),
 					}),
 		)

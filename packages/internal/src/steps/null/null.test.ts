@@ -17,14 +17,14 @@ const v = createValchecker({ steps: [null_, check] })
 describe('null plugin', () => {
 	describe('valid inputs', () => {
 		it('should pass for null', () => {
-			const result = v.null_().execute(null)
+			const result = v.null().execute(null)
 			expect(result).toEqual({ value: null })
 		})
 	})
 
 	describe('invalid inputs', () => {
 		it('should fail for number', () => {
-			const result = v.null_().execute(42)
+			const result = v.null().execute(42)
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -35,7 +35,7 @@ describe('null plugin', () => {
 		})
 
 		it('should fail for string', () => {
-			const result = v.null_().execute('hello')
+			const result = v.null().execute('hello')
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -46,7 +46,7 @@ describe('null plugin', () => {
 		})
 
 		it('should fail for boolean', () => {
-			const result = v.null_().execute(true)
+			const result = v.null().execute(true)
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -57,7 +57,7 @@ describe('null plugin', () => {
 		})
 
 		it('should fail for undefined', () => {
-			const result = v.null_().execute(undefined)
+			const result = v.null().execute(undefined)
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -68,7 +68,7 @@ describe('null plugin', () => {
 		})
 
 		it('should fail for object', () => {
-			const result = v.null_().execute({})
+			const result = v.null().execute({})
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -79,7 +79,7 @@ describe('null plugin', () => {
 		})
 
 		it('should fail for array', () => {
-			const result = v.null_().execute([])
+			const result = v.null().execute([])
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -90,7 +90,7 @@ describe('null plugin', () => {
 		})
 
 		it('should fail for bigint', () => {
-			const result = v.null_().execute(123n)
+			const result = v.null().execute(123n)
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -102,7 +102,7 @@ describe('null plugin', () => {
 
 		it('should fail for symbol', () => {
 			const sym = Symbol('test')
-			const result = v.null_().execute(sym)
+			const result = v.null().execute(sym)
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -115,7 +115,7 @@ describe('null plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.null_('Custom error message').execute(42)
+			const result = v.null('Custom error message').execute(42)
 			expect(result).toEqual({
 				issues: [{
 					code: 'null:expected_null',
@@ -128,14 +128,14 @@ describe('null plugin', () => {
 
 	describe('chaining', () => {
 		it('should chain with check', () => {
-			const result = v.null_()
+			const result = v.null()
 				.check(n => n === null)
 				.execute(null)
 			expect(result).toEqual({ value: null })
 		})
 
 		it('should fail chaining with check', () => {
-			const result = v.null_()
+			const result = v.null()
 				.check(n => n !== null)
 				.execute(null)
 			expect(result).toEqual({
