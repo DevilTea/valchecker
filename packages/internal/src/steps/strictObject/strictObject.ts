@@ -192,7 +192,8 @@ export const strictObject = implStepPlugin<PluginDef>({
 
 					return chain
 						.then(() => {
-							if (ownKeysSet.size > 0) {
+							// Check for unexpected keys only if no issues so far
+							if (issues.length === 0 && ownKeysSet.size > 0) {
 								issues.push({
 									code: 'strictObject:unexpected_keys',
 									payload: { value, keys: Array.from(ownKeysSet) },
@@ -220,7 +221,8 @@ export const strictObject = implStepPlugin<PluginDef>({
 				}
 			}
 
-			if (ownKeysSet.size > 0) {
+			// Check for unexpected keys only if no issues so far
+			if (issues.length === 0 && ownKeysSet.size > 0) {
 				issues.push({
 					code: 'strictObject:unexpected_keys',
 					payload: { value, keys: Array.from(ownKeysSet) },
