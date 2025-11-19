@@ -74,10 +74,13 @@ export const union = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, failure, isFailure },
 		params: [branches],
 	}) => {
+		// Pre-compute execute functions to avoid proxy access in loop
+		const branchExecutors = branches.map(b => b['~execute'])
+		const len = branches.length
+
 		addSuccessStep((value) => {
 			// Optimized: Direct processing without Pipe overhead
 			const issues: ExecutionIssue[] = []
-			const len = branches.length
 
 			const processBranchResult = (result: ExecutionResult) => {
 				if (isFailure(result)) {
@@ -97,7 +100,7 @@ export const union = implStepPlugin<PluginDef>({
 					// Already in async mode, skip
 					continue
 				}
-				const branchResult = branches[i]!['~execute'](value)
+				const branchResult = branchExecutors[i]!(value)
 
 				if (branchResult instanceof Promise) {
 					isAsync = true
@@ -110,11 +113,11 @@ export const union = implStepPlugin<PluginDef>({
 					})
 
 					for (let j = i + 1; j < len; j++) {
-						const jBranch = branches[j]!
+						const jExecutor = branchExecutors[j]!
 						chain = chain.then((result) => {
 							if (result.success)
 								return result
-							return Promise.resolve(jBranch['~execute'](value))
+							return Promise.resolve(jExecutor(value))
 								.then(r => ({
 									success: processBranchResult(r),
 								}))
