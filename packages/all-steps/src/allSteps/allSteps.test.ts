@@ -18,7 +18,8 @@ import { allSteps } from './allSteps'
 describe('allSteps', () => {
 	describe('filtering logic', () => {
 		it('should be an array type', () => {
-			expect(Array.isArray(allSteps)).toBe(true)
+			expect(Array.isArray(allSteps))
+				.toBe(true)
 		})
 
 		it('should filter steps from steps module', () => {
@@ -35,36 +36,43 @@ describe('allSteps', () => {
 			)
 
 			// allSteps should match the count of valid steps
-			expect(allSteps.length).toBe(validSteps.length)
+			expect(allSteps.length)
+				.toBe(validSteps.length)
 		})
 
 		it('should only include objects with runtime marker', () => {
 			// All items in allSteps should have the marker
 			allSteps.forEach((step) => {
-				expect(step).toBeDefined()
-				expect(typeof step).toBe('object')
-				expect((step as any)[runtimeExecutionStepDefMarker]).toBe(true)
+				expect(step)
+					.toBeDefined()
+				expect(typeof step)
+					.toBe('object')
+				expect((step as any)[runtimeExecutionStepDefMarker])
+					.toBe(true)
 			})
 		})
 
 		it('should match exported steps one-to-one', () => {
 			// Extract valid steps from module
-			const validSteps = Object.values(stepsModule as any).filter(
-				(value: any) => (
-					value
-					&& typeof value === 'object'
-					&& (value as any)[runtimeExecutionStepDefMarker] === true
-				),
-			)
+			const validSteps = Object.values(stepsModule as any)
+				.filter(
+					(value: any) => (
+						value
+						&& typeof value === 'object'
+						&& (value as any)[runtimeExecutionStepDefMarker] === true
+					),
+				)
 
 			// Each valid step should be in allSteps
 			validSteps.forEach((step) => {
-				expect(allSteps).toContain(step)
+				expect(allSteps)
+					.toContain(step)
 			})
 
 			// Each step in allSteps should be in validSteps
 			allSteps.forEach((step) => {
-				expect(validSteps).toContain(step)
+				expect(validSteps)
+					.toContain(step)
 			})
 		})
 
@@ -95,16 +103,19 @@ describe('allSteps', () => {
 	describe('collection properties', () => {
 		it('should not have duplicate entries', () => {
 			const uniqueSet = new Set(allSteps)
-			expect(uniqueSet.size).toBe(allSteps.length)
+			expect(uniqueSet.size)
+				.toBe(allSteps.length)
 		})
 
 		it('should have entries that are proper objects', () => {
 			allSteps.forEach((step) => {
 				expect(step).not.toBeNull()
 				expect(step).not.toBeUndefined()
-				expect(typeof step).toBe('object')
+				expect(typeof step)
+					.toBe('object')
 				// Steps should have the runtime marker as a well-known symbol
-				expect(Reflect.has(step as any, runtimeExecutionStepDefMarker)).toBe(true)
+				expect(Reflect.has(step as any, runtimeExecutionStepDefMarker))
+					.toBe(true)
 			})
 		})
 	})
@@ -124,20 +135,24 @@ describe('allSteps', () => {
 			)
 
 			// The filtering logic should be applied consistently
-			expect(allSteps.length).toBe(filteredSteps.length)
+			expect(allSteps.length)
+				.toBe(filteredSteps.length)
 
 			// If we apply the same filter, we get the same result
-			const refiltered = Object.values(stepsModule as any).filter(
-				(value: any) => (
-					value
-					&& typeof value === 'object'
-					&& (value as any)[runtimeExecutionStepDefMarker] === true
-				),
-			)
+			const refiltered = Object.values(stepsModule as any)
+				.filter(
+					(value: any) => (
+						value
+						&& typeof value === 'object'
+						&& (value as any)[runtimeExecutionStepDefMarker] === true
+					),
+				)
 
-			expect(allSteps.length).toBe(refiltered.length)
+			expect(allSteps.length)
+				.toBe(refiltered.length)
 			refiltered.forEach((step) => {
-				expect(allSteps).toContain(step)
+				expect(allSteps)
+					.toContain(step)
 			})
 		})
 
@@ -188,9 +203,11 @@ describe('allSteps', () => {
 				) === true,
 			)
 
-			expect(allSteps.length).toBe(filtered.length)
+			expect(allSteps.length)
+				.toBe(filtered.length)
 			filtered.forEach((step) => {
-				expect(allSteps).toContain(step)
+				expect(allSteps)
+					.toContain(step)
 			})
 		})
 	})

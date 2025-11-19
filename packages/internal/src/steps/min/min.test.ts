@@ -27,56 +27,64 @@ describe('min step plugin', () => {
 			const result = v.number()
 				.min(10)
 				.execute(15)
-			expect(result).toEqual({ value: 15 })
+			expect(result)
+				.toEqual({ value: 15 })
 		})
 
 		it('should pass when number is equal to min', () => {
 			const result = v.number()
 				.min(10)
 				.execute(10)
-			expect(result).toEqual({ value: 10 })
+			expect(result)
+				.toEqual({ value: 10 })
 		})
 
 		it('should pass when bigint is greater than min', () => {
 			const result = v.bigint()
 				.min(10n)
 				.execute(15n)
-			expect(result).toEqual({ value: 15n })
+			expect(result)
+				.toEqual({ value: 15n })
 		})
 
 		it('should pass when bigint is equal to min', () => {
 			const result = v.bigint()
 				.min(10n)
 				.execute(10n)
-			expect(result).toEqual({ value: 10n })
+			expect(result)
+				.toEqual({ value: 10n })
 		})
 
 		it('should pass when string length is greater than min', () => {
 			const result = v.string()
 				.min(3)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should pass when string length is equal to min', () => {
 			const result = v.string()
 				.min(5)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should pass when array length is greater than min', () => {
 			const result = v.array(v.number())
 				.min(2)
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: [1, 2, 3] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 
 		it('should pass when array length is equal to min', () => {
 			const result = v.array(v.number())
 				.min(3)
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: [1, 2, 3] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 	})
 
@@ -85,52 +93,56 @@ describe('min step plugin', () => {
 			const result = v.number()
 				.min(10)
 				.execute(5)
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'number', value: 5, min: 10 },
-					message: 'Expected a minimum value of 10.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'number', value: 5, min: 10 },
+						message: 'Expected a minimum value of 10.',
+					}],
+				})
 		})
 
 		it('should fail when bigint is less than min', () => {
 			const result = v.bigint()
 				.min(10n)
 				.execute(5n)
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'bigint', value: 5n, min: 10n },
-					message: 'Expected a minimum value of 10.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'bigint', value: 5n, min: 10n },
+						message: 'Expected a minimum value of 10.',
+					}],
+				})
 		})
 
 		it('should fail when string length is less than min', () => {
 			const result = v.string()
 				.min(5)
 				.execute('hi')
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'length', value: 'hi', min: 5 },
-					message: 'Expected a minimum length of 5.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'length', value: 'hi', min: 5 },
+						message: 'Expected a minimum length of 5.',
+					}],
+				})
 		})
 
 		it('should fail when array length is less than min', () => {
 			const result = v.array(v.number())
 				.min(3)
 				.execute([1, 2])
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'length', value: [1, 2], min: 3 },
-					message: 'Expected a minimum length of 3.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'length', value: [1, 2], min: 3 },
+						message: 'Expected a minimum length of 3.',
+					}],
+				})
 		})
 	})
 
@@ -139,40 +151,44 @@ describe('min step plugin', () => {
 			const result = v.number()
 				.min(0)
 				.execute(0)
-			expect(result).toEqual({ value: 0 })
+			expect(result)
+				.toEqual({ value: 0 })
 		})
 
 		it('should fail when value is less than zero min', () => {
 			const result = v.number()
 				.min(0)
 				.execute(-1)
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'number', value: -1, min: 0 },
-					message: 'Expected a minimum value of 0.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'number', value: -1, min: 0 },
+						message: 'Expected a minimum value of 0.',
+					}],
+				})
 		})
 
 		it('should handle negative min', () => {
 			const result = v.number()
 				.min(-10)
 				.execute(-5)
-			expect(result).toEqual({ value: -5 })
+			expect(result)
+				.toEqual({ value: -5 })
 		})
 
 		it('should fail when value is less than negative min', () => {
 			const result = v.number()
 				.min(-5)
 				.execute(-10)
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'number', value: -10, min: -5 },
-					message: 'Expected a minimum value of -5.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'number', value: -10, min: -5 },
+						message: 'Expected a minimum value of -5.',
+					}],
+				})
 		})
 	})
 
@@ -181,13 +197,14 @@ describe('min step plugin', () => {
 			const result = v.number()
 				.min(10, () => 'Custom error message')
 				.execute(5)
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'number', value: 5, min: 10 },
-					message: 'Custom error message',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'number', value: 5, min: 10 },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -196,28 +213,32 @@ describe('min step plugin', () => {
 			const result = v.number()
 				.min(10)
 				.execute(15)
-			expect(result).toEqual({ value: 15 })
+			expect(result)
+				.toEqual({ value: 15 })
 		})
 
 		it('should chain with bigint step', () => {
 			const result = v.bigint()
 				.min(10n)
 				.execute(15n)
-			expect(result).toEqual({ value: 15n })
+			expect(result)
+				.toEqual({ value: 15n })
 		})
 
 		it('should chain with string step', () => {
 			const result = v.string()
 				.min(3)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should chain with array step', () => {
 			const result = v.array(v.number())
 				.min(2)
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: [1, 2, 3] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 	})
 })

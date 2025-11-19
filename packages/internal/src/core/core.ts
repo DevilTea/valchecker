@@ -134,7 +134,7 @@ type ResolveMessageFn = (
 		path?: PropertyKey[]
 	},
 	customMessage?: MessageHandler<any> | undefined | null,
-	defaultMessage?: MessageHandler<any> | undefined | null
+	defaultMessage?: MessageHandler<any> | undefined | null,
 ) => string
 
 /* @__NO_SIDE_EFFECTS__ */

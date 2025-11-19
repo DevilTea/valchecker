@@ -27,56 +27,64 @@ describe('max step plugin', () => {
 			const result = v.number()
 				.max(10)
 				.execute(5)
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should pass when number is equal to max', () => {
 			const result = v.number()
 				.max(10)
 				.execute(10)
-			expect(result).toEqual({ value: 10 })
+			expect(result)
+				.toEqual({ value: 10 })
 		})
 
 		it('should pass when bigint is less than max', () => {
 			const result = v.bigint()
 				.max(10n)
 				.execute(5n)
-			expect(result).toEqual({ value: 5n })
+			expect(result)
+				.toEqual({ value: 5n })
 		})
 
 		it('should pass when bigint is equal to max', () => {
 			const result = v.bigint()
 				.max(10n)
 				.execute(10n)
-			expect(result).toEqual({ value: 10n })
+			expect(result)
+				.toEqual({ value: 10n })
 		})
 
 		it('should pass when string length is less than max', () => {
 			const result = v.string()
 				.max(5)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should pass when string length is equal to max', () => {
 			const result = v.string()
 				.max(5)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should pass when array length is less than max', () => {
 			const result = v.array(v.number())
 				.max(3)
 				.execute([1, 2])
-			expect(result).toEqual({ value: [1, 2] })
+			expect(result)
+				.toEqual({ value: [1, 2] })
 		})
 
 		it('should pass when array length is equal to max', () => {
 			const result = v.array(v.number())
 				.max(3)
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: [1, 2, 3] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 	})
 
@@ -85,52 +93,56 @@ describe('max step plugin', () => {
 			const result = v.number()
 				.max(10)
 				.execute(15)
-			expect(result).toEqual({
-				issues: [{
-					code: 'max:expected_max',
-					payload: { target: 'number', value: 15, max: 10 },
-					message: 'Expected a maximum value of 10.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'max:expected_max',
+						payload: { target: 'number', value: 15, max: 10 },
+						message: 'Expected a maximum value of 10.',
+					}],
+				})
 		})
 
 		it('should fail when bigint is greater than max', () => {
 			const result = v.bigint()
 				.max(10n)
 				.execute(15n)
-			expect(result).toEqual({
-				issues: [{
-					code: 'max:expected_max',
-					payload: { target: 'bigint', value: 15n, max: 10n },
-					message: 'Expected a maximum value of 10.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'max:expected_max',
+						payload: { target: 'bigint', value: 15n, max: 10n },
+						message: 'Expected a maximum value of 10.',
+					}],
+				})
 		})
 
 		it('should fail when string length is greater than max', () => {
 			const result = v.string()
 				.max(5)
 				.execute('hello world')
-			expect(result).toEqual({
-				issues: [{
-					code: 'max:expected_max',
-					payload: { target: 'length', value: 'hello world', max: 5 },
-					message: 'Expected a maximum length of 5.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'max:expected_max',
+						payload: { target: 'length', value: 'hello world', max: 5 },
+						message: 'Expected a maximum length of 5.',
+					}],
+				})
 		})
 
 		it('should fail when array length is greater than max', () => {
 			const result = v.array(v.number())
 				.max(3)
 				.execute([1, 2, 3, 4])
-			expect(result).toEqual({
-				issues: [{
-					code: 'max:expected_max',
-					payload: { target: 'length', value: [1, 2, 3, 4], max: 3 },
-					message: 'Expected a maximum length of 3.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'max:expected_max',
+						payload: { target: 'length', value: [1, 2, 3, 4], max: 3 },
+						message: 'Expected a maximum length of 3.',
+					}],
+				})
 		})
 	})
 
@@ -139,40 +151,44 @@ describe('max step plugin', () => {
 			const result = v.number()
 				.max(0)
 				.execute(0)
-			expect(result).toEqual({ value: 0 })
+			expect(result)
+				.toEqual({ value: 0 })
 		})
 
 		it('should fail when value is greater than zero max', () => {
 			const result = v.number()
 				.max(0)
 				.execute(1)
-			expect(result).toEqual({
-				issues: [{
-					code: 'max:expected_max',
-					payload: { target: 'number', value: 1, max: 0 },
-					message: 'Expected a maximum value of 0.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'max:expected_max',
+						payload: { target: 'number', value: 1, max: 0 },
+						message: 'Expected a maximum value of 0.',
+					}],
+				})
 		})
 
 		it('should handle negative max', () => {
 			const result = v.number()
 				.max(-5)
 				.execute(-10)
-			expect(result).toEqual({ value: -10 })
+			expect(result)
+				.toEqual({ value: -10 })
 		})
 
 		it('should fail when value is greater than negative max', () => {
 			const result = v.number()
 				.max(-5)
 				.execute(0)
-			expect(result).toEqual({
-				issues: [{
-					code: 'max:expected_max',
-					payload: { target: 'number', value: 0, max: -5 },
-					message: 'Expected a maximum value of -5.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'max:expected_max',
+						payload: { target: 'number', value: 0, max: -5 },
+						message: 'Expected a maximum value of -5.',
+					}],
+				})
 		})
 	})
 
@@ -181,13 +197,14 @@ describe('max step plugin', () => {
 			const result = v.number()
 				.max(10, () => 'Custom error message')
 				.execute(15)
-			expect(result).toEqual({
-				issues: [{
-					code: 'max:expected_max',
-					payload: { target: 'number', value: 15, max: 10 },
-					message: 'Custom error message',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'max:expected_max',
+						payload: { target: 'number', value: 15, max: 10 },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -196,28 +213,32 @@ describe('max step plugin', () => {
 			const result = v.number()
 				.max(10)
 				.execute(5)
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should chain with bigint step', () => {
 			const result = v.bigint()
 				.max(10n)
 				.execute(5n)
-			expect(result).toEqual({ value: 5n })
+			expect(result)
+				.toEqual({ value: 5n })
 		})
 
 		it('should chain with string step', () => {
 			const result = v.string()
 				.max(5)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should chain with array step', () => {
 			const result = v.array(v.number())
 				.max(3)
 				.execute([1, 2])
-			expect(result).toEqual({ value: [1, 2] })
+			expect(result)
+				.toEqual({ value: [1, 2] })
 		})
 	})
 })

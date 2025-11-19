@@ -41,7 +41,7 @@ interface PluginDef extends TStepPluginDef {
 			?	InferOutput<this['This']> extends infer CurrentOutput
 				?	<Result>(
 						run: Internal.RunTransform<CurrentOutput, Result>,
-						message?: MessageHandler<Internal.Issue<CurrentOutput>>
+						message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 					) => Next<
 						{
 							async: IsPromise<Result> extends false ? false : true

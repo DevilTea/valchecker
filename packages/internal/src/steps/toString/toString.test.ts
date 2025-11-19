@@ -31,49 +31,56 @@ describe('toString plugin', () => {
 			const result = v.any()
 				.toString()
 				.execute(42)
-			expect(result).toEqual({ value: '42' })
+			expect(result)
+				.toEqual({ value: '42' })
 		})
 
 		it('should convert boolean to string', () => {
 			const result = v.any()
 				.toString()
 				.execute(true)
-			expect(result).toEqual({ value: 'true' })
+			expect(result)
+				.toEqual({ value: 'true' })
 		})
 
 		it('should convert string to string (no change)', () => {
 			const result = v.any()
 				.toString()
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should convert array to string', () => {
 			const result = v.any()
 				.toString()
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: '1,2,3' })
+			expect(result)
+				.toEqual({ value: '1,2,3' })
 		})
 
 		it('should convert object to string', () => {
 			const result = v.any()
 				.toString()
 				.execute({ a: 1 })
-			expect(result).toEqual({ value: '[object Object]' })
+			expect(result)
+				.toEqual({ value: '[object Object]' })
 		})
 
 		it('should convert bigint to string', () => {
 			const result = v.any()
 				.toString()
 				.execute(123n)
-			expect(result).toEqual({ value: '123' })
+			expect(result)
+				.toEqual({ value: '123' })
 		})
 
 		it('should convert symbol to string', () => {
 			const result = v.any()
 				.toString()
 				.execute(Symbol('test'))
-			expect(result).toEqual({ value: 'Symbol(test)' })
+			expect(result)
+				.toEqual({ value: 'Symbol(test)' })
 		})
 	})
 
@@ -86,21 +93,24 @@ describe('toString plugin', () => {
 			const result = v.any()
 				.toString()
 				.execute(obj)
-			expect(result).toEqual({ value: 'custom string' })
+			expect(result)
+				.toEqual({ value: 'custom string' })
 		})
 
 		it('should handle empty array', () => {
 			const result = v.any()
 				.toString()
 				.execute([])
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 
 		it('should handle empty object', () => {
 			const result = v.any()
 				.toString()
 				.execute({})
-			expect(result).toEqual({ value: '[object Object]' })
+			expect(result)
+				.toEqual({ value: '[object Object]' })
 		})
 	})
 })

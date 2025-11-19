@@ -24,101 +24,121 @@ const v = createValchecker({ steps: [instance, check] })
 describe('instance step plugin', () => {
 	describe('valid inputs', () => {
 		it('should pass when value is instance of Date', () => {
-			const result = v.instance(Date).execute(new Date())
-			expect(result).toEqual({ value: expect.any(Date) })
+			const result = v.instance(Date)
+				.execute(new Date())
+			expect(result)
+				.toEqual({ value: expect.any(Date) })
 		})
 
 		it('should pass when value is instance of Array', () => {
-			const result = v.instance(Array).execute([1, 2, 3])
-			expect(result).toEqual({ value: [1, 2, 3] })
+			const result = v.instance(Array)
+				.execute([1, 2, 3])
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 
 		it('should pass when value is instance of custom class', () => {
 			class CustomClass {}
 			const instance_ = new CustomClass()
-			const result = v.instance(CustomClass).execute(instance_)
-			expect(result).toEqual({ value: instance_ })
+			const result = v.instance(CustomClass)
+				.execute(instance_)
+			expect(result)
+				.toEqual({ value: instance_ })
 		})
 	})
 
 	describe('invalid inputs', () => {
 		it('should fail when value is not instance of the class', () => {
-			const result = v.instance(Date).execute('not a date')
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: 'not a date', expected: Date },
-					message: 'Expected instance of Date.',
-				}],
-			})
+			const result = v.instance(Date)
+				.execute('not a date')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: 'not a date', expected: Date },
+						message: 'Expected instance of Date.',
+					}],
+				})
 		})
 
 		it('should fail when value is null', () => {
-			const result = v.instance(Date).execute(null)
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: null, expected: Date },
-					message: 'Expected instance of Date.',
-				}],
-			})
+			const result = v.instance(Date)
+				.execute(null)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: null, expected: Date },
+						message: 'Expected instance of Date.',
+					}],
+				})
 		})
 
 		it('should fail when value is undefined', () => {
-			const result = v.instance(Date).execute(undefined)
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: undefined, expected: Date },
-					message: 'Expected instance of Date.',
-				}],
-			})
+			const result = v.instance(Date)
+				.execute(undefined)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: undefined, expected: Date },
+						message: 'Expected instance of Date.',
+					}],
+				})
 		})
 
 		it('should fail when value is number', () => {
-			const result = v.instance(Date).execute(42)
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: 42, expected: Date },
-					message: 'Expected instance of Date.',
-				}],
-			})
+			const result = v.instance(Date)
+				.execute(42)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: 42, expected: Date },
+						message: 'Expected instance of Date.',
+					}],
+				})
 		})
 
 		it('should fail when value is instance of different class', () => {
-			const result = v.instance(Date).execute([])
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: [], expected: Date },
-					message: 'Expected instance of Date.',
-				}],
-			})
+			const result = v.instance(Date)
+				.execute([])
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: [], expected: Date },
+						message: 'Expected instance of Date.',
+					}],
+				})
 		})
 	})
 
 	describe('edge cases', () => {
 		it('should fail for primitive string', () => {
-			const result = v.instance(String).execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: 'hello', expected: String },
-					message: 'Expected instance of String.',
-				}],
-			})
+			const result = v.instance(String)
+				.execute('hello')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: 'hello', expected: String },
+						message: 'Expected instance of String.',
+					}],
+				})
 		})
 
 		it('should fail for primitive number', () => {
-			const result = v.instance(Number).execute(42)
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: 42, expected: Number },
-					message: 'Expected instance of Number.',
-				}],
-			})
+			const result = v.instance(Number)
+				.execute(42)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: 42, expected: Number },
+						message: 'Expected instance of Number.',
+					}],
+				})
 		})
 	})
 
@@ -127,14 +147,16 @@ describe('instance step plugin', () => {
 			const result = v.instance(
 				Date,
 				() => 'Custom error message',
-			).execute('not a date')
-			expect(result).toEqual({
-				issues: [{
-					code: 'instance:expected_instance',
-					payload: { value: 'not a date', expected: Date },
-					message: 'Custom error message',
-				}],
-			})
+			)
+				.execute('not a date')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'instance:expected_instance',
+						payload: { value: 'not a date', expected: Date },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -144,20 +166,22 @@ describe('instance step plugin', () => {
 			const result = v.instance(Date)
 				.check(d => d.getTime() > 0)
 				.execute(date)
-			expect(result).toEqual({ value: date })
+			expect(result)
+				.toEqual({ value: date })
 		})
 
 		it('should fail chaining when check fails', () => {
 			const result = v.instance(Date)
 				.check(() => false)
 				.execute(new Date())
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: expect.any(Date) },
-					message: 'Check failed',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: expect.any(Date) },
+						message: 'Check failed',
+					}],
+				})
 		})
 	})
 })

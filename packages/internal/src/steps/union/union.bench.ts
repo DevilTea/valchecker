@@ -13,17 +13,20 @@ const v = createValchecker({ steps: [number, string, union] })
 describe('union benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.union([v.string(), v.number()]).execute('hello')
+			v.union([v.string(), v.number()])
+				.execute('hello')
 		})
 
 		bench('valid input - large', () => {
-			v.union([v.string(), v.number()]).execute(123456789)
+			v.union([v.string(), v.number()])
+				.execute(123456789)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.union([v.string(), v.number()]).execute(true)
+			v.union([v.string(), v.number()])
+				.execute(true)
 		})
 	})
 })

@@ -34,28 +34,32 @@ describe('toFiltered plugin', () => {
 			const result = v.array(v.any())
 				.toFiltered((x: number) => x > 3)
 				.execute([1, 2, 3, 4, 5])
-			expect(result).toEqual({ value: [4, 5] })
+			expect(result)
+				.toEqual({ value: [4, 5] })
 		})
 
 		it('should filter strings starting with "a"', () => {
 			const result = v.array(v.any())
 				.toFiltered((s: string) => s.startsWith('a'))
 				.execute(['apple', 'banana', 'avocado', 'cherry'])
-			expect(result).toEqual({ value: ['apple', 'avocado'] })
+			expect(result)
+				.toEqual({ value: ['apple', 'avocado'] })
 		})
 
 		it('should filter with index parameter', () => {
 			const result = v.array(v.any())
 				.toFiltered((_: any, index: number) => index % 2 === 0)
 				.execute([10, 20, 30, 40, 50])
-			expect(result).toEqual({ value: [10, 30, 50] })
+			expect(result)
+				.toEqual({ value: [10, 30, 50] })
 		})
 
 		it('should filter objects by property', () => {
 			const result = v.array(v.any())
 				.toFiltered((obj: { active: boolean }) => obj.active)
 				.execute([{ active: true, id: 1 }, { active: false, id: 2 }, { active: true, id: 3 }])
-			expect(result).toEqual({ value: [{ active: true, id: 1 }, { active: true, id: 3 }] })
+			expect(result)
+				.toEqual({ value: [{ active: true, id: 1 }, { active: true, id: 3 }] })
 		})
 	})
 
@@ -64,21 +68,24 @@ describe('toFiltered plugin', () => {
 			const result = v.array(v.any())
 				.toFiltered((x: number) => x > 0)
 				.execute([])
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 
 		it('should handle filter that removes all elements', () => {
 			const result = v.array(v.any())
 				.toFiltered((x: number) => x > 100)
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 
 		it('should handle filter that keeps all elements', () => {
 			const result = v.array(v.any())
 				.toFiltered((x: number) => x >= 0)
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: [1, 2, 3] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 	})
 })

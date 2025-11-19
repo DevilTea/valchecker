@@ -35,21 +35,24 @@ describe('startsWith plugin', () => {
 			const result = v.string()
 				.startsWith('hello')
 				.execute('hello world')
-			expect(result).toEqual({ value: 'hello world' })
+			expect(result)
+				.toEqual({ value: 'hello world' })
 		})
 
 		it('should pass when string is equal to prefix', () => {
 			const result = v.string()
 				.startsWith('hello')
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should pass for empty prefix', () => {
 			const result = v.string()
 				.startsWith('')
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 	})
 
@@ -58,39 +61,42 @@ describe('startsWith plugin', () => {
 			const result = v.string()
 				.startsWith('hello')
 				.execute('world hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'startsWith:expected_starts_with',
-					payload: { value: 'world hello', prefix: 'hello' },
-					message: 'Expected the string to start with "hello".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'startsWith:expected_starts_with',
+						payload: { value: 'world hello', prefix: 'hello' },
+						message: 'Expected the string to start with "hello".',
+					}],
+				})
 		})
 
 		it('should fail for empty string with non-empty prefix', () => {
 			const result = v.string()
 				.startsWith('a')
 				.execute('')
-			expect(result).toEqual({
-				issues: [{
-					code: 'startsWith:expected_starts_with',
-					payload: { value: '', prefix: 'a' },
-					message: 'Expected the string to start with "a".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'startsWith:expected_starts_with',
+						payload: { value: '', prefix: 'a' },
+						message: 'Expected the string to start with "a".',
+					}],
+				})
 		})
 
 		it('should fail when prefix is longer than string', () => {
 			const result = v.string()
 				.startsWith('longer')
 				.execute('short')
-			expect(result).toEqual({
-				issues: [{
-					code: 'startsWith:expected_starts_with',
-					payload: { value: 'short', prefix: 'longer' },
-					message: 'Expected the string to start with "longer".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'startsWith:expected_starts_with',
+						payload: { value: 'short', prefix: 'longer' },
+						message: 'Expected the string to start with "longer".',
+					}],
+				})
 		})
 	})
 
@@ -99,33 +105,36 @@ describe('startsWith plugin', () => {
 			const result = v.string()
 				.startsWith('Hello')
 				.execute('hello world')
-			expect(result).toEqual({
-				issues: [{
-					code: 'startsWith:expected_starts_with',
-					payload: { value: 'hello world', prefix: 'Hello' },
-					message: 'Expected the string to start with "Hello".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'startsWith:expected_starts_with',
+						payload: { value: 'hello world', prefix: 'Hello' },
+						message: 'Expected the string to start with "Hello".',
+					}],
+				})
 		})
 
 		it('should handle unicode strings', () => {
 			const result = v.string()
 				.startsWith('你好')
 				.execute('你好世界')
-			expect(result).toEqual({ value: '你好世界' })
+			expect(result)
+				.toEqual({ value: '你好世界' })
 		})
 
 		it('should fail for unicode mismatch', () => {
 			const result = v.string()
 				.startsWith('你好')
 				.execute('世界你好')
-			expect(result).toEqual({
-				issues: [{
-					code: 'startsWith:expected_starts_with',
-					payload: { value: '世界你好', prefix: '你好' },
-					message: 'Expected the string to start with "你好".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'startsWith:expected_starts_with',
+						payload: { value: '世界你好', prefix: '你好' },
+						message: 'Expected the string to start with "你好".',
+					}],
+				})
 		})
 	})
 
@@ -134,13 +143,14 @@ describe('startsWith plugin', () => {
 			const result = v.string()
 				.startsWith('hello', () => 'Custom message')
 				.execute('world hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'startsWith:expected_starts_with',
-					payload: { value: 'world hello', prefix: 'hello' },
-					message: 'Custom message',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'startsWith:expected_starts_with',
+						payload: { value: 'world hello', prefix: 'hello' },
+						message: 'Custom message',
+					}],
+				})
 		})
 	})
 
@@ -150,7 +160,8 @@ describe('startsWith plugin', () => {
 				.startsWith('he')
 				.min(5)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should fail chaining when startsWith fails', () => {
@@ -158,13 +169,14 @@ describe('startsWith plugin', () => {
 				.startsWith('he')
 				.min(5)
 				.execute('hi')
-			expect(result).toEqual({
-				issues: [{
-					code: 'startsWith:expected_starts_with',
-					payload: { value: 'hi', prefix: 'he' },
-					message: 'Expected the string to start with "he".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'startsWith:expected_starts_with',
+						payload: { value: 'hi', prefix: 'he' },
+						message: 'Expected the string to start with "he".',
+					}],
+				})
 		})
 
 		it('should fail chaining when min fails', () => {
@@ -172,13 +184,14 @@ describe('startsWith plugin', () => {
 				.startsWith('he')
 				.min(5)
 				.execute('he')
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'length', value: 'he', min: 5 },
-					message: 'Expected a minimum length of 5.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'length', value: 'he', min: 5 },
+						message: 'Expected a minimum length of 5.',
+					}],
+				})
 		})
 	})
 })

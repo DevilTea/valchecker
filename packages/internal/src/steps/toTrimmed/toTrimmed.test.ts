@@ -30,42 +30,48 @@ describe('toTrimmed plugin', () => {
 			const result = v.string()
 				.toTrimmed()
 				.execute('  hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove trailing whitespace', () => {
 			const result = v.string()
 				.toTrimmed()
 				.execute('hello  ')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove both leading and trailing whitespace', () => {
 			const result = v.string()
 				.toTrimmed()
 				.execute('  hello world  ')
-			expect(result).toEqual({ value: 'hello world' })
+			expect(result)
+				.toEqual({ value: 'hello world' })
 		})
 
 		it('should handle strings with only whitespace', () => {
 			const result = v.string()
 				.toTrimmed()
 				.execute('   ')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 
 		it('should leave strings without whitespace unchanged', () => {
 			const result = v.string()
 				.toTrimmed()
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should handle empty string', () => {
 			const result = v.string()
 				.toTrimmed()
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 
@@ -74,7 +80,8 @@ describe('toTrimmed plugin', () => {
 			const result = v.string()
 				.toTrimmed()
 				.execute('\t\n hello \n\t')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 	})
 })

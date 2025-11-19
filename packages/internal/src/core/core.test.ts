@@ -28,15 +28,18 @@ describe('core module', () => {
 			const stepFn = (() => {}) as any
 			const result = implStepPlugin(stepFn)
 
-			expect((result as any)[runtimeExecutionStepDefMarker]).toBe(true)
-			expect(result).toBe(stepFn)
+			expect((result as any)[runtimeExecutionStepDefMarker])
+				.toBe(true)
+			expect(result)
+				.toBe(stepFn)
 		})
 
 		it('should return the same function instance', () => {
 			const stepFn = (() => {}) as any
 			const result = implStepPlugin(stepFn)
 
-			expect(result).toBe(stepFn)
+			expect(result)
+				.toBe(stepFn)
 		})
 
 		it('should work with multiple calls', () => {
@@ -44,25 +47,30 @@ describe('core module', () => {
 			const result1 = implStepPlugin(stepFn)
 			const result2 = implStepPlugin(result1)
 
-			expect(result1).toBe(result2)
-			expect((result2 as any)[runtimeExecutionStepDefMarker]).toBe(true)
+			expect(result1)
+				.toBe(result2)
+			expect((result2 as any)[runtimeExecutionStepDefMarker])
+				.toBe(true)
 		})
 	})
 
 	describe('isSuccess', () => {
 		it('should return true for success result', () => {
 			const result: ExecutionResult = { value: 'test' }
-			expect(isSuccess(result)).toBe(true)
+			expect(isSuccess(result))
+				.toBe(true)
 		})
 
 		it('should return true for success result with undefined value', () => {
 			const result: ExecutionResult = { value: undefined }
-			expect(isSuccess(result)).toBe(true)
+			expect(isSuccess(result))
+				.toBe(true)
 		})
 
 		it('should return true for success result with null value', () => {
 			const result: ExecutionResult = { value: null }
-			expect(isSuccess(result)).toBe(true)
+			expect(isSuccess(result))
+				.toBe(true)
 		})
 
 		it('should return false for failure result', () => {
@@ -73,12 +81,14 @@ describe('core module', () => {
 					message: 'Test error',
 				}],
 			}
-			expect(isSuccess(result)).toBe(false)
+			expect(isSuccess(result))
+				.toBe(false)
 		})
 
 		it('should return false for failure result with empty issues', () => {
 			const result: ExecutionResult = { issues: [] }
-			expect(isSuccess(result)).toBe(false)
+			expect(isSuccess(result))
+				.toBe(false)
 		})
 	})
 
@@ -91,22 +101,26 @@ describe('core module', () => {
 					message: 'Test error',
 				}],
 			}
-			expect(isFailure(result)).toBe(true)
+			expect(isFailure(result))
+				.toBe(true)
 		})
 
 		it('should return true for failure result with empty issues', () => {
 			const result: ExecutionResult = { issues: [] }
-			expect(isFailure(result)).toBe(true)
+			expect(isFailure(result))
+				.toBe(true)
 		})
 
 		it('should return false for success result', () => {
 			const result: ExecutionResult = { value: 'test' }
-			expect(isFailure(result)).toBe(false)
+			expect(isFailure(result))
+				.toBe(false)
 		})
 
 		it('should return false for success result with null value', () => {
 			const result: ExecutionResult = { value: null }
-			expect(isFailure(result)).toBe(false)
+			expect(isFailure(result))
+				.toBe(false)
 		})
 	})
 
@@ -122,12 +136,13 @@ describe('core module', () => {
 
 			const result = prependIssuePath(issue, newPath)
 
-			expect(result).toEqual({
-				code: 'test:error',
-				payload: {},
-				message: 'Test error',
-				path: ['root', 'parent', 'nested', 'field'],
-			})
+			expect(result)
+				.toEqual({
+					code: 'test:error',
+					payload: {},
+					message: 'Test error',
+					path: ['root', 'parent', 'nested', 'field'],
+				})
 		})
 
 		it('should prepend path to issue without existing path', () => {
@@ -140,12 +155,13 @@ describe('core module', () => {
 
 			const result = prependIssuePath(issue, newPath)
 
-			expect(result).toEqual({
-				code: 'test:error',
-				payload: {},
-				message: 'Test error',
-				path: ['root', 'parent'],
-			})
+			expect(result)
+				.toEqual({
+					code: 'test:error',
+					payload: {},
+					message: 'Test error',
+					path: ['root', 'parent'],
+				})
 		})
 
 		it('should return issue unchanged when path is null', () => {
@@ -158,7 +174,8 @@ describe('core module', () => {
 
 			const result = prependIssuePath(issue, null as any)
 
-			expect(result).toEqual(issue)
+			expect(result)
+				.toEqual(issue)
 		})
 
 		it('should return issue unchanged when path is empty array', () => {
@@ -172,7 +189,8 @@ describe('core module', () => {
 
 			const result = prependIssuePath(issue, newPath)
 
-			expect(result).toEqual(issue)
+			expect(result)
+				.toEqual(issue)
 		})
 
 		it('should handle undefined existing path', () => {
@@ -186,12 +204,13 @@ describe('core module', () => {
 
 			const result = prependIssuePath(issue, newPath)
 
-			expect(result).toEqual({
-				code: 'test:error',
-				payload: {},
-				message: 'Test error',
-				path: ['root'],
-			})
+			expect(result)
+				.toEqual({
+					code: 'test:error',
+					payload: {},
+					message: 'Test error',
+					path: ['root'],
+				})
 		})
 
 		it('should handle numeric and symbol property keys', () => {
@@ -206,12 +225,13 @@ describe('core module', () => {
 
 			const result = prependIssuePath(issue, newPath)
 
-			expect(result).toEqual({
-				code: 'test:error',
-				payload: {},
-				message: 'Test error',
-				path: ['root', 1, sym, 0],
-			})
+			expect(result)
+				.toEqual({
+					code: 'test:error',
+					payload: {},
+					message: 'Test error',
+					path: ['root', 1, sym, 0],
+				})
 		})
 	})
 
@@ -222,7 +242,8 @@ describe('core module', () => {
 				payload: { value: 'test' },
 			}, 'Custom message')
 
-			expect(result).toBe('Custom message')
+			expect(result)
+				.toBe('Custom message')
 		})
 
 		it('should call message function with issue content', () => {
@@ -232,7 +253,8 @@ describe('core module', () => {
 				payload: { value: 'test' },
 			}, messageFn)
 
-			expect(result).toBe('Error: test:error')
+			expect(result)
+				.toBe('Error: test:error')
 		})
 
 		it('should return null for null message', () => {
@@ -241,7 +263,8 @@ describe('core module', () => {
 				payload: { value: 'test' },
 			}, null)
 
-			expect(result).toBeNull()
+			expect(result)
+				.toBeNull()
 		})
 
 		it('should return undefined for undefined message', () => {
@@ -250,7 +273,8 @@ describe('core module', () => {
 				payload: { value: 'test' },
 			}, undefined)
 
-			expect(result).toBeUndefined()
+			expect(result)
+				.toBeUndefined()
 		})
 
 		it('should include path in message function parameters', () => {
@@ -261,7 +285,8 @@ describe('core module', () => {
 				path: ['user', 'email'],
 			}, messageFn)
 
-			expect(result).toBe('user.email: test:error')
+			expect(result)
+				.toBe('user.email: test:error')
 		})
 
 		it('should use default empty path when not provided', () => {
@@ -271,7 +296,8 @@ describe('core module', () => {
 				payload: { value: 'test' },
 			}, messageFn)
 
-			expect(result).toBe('Path length: 0')
+			expect(result)
+				.toBe('Path length: 0')
 		})
 
 		it('should include payload in message function parameters', () => {
@@ -281,7 +307,8 @@ describe('core module', () => {
 				payload: { value: 'test', count: 5 },
 			}, messageFn)
 
-			expect(result).toBe('Payload: {"value":"test","count":5}')
+			expect(result)
+				.toBe('Payload: {"value":"test","count":5}')
 		})
 
 		it('should handle message function returning null', () => {
@@ -291,7 +318,8 @@ describe('core module', () => {
 				payload: { value: 'test' },
 			}, messageFn)
 
-			expect(result).toBeNull()
+			expect(result)
+				.toBeNull()
 		})
 
 		it('should handle message function returning undefined', () => {
@@ -301,7 +329,8 @@ describe('core module', () => {
 				payload: { value: 'test' },
 			}, messageFn)
 
-			expect(result).toBeUndefined()
+			expect(result)
+				.toBeUndefined()
 		})
 	})
 
@@ -314,7 +343,8 @@ describe('core module', () => {
 				undefined,
 			)
 
-			expect(result).toBe('Custom message')
+			expect(result)
+				.toBe('Custom message')
 		})
 
 		it('should use default message if custom is null', () => {
@@ -325,7 +355,8 @@ describe('core module', () => {
 				undefined,
 			)
 
-			expect(result).toBe('Default message')
+			expect(result)
+				.toBe('Default message')
 		})
 
 		it('should use default message if custom is undefined', () => {
@@ -336,7 +367,8 @@ describe('core module', () => {
 				undefined,
 			)
 
-			expect(result).toBe('Default message')
+			expect(result)
+				.toBe('Default message')
 		})
 
 		it('should use global message if custom and default are null', () => {
@@ -347,7 +379,8 @@ describe('core module', () => {
 				'Global message',
 			)
 
-			expect(result).toBe('Global message')
+			expect(result)
+				.toBe('Global message')
 		})
 
 		it('should use fallback message if all messages are null', () => {
@@ -358,7 +391,8 @@ describe('core module', () => {
 				undefined,
 			)
 
-			expect(result).toBe('Invalid value.')
+			expect(result)
+				.toBe('Invalid value.')
 		})
 
 		it('should call custom message function and use its result', () => {
@@ -370,7 +404,8 @@ describe('core module', () => {
 				undefined,
 			)
 
-			expect(result).toBe('Custom: test:error')
+			expect(result)
+				.toBe('Custom: test:error')
 		})
 
 		it('should call default message function if custom returns null', () => {
@@ -383,7 +418,8 @@ describe('core module', () => {
 				undefined,
 			)
 
-			expect(result).toBe('Default: test:error')
+			expect(result)
+				.toBe('Default: test:error')
 		})
 
 		it('should call global message function if custom and default return null', () => {
@@ -397,7 +433,8 @@ describe('core module', () => {
 				globalMessageFn,
 			)
 
-			expect(result).toBe('Global: test:error')
+			expect(result)
+				.toBe('Global: test:error')
 		})
 
 		it('should use fallback if all message functions return null', () => {
@@ -411,7 +448,8 @@ describe('core module', () => {
 				globalMessageFn,
 			)
 
-			expect(result).toBe('Invalid value.')
+			expect(result)
+				.toBe('Invalid value.')
 		})
 
 		it('should handle undefined custom message function', () => {
@@ -422,7 +460,8 @@ describe('core module', () => {
 				'Global message',
 			)
 
-			expect(result).toBe('Default message')
+			expect(result)
+				.toBe('Default message')
 		})
 
 		it('should include path in message resolution', () => {
@@ -434,7 +473,8 @@ describe('core module', () => {
 				globalMessageFn,
 			)
 
-			expect(result).toBe('Path: user.email')
+			expect(result)
+				.toBe('Path: user.email')
 		})
 	})
 
@@ -447,7 +487,8 @@ describe('core module', () => {
 
 			const result = executor(5)
 
-			expect(result).toEqual({ value: 6 })
+			expect(result)
+				.toEqual({ value: 6 })
 		})
 
 		it('should execute multiple steps in sequence', () => {
@@ -459,7 +500,8 @@ describe('core module', () => {
 
 			const result = executor(5)
 
-			expect(result).toEqual({ value: 12 })
+			expect(result)
+				.toEqual({ value: 12 })
 		})
 
 		it('should execute with empty steps array', () => {
@@ -468,7 +510,8 @@ describe('core module', () => {
 
 			const result = executor(5)
 
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should handle failure result in middle of chain', async () => {
@@ -490,7 +533,8 @@ describe('core module', () => {
 
 			const result = await (executor(5) as any)
 
-			expect(isFailure(result)).toBe(true)
+			expect(isFailure(result))
+				.toBe(true)
 		})
 
 		it('should handle async steps', async () => {
@@ -502,7 +546,8 @@ describe('core module', () => {
 
 			const result = await executor(5)
 
-			expect(result).toEqual({ value: 12 })
+			expect(result)
+				.toEqual({ value: 12 })
 		})
 
 		it('should handle all async steps', async () => {
@@ -514,7 +559,8 @@ describe('core module', () => {
 
 			const result = await executor(5)
 
-			expect(result).toEqual({ value: 12 })
+			expect(result)
+				.toEqual({ value: 12 })
 		})
 
 		it('should work with Pipe class', () => {
@@ -525,7 +571,8 @@ describe('core module', () => {
 
 			const result = executor(5)
 
-			expect(result).toEqual({ value: 6 })
+			expect(result)
+				.toEqual({ value: 6 })
 		})
 
 		it('should handle complex value types', () => {
@@ -539,7 +586,8 @@ describe('core module', () => {
 
 			const result = executor('hello')
 
-			expect(result).toEqual({ value: 'HELLO' })
+			expect(result)
+				.toEqual({ value: 'HELLO' })
 		})
 
 		it('should propagate errors through async chain', async () => {
@@ -555,7 +603,8 @@ describe('core module', () => {
 				expect.fail('Should have thrown')
 			}
 			catch (error) {
-				expect((error as Error).message).toBe('Test error')
+				expect((error as Error).message)
+					.toBe('Test error')
 			}
 		})
 	})
@@ -564,10 +613,14 @@ describe('core module', () => {
 		it('should create valchecker instance with no steps', () => {
 			const v = createValchecker({ steps: [] })
 
-			expect(v).toBeDefined()
-			expect((v as any).execute).toBeDefined()
-			expect((v as any).isSuccess).toBeDefined()
-			expect((v as any).isFailure).toBeDefined()
+			expect(v)
+				.toBeDefined()
+			expect((v as any).execute)
+				.toBeDefined()
+			expect((v as any).isSuccess)
+				.toBeDefined()
+			expect((v as any).isFailure)
+				.toBeDefined()
 		})
 
 		it('should handle step methods with proxy handler', () => {
@@ -579,8 +632,10 @@ describe('core module', () => {
 
 			const v = createValchecker({ steps: [mockStepImpl] })
 
-			expect((v as any).testMethod).toBeDefined()
-			expect(typeof (v as any).testMethod).toBe('function')
+			expect((v as any).testMethod)
+				.toBeDefined()
+			expect(typeof (v as any).testMethod)
+				.toBe('function')
 		})
 
 		it('should create new instance when calling step method', () => {
@@ -593,8 +648,10 @@ describe('core module', () => {
 			const v = createValchecker({ steps: [mockStepImpl] })
 			const chainedV = (v as any).testMethod()
 
-			expect(chainedV).toBeDefined()
-			expect((chainedV as any).execute).toBeDefined()
+			expect(chainedV)
+				.toBeDefined()
+			expect((chainedV as any).execute)
+				.toBeDefined()
 		})
 
 		it('should propagate step methods through the chain', () => {
@@ -609,8 +666,10 @@ describe('core module', () => {
 
 			const v = createValchecker({ steps: [mockStepImpl] })
 
-			expect((v as any).firstMethod).toBeDefined()
-			expect((v as any).secondMethod).toBeDefined()
+			expect((v as any).firstMethod)
+				.toBeDefined()
+			expect((v as any).secondMethod)
+				.toBeDefined()
 		})
 
 		it('should execute with initial value', () => {
@@ -618,7 +677,8 @@ describe('core module', () => {
 
 			const result = (v as any).execute(5)
 
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should execute with null value', () => {
@@ -626,7 +686,8 @@ describe('core module', () => {
 
 			const result = (v as any).execute(null)
 
-			expect(result).toEqual({ value: null })
+			expect(result)
+				.toEqual({ value: null })
 		})
 
 		it('should execute with undefined value', () => {
@@ -634,7 +695,8 @@ describe('core module', () => {
 
 			const result = (v as any).execute(undefined)
 
-			expect(result).toEqual({ value: undefined })
+			expect(result)
+				.toEqual({ value: undefined })
 		})
 
 		it('should support isSuccess method', () => {
@@ -642,7 +704,8 @@ describe('core module', () => {
 
 			const result = (v as any).execute(5)
 
-			expect((v as any).isSuccess(result)).toBe(true)
+			expect((v as any).isSuccess(result))
+				.toBe(true)
 		})
 
 		it('should support isFailure method', () => {
@@ -650,31 +713,41 @@ describe('core module', () => {
 
 			const result = (v as any).execute(5)
 
-			expect((v as any).isFailure(result)).toBe(false)
+			expect((v as any).isFailure(result))
+				.toBe(false)
 		})
 
 		it('should have ~standard property', () => {
 			const v = createValchecker({ steps: [] })
 
-			expect((v as any)['~standard']).toBeDefined()
-			expect((v as any)['~standard'].version).toBe(1)
-			expect((v as any)['~standard'].vendor).toBe('valchecker')
-			expect((v as any)['~standard'].validate).toBeDefined()
+			expect((v as any)['~standard'])
+				.toBeDefined()
+			expect((v as any)['~standard'].version)
+				.toBe(1)
+			expect((v as any)['~standard'].vendor)
+				.toBe('valchecker')
+			expect((v as any)['~standard'].validate)
+				.toBeDefined()
 		})
 
 		it('should have ~core property', () => {
 			const v = createValchecker({ steps: [] })
 
-			expect((v as any)['~core']).toBeDefined()
-			expect((v as any)['~core'].runtimeSteps).toBeDefined()
-			expect(Array.isArray((v as any)['~core'].runtimeSteps)).toBe(true)
+			expect((v as any)['~core'])
+				.toBeDefined()
+			expect((v as any)['~core'].runtimeSteps)
+				.toBeDefined()
+			expect(Array.isArray((v as any)['~core'].runtimeSteps))
+				.toBe(true)
 		})
 
 		it('should have ~execute property', () => {
 			const v = createValchecker({ steps: [] })
 
-			expect((v as any)['~execute']).toBeDefined()
-			expect(typeof (v as any)['~execute']).toBe('function')
+			expect((v as any)['~execute'])
+				.toBeDefined()
+			expect(typeof (v as any)['~execute'])
+				.toBe('function')
 		})
 
 		it('should support global message handler as string', () => {
@@ -683,9 +756,11 @@ describe('core module', () => {
 				message: 'Global error message',
 			})
 
-			expect(v).toBeDefined()
+			expect(v)
+				.toBeDefined()
 			const result = (v as any).execute(5)
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should support global message handler as function', () => {
@@ -694,9 +769,11 @@ describe('core module', () => {
 				message: (issue: any) => `Error: ${issue.code}`,
 			})
 
-			expect(v).toBeDefined()
+			expect(v)
+				.toBeDefined()
 			const result = (v as any).execute(5)
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should support step methods from multiple steps', () => {
@@ -710,20 +787,24 @@ describe('core module', () => {
 
 			const v = createValchecker({ steps: [mockStep1, mockStep2] })
 
-			expect(Object.prototype.hasOwnProperty.call(v, 'method1')).toBe(false)
-			expect(Object.prototype.hasOwnProperty.call(v, 'method2')).toBe(false)
+			expect(Object.prototype.hasOwnProperty.call(v, 'method1'))
+				.toBe(false)
+			expect(Object.prototype.hasOwnProperty.call(v, 'method2'))
+				.toBe(false)
 		})
 
 		it('should return same valchecker instance type', () => {
 			const v = createValchecker({ steps: [] })
 
-			expect((v as any).execute).toBe((v as any).execute)
+			expect((v as any).execute)
+				.toBe((v as any).execute)
 		})
 
 		it('should initialize with empty runtime steps', () => {
 			const v = createValchecker({ steps: [] })
 
-			expect((v as any)['~core'].runtimeSteps).toEqual([])
+			expect((v as any)['~core'].runtimeSteps)
+				.toEqual([])
 		})
 
 		it('should handle complex value types through valchecker', () => {
@@ -732,7 +813,8 @@ describe('core module', () => {
 			const complexValue = { foo: 'bar', nested: { baz: 123 } }
 			const result = (v as any).execute(complexValue)
 
-			expect(result).toEqual({ value: complexValue })
+			expect(result)
+				.toEqual({ value: complexValue })
 		})
 
 		it('should handle array values through valchecker', () => {
@@ -741,7 +823,8 @@ describe('core module', () => {
 			const arrayValue = [1, 2, 3]
 			const result = (v as any).execute(arrayValue)
 
-			expect(result).toEqual({ value: arrayValue })
+			expect(result)
+				.toEqual({ value: arrayValue })
 		})
 
 		it('validate method should work', () => {
@@ -749,51 +832,69 @@ describe('core module', () => {
 
 			const result = (v as any)['~standard'].validate(5)
 
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should return correct standard schema interface', () => {
 			const v = createValchecker({ steps: [] })
 
 			const standard = (v as any)['~standard']
-			expect(standard.version).toBe(1)
-			expect(standard.vendor).toBe('valchecker')
+			expect(standard.version)
+				.toBe(1)
+			expect(standard.vendor)
+				.toBe('valchecker')
 		})
 
 		it('should have step method utils available through chain', () => {
 			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
 				customMethod: ({ utils }: any) => {
-					expect(utils.addStep).toBeDefined()
-					expect(utils.addSuccessStep).toBeDefined()
-					expect(utils.addFailureStep).toBeDefined()
-					expect(utils.isSuccess).toBeDefined()
-					expect(utils.isFailure).toBeDefined()
-					expect(utils.prependIssuePath).toBeDefined()
-					expect(utils.resolveMessage).toBeDefined()
-					expect(utils.success).toBeDefined()
-					expect(utils.failure).toBeDefined()
-					expect(utils.issue).toBeDefined()
+					expect(utils.addStep)
+						.toBeDefined()
+					expect(utils.addSuccessStep)
+						.toBeDefined()
+					expect(utils.addFailureStep)
+						.toBeDefined()
+					expect(utils.isSuccess)
+						.toBeDefined()
+					expect(utils.isFailure)
+						.toBeDefined()
+					expect(utils.prependIssuePath)
+						.toBeDefined()
+					expect(utils.resolveMessage)
+						.toBeDefined()
+					expect(utils.success)
+						.toBeDefined()
+					expect(utils.failure)
+						.toBeDefined()
+					expect(utils.issue)
+						.toBeDefined()
 				},
 			} as any
 
 			const v = createValchecker({ steps: [mockStepImpl] })
 			const result = (v as any).customMethod()
 
-			expect(result).toBeDefined()
+			expect(result)
+				.toBeDefined()
 		})
 
 		it('should handle proxy get for internal properties', () => {
 			const v = createValchecker({ steps: [] })
 
 			const coreProperty = (v as any)['~core']
-			expect(coreProperty).toBeDefined()
-			expect(coreProperty.runtimeSteps).toBeDefined()
+			expect(coreProperty)
+				.toBeDefined()
+			expect(coreProperty.runtimeSteps)
+				.toBeDefined()
 
 			const standardProperty = (v as any)['~standard']
-			expect(standardProperty).toBeDefined()
+			expect(standardProperty)
+				.toBeDefined()
 
 			const executeProperty = (v as any)['~execute']
-			expect(executeProperty).toBeDefined()
+			expect(executeProperty)
+				.toBeDefined()
 		})
 
 		it('should handle addSuccessStep utility method', () => {
@@ -807,7 +908,8 @@ describe('core module', () => {
 			const chainedV = (v as any).successStep()
 
 			const result = (chainedV as any).execute(5)
-			expect(result).toEqual({ value: 15 })
+			expect(result)
+				.toEqual({ value: 15 })
 		})
 
 		it('should handle addFailureStep utility method', () => {
@@ -822,7 +924,8 @@ describe('core module', () => {
 			const chainedV = (v as any).failureStep()
 
 			const result = (chainedV as any).execute(5)
-			expect(result).toEqual({ value: 'handled' })
+			expect(result)
+				.toEqual({ value: 'handled' })
 		})
 
 		it('should handle failure in addSuccessStep chain', () => {
@@ -836,10 +939,12 @@ describe('core module', () => {
 			} as any
 
 			const v = createValchecker({ steps: [mockStepImpl] })
-			const chainedV = (v as any).stepA().stepB()
+			const chainedV = (v as any).stepA()
+				.stepB()
 
 			const result = (chainedV as any).execute(5)
-			expect(isFailure(result)).toBe(true)
+			expect(isFailure(result))
+				.toBe(true)
 		})
 
 		it('should handle success in addFailureStep chain', () => {
@@ -854,51 +959,59 @@ describe('core module', () => {
 
 			const v = createValchecker({ steps: [mockStepImpl] })
 
-			const chainedV = (v as any).stepA().stepB()
+			const chainedV = (v as any).stepA()
+				.stepB()
 
 			const result = (chainedV as any).execute(10)
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should support resolveMessage through utils', () => {
 			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
 				messageStep: ({ utils }: any) => {
 					const msg = utils.resolveMessage({ code: 'test:code', payload: {} }, null, 'default', undefined)
-					expect(msg).toBe('default')
+					expect(msg)
+						.toBe('default')
 				},
 			} as any
 
 			const v = createValchecker({ steps: [mockStepImpl] })
 			const chainedV = (v as any).messageStep()
 
-			expect(chainedV).toBeDefined()
+			expect(chainedV)
+				.toBeDefined()
 		})
 
 		it('should support issue utility method', () => {
 			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
 				issueStep: ({ utils }: any) => {
 					const issue = utils.issue({ code: 'test:error', payload: {}, message: 'Error' })
-					expect(issue.code).toBe('test:error')
+					expect(issue.code)
+						.toBe('test:error')
 				},
 			} as any
 
 			const v = createValchecker({ steps: [mockStepImpl] })
 			const chainedV = (v as any).issueStep()
 
-			expect(chainedV).toBeDefined()
+			expect(chainedV)
+				.toBeDefined()
 		})
 
 		it('should pass params to step method', () => {
 			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
 				paramStep: ({ params }: any) => {
-					expect(params).toEqual(['arg1', 'arg2'])
+					expect(params)
+						.toEqual(['arg1', 'arg2'])
 				},
 			} as any
 
 			const v = createValchecker({ steps: [mockStepImpl] })
 			const chainedV = (v as any).paramStep('arg1', 'arg2')
 
-			expect(chainedV).toBeDefined()
+			expect(chainedV)
+				.toBeDefined()
 		})
 
 		it('should handle multiple chained step methods', () => {
@@ -921,7 +1034,8 @@ describe('core module', () => {
 				.step3()
 
 			const result = (chainedV as any).execute(5)
-			expect(result).toEqual({ value: 9 })
+			expect(result)
+				.toEqual({ value: 9 })
 		})
 
 		it('should handle synchronous exceptions in step execution', () => {
@@ -937,13 +1051,14 @@ describe('core module', () => {
 			const chainedV = (v as any).throwStep()
 
 			const result = (chainedV as any).execute('test')
-			expect(result).toEqual({
-				issues: [{
-					code: 'core:unknown_exception',
-					payload: { method: 'throwStep', value: { value: 'test' }, error: new Error('sync error') },
-					message: 'An unexpected error occurred during step execution',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'core:unknown_exception',
+						payload: { method: 'throwStep', value: { value: 'test' }, error: new Error('sync error') },
+						message: 'An unexpected error occurred during step execution',
+					}],
+				})
 		})
 
 		it('should handle async rejections in step execution', async () => {
@@ -959,13 +1074,14 @@ describe('core module', () => {
 			const chainedV = (v as any).asyncThrowStep()
 
 			const result = await (chainedV as any).execute('test')
-			expect(result).toEqual({
-				issues: [{
-					code: 'core:unknown_exception',
-					payload: { method: 'asyncThrowStep', value: { value: 'test' }, error: new Error('async error') },
-					message: 'An unexpected error occurred during step execution',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'core:unknown_exception',
+						payload: { method: 'asyncThrowStep', value: { value: 'test' }, error: new Error('async error') },
+						message: 'An unexpected error occurred during step execution',
+					}],
+				})
 		})
 	})
 })

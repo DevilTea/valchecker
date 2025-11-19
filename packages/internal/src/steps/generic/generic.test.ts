@@ -33,13 +33,15 @@ describe('generic plugin', () => {
 		it('should add and execute a number step', () => {
 			const schema = v.generic<{ output: number }>(v.number())
 			const result = schema.execute(42)
-			expect(result).toEqual({ value: 42 })
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should add and execute a string step', () => {
 			const schema = v.generic<{ output: string }>(v.string())
 			const result = schema.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 	})
 
@@ -47,13 +49,14 @@ describe('generic plugin', () => {
 		it('should fail if the added step fails', () => {
 			const schema = v.generic<{ output: number }>(v.number())
 			const result = schema.execute('not a number')
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: 'not a number' },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: 'not a number' },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 	})
 
@@ -61,7 +64,8 @@ describe('generic plugin', () => {
 		it('should call the factory and add the step', () => {
 			const schema = v.generic<{ output: string }>(() => v.string())
 			const result = schema.execute('world')
-			expect(result).toEqual({ value: 'world' })
+			expect(result)
+				.toEqual({ value: 'world' })
 		})
 
 		it('should handle recursive structures using generic', () => {
@@ -83,15 +87,16 @@ describe('generic plugin', () => {
 					{ id: 3, children: [{ id: 4 }] },
 				],
 			})
-			expect(result).toEqual({
-				value: {
-					id: 1,
-					children: [
-						{ id: 2 },
-						{ id: 3, children: [{ id: 4 }] },
-					],
-				},
-			})
+			expect(result)
+				.toEqual({
+					value: {
+						id: 1,
+						children: [
+							{ id: 2 },
+							{ id: 3, children: [{ id: 4 }] },
+						],
+					},
+				})
 		})
 	})
 
@@ -99,7 +104,8 @@ describe('generic plugin', () => {
 		it('should work inside array', () => {
 			const schema = v.array(v.generic<{ output: number }>(v.number()))
 			const result = schema.execute([1, 2, 3])
-			expect(result).toEqual({ value: [1, 2, 3] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 
 		it('should work inside object', () => {
@@ -107,7 +113,8 @@ describe('generic plugin', () => {
 				value: v.generic<{ output: string }>(v.string()),
 			})
 			const result = schema.execute({ value: 'test' })
-			expect(result).toEqual({ value: { value: 'test' } })
+			expect(result)
+				.toEqual({ value: { value: 'test' } })
 		})
 	})
 
@@ -115,7 +122,8 @@ describe('generic plugin', () => {
 		it('should handle empty factory', () => {
 			const schema = v.generic<{ output: string }>(() => v.string())
 			const result = schema.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 })

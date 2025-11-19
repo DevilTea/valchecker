@@ -28,8 +28,8 @@ declare namespace Internal {
 	>
 
 	export type Issue<S extends Struct = never>
-	=	| ExecutionIssue<'looseObject:expected_object', { value: unknown }>
-		| (
+		=	| ExecutionIssue<'looseObject:expected_object', { value: unknown }>
+			| (
 			IsEqual<Struct, never> extends true
 				? never
 				: ValueOf<{
@@ -77,7 +77,7 @@ interface PluginDef extends TStepPluginDef {
 			?	IsExactlyAnyOrUnknown<InferOutput<this['This']>> extends true
 				?	<S extends Internal.Struct>(
 						struct: S,
-						message?: MessageHandler<Internal.Issue<NoInfer<S>>>
+						message?: MessageHandler<Internal.Issue<NoInfer<S>>>,
 					) => Next<
 						{
 							async: Internal.Async<NoInfer<S>>

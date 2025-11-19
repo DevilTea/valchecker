@@ -35,8 +35,10 @@ const v = createValchecker({ steps: [check] })
 describe('check plugin', () => {
 	describe('valid checks (sync pass)', () => {
 		it('should pass when check returns true', () => {
-			const result = v.check(value => value === 'pass').execute('pass')
-			expect(result).toEqual({ value: 'pass' })
+			const result = v.check(value => value === 'pass')
+				.execute('pass')
+			expect(result)
+				.toEqual({ value: 'pass' })
 		})
 
 		it('should collect issues from addIssue', () => {
@@ -51,18 +53,20 @@ describe('check plugin', () => {
 					message: 'Test issue',
 				})
 				return true
-			}).execute('test')
-			expect(result).toEqual({
-				issues: [{
-					code: 'core:unknown_exception',
-					payload: {
-						method: 'check',
-						value: 'test',
-						error: null,
-					},
-					message: 'Test issue',
-				}],
 			})
+				.execute('test')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'core:unknown_exception',
+						payload: {
+							method: 'check',
+							value: 'test',
+							error: null,
+						},
+						message: 'Test issue',
+					}],
+				})
 		})
 
 		it('should handle narrow function', () => {
@@ -72,50 +76,60 @@ describe('check plugin', () => {
 					return true
 				}
 				return false
-			}).execute('narrow')
-			expect(result).toEqual({ value: 'narrow' })
+			})
+				.execute('narrow')
+			expect(result)
+				.toEqual({ value: 'narrow' })
 		})
 	})
 
 	describe('invalid checks (sync fail)', () => {
 		it('should fail when check returns false', () => {
-			const result = v.check(value => value === 'pass').execute('fail')
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: 'fail' },
-					message: 'Check failed',
-				}],
-			})
+			const result = v.check(value => value === 'pass')
+				.execute('fail')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: 'fail' },
+						message: 'Check failed',
+					}],
+				})
 		})
 
 		it('should fail with custom message when check returns string', () => {
-			const result = v.check(value => value !== 'fail' ? true : 'Custom error').execute('fail')
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: 'fail' },
-					message: 'Custom error',
-				}],
-			})
+			const result = v.check(value => value !== 'fail' ? true : 'Custom error')
+				.execute('fail')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: 'fail' },
+						message: 'Custom error',
+					}],
+				})
 		})
 	})
 
 	describe('async checks', () => {
 		it('should handle async check returning true', async () => {
-			const result = await v.check(async value => value === 'async').execute('async')
-			expect(result).toEqual({ value: 'async' })
+			const result = await v.check(async value => value === 'async')
+				.execute('async')
+			expect(result)
+				.toEqual({ value: 'async' })
 		})
 
 		it('should handle async check returning false', async () => {
-			const result = await v.check(async value => value === 'async').execute('sync')
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: 'sync' },
-					message: 'Check failed',
-				}],
-			})
+			const result = await v.check(async value => value === 'async')
+				.execute('sync')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: 'sync' },
+						message: 'Check failed',
+					}],
+				})
 		})
 	})
 
@@ -123,14 +137,16 @@ describe('check plugin', () => {
 		it('should handle thrown errors', () => {
 			const result = v.check(() => {
 				throw new Error('Thrown error')
-			}).execute('error')
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: 'error', error: expect.any(Error) },
-					message: 'Check failed',
-				}],
 			})
+				.execute('error')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: 'error', error: expect.any(Error) },
+						message: 'Check failed',
+					}],
+				})
 		})
 	})
 
@@ -139,14 +155,16 @@ describe('check plugin', () => {
 			const result = v.check(
 				_value => false,
 				issue => `Custom: ${issue.payload.value}`,
-			).execute('custom')
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: 'custom' },
-					message: 'Custom: custom',
-				}],
-			})
+			)
+				.execute('custom')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: 'custom' },
+						message: 'Custom: custom',
+					}],
+				})
 		})
 	})
 })

@@ -17,153 +17,187 @@ const v = createValchecker({ steps: [number, min] })
 describe('number plugin', () => {
 	describe('valid inputs', () => {
 		it('should pass for positive number', () => {
-			const result = v.number().execute(42)
-			expect(result).toEqual({ value: 42 })
+			const result = v.number()
+				.execute(42)
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should pass for negative number', () => {
-			const result = v.number().execute(-42)
-			expect(result).toEqual({ value: -42 })
+			const result = v.number()
+				.execute(-42)
+			expect(result)
+				.toEqual({ value: -42 })
 		})
 
 		it('should pass for zero', () => {
-			const result = v.number().execute(0)
-			expect(result).toEqual({ value: 0 })
+			const result = v.number()
+				.execute(0)
+			expect(result)
+				.toEqual({ value: 0 })
 		})
 
 		it('should pass for float', () => {
-			const result = v.number().execute(3.14)
-			expect(result).toEqual({ value: 3.14 })
+			const result = v.number()
+				.execute(3.14)
+			expect(result)
+				.toEqual({ value: 3.14 })
 		})
 
 		it('should pass for large number', () => {
-			const result = v.number().execute(1e10)
-			expect(result).toEqual({ value: 1e10 })
+			const result = v.number()
+				.execute(1e10)
+			expect(result)
+				.toEqual({ value: 1e10 })
 		})
 
 		it('should pass for Infinity', () => {
-			const result = v.number().execute(Infinity)
-			expect(result).toEqual({ value: Infinity })
+			const result = v.number()
+				.execute(Infinity)
+			expect(result)
+				.toEqual({ value: Infinity })
 		})
 
 		it('should pass for -Infinity', () => {
-			const result = v.number().execute(-Infinity)
-			expect(result).toEqual({ value: -Infinity })
+			const result = v.number()
+				.execute(-Infinity)
+			expect(result)
+				.toEqual({ value: -Infinity })
 		})
 	})
 
 	describe('invalid inputs', () => {
 		it('should fail for NaN', () => {
-			const result = v.number().execute(Number.NaN)
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: Number.NaN },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute(Number.NaN)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: Number.NaN },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for string', () => {
-			const result = v.number().execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: 'hello' },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute('hello')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: 'hello' },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for boolean', () => {
-			const result = v.number().execute(true)
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: true },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute(true)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: true },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for null', () => {
-			const result = v.number().execute(null)
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: null },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute(null)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: null },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for undefined', () => {
-			const result = v.number().execute(undefined)
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: undefined },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute(undefined)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: undefined },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for object', () => {
-			const result = v.number().execute({})
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: {} },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute({})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: {} },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for array', () => {
-			const result = v.number().execute([])
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: [] },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute([])
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: [] },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for bigint', () => {
-			const result = v.number().execute(123n)
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: 123n },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute(123n)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: 123n },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 
 		it('should fail for symbol', () => {
 			const sym = Symbol('test')
-			const result = v.number().execute(sym)
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: sym },
-					message: 'Expected a number (NaN is not allowed).',
-				}],
-			})
+			const result = v.number()
+				.execute(sym)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: sym },
+						message: 'Expected a number (NaN is not allowed).',
+					}],
+				})
 		})
 	})
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.number('Custom error message').execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'number:expected_number',
-					payload: { value: 'hello' },
-					message: 'Custom error message',
-				}],
-			})
+			const result = v.number('Custom error message')
+				.execute('hello')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'number:expected_number',
+						payload: { value: 'hello' },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -172,20 +206,22 @@ describe('number plugin', () => {
 			const result = v.number()
 				.min(10)
 				.execute(15)
-			expect(result).toEqual({ value: 15 })
+			expect(result)
+				.toEqual({ value: 15 })
 		})
 
 		it('should fail chaining with min', () => {
 			const result = v.number()
 				.min(10)
 				.execute(5)
-			expect(result).toEqual({
-				issues: [{
-					code: 'min:expected_min',
-					payload: { target: 'number', value: 5, min: 10 },
-					message: 'Expected a minimum value of 10.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'min:expected_min',
+						payload: { target: 'number', value: 5, min: 10 },
+						message: 'Expected a minimum value of 10.',
+					}],
+				})
 		})
 	})
 })

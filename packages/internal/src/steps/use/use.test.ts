@@ -38,7 +38,8 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(stringSchema)
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should pass value through a number schema', () => {
@@ -46,7 +47,8 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(numberSchema)
 				.execute(42)
-			expect(result).toEqual({ value: 42 })
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should handle schema with transformations', () => {
@@ -55,7 +57,8 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(uppercaseSchema)
 				.execute('hello')
-			expect(result).toEqual({ value: 'HELLO' })
+			expect(result)
+				.toEqual({ value: 'HELLO' })
 		})
 
 		it('should handle schema with multiple steps', () => {
@@ -65,17 +68,21 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(emailSchema)
 				.execute('  TEST@EXAMPLE.COM  ')
-			expect(result).toEqual({ value: 'test@example.com' })
+			expect(result)
+				.toEqual({ value: 'test@example.com' })
 		})
 
 		it('should handle chained use steps', () => {
-			const schema1 = v.string().toLowercase()
-			const schema2 = v.string().toTrimmed()
+			const schema1 = v.string()
+				.toLowercase()
+			const schema2 = v.string()
+				.toTrimmed()
 			const result = v.unknown()
 				.use(schema1)
 				.use(schema2)
 				.execute('  HELLO  ')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should handle schema with check', () => {
@@ -84,7 +91,8 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(positiveNumberSchema)
 				.execute(42)
-			expect(result).toEqual({ value: 42 })
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 	})
 
@@ -94,13 +102,14 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(stringSchema)
 				.execute(123)
-			expect(result).toEqual({
-				issues: [{
-					code: 'string:expected_string',
-					payload: { value: 123 },
-					message: 'Expected a string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'string:expected_string',
+						payload: { value: 123 },
+						message: 'Expected a string.',
+					}],
+				})
 		})
 
 		it('should fail when check in schema fails', () => {
@@ -109,13 +118,14 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(positiveNumberSchema)
 				.execute(-5)
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: -5 },
-					message: 'Must be positive',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: -5 },
+						message: 'Must be positive',
+					}],
+				})
 		})
 
 		it('should pass through all issues from schema', () => {
@@ -123,13 +133,14 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(stringSchema)
 				.execute(null)
-			expect(result).toEqual({
-				issues: [{
-					code: 'string:expected_string',
-					payload: { value: null },
-					message: 'Expected a string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'string:expected_string',
+						payload: { value: null },
+						message: 'Expected a string.',
+					}],
+				})
 		})
 	})
 
@@ -143,7 +154,8 @@ describe('use plugin', () => {
 			const result = await v.unknown()
 				.use(asyncSchema as any)
 				.execute('hello')
-			expect(result).toEqual({ value: 'HELLO' })
+			expect(result)
+				.toEqual({ value: 'HELLO' })
 		})
 
 		it('should handle async schema with failure', async () => {
@@ -155,13 +167,14 @@ describe('use plugin', () => {
 			const result = await v.unknown()
 				.use(asyncSchema as any)
 				.execute('hi')
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: 'hi' },
-					message: 'Too short',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: 'hi' },
+						message: 'Too short',
+					}],
+				})
 		})
 	})
 
@@ -171,7 +184,8 @@ describe('use plugin', () => {
 			const result = v.unknown()
 				.use(unknownSchema)
 				.execute('anything')
-			expect(result).toEqual({ value: 'anything' })
+			expect(result)
+				.toEqual({ value: 'anything' })
 		})
 
 		it('should work after other steps', () => {
@@ -180,7 +194,8 @@ describe('use plugin', () => {
 				.transform(x => Number.parseInt(x))
 				.use(numberSchema)
 				.execute('42')
-			expect(result).toEqual({ value: 42 })
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should handle type conversion', () => {
@@ -189,7 +204,8 @@ describe('use plugin', () => {
 				.transform(x => Number.parseInt(x))
 				.use(numberSchema)
 				.execute('123')
-			expect(result).toEqual({ value: 123 })
+			expect(result)
+				.toEqual({ value: 123 })
 		})
 
 		it('should not execute use when previous step fails', () => {
@@ -197,13 +213,14 @@ describe('use plugin', () => {
 			const result = v.string()
 				.use(numberSchema)
 				.execute(123)
-			expect(result).toEqual({
-				issues: [{
-					code: 'string:expected_string',
-					payload: { value: 123 },
-					message: 'Expected a string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'string:expected_string',
+						payload: { value: 123 },
+						message: 'Expected a string.',
+					}],
+				})
 		})
 	})
 
@@ -218,7 +235,8 @@ describe('use plugin', () => {
 				.use(emailSchema)
 				.execute('  TEST@EXAMPLE.COM  ')
 
-			expect(result).toEqual({ value: 'test@example.com' })
+			expect(result)
+				.toEqual({ value: 'test@example.com' })
 		})
 
 		it('should support reusable positive number validation', () => {
@@ -228,18 +246,20 @@ describe('use plugin', () => {
 			const result1 = v.unknown()
 				.use(positiveNumberSchema)
 				.execute(42)
-			expect(result1).toEqual({ value: 42 })
+			expect(result1)
+				.toEqual({ value: 42 })
 
 			const result2 = v.unknown()
 				.use(positiveNumberSchema)
 				.execute(-5)
-			expect(result2).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: -5 },
-					message: 'Must be positive',
-				}],
-			})
+			expect(result2)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: -5 },
+						message: 'Must be positive',
+					}],
+				})
 		})
 	})
 })

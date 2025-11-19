@@ -13,17 +13,20 @@ const v = createValchecker({ steps: [undefined_] })
 describe('undefined benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.undefined().execute(undefined)
+			v.undefined()
+				.execute(undefined)
 		})
 
 		bench('valid input - large', () => {
-			v.undefined().execute(undefined)
+			v.undefined()
+				.execute(undefined)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.undefined().execute(null)
+			v.undefined()
+				.execute(null)
 		})
 	})
 })

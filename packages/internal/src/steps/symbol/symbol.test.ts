@@ -18,117 +18,139 @@ describe('symbol plugin', () => {
 	describe('valid inputs', () => {
 		it('should pass for anonymous symbol', () => {
 			const sym = Symbol('anonymous')
-			const result = v.symbol().execute(sym)
-			expect(result).toEqual({ value: sym })
+			const result = v.symbol()
+				.execute(sym)
+			expect(result)
+				.toEqual({ value: sym })
 		})
 
 		it('should pass for symbol with description', () => {
 			const sym = Symbol('test')
-			const result = v.symbol().execute(sym)
-			expect(result).toEqual({ value: sym })
+			const result = v.symbol()
+				.execute(sym)
+			expect(result)
+				.toEqual({ value: sym })
 		})
 	})
 
 	describe('invalid inputs', () => {
 		it('should fail for number', () => {
-			const result = v.symbol().execute(42)
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: 42 },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute(42)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: 42 },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 
 		it('should fail for string', () => {
-			const result = v.symbol().execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: 'hello' },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute('hello')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: 'hello' },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 
 		it('should fail for boolean', () => {
-			const result = v.symbol().execute(true)
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: true },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute(true)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: true },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 
 		it('should fail for null', () => {
-			const result = v.symbol().execute(null)
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: null },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute(null)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: null },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 
 		it('should fail for undefined', () => {
-			const result = v.symbol().execute(undefined)
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: undefined },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute(undefined)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: undefined },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 
 		it('should fail for object', () => {
-			const result = v.symbol().execute({})
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: {} },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute({})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: {} },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 
 		it('should fail for array', () => {
-			const result = v.symbol().execute([])
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: [] },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute([])
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: [] },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 
 		it('should fail for bigint', () => {
-			const result = v.symbol().execute(123n)
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: 123n },
-					message: 'Expected a symbol.',
-				}],
-			})
+			const result = v.symbol()
+				.execute(123n)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: 123n },
+						message: 'Expected a symbol.',
+					}],
+				})
 		})
 	})
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.symbol('Custom error message').execute(42)
-			expect(result).toEqual({
-				issues: [{
-					code: 'symbol:expected_symbol',
-					payload: { value: 42 },
-					message: 'Custom error message',
-				}],
-			})
+			const result = v.symbol('Custom error message')
+				.execute(42)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'symbol:expected_symbol',
+						payload: { value: 42 },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -138,7 +160,8 @@ describe('symbol plugin', () => {
 			const result = v.symbol()
 				.check(s => s === sym)
 				.execute(sym)
-			expect(result).toEqual({ value: sym })
+			expect(result)
+				.toEqual({ value: sym })
 		})
 
 		it('should fail chaining with check', () => {
@@ -147,13 +170,14 @@ describe('symbol plugin', () => {
 			const result = v.symbol()
 				.check(s => s === sym1)
 				.execute(sym2)
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: sym2 },
-					message: 'Check failed',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: sym2 },
+						message: 'Check failed',
+					}],
+				})
 		})
 	})
 })

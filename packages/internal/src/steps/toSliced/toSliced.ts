@@ -44,9 +44,9 @@ interface PluginDef extends TStepPluginDef {
 		?	OverloadParametersAndReturnType<InferOutput<this['This']>['slice']> extends infer Tuple
 			?	Tuple extends [params: any[], ret: any]
 				?	DefineStepMethod<
-						Meta,
-						(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['This']>
-					>
+					Meta,
+					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['This']>
+				>
 				:	never
 			:	never
 		:	never

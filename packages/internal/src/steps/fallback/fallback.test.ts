@@ -37,7 +37,8 @@ describe('fallback plugin', () => {
 			const result = v.string()
 				.fallback(() => 'fallback')
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 	})
 
@@ -46,7 +47,8 @@ describe('fallback plugin', () => {
 			const result = v.number()
 				.fallback(() => 42)
 				.execute('not a number')
-			expect(result).toEqual({ value: 42 })
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should pass issues array to fallback function', () => {
@@ -57,12 +59,15 @@ describe('fallback plugin', () => {
 					return 99
 				})
 				.execute('not a number')
-			expect(result).toEqual({ value: 99 })
-			expect(capturedIssues).toHaveLength(1)
-			expect(capturedIssues[0]).toMatchObject({
-				code: 'number:expected_number',
-				payload: { value: 'not a number' },
-			})
+			expect(result)
+				.toEqual({ value: 99 })
+			expect(capturedIssues)
+				.toHaveLength(1)
+			expect(capturedIssues[0])
+				.toMatchObject({
+					code: 'number:expected_number',
+					payload: { value: 'not a number' },
+				})
 		})
 
 		it('should handle async fallback function', async () => {
@@ -72,7 +77,8 @@ describe('fallback plugin', () => {
 					return 100
 				})
 				.execute('not a number')
-			expect(result).toEqual({ value: 100 })
+			expect(result)
+				.toEqual({ value: 100 })
 		})
 	})
 
@@ -83,20 +89,21 @@ describe('fallback plugin', () => {
 					throw new Error('Fallback error')
 				})
 				.execute('not a number')
-			expect(result).toEqual({
-				issues: [{
-					code: 'fallback:failed',
-					payload: {
-						receivedIssues: [{
-							code: 'number:expected_number',
-							payload: { value: 'not a number' },
-							message: 'Expected a number (NaN is not allowed).',
-						}],
-						error: expect.any(Error),
-					},
-					message: 'Fallback failed',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'fallback:failed',
+						payload: {
+							receivedIssues: [{
+								code: 'number:expected_number',
+								payload: { value: 'not a number' },
+								message: 'Expected a number (NaN is not allowed).',
+							}],
+							error: expect.any(Error),
+						},
+						message: 'Fallback failed',
+					}],
+				})
 		})
 
 		it('should handle custom message', () => {
@@ -105,20 +112,21 @@ describe('fallback plugin', () => {
 					throw new Error('Custom fallback error')
 				}, 'Custom fallback message')
 				.execute('not a number')
-			expect(result).toEqual({
-				issues: [{
-					code: 'fallback:failed',
-					payload: {
-						receivedIssues: [{
-							code: 'number:expected_number',
-							payload: { value: 'not a number' },
-							message: 'Expected a number (NaN is not allowed).',
-						}],
-						error: expect.any(Error),
-					},
-					message: 'Custom fallback message',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'fallback:failed',
+						payload: {
+							receivedIssues: [{
+								code: 'number:expected_number',
+								payload: { value: 'not a number' },
+								message: 'Expected a number (NaN is not allowed).',
+							}],
+							error: expect.any(Error),
+						},
+						message: 'Custom fallback message',
+					}],
+				})
 		})
 	})
 })

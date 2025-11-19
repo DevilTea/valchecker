@@ -28,147 +28,181 @@ const v = createValchecker({ steps: [looseNumber, check] })
 describe('looseNumber plugin', () => {
 	describe('valid inputs (numbers including NaN)', () => {
 		it('should pass for positive number', () => {
-			const result = v.looseNumber().execute(42)
-			expect(result).toEqual({ value: 42 })
+			const result = v.looseNumber()
+				.execute(42)
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should pass for negative number', () => {
-			const result = v.looseNumber().execute(-42)
-			expect(result).toEqual({ value: -42 })
+			const result = v.looseNumber()
+				.execute(-42)
+			expect(result)
+				.toEqual({ value: -42 })
 		})
 
 		it('should pass for zero', () => {
-			const result = v.looseNumber().execute(0)
-			expect(result).toEqual({ value: 0 })
+			const result = v.looseNumber()
+				.execute(0)
+			expect(result)
+				.toEqual({ value: 0 })
 		})
 
 		it('should pass for float', () => {
-			const result = v.looseNumber().execute(3.14)
-			expect(result).toEqual({ value: 3.14 })
+			const result = v.looseNumber()
+				.execute(3.14)
+			expect(result)
+				.toEqual({ value: 3.14 })
 		})
 
 		it('should pass for large number', () => {
-			const result = v.looseNumber().execute(1e10)
-			expect(result).toEqual({ value: 1e10 })
+			const result = v.looseNumber()
+				.execute(1e10)
+			expect(result)
+				.toEqual({ value: 1e10 })
 		})
 
 		it('should pass for Infinity', () => {
-			const result = v.looseNumber().execute(Infinity)
-			expect(result).toEqual({ value: Infinity })
+			const result = v.looseNumber()
+				.execute(Infinity)
+			expect(result)
+				.toEqual({ value: Infinity })
 		})
 
 		it('should pass for -Infinity', () => {
-			const result = v.looseNumber().execute(-Infinity)
-			expect(result).toEqual({ value: -Infinity })
+			const result = v.looseNumber()
+				.execute(-Infinity)
+			expect(result)
+				.toEqual({ value: -Infinity })
 		})
 
 		it('should pass for NaN', () => {
-			const result = v.looseNumber().execute(Number.NaN)
-			expect(result).toEqual({ value: Number.NaN })
+			const result = v.looseNumber()
+				.execute(Number.NaN)
+			expect(result)
+				.toEqual({ value: Number.NaN })
 		})
 	})
 
 	describe('invalid inputs (not numbers)', () => {
 		it('should fail for string', () => {
-			const result = v.looseNumber().execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: 'hello' },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute('hello')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: 'hello' },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 
 		it('should fail for boolean', () => {
-			const result = v.looseNumber().execute(true)
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: true },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute(true)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: true },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 
 		it('should fail for null', () => {
-			const result = v.looseNumber().execute(null)
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: null },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute(null)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: null },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 
 		it('should fail for undefined', () => {
-			const result = v.looseNumber().execute(undefined)
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: undefined },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute(undefined)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: undefined },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 
 		it('should fail for object', () => {
-			const result = v.looseNumber().execute({})
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: {} },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute({})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: {} },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 
 		it('should fail for array', () => {
-			const result = v.looseNumber().execute([])
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: [] },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute([])
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: [] },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 
 		it('should fail for bigint', () => {
-			const result = v.looseNumber().execute(123n)
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: 123n },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute(123n)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: 123n },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 
 		it('should fail for symbol', () => {
 			const sym = Symbol('test')
-			const result = v.looseNumber().execute(sym)
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: sym },
-					message: 'Expected a number (NaN is allowed).',
-				}],
-			})
+			const result = v.looseNumber()
+				.execute(sym)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: sym },
+						message: 'Expected a number (NaN is allowed).',
+					}],
+				})
 		})
 	})
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.looseNumber('Custom error message').execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'looseNumber:expected_number',
-					payload: { value: 'hello' },
-					message: 'Custom error message',
-				}],
-			})
+			const result = v.looseNumber('Custom error message')
+				.execute('hello')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'looseNumber:expected_number',
+						payload: { value: 'hello' },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -177,20 +211,22 @@ describe('looseNumber plugin', () => {
 			const result = v.looseNumber()
 				.check(n => !Number.isNaN(n))
 				.execute(42)
-			expect(result).toEqual({ value: 42 })
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should fail chaining with check', () => {
 			const result = v.looseNumber()
 				.check(n => !Number.isNaN(n))
 				.execute(Number.NaN)
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: Number.NaN },
-					message: 'Check failed',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: Number.NaN },
+						message: 'Check failed',
+					}],
+				})
 		})
 	})
 })

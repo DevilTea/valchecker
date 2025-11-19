@@ -13,17 +13,20 @@ const v = createValchecker({ steps: [string] })
 describe('string benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.string().execute('hello')
+			v.string()
+				.execute('hello')
 		})
 
 		bench('valid input - large', () => {
-			v.string().execute('x'.repeat(1000))
+			v.string()
+				.execute('x'.repeat(1000))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.string().execute(123)
+			v.string()
+				.execute(123)
 		})
 	})
 

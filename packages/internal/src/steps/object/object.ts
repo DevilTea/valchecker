@@ -28,8 +28,8 @@ declare namespace Internal {
 	>
 
 	export type Issue<S extends Struct = never>
-	=	| ExecutionIssue<'object:expected_object', { value: unknown }>
-		| (
+		=	| ExecutionIssue<'object:expected_object', { value: unknown }>
+			| (
 			IsEqual<Struct, never> extends true
 				? never
 				: ValueOf<{

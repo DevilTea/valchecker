@@ -13,17 +13,20 @@ const v = createValchecker({ steps: [looseNumber] })
 describe('looseNumber benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.looseNumber().execute(undefined)
+			v.looseNumber()
+				.execute(undefined)
 		})
 
 		bench('valid input - large', () => {
-			v.looseNumber().execute(undefined)
+			v.looseNumber()
+				.execute(undefined)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.looseNumber().execute(undefined)
+			v.looseNumber()
+				.execute(undefined)
 		})
 	})
 })

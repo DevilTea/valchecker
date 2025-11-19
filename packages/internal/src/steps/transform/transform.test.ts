@@ -20,7 +20,8 @@ describe('transform plugin', () => {
 			const result = v.string()
 				.transform(x => x.toUpperCase())
 				.execute('hello')
-			expect(result).toEqual({ value: 'HELLO' })
+			expect(result)
+				.toEqual({ value: 'HELLO' })
 		})
 	})
 
@@ -31,13 +32,14 @@ describe('transform plugin', () => {
 					throw new Error('sync error')
 				})
 				.execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'transform:failed',
-					payload: { value: 'hello', error: expect.any(Error) },
-					message: 'Transform failed',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'transform:failed',
+						payload: { value: 'hello', error: expect.any(Error) },
+						message: 'Transform failed',
+					}],
+				})
 		})
 	})
 
@@ -46,7 +48,8 @@ describe('transform plugin', () => {
 			const result = await v.string()
 				.transform(async x => x.toUpperCase())
 				.execute('hello')
-			expect(result).toEqual({ value: 'HELLO' })
+			expect(result)
+				.toEqual({ value: 'HELLO' })
 		})
 
 		it('should fail with async transform error', async () => {
@@ -55,13 +58,14 @@ describe('transform plugin', () => {
 					throw new Error('async error')
 				})
 				.execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'transform:failed',
-					payload: { value: 'hello', error: expect.any(Error) },
-					message: 'Transform failed',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'transform:failed',
+						payload: { value: 'hello', error: expect.any(Error) },
+						message: 'Transform failed',
+					}],
+				})
 		})
 
 		it('should use custom message handler', () => {
@@ -71,13 +75,14 @@ describe('transform plugin', () => {
 					issue => `Custom: ${(issue.payload.error as any).message}`,
 				)
 				.execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'transform:failed',
-					payload: { value: 'hello', error: expect.any(Error) },
-					message: 'Custom: error',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'transform:failed',
+						payload: { value: 'hello', error: expect.any(Error) },
+						message: 'Custom: error',
+					}],
+				})
 		})
 	})
 })

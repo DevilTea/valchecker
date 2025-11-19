@@ -31,35 +31,40 @@ describe('toSliced plugin', () => {
 			const result = v.array(v.any())
 				.toSliced(2)
 				.execute([1, 2, 3, 4, 5])
-			expect(result).toEqual({ value: [3, 4, 5] })
+			expect(result)
+				.toEqual({ value: [3, 4, 5] })
 		})
 
 		it('should slice array with start and end index', () => {
 			const result = v.array(v.any())
 				.toSliced(1, 4)
 				.execute([1, 2, 3, 4, 5])
-			expect(result).toEqual({ value: [2, 3, 4] })
+			expect(result)
+				.toEqual({ value: [2, 3, 4] })
 		})
 
 		it('should handle negative start index', () => {
 			const result = v.array(v.any())
 				.toSliced(-2)
 				.execute([1, 2, 3, 4, 5])
-			expect(result).toEqual({ value: [4, 5] })
+			expect(result)
+				.toEqual({ value: [4, 5] })
 		})
 
 		it('should handle negative end index', () => {
 			const result = v.array(v.any())
 				.toSliced(1, -1)
 				.execute([1, 2, 3, 4, 5])
-			expect(result).toEqual({ value: [2, 3, 4] })
+			expect(result)
+				.toEqual({ value: [2, 3, 4] })
 		})
 
 		it('should handle out of bounds', () => {
 			const result = v.array(v.any())
 				.toSliced(10)
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 	})
 
@@ -68,35 +73,40 @@ describe('toSliced plugin', () => {
 			const result = v.string()
 				.toSliced(2)
 				.execute('hello')
-			expect(result).toEqual({ value: 'llo' })
+			expect(result)
+				.toEqual({ value: 'llo' })
 		})
 
 		it('should slice string with start and end index', () => {
 			const result = v.string()
 				.toSliced(1, 4)
 				.execute('hello')
-			expect(result).toEqual({ value: 'ell' })
+			expect(result)
+				.toEqual({ value: 'ell' })
 		})
 
 		it('should handle negative start index', () => {
 			const result = v.string()
 				.toSliced(-2)
 				.execute('hello')
-			expect(result).toEqual({ value: 'lo' })
+			expect(result)
+				.toEqual({ value: 'lo' })
 		})
 
 		it('should handle negative end index', () => {
 			const result = v.string()
 				.toSliced(1, -1)
 				.execute('hello')
-			expect(result).toEqual({ value: 'ell' })
+			expect(result)
+				.toEqual({ value: 'ell' })
 		})
 
 		it('should handle out of bounds', () => {
 			const result = v.string()
 				.toSliced(10)
 				.execute('hi')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 
@@ -105,14 +115,16 @@ describe('toSliced plugin', () => {
 			const result = v.array(v.any())
 				.toSliced(0)
 				.execute([])
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 
 		it('should handle empty string', () => {
 			const result = v.string()
 				.toSliced(0)
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 })

@@ -30,35 +30,40 @@ describe('toLowercase plugin', () => {
 			const result = v.string()
 				.toLowercase()
 				.execute('HELLO')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should convert mixed case to lowercase', () => {
 			const result = v.string()
 				.toLowercase()
 				.execute('HeLLo WoRlD')
-			expect(result).toEqual({ value: 'hello world' })
+			expect(result)
+				.toEqual({ value: 'hello world' })
 		})
 
 		it('should leave lowercase unchanged', () => {
 			const result = v.string()
 				.toLowercase()
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should handle strings with numbers and symbols', () => {
 			const result = v.string()
 				.toLowercase()
 				.execute('Hello123!@#')
-			expect(result).toEqual({ value: 'hello123!@#' })
+			expect(result)
+				.toEqual({ value: 'hello123!@#' })
 		})
 
 		it('should handle unicode characters', () => {
 			const result = v.string()
 				.toLowercase()
 				.execute('HELLO 你好')
-			expect(result).toEqual({ value: 'hello 你好' })
+			expect(result)
+				.toEqual({ value: 'hello 你好' })
 		})
 	})
 
@@ -67,7 +72,8 @@ describe('toLowercase plugin', () => {
 			const result = v.string()
 				.toLowercase()
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 })

@@ -13,17 +13,20 @@ const v = createValchecker({ steps: [bigint] })
 describe('bigint benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.bigint().execute(undefined)
+			v.bigint()
+				.execute(undefined)
 		})
 
 		bench('valid input - large', () => {
-			v.bigint().execute(undefined)
+			v.bigint()
+				.execute(undefined)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.bigint().execute(undefined)
+			v.bigint()
+				.execute(undefined)
 		})
 	})
 })

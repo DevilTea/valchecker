@@ -121,13 +121,14 @@ Format validation issues for HTTP API responses.
 const result = await userSchema.execute(req.body)
 
 if (v.isFailure(result)) {
-	return res.status(422).json({
-		error: 'Validation failed',
-		details: result.issues.map(issue => ({
-			field: issue.path.join('.'),
-			message: issue.message,
-		})),
-	})
+	return res.status(422)
+		.json({
+			error: 'Validation failed',
+			details: result.issues.map(issue => ({
+				field: issue.path.join('.'),
+				message: issue.message,
+			})),
+		})
 }
 ```
 
@@ -135,15 +136,16 @@ if (v.isFailure(result)) {
 
 ```ts
 if (v.isFailure(result)) {
-	return res.status(422).json({
-		error: 'Validation failed',
-		details: result.issues.map(issue => ({
-			field: issue.path.join('.'),
-			code: issue.code,
-			message: issue.message,
-			payload: issue.payload,
-		})),
-	})
+	return res.status(422)
+		.json({
+			error: 'Validation failed',
+			details: result.issues.map(issue => ({
+				field: issue.path.join('.'),
+				code: issue.code,
+				message: issue.message,
+				payload: issue.payload,
+			})),
+		})
 }
 ```
 

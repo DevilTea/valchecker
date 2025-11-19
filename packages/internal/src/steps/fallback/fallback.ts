@@ -39,7 +39,7 @@ interface PluginDef extends TStepPluginDef {
 			?	InferOutput<This> extends infer CurrentOutput
 				?	<Result extends MaybePromise<CurrentOutput>>(
 						run: (issues: InferIssue<This>[]) => Result,
-						message?: MessageHandler<Internal.Issue<InferIssue<This>>>
+						message?: MessageHandler<Internal.Issue<InferIssue<This>>>,
 					) => Next<
 						{
 							async: IsPromise<Result> extends false ? false : true

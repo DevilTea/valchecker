@@ -32,11 +32,11 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['This'] extends Meta['ExpectedThis']
 			? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
-				{
-					issue: Meta['SelfIssue']
-				},
-				this['This']
-			>
+					{
+						issue: Meta['SelfIssue']
+					},
+					this['This']
+				>
 			: never
 	>
 }

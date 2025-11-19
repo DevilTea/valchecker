@@ -30,49 +30,56 @@ describe('toTrimmedStart plugin', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('   hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove leading tabs', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('\t\thello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove leading newlines', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('\n\nhello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove mixed leading whitespace', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute(' \t\n hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should leave trailing whitespace', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('hello  ')
-			expect(result).toEqual({ value: 'hello  ' })
+			expect(result)
+				.toEqual({ value: 'hello  ' })
 		})
 
 		it('should handle strings with both leading and trailing whitespace', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('  hello  ')
-			expect(result).toEqual({ value: 'hello  ' })
+			expect(result)
+				.toEqual({ value: 'hello  ' })
 		})
 
 		it('should leave strings with no leading whitespace unchanged', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 	})
 
@@ -81,14 +88,16 @@ describe('toTrimmedStart plugin', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 
 		it('should handle string with only whitespace', () => {
 			const result = v.string()
 				.toTrimmedStart()
 				.execute('   \t\n  ')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 })

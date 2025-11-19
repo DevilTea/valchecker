@@ -22,7 +22,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for valid JSON array', () => {
@@ -31,7 +32,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for valid JSON string', () => {
@@ -40,7 +42,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for valid JSON number', () => {
@@ -49,7 +52,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for valid JSON boolean', () => {
@@ -58,7 +62,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for valid JSON null', () => {
@@ -67,7 +72,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for empty object', () => {
@@ -76,7 +82,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for empty array', () => {
@@ -85,7 +92,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 
 		it('should pass for unicode JSON', () => {
@@ -94,7 +102,8 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute(json)
-			expect(result).toEqual({ value: json })
+			expect(result)
+				.toEqual({ value: json })
 		})
 	})
 
@@ -104,13 +113,14 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute('{invalid}')
-			expect(result).toEqual({
-				issues: [{
-					code: 'json:invalid_json',
-					payload: { value: '{invalid}', error: expect.anything() },
-					message: 'Expected a valid JSON string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'json:invalid_json',
+						payload: { value: '{invalid}', error: expect.anything() },
+						message: 'Expected a valid JSON string.',
+					}],
+				})
 		})
 
 		it('should fail for malformed JSON', () => {
@@ -118,13 +128,14 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute('{"name": }')
-			expect(result).toEqual({
-				issues: [{
-					code: 'json:invalid_json',
-					payload: { value: '{"name": }', error: expect.anything() },
-					message: 'Expected a valid JSON string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'json:invalid_json',
+						payload: { value: '{"name": }', error: expect.anything() },
+						message: 'Expected a valid JSON string.',
+					}],
+				})
 		})
 
 		it('should fail for empty string', () => {
@@ -132,13 +143,14 @@ describe('json plugin', () => {
 				.string()
 				.json()
 				.execute('')
-			expect(result).toEqual({
-				issues: [{
-					code: 'json:invalid_json',
-					payload: { value: '', error: expect.anything() },
-					message: 'Expected a valid JSON string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'json:invalid_json',
+						payload: { value: '', error: expect.anything() },
+						message: 'Expected a valid JSON string.',
+					}],
+				})
 		})
 	})
 
@@ -148,13 +160,14 @@ describe('json plugin', () => {
 				.string()
 				.json('Custom error message')
 				.execute('')
-			expect(result).toEqual({
-				issues: [{
-					code: 'json:invalid_json',
-					payload: { value: '', error: expect.anything() },
-					message: 'Custom error message',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'json:invalid_json',
+						payload: { value: '', error: expect.anything() },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 })

@@ -22,7 +22,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: { name: 'John', age: 30 } })
+			expect(result)
+				.toEqual({ value: { name: 'John', age: 30 } })
 		})
 
 		it('should parse JSON array', () => {
@@ -31,7 +32,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: [1, 2, 3] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3] })
 		})
 
 		it('should parse JSON string', () => {
@@ -40,7 +42,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should parse JSON number', () => {
@@ -49,7 +52,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: 42 })
+			expect(result)
+				.toEqual({ value: 42 })
 		})
 
 		it('should parse JSON boolean', () => {
@@ -58,7 +62,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: true })
+			expect(result)
+				.toEqual({ value: true })
 		})
 
 		it('should parse JSON null', () => {
@@ -67,7 +72,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: null })
+			expect(result)
+				.toEqual({ value: null })
 		})
 
 		it('should parse empty object', () => {
@@ -76,7 +82,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: {} })
+			expect(result)
+				.toEqual({ value: {} })
 		})
 
 		it('should parse empty array', () => {
@@ -85,7 +92,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 
 		it('should parse unicode JSON', () => {
@@ -94,7 +102,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute(json)
-			expect(result).toEqual({ value: { message: '你好' } })
+			expect(result)
+				.toEqual({ value: { message: '你好' } })
 		})
 	})
 
@@ -104,13 +113,14 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute('{invalid}')
-			expect(result).toEqual({
-				issues: [{
-					code: 'parseJSON:invalid_json',
-					payload: { value: '{invalid}', error: expect.anything() },
-					message: 'Expected a valid JSON string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'parseJSON:invalid_json',
+						payload: { value: '{invalid}', error: expect.anything() },
+						message: 'Expected a valid JSON string.',
+					}],
+				})
 		})
 
 		it('should fail for malformed JSON', () => {
@@ -118,13 +128,14 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute('{"name": }')
-			expect(result).toEqual({
-				issues: [{
-					code: 'parseJSON:invalid_json',
-					payload: { value: '{"name": }', error: expect.anything() },
-					message: 'Expected a valid JSON string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'parseJSON:invalid_json',
+						payload: { value: '{"name": }', error: expect.anything() },
+						message: 'Expected a valid JSON string.',
+					}],
+				})
 		})
 
 		it('should fail for empty string', () => {
@@ -132,13 +143,14 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute('')
-			expect(result).toEqual({
-				issues: [{
-					code: 'parseJSON:invalid_json',
-					payload: { value: '', error: expect.anything() },
-					message: 'Expected a valid JSON string.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'parseJSON:invalid_json',
+						payload: { value: '', error: expect.anything() },
+						message: 'Expected a valid JSON string.',
+					}],
+				})
 		})
 	})
 
@@ -148,13 +160,14 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON('Custom error message')
 				.execute('')
-			expect(result).toEqual({
-				issues: [{
-					code: 'parseJSON:invalid_json',
-					payload: { value: '', error: expect.anything() },
-					message: 'Custom error message',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'parseJSON:invalid_json',
+						payload: { value: '', error: expect.anything() },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -164,7 +177,8 @@ describe('parseJSON plugin', () => {
 				.string()
 				.parseJSON()
 				.execute('{"key": "value"}')
-			expect(result).toEqual({ value: { key: 'value' } })
+			expect(result)
+				.toEqual({ value: { key: 'value' } })
 		})
 	})
 })

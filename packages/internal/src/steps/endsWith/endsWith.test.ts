@@ -27,21 +27,24 @@ describe('endsWith step plugin', () => {
 			const result = v.string()
 				.endsWith('world')
 				.execute('hello world')
-			expect(result).toEqual({ value: 'hello world' })
+			expect(result)
+				.toEqual({ value: 'hello world' })
 		})
 
 		it('should pass when string is equal to suffix', () => {
 			const result = v.string()
 				.endsWith('hello')
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should pass for empty suffix', () => {
 			const result = v.string()
 				.endsWith('')
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 	})
 
@@ -50,52 +53,56 @@ describe('endsWith step plugin', () => {
 			const result = v.string()
 				.endsWith('world')
 				.execute('hello there')
-			expect(result).toEqual({
-				issues: [{
-					code: 'endsWith:expected_ends_with',
-					payload: { value: 'hello there', suffix: 'world' },
-					message: 'Expected the string to end with "world".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'endsWith:expected_ends_with',
+						payload: { value: 'hello there', suffix: 'world' },
+						message: 'Expected the string to end with "world".',
+					}],
+				})
 		})
 
 		it('should fail for empty string with non-empty suffix', () => {
 			const result = v.string()
 				.endsWith('a')
 				.execute('')
-			expect(result).toEqual({
-				issues: [{
-					code: 'endsWith:expected_ends_with',
-					payload: { value: '', suffix: 'a' },
-					message: 'Expected the string to end with "a".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'endsWith:expected_ends_with',
+						payload: { value: '', suffix: 'a' },
+						message: 'Expected the string to end with "a".',
+					}],
+				})
 		})
 
 		it('should fail when suffix is longer than string', () => {
 			const result = v.string()
 				.endsWith('longer')
 				.execute('short')
-			expect(result).toEqual({
-				issues: [{
-					code: 'endsWith:expected_ends_with',
-					payload: { value: 'short', suffix: 'longer' },
-					message: 'Expected the string to end with "longer".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'endsWith:expected_ends_with',
+						payload: { value: 'short', suffix: 'longer' },
+						message: 'Expected the string to end with "longer".',
+					}],
+				})
 		})
 
 		it('should fail when case does not match', () => {
 			const result = v.string()
 				.endsWith('World')
 				.execute('hello world')
-			expect(result).toEqual({
-				issues: [{
-					code: 'endsWith:expected_ends_with',
-					payload: { value: 'hello world', suffix: 'World' },
-					message: 'Expected the string to end with "World".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'endsWith:expected_ends_with',
+						payload: { value: 'hello world', suffix: 'World' },
+						message: 'Expected the string to end with "World".',
+					}],
+				})
 		})
 	})
 
@@ -104,20 +111,22 @@ describe('endsWith step plugin', () => {
 			const result = v.string()
 				.endsWith('世界')
 				.execute('你好世界')
-			expect(result).toEqual({ value: '你好世界' })
+			expect(result)
+				.toEqual({ value: '你好世界' })
 		})
 
 		it('should fail for unicode mismatch', () => {
 			const result = v.string()
 				.endsWith('世界')
 				.execute('你好地球')
-			expect(result).toEqual({
-				issues: [{
-					code: 'endsWith:expected_ends_with',
-					payload: { value: '你好地球', suffix: '世界' },
-					message: 'Expected the string to end with "世界".',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'endsWith:expected_ends_with',
+						payload: { value: '你好地球', suffix: '世界' },
+						message: 'Expected the string to end with "世界".',
+					}],
+				})
 		})
 	})
 
@@ -126,13 +135,14 @@ describe('endsWith step plugin', () => {
 			const result = v.string()
 				.endsWith('world', () => 'Custom message')
 				.execute('hello there')
-			expect(result).toEqual({
-				issues: [{
-					code: 'endsWith:expected_ends_with',
-					payload: { value: 'hello there', suffix: 'world' },
-					message: 'Custom message',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'endsWith:expected_ends_with',
+						payload: { value: 'hello there', suffix: 'world' },
+						message: 'Custom message',
+					}],
+				})
 		})
 	})
 
@@ -141,7 +151,8 @@ describe('endsWith step plugin', () => {
 			const result = v.string()
 				.endsWith('world')
 				.execute('hello world')
-			expect(result).toEqual({ value: 'hello world' })
+			expect(result)
+				.toEqual({ value: 'hello world' })
 		})
 	})
 })

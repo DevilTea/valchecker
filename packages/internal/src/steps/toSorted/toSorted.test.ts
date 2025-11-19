@@ -33,42 +33,48 @@ describe('toSorted plugin', () => {
 			const result = v.array(v.any())
 				.toSorted()
 				.execute([3, 1, 4, 1, 5])
-			expect(result).toEqual({ value: [1, 1, 3, 4, 5] })
+			expect(result)
+				.toEqual({ value: [1, 1, 3, 4, 5] })
 		})
 
 		it('should sort strings alphabetically by default', () => {
 			const result = v.array(v.any())
 				.toSorted()
 				.execute(['banana', 'apple', 'cherry'])
-			expect(result).toEqual({ value: ['apple', 'banana', 'cherry'] })
+			expect(result)
+				.toEqual({ value: ['apple', 'banana', 'cherry'] })
 		})
 
 		it('should handle empty array', () => {
 			const result = v.array(v.any())
 				.toSorted()
 				.execute([])
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 
 		it('should handle single element array', () => {
 			const result = v.array(v.any())
 				.toSorted()
 				.execute([42])
-			expect(result).toEqual({ value: [42] })
+			expect(result)
+				.toEqual({ value: [42] })
 		})
 
 		it('should handle already sorted array', () => {
 			const result = v.array(v.any())
 				.toSorted()
 				.execute([1, 2, 3, 4, 5])
-			expect(result).toEqual({ value: [1, 2, 3, 4, 5] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3, 4, 5] })
 		})
 
 		it('should handle reverse sorted array', () => {
 			const result = v.array(v.any())
 				.toSorted()
 				.execute([5, 4, 3, 2, 1])
-			expect(result).toEqual({ value: [1, 2, 3, 4, 5] })
+			expect(result)
+				.toEqual({ value: [1, 2, 3, 4, 5] })
 		})
 	})
 
@@ -77,14 +83,17 @@ describe('toSorted plugin', () => {
 			const result = v.array(v.any())
 				.toSorted((a: number, b: number) => b - a)
 				.execute([3, 1, 4, 1, 5])
-			expect(result).toEqual({ value: [5, 4, 3, 1, 1] })
+			expect(result)
+				.toEqual({ value: [5, 4, 3, 1, 1] })
 		})
 
 		it('should sort strings case-insensitively with custom comparator', () => {
 			const result = v.array(v.any())
-				.toSorted((a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()))
+				.toSorted((a: string, b: string) => a.toLowerCase()
+					.localeCompare(b.toLowerCase()))
 				.execute(['Banana', 'apple', 'Cherry'])
-			expect(result).toEqual({ value: ['apple', 'Banana', 'Cherry'] })
+			expect(result)
+				.toEqual({ value: ['apple', 'Banana', 'Cherry'] })
 		})
 	})
 })

@@ -30,35 +30,40 @@ describe('toUppercase plugin', () => {
 			const result = v.string()
 				.toUppercase()
 				.execute('hello')
-			expect(result).toEqual({ value: 'HELLO' })
+			expect(result)
+				.toEqual({ value: 'HELLO' })
 		})
 
 		it('should convert mixed case to uppercase', () => {
 			const result = v.string()
 				.toUppercase()
 				.execute('HeLLo WoRlD')
-			expect(result).toEqual({ value: 'HELLO WORLD' })
+			expect(result)
+				.toEqual({ value: 'HELLO WORLD' })
 		})
 
 		it('should leave uppercase unchanged', () => {
 			const result = v.string()
 				.toUppercase()
 				.execute('HELLO')
-			expect(result).toEqual({ value: 'HELLO' })
+			expect(result)
+				.toEqual({ value: 'HELLO' })
 		})
 
 		it('should handle strings with numbers and symbols', () => {
 			const result = v.string()
 				.toUppercase()
 				.execute('Hello123!@#')
-			expect(result).toEqual({ value: 'HELLO123!@#' })
+			expect(result)
+				.toEqual({ value: 'HELLO123!@#' })
 		})
 
 		it('should handle unicode characters', () => {
 			const result = v.string()
 				.toUppercase()
 				.execute('hello 你好')
-			expect(result).toEqual({ value: 'HELLO 你好' })
+			expect(result)
+				.toEqual({ value: 'HELLO 你好' })
 		})
 	})
 
@@ -67,7 +72,8 @@ describe('toUppercase plugin', () => {
 			const result = v.string()
 				.toUppercase()
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 })

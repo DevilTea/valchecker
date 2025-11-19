@@ -47,11 +47,11 @@ interface PluginDef extends TStepPluginDef {
 		this['This'] extends Meta['ExpectedThis']
 			? InferOutput<this['This']> extends infer CurrentOutput extends{ length: number }
 				? (message?: MessageHandler<Internal.Issue<CurrentOutput>>) => Next<
-					{
-						issue: Internal.Issue<CurrentOutput>
-					},
-					this['This']
-				>
+						{
+							issue: Internal.Issue<CurrentOutput>
+						},
+						this['This']
+					>
 				: never
 			: never
 	>

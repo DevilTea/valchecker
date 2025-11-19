@@ -27,14 +27,16 @@ describe('empty step plugin', () => {
 			const result = v.string()
 				.empty()
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 
 		it('should pass for empty array', () => {
 			const result = v.array(v.string())
 				.empty()
 				.execute([])
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 	})
 
@@ -43,26 +45,28 @@ describe('empty step plugin', () => {
 			const result = v.string()
 				.empty()
 				.execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'empty:expected_empty',
-					payload: { value: 'hello' },
-					message: 'Expected an empty value.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'empty:expected_empty',
+						payload: { value: 'hello' },
+						message: 'Expected an empty value.',
+					}],
+				})
 		})
 
 		it('should fail for non-empty array', () => {
 			const result = v.array(v.string())
 				.empty()
 				.execute(['a'])
-			expect(result).toEqual({
-				issues: [{
-					code: 'empty:expected_empty',
-					payload: { value: ['a'] },
-					message: 'Expected an empty value.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'empty:expected_empty',
+						payload: { value: ['a'] },
+						message: 'Expected an empty value.',
+					}],
+				})
 		})
 	})
 
@@ -71,26 +75,28 @@ describe('empty step plugin', () => {
 			const result = v.string()
 				.empty()
 				.execute(' ')
-			expect(result).toEqual({
-				issues: [{
-					code: 'empty:expected_empty',
-					payload: { value: ' ' },
-					message: 'Expected an empty value.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'empty:expected_empty',
+						payload: { value: ' ' },
+						message: 'Expected an empty value.',
+					}],
+				})
 		})
 
 		it('should fail for array with elements', () => {
 			const result = v.array(v.string())
 				.empty()
 				.execute([''])
-			expect(result).toEqual({
-				issues: [{
-					code: 'empty:expected_empty',
-					payload: { value: [''] },
-					message: 'Expected an empty value.',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'empty:expected_empty',
+						payload: { value: [''] },
+						message: 'Expected an empty value.',
+					}],
+				})
 		})
 	})
 
@@ -99,13 +105,14 @@ describe('empty step plugin', () => {
 			const result = v.string()
 				.empty(issue => `Custom message for ${issue.payload.value}`)
 				.execute('not empty')
-			expect(result).toEqual({
-				issues: [{
-					code: 'empty:expected_empty',
-					payload: { value: 'not empty' },
-					message: 'Custom message for not empty',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'empty:expected_empty',
+						payload: { value: 'not empty' },
+						message: 'Custom message for not empty',
+					}],
+				})
 		})
 	})
 
@@ -114,14 +121,16 @@ describe('empty step plugin', () => {
 			const result = v.string()
 				.empty()
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 
 		it('should chain with array step', () => {
 			const result = v.array(v.string())
 				.empty()
 				.execute([])
-			expect(result).toEqual({ value: [] })
+			expect(result)
+				.toEqual({ value: [] })
 		})
 	})
 })

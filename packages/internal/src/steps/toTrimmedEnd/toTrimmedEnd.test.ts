@@ -30,49 +30,56 @@ describe('toTrimmedEnd plugin', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('hello   ')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove trailing tabs', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('hello\t\t')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove trailing newlines', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('hello\n\n')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should remove mixed trailing whitespace', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('hello \t\n ')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 
 		it('should leave leading whitespace', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('  hello')
-			expect(result).toEqual({ value: '  hello' })
+			expect(result)
+				.toEqual({ value: '  hello' })
 		})
 
 		it('should handle strings with both leading and trailing whitespace', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('  hello  ')
-			expect(result).toEqual({ value: '  hello' })
+			expect(result)
+				.toEqual({ value: '  hello' })
 		})
 
 		it('should leave strings with no trailing whitespace unchanged', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('hello')
-			expect(result).toEqual({ value: 'hello' })
+			expect(result)
+				.toEqual({ value: 'hello' })
 		})
 	})
 
@@ -81,14 +88,16 @@ describe('toTrimmedEnd plugin', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 
 		it('should handle string with only whitespace', () => {
 			const result = v.string()
 				.toTrimmedEnd()
 				.execute('   \t\n  ')
-			expect(result).toEqual({ value: '' })
+			expect(result)
+				.toEqual({ value: '' })
 		})
 	})
 })

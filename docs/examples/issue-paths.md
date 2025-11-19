@@ -158,15 +158,16 @@ Include paths in HTTP error responses:
 const result = await requestSchema.execute(req.body)
 
 if (v.isFailure(result)) {
-	return res.status(422).json({
-		error: 'Validation failed',
-		details: result.issues.map(issue => ({
-			path: issue.path,
-			field: issue.path.join('.'),
-			message: issue.message,
-			code: issue.code,
-		})),
-	})
+	return res.status(422)
+		.json({
+			error: 'Validation failed',
+			details: result.issues.map(issue => ({
+				path: issue.path,
+				field: issue.path.join('.'),
+				message: issue.message,
+				code: issue.code,
+			})),
+		})
 }
 
 // Response:
@@ -218,7 +219,8 @@ import type { DefineStepMethod, TStepPluginDef } from '@valchecker/internal'
 import { implStepPlugin } from '@valchecker/internal'
 
 interface PluginDef extends TStepPluginDef {
-	dynamicObject: DefineStepMethod</* ... */>
+	// dynamicObject: DefineStepMethod</* ... */>
+	dynamicObject: DefineStepMethod<any>
 }
 
 export const dynamicObject = implStepPlugin<PluginDef>({

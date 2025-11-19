@@ -101,7 +101,7 @@ interface PluginDef extends TStepPluginDef {
 				?	[InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
 						?	<Output extends CurrentOutput>(
 								run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue>) => value is Output,
-								message?: MessageHandler<Internal.Issue<CurrentOutput>>
+								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 							) => Next<
 								{
 									async: IsPromise<Output> extends false ? false : true
@@ -119,7 +119,7 @@ interface PluginDef extends TStepPluginDef {
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
 						? <Result extends Internal.RunCheckResult>(
 								run: Internal.RunCheck<CurrentOutput, CurrentIssue, Result>,
-								message?: MessageHandler<Internal.Issue<CurrentOutput>>
+								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 							) => Next<
 								{
 									async: IsPromise<Result> extends false ? false : true

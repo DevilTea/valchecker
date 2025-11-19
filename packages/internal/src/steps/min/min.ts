@@ -68,27 +68,27 @@ interface PluginDef extends TStepPluginDef {
 			Meta<number>,
 			this['This'] extends Meta<number>['ExpectedThis']
 				? (min: number, message?: MessageHandler<Internal.NumberIssue>) => Next<
-					{ issue: Internal.NumberIssue },
-					this['This']
-				>
+						{ issue: Internal.NumberIssue },
+						this['This']
+					>
 				: never
 		>
 		| DefineStepMethod<
 			Meta<bigint>,
 			this['This'] extends Meta<bigint>['ExpectedThis']
 				? (min: bigint, message?: MessageHandler<Internal.BigIntIssue>) => Next<
-					{ issue: Internal.BigIntIssue },
-					this['This']
-				>
+						{ issue: Internal.BigIntIssue },
+						this['This']
+					>
 				: never
 		>
 		| DefineStepMethod<
 			Meta<{ length: number }>,
 			this['This'] extends Meta<{ length: number }>['ExpectedThis']
 				? (min: number, message?: MessageHandler<Internal.LengthIssue>) => Next<
-					{ issue: Internal.LengthIssue },
-					this['This']
-				>
+						{ issue: Internal.LengthIssue },
+						this['This']
+					>
 				: never
 		>
 }

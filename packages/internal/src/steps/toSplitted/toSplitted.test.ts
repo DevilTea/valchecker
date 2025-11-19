@@ -34,56 +34,64 @@ describe('toSplitted plugin', () => {
 			const result = v.string()
 				.toSplitted(',')
 				.execute('a,b,c')
-			expect(result).toEqual({ value: ['a', 'b', 'c'] })
+			expect(result)
+				.toEqual({ value: ['a', 'b', 'c'] })
 		})
 
 		it('should split string by space', () => {
 			const result = v.string()
 				.toSplitted(' ')
 				.execute('hello world')
-			expect(result).toEqual({ value: ['hello', 'world'] })
+			expect(result)
+				.toEqual({ value: ['hello', 'world'] })
 		})
 
 		it('should handle string without separator', () => {
 			const result = v.string()
 				.toSplitted(',')
 				.execute('hello')
-			expect(result).toEqual({ value: ['hello'] })
+			expect(result)
+				.toEqual({ value: ['hello'] })
 		})
 
 		it('should handle multiple consecutive separators', () => {
 			const result = v.string()
 				.toSplitted(',')
 				.execute('a,,b')
-			expect(result).toEqual({ value: ['a', '', 'b'] })
+			expect(result)
+				.toEqual({ value: ['a', '', 'b'] })
 		})
 
 		it('should handle separator at start', () => {
 			const result = v.string()
 				.toSplitted(',')
 				.execute(',a,b')
-			expect(result).toEqual({ value: ['', 'a', 'b'] })
+			expect(result)
+				.toEqual({ value: ['', 'a', 'b'] })
 		})
 
 		it('should handle separator at end', () => {
 			const result = v.string()
 				.toSplitted(',')
 				.execute('a,b,')
-			expect(result).toEqual({ value: ['a', 'b', ''] })
+			expect(result)
+				.toEqual({ value: ['a', 'b', ''] })
 		})
 
 		it('should handle limit parameter', () => {
 			const result = v.string()
 				.toSplitted(',', 2)
 				.execute('a,b,c,d')
-			expect(result).toEqual({ value: ['a', 'b'] })
+			expect(result)
+				.toEqual({ value: ['a', 'b'] })
 		})
 
 		it('should handle regex separator', () => {
 			const result = v.string()
 				.toSplitted(/\s+/)
 				.execute('hello   world')
-			expect(result).toEqual({ value: ['hello', 'world'] })
+			expect(result)
+				.toEqual({ value: ['hello', 'world'] })
 		})
 	})
 
@@ -92,7 +100,8 @@ describe('toSplitted plugin', () => {
 			const result = v.string()
 				.toSplitted(',')
 				.execute('')
-			expect(result).toEqual({ value: [''] })
+			expect(result)
+				.toEqual({ value: [''] })
 		})
 	})
 })

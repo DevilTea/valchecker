@@ -17,112 +17,132 @@ const v = createValchecker({ steps: [null_, check] })
 describe('null plugin', () => {
 	describe('valid inputs', () => {
 		it('should pass for null', () => {
-			const result = v.null().execute(null)
-			expect(result).toEqual({ value: null })
+			const result = v.null()
+				.execute(null)
+			expect(result)
+				.toEqual({ value: null })
 		})
 	})
 
 	describe('invalid inputs', () => {
 		it('should fail for number', () => {
-			const result = v.null().execute(42)
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: 42 },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute(42)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: 42 },
+						message: 'Expected null.',
+					}],
+				})
 		})
 
 		it('should fail for string', () => {
-			const result = v.null().execute('hello')
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: 'hello' },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute('hello')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: 'hello' },
+						message: 'Expected null.',
+					}],
+				})
 		})
 
 		it('should fail for boolean', () => {
-			const result = v.null().execute(true)
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: true },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute(true)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: true },
+						message: 'Expected null.',
+					}],
+				})
 		})
 
 		it('should fail for undefined', () => {
-			const result = v.null().execute(undefined)
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: undefined },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute(undefined)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: undefined },
+						message: 'Expected null.',
+					}],
+				})
 		})
 
 		it('should fail for object', () => {
-			const result = v.null().execute({})
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: {} },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute({})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: {} },
+						message: 'Expected null.',
+					}],
+				})
 		})
 
 		it('should fail for array', () => {
-			const result = v.null().execute([])
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: [] },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute([])
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: [] },
+						message: 'Expected null.',
+					}],
+				})
 		})
 
 		it('should fail for bigint', () => {
-			const result = v.null().execute(123n)
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: 123n },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute(123n)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: 123n },
+						message: 'Expected null.',
+					}],
+				})
 		})
 
 		it('should fail for symbol', () => {
 			const sym = Symbol('test')
-			const result = v.null().execute(sym)
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: sym },
-					message: 'Expected null.',
-				}],
-			})
+			const result = v.null()
+				.execute(sym)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: sym },
+						message: 'Expected null.',
+					}],
+				})
 		})
 	})
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.null('Custom error message').execute(42)
-			expect(result).toEqual({
-				issues: [{
-					code: 'null:expected_null',
-					payload: { value: 42 },
-					message: 'Custom error message',
-				}],
-			})
+			const result = v.null('Custom error message')
+				.execute(42)
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'null:expected_null',
+						payload: { value: 42 },
+						message: 'Custom error message',
+					}],
+				})
 		})
 	})
 
@@ -131,20 +151,22 @@ describe('null plugin', () => {
 			const result = v.null()
 				.check(n => n === null)
 				.execute(null)
-			expect(result).toEqual({ value: null })
+			expect(result)
+				.toEqual({ value: null })
 		})
 
 		it('should fail chaining with check', () => {
 			const result = v.null()
 				.check(n => n !== null)
 				.execute(null)
-			expect(result).toEqual({
-				issues: [{
-					code: 'check:failed',
-					payload: { value: null },
-					message: 'Check failed',
-				}],
-			})
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						payload: { value: null },
+						message: 'Check failed',
+					}],
+				})
 		})
 	})
 })

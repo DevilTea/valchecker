@@ -107,7 +107,8 @@ export const array = implStepPlugin<PluginDef>({
 					for (let j = i + 1; j < len; j++) {
 						const jValue = value[j]!
 						const jIndex = j
-						chain = chain.then(() => Promise.resolve(execute(jValue)).then(r => processItemResult(r, jIndex)))
+						chain = chain.then(() => Promise.resolve(execute(jValue))
+							.then(r => processItemResult(r, jIndex)))
 					}
 					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
 				}

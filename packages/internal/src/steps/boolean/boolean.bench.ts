@@ -13,17 +13,20 @@ const v = createValchecker({ steps: [boolean] })
 describe('boolean benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.boolean().execute(true)
+			v.boolean()
+				.execute(true)
 		})
 
 		bench('valid input - large', () => {
-			v.boolean().execute(false)
+			v.boolean()
+				.execute(false)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.boolean().execute('true')
+			v.boolean()
+				.execute('true')
 		})
 	})
 

@@ -97,11 +97,11 @@ type PatchExecutionContext<Current extends TExecutionContext, Patch extends TExe
 type IsStepMethodDef<M> = [IsEqual<M, any>, IsEqual<M, unknown>, IsEqual<M, never>] extends [false, false, false]
 	// If one of the checks is true, then true
 	?	IsEqual<
-			M extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
-				?	IsEqual<M['Method'], never> extends true ? false : true
-				:	false,
-			false
-		> extends true
+		M extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
+			?	IsEqual<M['Method'], never> extends true ? false : true
+			:	false,
+		false
+	> extends true
 		?	false
 		:	true
 	:	false
@@ -159,9 +159,9 @@ export interface Valchecker<
 	CurrentExecutionContext extends TExecutionContext = TExecutionContext,
 	RegisteredStepPlugins extends TStepPluginDef = TStepPluginDef,
 > extends StandardSchemaV1<
-	CurrentExecutionContext['input'],
-	CurrentExecutionContext['output']
-> {
+		CurrentExecutionContext['input'],
+		CurrentExecutionContext['output']
+	> {
 	readonly '~standard': {
 		version: 1
 		vendor: 'valchecker'
@@ -201,7 +201,7 @@ export interface StepMethodUtils<
 			path?: PropertyKey[]
 		},
 		customMessage?: MessageHandler<any> | undefined | null,
-		defaultMessage?: MessageHandler<any> | undefined | null
+		defaultMessage?: MessageHandler<any> | undefined | null,
 	) => string
 
 	success: (value: Output) => ExecutionSuccessResult<Output>
@@ -233,7 +233,7 @@ export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToInter
 								InferIssue<MethodTuple[1]>
 							>
 							params: MethodTuple[0]
-						}
+						},
 					) => void
 				: never
 			: never
@@ -276,12 +276,12 @@ export type InitialValchecker<RegisteredStepPluginDefs extends TStepPluginDef> =
 }, RegisteredStepPluginDefs>>
 
 export type MessageHandler<Issue extends ExecutionIssue = ExecutionIssue>
-=	| string
-	| ((payload: Issue extends any
-		? {
-				path: NonNullable<Issue['path']>
-				code: Issue['code']
-				payload: Issue['payload']
-			}
-		: never
-	) => string | undefined | null)
+	=	| string
+		| ((payload: Issue extends any
+			? {
+					path: NonNullable<Issue['path']>
+					code: Issue['code']
+					payload: Issue['payload']
+				}
+			: never,
+		) => string | undefined | null)

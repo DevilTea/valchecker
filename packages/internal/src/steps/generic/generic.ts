@@ -49,7 +49,7 @@ interface PluginDef extends TStepPluginDef {
 		this['This'] extends Meta['ExpectedThis']
 			// Required to specify type parameter T.
 			? <T extends { async?: boolean, output?: unknown, issue?: ExecutionIssue } = never>(
-					step: NoInfer<Use<Valchecker>> | (() => NoInfer<Use<Valchecker>>)
+					step: NoInfer<Use<Valchecker>> | (() => NoInfer<Use<Valchecker>>),
 				) => Next<T, this['This']>
 			: never
 	>

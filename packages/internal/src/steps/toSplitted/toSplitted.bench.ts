@@ -21,7 +21,8 @@ describe('toSplitted benchmarks', () => {
 		bench('valid input - large', () => {
 			v.string()
 				.toSplitted(',')
-				.execute('x'.repeat(1000).split('')
+				.execute('x'.repeat(1000)
+					.split('')
 					.join(','))
 		})
 	})

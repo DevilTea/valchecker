@@ -33,14 +33,16 @@ describe('toLength plugin', () => {
 			const result = v.array(v.any())
 				.toLength()
 				.execute([])
-			expect(result).toEqual({ value: 0 })
+			expect(result)
+				.toEqual({ value: 0 })
 		})
 
 		it('should return length of non-empty array', () => {
 			const result = v.array(v.any())
 				.toLength()
 				.execute([1, 2, 3])
-			expect(result).toEqual({ value: 3 })
+			expect(result)
+				.toEqual({ value: 3 })
 		})
 	})
 
@@ -49,31 +51,36 @@ describe('toLength plugin', () => {
 			const result = v.string()
 				.toLength()
 				.execute('')
-			expect(result).toEqual({ value: 0 })
+			expect(result)
+				.toEqual({ value: 0 })
 		})
 
 		it('should return length of non-empty string', () => {
 			const result = v.string()
 				.toLength()
 				.execute('hello')
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 
 		it('should handle unicode characters', () => {
 			const result = v.string()
 				.toLength()
 				.execute('hello')
-			expect(result).toEqual({ value: 5 })
+			expect(result)
+				.toEqual({ value: 5 })
 		})
 	})
 
 	describe('edge cases', () => {
 		it('should handle large arrays', () => {
-			const largeArray = Array.from({ length: 1000 }).fill(0)
+			const largeArray = Array.from({ length: 1000 })
+				.fill(0)
 			const result = v.array(v.any())
 				.toLength()
 				.execute(largeArray)
-			expect(result).toEqual({ value: 1000 })
+			expect(result)
+				.toEqual({ value: 1000 })
 		})
 	})
 })

@@ -4,7 +4,7 @@ packages:
 
 catalog:
   '@clack/prompts': ^0.11.0
-  '@deviltea/eslint-config': 5.0.0
+  '@deviltea/eslint-config': 6.0.0
   '@deviltea/tsconfig': 0.0.8
   '@shikijs/vitepress-twoslash': ^3.9.2
   '@standard-schema/spec': ^1.0.0

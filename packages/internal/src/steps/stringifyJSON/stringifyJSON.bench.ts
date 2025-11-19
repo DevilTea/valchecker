@@ -13,17 +13,20 @@ const v = createValchecker({ steps: [stringifyJSON] })
 describe('stringifyJSON benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.stringifyJSON().execute(undefined)
+			v.stringifyJSON()
+				.execute(undefined)
 		})
 
 		bench('valid input - large', () => {
-			v.stringifyJSON().execute(undefined)
+			v.stringifyJSON()
+				.execute(undefined)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.stringifyJSON().execute(undefined)
+			v.stringifyJSON()
+				.execute(undefined)
 		})
 	})
 })
