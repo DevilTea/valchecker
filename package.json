@@ -37,6 +37,7 @@
 	},
 	"devDependencies": {
 		"@clack/prompts": "catalog:",
+		"@codspeed/vitest-plugin": "^5.0.1",
 		"@deviltea/eslint-config": "catalog:",
 		"@deviltea/tsconfig": "catalog:",
 		"@types/node": "catalog:",
