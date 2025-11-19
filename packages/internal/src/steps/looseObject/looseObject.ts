@@ -100,14 +100,14 @@ export const looseObject = implStepPlugin<PluginDef>({
 		// Pre-compute metadata for each property to avoid repeated lookups
 		const keys = Object.keys(struct)
 		const keysLen = keys.length
-		const propsMeta: Array<{ key: string, isOptional: boolean, schema: Use<Valchecker> }> = []
+		const propsMeta: Array<{ key: string, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
 
 		for (let i = 0; i < keysLen; i++) {
 			const key = keys[i]!
 			const prop = struct[key]!
 			const isOptional = Array.isArray(prop)
 			const schema = isOptional ? prop[0]! : prop
-			propsMeta.push({ key, isOptional, schema })
+			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
 		}
 
 		addSuccessStep((value) => {
@@ -140,12 +140,12 @@ export const looseObject = implStepPlugin<PluginDef>({
 					// Already in async mode, skip
 					continue
 				}
-				const { key, isOptional, schema } = propsMeta[i]!
+				const { key, isOptional, execute } = propsMeta[i]!
 				const propValue = (value as any)[key]
 
 				const propResult = (isOptional && propValue === void 0)
 					? success(propValue)
-					: schema['~execute'](propValue)
+					: execute(propValue)
 
 				if (propResult instanceof Promise) {
 					isAsync = true
@@ -169,7 +169,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 							return Promise.resolve(
 								(nextMeta.isOptional && nextPropValue === void 0)
 									? success(nextPropValue)
-									: nextMeta.schema['~execute'](nextPropValue),
+									: nextMeta.execute(nextPropValue),
 							)
 								.then((r) => {
 									if (isFailure(r)) {
