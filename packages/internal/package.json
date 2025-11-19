@@ -45,6 +45,6 @@
 	},
 	"dependencies": {
 		"@standard-schema/spec": "catalog:",
-		"type-fest": "^5.0.1"
+		"type-fest": "catalog:"
 	}
 }

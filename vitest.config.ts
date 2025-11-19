@@ -1,8 +1,6 @@
-import Codspeed from '@codspeed/vitest-plugin'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-	plugins: [Codspeed()],
 	test: {
 		projects: ['packages/*'],
 		coverage: {

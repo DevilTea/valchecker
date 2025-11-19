@@ -3,7 +3,7 @@
 	"type": "module",
 	"version": "0.0.30",
 	"private": true,
-	"packageManager": "pnpm@10.14.0",
+	"packageManager": "pnpm@10.22.0",
 	"description": "A JS / TS value checker.",
 	"author": "DevilTea <ch870814@gmail.com>",
 	"license": "MIT",
@@ -16,7 +16,7 @@
 	"keywords": [],
 	"sideEffects": false,
 	"engines": {
-		"node": ">=22"
+		"node": ">=24"
 	},
 	"scripts": {
 		"build": "pnpm -r --filter=./packages/* build",
@@ -37,7 +37,6 @@
 	},
 	"devDependencies": {
 		"@clack/prompts": "catalog:",
-		"@codspeed/vitest-plugin": "^5.0.1",
 		"@deviltea/eslint-config": "catalog:",
 		"@deviltea/tsconfig": "catalog:",
 		"@types/node": "catalog:",
