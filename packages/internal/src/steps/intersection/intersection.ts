@@ -73,10 +73,13 @@ export const intersection = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, failure, isFailure },
 		params: [branches],
 	}) => {
+		// Pre-compute execute functions to avoid proxy access in loop
+		const branchExecutors = branches.map(b => b['~execute'])
+		const len = branches.length
+
 		addSuccessStep((value) => {
 			// Optimized: Direct processing without Pipe overhead
 			const issues: ExecutionIssue[] = []
-			const len = branches.length
 			let isInvalid = false
 
 			const processBranchResult = (result: ExecutionResult) => {
@@ -99,7 +102,7 @@ export const intersection = implStepPlugin<PluginDef>({
 					continue
 				}
 
-				const branchResult = branches[i]!['~execute'](value)
+				const branchResult = branchExecutors[i]!(value)
 
 				if (branchResult instanceof Promise) {
 					isAsync = true
@@ -110,11 +113,11 @@ export const intersection = implStepPlugin<PluginDef>({
 					})
 
 					for (let j = i + 1; j < len; j++) {
-						const jBranch = branches[j]!
+						const jExecutor = branchExecutors[j]!
 						chain = chain.then((invalid) => {
 							if (invalid)
 								return true
-							return Promise.resolve(jBranch['~execute'](value))
+							return Promise.resolve(jExecutor(value))
 								.then((r) => {
 									processBranchResult(r)
 									return isInvalid
