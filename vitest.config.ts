@@ -14,6 +14,7 @@ export default defineConfig({
 				'**/scripts/**',
 				'**/dist/**',
 				'**/coverage/**',
+				'**/*.bench.*',
 			],
 		},
 		typecheck: {
