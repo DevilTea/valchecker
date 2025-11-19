@@ -272,9 +272,10 @@ export function createValchecker<
 		}>
 	>
 }) {
-	const stepMethods = steps.reduce((acc, def) => {
-		return ({ ...acc, ...def })
-	}, {} as Record<PropertyKey, unknown>)
+	const stepMethods = {} as Record<PropertyKey, unknown>
+	for (const def of steps) {
+		Object.assign(stepMethods, def)
+	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
 
 	return createInstance(

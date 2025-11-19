@@ -74,7 +74,9 @@ export const array = implStepPlugin<PluginDef>({
 			// Optimized: Direct processing without Pipe overhead
 			const issues: ExecutionIssue[] = []
 			const len = value.length
-			const output = Array.from({ length: len })
+			// eslint-disable-next-line unicorn/no-new-array
+			const output = new Array(len)
+			const execute = item['~execute']
 
 			const processItemResult = (result: ExecutionResult, i: number) => {
 				if (isFailure(result)) {
@@ -96,7 +98,7 @@ export const array = implStepPlugin<PluginDef>({
 					continue
 				}
 				const itemValue = value[i]!
-				const itemResult = item['~execute'](itemValue)
+				const itemResult = execute(itemValue)
 
 				if (itemResult instanceof Promise) {
 					isAsync = true
@@ -105,7 +107,7 @@ export const array = implStepPlugin<PluginDef>({
 					for (let j = i + 1; j < len; j++) {
 						const jValue = value[j]!
 						const jIndex = j
-						chain = chain.then(() => Promise.resolve(item['~execute'](jValue)).then(r => processItemResult(r, jIndex)))
+						chain = chain.then(() => Promise.resolve(execute(jValue)).then(r => processItemResult(r, jIndex)))
 					}
 					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
 				}
