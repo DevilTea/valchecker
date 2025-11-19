@@ -42,9 +42,14 @@ Each `step` is a modular unit that performs a specific validation or transformat
 > For a complete guide on creating a step, refer to:
 > [**How to Define a Step**](./agents_guides/how-to-define-a-step.md)
 
-### 2. Write a Test
+### 2. Write a Test & Benchmark
 
-Every `step` requires a corresponding test file that achieves 100% coverage. The test file must include a comprehensive test plan and cover all valid inputs, invalid inputs, and edge cases.
+Every `step` requires:
+1.  A corresponding test file (`.test.ts`) that achieves 100% coverage.
+2.  A corresponding benchmark file (`.bench.ts`) that measures performance.
+
+The test file must include a comprehensive test plan and cover all valid inputs, invalid inputs, and edge cases.
+The benchmark file must include performance tests for valid inputs (small/large), invalid inputs, and baseline comparisons where applicable.
 
 > For general testing standards, refer to:
 > [**How to Write a Test**](./agents_guides/how-to-write-a-test.md)
@@ -52,13 +57,17 @@ Every `step` requires a corresponding test file that achieves 100% coverage. The
 > For specific patterns on testing a `step`, refer to:
 > [**How to Test a Step**](./agents_guides/how-to-test-a-step.md)
 
+> For creating benchmarks, refer to:
+> [**How to Write a Benchmark**](./agents_guides/how-to-write-a-benchmark.md)
+
 ### 3. Verification
 
-After creating or modifying a `step` and its test, run the full verification sequence. If any step fails, fix the issues and re-run the entire sequence.
+After creating or modifying a `step`, its test, and its benchmark, run the full verification sequence. If any step fails, fix the issues and re-run the entire sequence.
 
 1.  **Lint**: `pnpm -w lint`
 2.  **Type Check**: `pnpm -w typecheck`
 3.  **Test & Coverage**: `pnpm -w test --coverage.include=<path-to-step-file>.ts <path-to-step-file>.test.ts`
+4.  **Benchmark**: `pnpm -w bench` (Verify benchmarks run successfully)
 
 ## Code Review Workflow
 

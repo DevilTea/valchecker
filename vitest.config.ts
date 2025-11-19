@@ -17,5 +17,9 @@ export default defineConfig({
 		typecheck: {
 			enabled: true,
 		},
+		benchmark: {
+			include: ['**/*.bench.ts'],
+			exclude: ['**/node_modules/**', '**/dist/**'],
+		},
 	},
 })

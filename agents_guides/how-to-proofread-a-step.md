@@ -71,3 +71,4 @@ This guide should be used as the standard for code reviews of any new or modifie
 - [ ] **Imports**: Are all imports correct and from the appropriate locations?
     - [ ] Core types from `'../../core'`
     - [ ] Shared utilities from `'../../shared'` (if needed)
+- [ ] **Benchmarks**: Is there a corresponding `.bench.ts` file that benchmarks the step?
