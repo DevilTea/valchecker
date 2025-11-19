@@ -35,3 +35,4 @@ jobs:
         with:
           mode: instrumentation
           run: pnpm -w bench
+          token: ${{ secrets.CODSPEED_TOKEN }}
