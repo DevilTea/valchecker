@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, min } from '../..'
+import { createValchecker, min, number } from '../..'
 
-const v = createValchecker({ steps: [min] })
+const v = createValchecker({ steps: [min, number] })
 
 describe('min benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.min().execute(undefined)
+			v.number()
+				.min(0)
+				.execute(5)
 		})
 
 		bench('valid input - large', () => {
-			v.min().execute(undefined)
+			v.number()
+				.min(0)
+				.execute(1000000)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.min().execute(undefined)
+			v.number()
+				.min(0)
+				.execute(-1)
 		})
 	})
 })

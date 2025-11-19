@@ -6,24 +6,24 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, generic } from '../..'
+import { createValchecker, generic, string } from '../..'
 
-const v = createValchecker({ steps: [generic] })
+const v = createValchecker({ steps: [generic, string] })
 
 describe('generic benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.generic().execute(undefined)
+			v.generic<{ output: string }>(() => v.string()).execute('test')
 		})
 
 		bench('valid input - large', () => {
-			v.generic().execute(undefined)
+			v.generic<{ output: string }>(() => v.string()).execute('a'.repeat(1000))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.generic().execute(undefined)
+			v.generic<{ output: string }>(() => v.string()).execute(123)
 		})
 	})
 })

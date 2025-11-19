@@ -6,24 +6,31 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, toSplitted } from '../..'
+import { createValchecker, string, toSplitted } from '../..'
 
-const v = createValchecker({ steps: [toSplitted] })
+const v = createValchecker({ steps: [string, toSplitted] })
 
 describe('toSplitted benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.toSplitted().execute(undefined)
+			v.string()
+				.toSplitted(',')
+				.execute('a,b,c')
 		})
 
 		bench('valid input - large', () => {
-			v.toSplitted().execute(undefined)
+			v.string()
+				.toSplitted(',')
+				.execute('x'.repeat(1000).split('')
+					.join(','))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.toSplitted().execute(undefined)
+			v.string()
+				.toSplitted(',')
+				.execute(123)
 		})
 	})
 })

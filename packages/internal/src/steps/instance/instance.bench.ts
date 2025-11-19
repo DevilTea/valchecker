@@ -13,17 +13,17 @@ const v = createValchecker({ steps: [instance] })
 describe('instance benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.instance().execute(undefined)
+			v.instance(Object).execute({})
 		})
 
 		bench('valid input - large', () => {
-			v.instance().execute(undefined)
+			v.instance(Object).execute({ large: 'a'.repeat(1000) })
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.instance().execute(undefined)
+			v.instance(Object).execute('string')
 		})
 	})
 })

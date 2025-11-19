@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, endsWith } from '../..'
+import { createValchecker, endsWith, string } from '../..'
 
-const v = createValchecker({ steps: [endsWith] })
+const v = createValchecker({ steps: [endsWith, string] })
 
 describe('endsWith benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.endsWith().execute(undefined)
+			v.string()
+				.endsWith('world')
+				.execute('hello world')
 		})
 
 		bench('valid input - large', () => {
-			v.endsWith().execute(undefined)
+			v.string()
+				.endsWith('end')
+				.execute(`${'a'.repeat(1000)}end`)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.endsWith().execute(undefined)
+			v.string()
+				.endsWith('world')
+				.execute('hello')
 		})
 	})
 })

@@ -6,24 +6,24 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, intersection } from '../..'
+import { createValchecker, intersection, min, string } from '../..'
 
-const v = createValchecker({ steps: [intersection] })
+const v = createValchecker({ steps: [intersection, string, min] })
 
 describe('intersection benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.intersection().execute(undefined)
+			v.intersection([v.string(), v.string().min(5)]).execute('hello')
 		})
 
 		bench('valid input - large', () => {
-			v.intersection().execute(undefined)
+			v.intersection([v.string(), v.string().min(5)]).execute('a'.repeat(1000))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.intersection().execute(undefined)
+			v.intersection([v.string(), v.string().min(5)]).execute('hi')
 		})
 	})
 })

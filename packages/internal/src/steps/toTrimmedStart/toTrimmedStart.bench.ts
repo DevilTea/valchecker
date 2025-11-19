@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, toTrimmedStart } from '../..'
+import { createValchecker, string, toTrimmedStart } from '../..'
 
-const v = createValchecker({ steps: [toTrimmedStart] })
+const v = createValchecker({ steps: [string, toTrimmedStart] })
 
 describe('toTrimmedStart benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.toTrimmedStart().execute(undefined)
+			v.string()
+				.toTrimmedStart()
+				.execute('  hello')
 		})
 
 		bench('valid input - large', () => {
-			v.toTrimmedStart().execute(undefined)
+			v.string()
+				.toTrimmedStart()
+				.execute(`  ${'x'.repeat(1000)}`)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.toTrimmedStart().execute(undefined)
+			v.string()
+				.toTrimmedStart()
+				.execute(123)
 		})
 	})
 })

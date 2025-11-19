@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, max } from '../..'
+import { createValchecker, max, number } from '../..'
 
-const v = createValchecker({ steps: [max] })
+const v = createValchecker({ steps: [max, number] })
 
 describe('max benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.max().execute(undefined)
+			v.number()
+				.max(10)
+				.execute(5)
 		})
 
 		bench('valid input - large', () => {
-			v.max().execute(undefined)
+			v.number()
+				.max(1000000)
+				.execute(1000000)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.max().execute(undefined)
+			v.number()
+				.max(10)
+				.execute(15)
 		})
 	})
 })

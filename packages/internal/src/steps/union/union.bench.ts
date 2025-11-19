@@ -6,24 +6,24 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, union } from '../..'
+import { createValchecker, number, string, union } from '../..'
 
-const v = createValchecker({ steps: [union] })
+const v = createValchecker({ steps: [number, string, union] })
 
 describe('union benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.union().execute(undefined)
+			v.union([v.string(), v.number()]).execute('hello')
 		})
 
 		bench('valid input - large', () => {
-			v.union().execute(undefined)
+			v.union([v.string(), v.number()]).execute(123456789)
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.union().execute(undefined)
+			v.union([v.string(), v.number()]).execute(true)
 		})
 	})
 })

@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, empty } from '../..'
+import { createValchecker, empty, string } from '../..'
 
-const v = createValchecker({ steps: [empty] })
+const v = createValchecker({ steps: [empty, string] })
 
 describe('empty benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.empty().execute(undefined)
+			v.string()
+				.empty()
+				.execute('')
 		})
 
 		bench('valid input - large', () => {
-			v.empty().execute(undefined)
+			v.string()
+				.empty()
+				.execute('')
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.empty().execute(undefined)
+			v.string()
+				.empty()
+				.execute('not empty')
 		})
 	})
 })

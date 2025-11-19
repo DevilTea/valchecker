@@ -6,24 +6,24 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, use } from '../..'
+import { createValchecker, string, use } from '../..'
 
-const v = createValchecker({ steps: [use] })
+const v = createValchecker({ steps: [string, use] })
 
 describe('use benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.use().execute(undefined)
+			v.use(v.string()).execute('hello')
 		})
 
 		bench('valid input - large', () => {
-			v.use().execute(undefined)
+			v.use(v.string()).execute('x'.repeat(1000))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.use().execute(undefined)
+			v.use(v.string()).execute(123)
 		})
 	})
 })

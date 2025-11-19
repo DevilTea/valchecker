@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, toSliced } from '../..'
+import { any, array, createValchecker, toSliced } from '../..'
 
-const v = createValchecker({ steps: [toSliced] })
+const v = createValchecker({ steps: [toSliced, array, any] })
 
 describe('toSliced benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.toSliced().execute(undefined)
+			v.array(v.any())
+				.toSliced(0, 2)
+				.execute([1, 2, 3, 4])
 		})
 
 		bench('valid input - large', () => {
-			v.toSliced().execute(undefined)
+			v.array(v.any())
+				.toSliced(0, 100)
+				.execute(Array.from({ length: 1000 }, (_, i) => i))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.toSliced().execute(undefined)
+			v.array(v.any())
+				.toSliced(0, 2)
+				.execute('string')
 		})
 	})
 })

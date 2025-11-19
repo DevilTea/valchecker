@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, toSorted } from '../..'
+import { any, array, createValchecker, toSorted } from '../..'
 
-const v = createValchecker({ steps: [toSorted] })
+const v = createValchecker({ steps: [toSorted, array, any] })
 
 describe('toSorted benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.toSorted().execute(undefined)
+			v.array(v.any())
+				.toSorted()
+				.execute([3, 1, 2])
 		})
 
 		bench('valid input - large', () => {
-			v.toSorted().execute(undefined)
+			v.array(v.any())
+				.toSorted()
+				.execute(Array.from({ length: 1000 }, (_, i) => 1000 - i))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.toSorted().execute(undefined)
+			v.array(v.any())
+				.toSorted()
+				.execute('string')
 		})
 	})
 })

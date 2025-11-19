@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, toLowercase } from '../..'
+import { createValchecker, string, toLowercase } from '../..'
 
-const v = createValchecker({ steps: [toLowercase] })
+const v = createValchecker({ steps: [toLowercase, string] })
 
 describe('toLowercase benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.toLowercase().execute(undefined)
+			v.string()
+				.toLowercase()
+				.execute('HELLO')
 		})
 
 		bench('valid input - large', () => {
-			v.toLowercase().execute(undefined)
+			v.string()
+				.toLowercase()
+				.execute('A'.repeat(1000))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.toLowercase().execute(undefined)
+			v.string()
+				.toLowercase()
+				.execute(123)
 		})
 	})
 })

@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, fallback } from '../..'
+import { createValchecker, fallback, string } from '../..'
 
-const v = createValchecker({ steps: [fallback] })
+const v = createValchecker({ steps: [fallback, string] })
 
 describe('fallback benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.fallback().execute(undefined)
+			v.string()
+				.fallback(() => 'default')
+				.execute('valid')
 		})
 
 		bench('valid input - large', () => {
-			v.fallback().execute(undefined)
+			v.string()
+				.fallback(() => 'default')
+				.execute('a'.repeat(1000))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.fallback().execute(undefined)
+			v.string()
+				.fallback(() => 'default')
+				.execute(123)
 		})
 	})
 })

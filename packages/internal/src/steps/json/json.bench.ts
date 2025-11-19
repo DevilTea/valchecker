@@ -6,24 +6,30 @@
  */
 
 import { bench, describe } from 'vitest'
-import { createValchecker, json } from '../..'
+import { createValchecker, json, string } from '../..'
 
-const v = createValchecker({ steps: [json] })
+const v = createValchecker({ steps: [json, string] })
 
 describe('json benchmarks', () => {
 	describe('valid inputs', () => {
 		bench('valid input - small', () => {
-			v.json().execute(undefined)
+			v.string()
+				.json()
+				.execute('{}')
 		})
 
 		bench('valid input - large', () => {
-			v.json().execute(undefined)
+			v.string()
+				.json()
+				.execute(JSON.stringify({ large: 'a'.repeat(1000) }))
 		})
 	})
 
 	describe('invalid inputs', () => {
 		bench('invalid input', () => {
-			v.json().execute(undefined)
+			v.string()
+				.json()
+				.execute('invalid json')
 		})
 	})
 })
