@@ -7,6 +7,7 @@ export default deviltea(
 			// eslint ignore globs here
 			'./agents_guides/*.md',
 			'./**/README.md',
+			'./docs/proposals/*.md',
 		],
 		typescript: {
 			overrides: {
