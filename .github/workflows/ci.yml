@@ -10,48 +10,30 @@ on:
       - main
 
 jobs:
-  lint:
+  Check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: setup pnpm
+      - name: Setup PNPM
         uses: pnpm/action-setup@v4
 
-      - name: setup node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
-      - name: install dependencies
+      - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: build
+      - name: Build
         run: pnpm build
 
-      - name: lint files
+      - name: Lint
         run: pnpm lint
 
-  typecheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: build
-        run: pnpm build && pnpm docs:build
-
-      - name: typecheck
+      - name: Typecheck
         run: pnpm typecheck
 
   test:
@@ -64,21 +46,22 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: setup pnpm
+      - name: Setup PNPM
         uses: pnpm/action-setup@v4
 
-      - name: setup node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
-      - name: install dependencies
+      - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: build
+      - name: Build
         run: pnpm build
 
-      - name: test
+      - name: Test
         run: pnpm test

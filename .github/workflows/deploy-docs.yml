@@ -28,29 +28,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Not needed if lastUpdated is not enabled
 
-      - name: setup pnpm
+      - name: Setup PNPM
         uses: pnpm/action-setup@v4
 
-      - name: setup Node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
-      - name: setup Pages
+      - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: install dependencies
+      - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: build
+      - name: Build
         run: pnpm build && pnpm docs:build
 
-      - name: upload artifact
+      - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/.vitepress/dist
