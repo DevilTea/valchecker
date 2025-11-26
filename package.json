@@ -49,9 +49,9 @@
 		"publint": "catalog:",
 		"rimraf": "catalog:",
 		"simple-git-hooks": "catalog:",
+		"tsdown": "catalog:",
 		"tsx": "catalog:",
 		"typescript": "catalog:",
-		"unbuild": "catalog:",
 		"vitest": "catalog:",
 		"zx": "catalog:"
 	},
