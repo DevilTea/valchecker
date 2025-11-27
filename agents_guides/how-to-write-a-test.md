@@ -83,4 +83,7 @@ pnpm -w test --coverage.include=packages/valchecker/src/steps/max/max.ts package
 
 If any step fails, fix the issues and re-run the entire verification sequence.
 
+## Summary
+Ensure each test file declares intent (plan), covers all success/failure paths, validates issue structures strictly, and achieves 100% coverage before merge.
+
 ```

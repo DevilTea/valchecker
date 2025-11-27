@@ -160,13 +160,13 @@ The successor to setTimeout(0).
 4. **Trust the Scavenger:** Don't pool small objects. Let V8's minor GC handle short-lived allocations.  
 5. **Monitor Deopts:** Use \--trace-deopt or profilers to ensure hot functions remain in TurboFan/Maglev tiers.
 
-#### **引用的著作**
+### References
 
-1. JavaScript Engines Explained—Comparing V8, SpiderMonkey, JavaScriptCore, and More, 檢索日期：11月 19, 2025， [https://frontenddogma.com/posts/2025/javascript-engines-explained/](https://frontenddogma.com/posts/2025/javascript-engines-explained/)  
-2. An Introduction to Speculative Optimization in V8 \- Benedikt Meurer, 檢索日期：11月 19, 2025， [https://benediktmeurer.de/2017/12/13/an-introduction-to-speculative-optimization-in-v8/](https://benediktmeurer.de/2017/12/13/an-introduction-to-speculative-optimization-in-v8/)  
-3. Maglev \- V8's Fastest Optimizing JIT \- V8 JavaScript engine, 檢索日期：11月 19, 2025， [https://v8.dev/blog/maglev](https://v8.dev/blog/maglev)  
-4. Hidden Classes: The JavaScript performance secret that changed everything, 檢索日期：11月 19, 2025， [https://dev.to/maxprilutskiy/hidden-classes-the-javascript-performance-secret-that-changed-everything-3p6c](https://dev.to/maxprilutskiy/hidden-classes-the-javascript-performance-secret-that-changed-everything-3p6c)  
-5. Node.js Top 1% Engineer: Array optimizations | by Peter K \- Medium, 檢索日期：11月 19, 2025， [https://medium.com/@pkulcsarsz/node-js-top-1-engineer-array-optimizations-c952b496b1c6](https://medium.com/@pkulcsarsz/node-js-top-1-engineer-array-optimizations-c952b496b1c6)  
-6. Packed vs. Holey Arrays in V8: What's the Deal? | by Gursewaksingh | Sep, 2025 | Medium, 檢索日期：11月 19, 2025， [https://medium.com/@gursewaksingh3789/packed-vs-holey-arrays-in-v8-whats-the-deal-fb4073cae4ac](https://medium.com/@gursewaksingh3789/packed-vs-holey-arrays-in-v8-whats-the-deal-fb4073cae4ac)  
-7. ES Array.fromAsync \- TC39, 檢索日期：11月 19, 2025， [https://tc39.es/proposal-array-from-async/](https://tc39.es/proposal-array-from-async/)  
-8. How to bundle a worker in library mode? · vitejs vite · Discussion \#15547 \- GitHub, 檢索日期：11月 19, 2025， [https://github.com/vitejs/vite/discussions/15547](https://github.com/vitejs/vite/discussions/15547)
+1. JavaScript Engines Explained—Comparing V8, SpiderMonkey, JavaScriptCore, and More (accessed 2025-11-19): https://frontenddogma.com/posts/2025/javascript-engines-explained/
+2. An Introduction to Speculative Optimization in V8 – Benedikt Meurer (accessed 2025-11-19): https://benediktmeurer.de/2017/12/13/an-introduction-to-speculative-optimization-in-v8/
+3. Maglev – V8's Fastest Optimizing JIT (accessed 2025-11-19): https://v8.dev/blog/maglev
+4. Hidden Classes: The JavaScript performance secret that changed everything (accessed 2025-11-19): https://dev.to/maxprilutskiy/hidden-classes-the-javascript-performance-secret-that-changed-everything-3p6c
+5. Node.js Top 1% Engineer: Array optimizations – Peter K (accessed 2025-11-19): https://medium.com/@pkulcsarsz/node-js-top-1-engineer-array-optimizations-c952b496b1c6
+6. Packed vs. Holey Arrays in V8: What's the Deal? – Gursewaksingh (accessed 2025-11-19): https://medium.com/@gursewaksingh3789/packed-vs-holey-arrays-in-v8-whats-the-deal-fb4073cae4ac
+7. ES Array.fromAsync – TC39 (accessed 2025-11-19): https://tc39.es/proposal-array-from-async/
+8. How to bundle a worker in library mode? – Vite discussion #15547 (accessed 2025-11-19): https://github.com/vitejs/vite/discussions/15547

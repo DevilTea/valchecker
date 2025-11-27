@@ -316,6 +316,6 @@ After writing comprehensive tests for your step:
 
 ## Related Guides
 
-- [How to Define a Step](./how-to-define-create-step.md) - Step creation guide
+- [How to Define a Step](./how-to-define-a-step.md) - Step creation guide
 - [How to Write a Test](./how-to-write-a-test.md) - General testing principles
 - [How to Proofread a Test for a Step](./how-to-proofread-a-test-for-step.md) - Test review guide
