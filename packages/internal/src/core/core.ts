@@ -107,7 +107,12 @@ export function handleMessage(
 ): string | undefined | null {
 	if (message == null || typeof message === 'string')
 		return message
-	return message(data)
+	if (typeof message === 'function')
+		return message(data)
+	const _message = (message as any)[data.code]
+	if (_message != null)
+		return _message(data)
+	return null
 }
 
 /* @__NO_SIDE_EFFECTS__ */

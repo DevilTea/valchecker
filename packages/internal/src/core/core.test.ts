@@ -343,6 +343,48 @@ describe('core module', () => {
 			expect(result)
 				.toBeUndefined()
 		})
+
+		it('should handle message map object with matching code', () => {
+			const map = {
+				'test:error': (issue: any) => `Mapped: ${issue.code}`,
+			}
+			const result = handleMessage({
+				code: 'test:error',
+				payload: { value: 'x' },
+				path: ['a', 'b'],
+			}, map as any)
+
+			expect(result)
+				.toBe('Mapped: test:error')
+		})
+
+		it('should return null for message map without matching code', () => {
+			const map = {
+				'other:error': (_issue: any) => 'Other',
+			}
+			const result = handleMessage({
+				code: 'test:error',
+				payload: { value: 1 },
+				path: [],
+			}, map as any)
+
+			expect(result)
+				.toBeNull()
+		})
+
+		it('should pass payload and path to message map function', () => {
+			const map = {
+				'test:error': (issue: any) => `${issue.path.join('.')}:${issue.payload.value}`,
+			}
+			const result = handleMessage({
+				code: 'test:error',
+				payload: { value: 42 },
+				path: ['root', 'field'],
+			}, map as any)
+
+			expect(result)
+				.toBe('root.field:42')
+		})
 	})
 
 	describe('resolveMessagePriority', () => {
@@ -486,6 +528,57 @@ describe('core module', () => {
 
 			expect(result)
 				.toBe('Path: user.email')
+		})
+
+		it('should use custom message map when code matches', () => {
+			const custom = {
+				'test:error': (issue: any) => `C:${issue.code}`,
+			}
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: {}, path: [] },
+				customMessage: custom as any,
+				defaultMessage: { 'test:error': () => 'D' } as any,
+				globalMessage: { 'test:error': () => 'G' } as any,
+			})
+
+			expect(result)
+				.toBe('C:test:error')
+		})
+
+		it('should fall back to default message map when custom does not match', () => {
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: {}, path: [] },
+				customMessage: { 'other:error': () => 'C' } as any,
+				defaultMessage: { 'test:error': (issue: any) => `D:${issue.code}` } as any,
+				globalMessage: { 'test:error': () => 'G' } as any,
+			})
+
+			expect(result)
+				.toBe('D:test:error')
+		})
+
+		it('should fall back to global message map when custom and default do not match', () => {
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: {}, path: [] },
+				customMessage: { 'other:error': () => 'C' } as any,
+				defaultMessage: { 'another:error': () => 'D' } as any,
+				globalMessage: { 'test:error': (_issue: any) => 'G:ok' } as any,
+			})
+
+			expect(result)
+				.toBe('G:ok')
+		})
+
+		it('should use fallback when no mapping matches', () => {
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: {}, path: [] },
+				customMessage: { 'other:error': () => 'C' } as any,
+				defaultMessage: { 'another:error': () => 'D' } as any,
+				globalMessage: { 'yet:error': () => 'G' } as any,
+			})
+
+			expect(result)
+				.toBe('Invalid value.')
 		})
 	})
 

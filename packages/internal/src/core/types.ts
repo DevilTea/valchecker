@@ -281,3 +281,12 @@ export type MessageHandler<Issue extends ExecutionIssue = ExecutionIssue>
 				}
 			: never,
 		) => string | undefined | null)
+		| UnionToIntersection<
+			Issue extends any
+				? Partial<Record<Issue['code'], (payload: {
+					code: Issue['code']
+					payload: Issue['payload']
+					path: NonNullable<Issue['path']>
+				}) => string>>
+				: never
+		>
