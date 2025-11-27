@@ -65,8 +65,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'startsWith:expected_starts_with',
-						payload: { value: 'world hello', prefix: 'hello' },
 						message: 'Expected the string to start with "hello".',
+						path: [],
+						payload: { value: 'world hello', prefix: 'hello' },
 					}],
 				})
 		})
@@ -79,8 +80,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'startsWith:expected_starts_with',
-						payload: { value: '', prefix: 'a' },
 						message: 'Expected the string to start with "a".',
+						path: [],
+						payload: { value: '', prefix: 'a' },
 					}],
 				})
 		})
@@ -93,8 +95,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'startsWith:expected_starts_with',
-						payload: { value: 'short', prefix: 'longer' },
 						message: 'Expected the string to start with "longer".',
+						path: [],
+						payload: { value: 'short', prefix: 'longer' },
 					}],
 				})
 		})
@@ -109,8 +112,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'startsWith:expected_starts_with',
-						payload: { value: 'hello world', prefix: 'Hello' },
 						message: 'Expected the string to start with "Hello".',
+						path: [],
+						payload: { value: 'hello world', prefix: 'Hello' },
 					}],
 				})
 		})
@@ -131,8 +135,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'startsWith:expected_starts_with',
-						payload: { value: '世界你好', prefix: '你好' },
 						message: 'Expected the string to start with "你好".',
+						path: [],
+						payload: { value: '世界你好', prefix: '你好' },
 					}],
 				})
 		})
@@ -147,8 +152,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'startsWith:expected_starts_with',
-						payload: { value: 'world hello', prefix: 'hello' },
 						message: 'Custom message',
+						path: [],
+						payload: { value: 'world hello', prefix: 'hello' },
 					}],
 				})
 		})
@@ -173,8 +179,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'startsWith:expected_starts_with',
-						payload: { value: 'hi', prefix: 'he' },
 						message: 'Expected the string to start with "he".',
+						path: [],
+						payload: { value: 'hi', prefix: 'he' },
 					}],
 				})
 		})
@@ -188,8 +195,9 @@ describe('startsWith plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'length', value: 'he', min: 5 },
 						message: 'Expected a minimum length of 5.',
+						path: [],
+						payload: { target: 'length', value: 'he', min: 5 },
 					}],
 				})
 		})

@@ -48,7 +48,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const number = implStepPlugin<PluginDef>({
 	number: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep((value) => {
@@ -56,18 +56,14 @@ export const number = implStepPlugin<PluginDef>({
 			if (typeof value === 'number' && !Number.isNaN(value)) {
 				return success(value)
 			}
-			return failure({
-				code: 'number:expected_number',
-				payload: { value },
-				message: resolveMessage(
-					{
-						code: 'number:expected_number',
-						payload: { value },
-					},
-					message,
-					'Expected a number (NaN is not allowed).',
-				),
-			})
+			return failure(
+				createIssue({
+					code: 'number:expected_number',
+					payload: { value },
+					customMessage: message,
+					defaultMessage: 'Expected a number (NaN is not allowed).',
+				}),
+			)
 		})
 	},
 })

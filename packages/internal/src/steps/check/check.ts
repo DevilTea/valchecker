@@ -136,23 +136,19 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const check = implStepPlugin<PluginDef>({
 	check: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [run, message],
 	}) => {
 		addSuccessStep((value) => {
 			const handleError = (error: unknown) => {
-				return failure({
-					code: 'check:failed',
-					payload: { value, error },
-					message: resolveMessage(
-						{
-							code: 'check:failed',
-							payload: { value, error },
-						},
-						message,
-						'Check failed',
-					),
-				})
+				return failure(
+					createIssue({
+						code: 'check:failed',
+						payload: { value, error },
+						customMessage: message,
+						defaultMessage: 'Check failed',
+					}),
+				)
 			}
 			try {
 				const issues: ExecutionIssue<any, any>[] = []
@@ -163,33 +159,25 @@ export const check = implStepPlugin<PluginDef>({
 				})
 				const processCheckResult = (result: Awaited<Internal.RunCheckResult>) => {
 					if (result === false) {
-						return failure({
-							code: 'check:failed',
-							payload: { value },
-							message: resolveMessage(
-								{
-									code: 'check:failed',
-									payload: { value },
-								},
-								message,
-								'Check failed',
-							),
-						})
+						return failure(
+							createIssue({
+								code: 'check:failed',
+								payload: { value },
+								customMessage: message,
+								defaultMessage: 'Check failed',
+							}),
+						)
 					}
 
 					if (typeof result === 'string') {
-						return failure({
-							code: 'check:failed',
-							payload: { value },
-							message: resolveMessage(
-								{
-									code: 'check:failed',
-									payload: { value },
-								},
-								message,
-								result,
-							),
-						})
+						return failure(
+							createIssue({
+								code: 'check:failed',
+								payload: { value },
+								customMessage: message,
+								defaultMessage: result,
+							}),
+						)
 					}
 
 					return issues.length > 0

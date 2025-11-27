@@ -117,8 +117,9 @@ describe('parseJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'parseJSON:invalid_json',
-						payload: { value: '{invalid}', error: expect.anything() },
 						message: 'Expected a valid JSON string.',
+						path: [],
+						payload: { value: '{invalid}', error: expect.anything() },
 					}],
 				})
 		})
@@ -132,8 +133,9 @@ describe('parseJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'parseJSON:invalid_json',
-						payload: { value: '{"name": }', error: expect.anything() },
 						message: 'Expected a valid JSON string.',
+						path: [],
+						payload: { value: '{"name": }', error: expect.anything() },
 					}],
 				})
 		})
@@ -147,8 +149,9 @@ describe('parseJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'parseJSON:invalid_json',
-						payload: { value: '', error: expect.anything() },
 						message: 'Expected a valid JSON string.',
+						path: [],
+						payload: { value: '', error: expect.anything() },
 					}],
 				})
 		})
@@ -164,8 +167,9 @@ describe('parseJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'parseJSON:invalid_json',
-						payload: { value: '', error: expect.anything() },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: '', error: expect.anything() },
 					}],
 				})
 		})

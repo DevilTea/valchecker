@@ -137,8 +137,9 @@ describe('any plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'test' },
 						message: 'Check failed',
+						path: [],
+						payload: { value: 'test' },
 					}],
 				})
 		})

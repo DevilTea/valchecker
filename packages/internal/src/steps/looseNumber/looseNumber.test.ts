@@ -92,8 +92,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: 'hello' },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -105,8 +106,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: true },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: true },
 					}],
 				})
 		})
@@ -118,8 +120,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: null },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -131,8 +134,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: undefined },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -144,8 +148,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: {} },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -157,8 +162,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: [] },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -170,8 +176,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: 123n },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: 123n },
 					}],
 				})
 		})
@@ -184,8 +191,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: sym },
 						message: 'Expected a number (NaN is allowed).',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -199,8 +207,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseNumber:expected_number',
-						payload: { value: 'hello' },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -223,8 +232,9 @@ describe('looseNumber plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: Number.NaN },
 						message: 'Check failed',
+						path: [],
+						payload: { value: Number.NaN },
 					}],
 				})
 		})

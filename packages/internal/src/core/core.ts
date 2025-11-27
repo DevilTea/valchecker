@@ -56,47 +56,6 @@ export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['pa
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export function handleMessage(
-	{
-		code,
-		payload,
-		path = [],
-	}: {
-		code: string
-		payload: any
-		path?: PropertyKey[]
-	},
-	message?: MessageHandler<any> | undefined | null,
-): string | undefined | null {
-	if (message == null || typeof message === 'string')
-		return message
-	return message({ code, payload, path })
-}
-
-/* @__NO_SIDE_EFFECTS__ */
-export function resolveMessagePriority(
-	issueContent: {
-		code: string
-		payload: any
-		path?: PropertyKey[]
-	},
-	customMessage: MessageHandler<any> | undefined | null,
-	defaultMessage: MessageHandler<any> | undefined | null,
-	globalMessage: MessageHandler<any> | undefined,
-): string {
-	const customMsg = handleMessage(issueContent, customMessage)
-	if (customMsg != null)
-		return customMsg
-	const defaultMsg = handleMessage(issueContent, defaultMessage)
-	if (defaultMsg != null)
-		return defaultMsg
-	const globalMsg = handleMessage(issueContent, globalMessage)
-	if (globalMsg != null)
-		return globalMsg
-	return 'Invalid value.'
-}
-
-/* @__NO_SIDE_EFFECTS__ */
 export function createPipeExecutor(
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
 ): (value: unknown) => MaybePromise<ExecutionResult> {
@@ -127,21 +86,72 @@ export function createPipeExecutor(
 	}
 }
 
-type ResolveMessageFn = (
-	issueContent: {
+type ResolveMessageFn = (param: {
+	data: {
 		code: string
 		payload: any
-		path?: PropertyKey[]
+		path: PropertyKey[]
+	}
+	customMessage?: MessageHandler<any> | undefined
+	defaultMessage?: MessageHandler<any> | undefined
+}) => string
+
+/* @__NO_SIDE_EFFECTS__ */
+export function handleMessage(
+	data: {
+		code: string
+		payload: any
+		path: PropertyKey[]
 	},
-	customMessage?: MessageHandler<any> | undefined | null,
-	defaultMessage?: MessageHandler<any> | undefined | null,
-) => string
+	message?: MessageHandler<any> | undefined | null,
+): string | undefined | null {
+	if (message == null || typeof message === 'string')
+		return message
+	return message(data)
+}
+
+/* @__NO_SIDE_EFFECTS__ */
+export function resolveMessagePriority({
+	data,
+	customMessage,
+	defaultMessage,
+	globalMessage,
+}: {
+	data: {
+		code: string
+		payload: any
+		path: PropertyKey[]
+	}
+	customMessage: MessageHandler<any> | undefined | null
+	defaultMessage: MessageHandler<any> | undefined | null
+	globalMessage: MessageHandler<any> | undefined
+}): string {
+	const customMsg = handleMessage(data, customMessage)
+	if (customMsg != null)
+		return customMsg
+	const defaultMsg = handleMessage(data, defaultMessage)
+	if (defaultMsg != null)
+		return defaultMsg
+	const globalMsg = handleMessage(data, globalMessage)
+	if (globalMsg != null)
+		return globalMsg
+	return 'Invalid value.'
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 function createResolveMessageFunction(
 	globalMessage?: MessageHandler<any> | undefined,
 ): ResolveMessageFn {
-	return (...params) => resolveMessagePriority(...params, globalMessage)
+	return ({
+		data,
+		customMessage,
+		defaultMessage,
+	}) => resolveMessagePriority({
+		data,
+		customMessage,
+		defaultMessage,
+		globalMessage,
+	})
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -158,6 +168,7 @@ function createExecutionStepMethodUtils(
 				code: 'core:unknown_exception',
 				payload: { method, value: lastResult, error },
 				message: 'An unexpected error occurred during step execution',
+				path: [],
 			}],
 		})
 		try {
@@ -178,10 +189,31 @@ function createExecutionStepMethodUtils(
 		isSuccess,
 		isFailure,
 		prependIssuePath,
-		resolveMessage,
 		success: value => ({ value }),
 		failure: issueOrIssues => ({ issues: [issueOrIssues].flat() }),
-		issue: content => content,
+		createIssue: ({
+			code,
+			payload,
+			path = [],
+			customMessage,
+			defaultMessage,
+		}) => {
+			return {
+				code,
+				payload,
+				path,
+				message: resolveMessage({
+					data: {
+						code,
+						payload,
+						path,
+					},
+					customMessage,
+					defaultMessage,
+				}),
+			}
+		},
+		issue: i => i,
 	}
 }
 

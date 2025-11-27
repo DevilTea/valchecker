@@ -46,8 +46,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: 123 },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: 123 },
 					}],
 				})
 		})
@@ -59,8 +60,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: true },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: true },
 					}],
 				})
 		})
@@ -72,8 +74,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: null },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -85,8 +88,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: undefined },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -98,8 +102,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: {} },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -111,8 +116,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: [] },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -124,8 +130,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: 123n },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: 123n },
 					}],
 				})
 		})
@@ -138,8 +145,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: sym },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -153,8 +161,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: 123 },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 123 },
 					}],
 				})
 		})
@@ -177,8 +186,9 @@ describe('string plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'length', value: 'hi', min: 5 },
 						message: 'Expected a minimum length of 5.',
+						path: [],
+						payload: { value: 'hi', min: 5, target: 'length' },
 					}],
 				})
 		})

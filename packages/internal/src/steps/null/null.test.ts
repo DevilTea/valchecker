@@ -32,8 +32,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: 42 },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -45,8 +46,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: 'hello' },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -58,8 +60,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: true },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: true },
 					}],
 				})
 		})
@@ -71,8 +74,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: undefined },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -84,8 +88,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: {} },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -97,8 +102,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: [] },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -110,8 +116,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: 123n },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: 123n },
 					}],
 				})
 		})
@@ -124,8 +131,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: sym },
 						message: 'Expected null.',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -139,8 +147,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'null:expected_null',
-						payload: { value: 42 },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -163,8 +172,9 @@ describe('null plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: null },
 						message: 'Check failed',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})

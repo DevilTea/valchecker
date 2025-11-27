@@ -60,24 +60,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const empty = implStepPlugin<PluginDef>({
 	empty: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => value.length === 0
 				?	success(value)
-				:	failure({
-						code: 'empty:expected_empty',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'empty:expected_empty',
-								payload: { value },
-							},
-							message,
-							'Expected an empty value.',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'empty:expected_empty',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected an empty value.',
+						}),
+					),
 		)
 	},
 })

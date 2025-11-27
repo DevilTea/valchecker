@@ -123,9 +123,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						message: 'Transform failed',
 						path: ['count'],
 						payload: { value: 10, error: new Error('fail') },
-						message: 'Transform failed',
 					}],
 				})
 		})
@@ -152,8 +152,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
-						payload: { value: 'string' },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: 'string' },
 					}],
 				})
 		})
@@ -165,8 +166,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
-						payload: { value: 123 },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: 123 },
 					}],
 				})
 		})
@@ -178,8 +180,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
-						payload: { value: [1, 2, 3] },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: [1, 2, 3] },
 					}],
 				})
 		})
@@ -191,8 +194,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
-						payload: { value: null },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -204,8 +208,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
-						payload: { value: undefined },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -222,9 +227,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 'thirty' },
 						message: 'Expected a number (NaN is not allowed).',
 						path: ['age'],
+						payload: { value: 'thirty' },
 					}],
 				})
 		})
@@ -239,9 +244,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 'thirty' },
 						message: 'Expected a number (NaN is not allowed).',
 						path: ['age'],
+						payload: { value: 'thirty' },
 					}],
 				})
 		})
@@ -255,8 +260,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:unexpected_keys',
-						payload: { value: { name: 'John', extra: 'value', another: 123 }, keys: ['extra', 'another'] },
 						message: 'Unexpected object keys found.',
+						path: [],
+						payload: { value: { name: 'John', extra: 'value', another: 123 }, keys: ['extra', 'another'] },
 					}],
 				})
 		})
@@ -270,8 +276,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
-						payload: { value: 'not an object' },
 						message: 'Custom: strictObject:expected_object',
+						path: [],
+						payload: { value: 'not an object' },
 					}],
 				})
 		})
@@ -291,8 +298,9 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:unexpected_keys',
-						payload: { value: { name: 'John', extra: 'value' }, keys: ['extra'] },
 						message: 'Custom: strictObject:unexpected_keys - extra',
+						path: [],
+						payload: { value: { name: 'John', extra: 'value' }, keys: ['extra'] },
 					}],
 				})
 		})

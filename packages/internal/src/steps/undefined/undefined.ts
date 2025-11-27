@@ -48,24 +48,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const undefined_ = implStepPlugin<PluginDef>({
 	undefined: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => value === void 0
 				?	success(value)
-				:	failure({
-						code: 'undefined:expected_undefined',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'undefined:expected_undefined',
-								payload: { value },
-							},
-							message,
-							'Expected undefined.',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'undefined:expected_undefined',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected undefined.',
+						}),
+					),
 		)
 	},
 })

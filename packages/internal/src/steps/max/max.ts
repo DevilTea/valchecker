@@ -96,43 +96,33 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const max = implStepPlugin<PluginDef>({
 	max: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [max, message],
 	}) => {
 		addSuccessStep((value) => {
 			const v = (typeof value === 'bigint' || typeof value === 'number') ? value : value.length
-			return v <= max
-				? success(value)
-				: failure({
-						code: 'max:expected_max',
-						payload: {
-							target: ((typeof value === 'bigint')
-								?	'bigint'
-								:	(typeof value === 'number')
-										? 'number'
-										: 'length') as any,
-							value: value as any,
-							max: max as any,
-						},
-						message: resolveMessage(
-							{
-								code: 'max:expected_max',
-								payload: {
-									target: ((typeof value === 'bigint')
-										?	'bigint'
-										:	(typeof value === 'number')
-												? 'number'
-												: 'length') as any,
-									value,
-									max,
-								},
-							},
-							message,
-							(typeof value === 'bigint' || typeof value === 'number')
-								? `Expected a maximum value of ${max}.`
-								: `Expected a maximum length of ${max}.`,
-						),
-					})
+			if (v <= max) {
+				return success(value)
+			}
+			const target = ((typeof value === 'bigint')
+				?	'bigint'
+				:	(typeof value === 'number')
+						? 'number'
+						: 'length') as any
+			return failure(
+				createIssue({
+					code: 'max:expected_max',
+					payload: {
+						target,
+						value: value as any,
+						max: max as any,
+					},
+					customMessage: message,
+					defaultMessage: (typeof value === 'bigint' || typeof value === 'number')
+						? `Expected a maximum value of ${max}.`
+						: `Expected a maximum length of ${max}.`,
+				}),
+			)
 		})
 	},
 })

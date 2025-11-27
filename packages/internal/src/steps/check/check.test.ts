@@ -51,6 +51,7 @@ describe('check plugin', () => {
 						error: null,
 					},
 					message: 'Test issue',
+					path: [],
 				})
 				return true
 			})
@@ -65,6 +66,7 @@ describe('check plugin', () => {
 							error: null,
 						},
 						message: 'Test issue',
+						path: [],
 					}],
 				})
 		})
@@ -91,8 +93,9 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'fail' },
 						message: 'Check failed',
+						path: [],
+						payload: { value: 'fail' },
 					}],
 				})
 		})
@@ -104,8 +107,9 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'fail' },
 						message: 'Custom error',
+						path: [],
+						payload: { value: 'fail' },
 					}],
 				})
 		})
@@ -126,8 +130,9 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'sync' },
 						message: 'Check failed',
+						path: [],
+						payload: { value: 'sync' },
 					}],
 				})
 		})
@@ -143,8 +148,9 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'error', error: expect.any(Error) },
 						message: 'Check failed',
+						path: [],
+						payload: { value: 'error', error: expect.any(Error) },
 					}],
 				})
 		})
@@ -161,8 +167,9 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'custom' },
 						message: 'Custom: custom',
+						path: [],
+						payload: { value: 'custom' },
 					}],
 				})
 		})

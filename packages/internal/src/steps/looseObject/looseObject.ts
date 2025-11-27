@@ -94,7 +94,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const looseObject = implStepPlugin<PluginDef>({
 	looseObject: ({
-		utils: { addSuccessStep, success, resolveMessage, failure, isFailure, prependIssuePath },
+		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [struct, message],
 	}) => {
 		// Pre-compute metadata for each property to avoid repeated lookups
@@ -112,18 +112,14 @@ export const looseObject = implStepPlugin<PluginDef>({
 
 		addSuccessStep((value) => {
 			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
-				return failure({
-					code: 'looseObject:expected_object',
-					payload: { value },
-					message: resolveMessage(
-						{
-							code: 'looseObject:expected_object',
-							payload: { value },
-						},
-						message,
-						'Expected an object.',
-					),
-				})
+				return failure(
+					createIssue({
+						code: 'looseObject:expected_object',
+						payload: { value },
+						customMessage: message,
+						defaultMessage: 'Expected an object.',
+					}),
+				)
 			}
 
 			const issues: ExecutionIssue<any, any>[] = []

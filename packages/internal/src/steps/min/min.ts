@@ -96,43 +96,33 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const min = implStepPlugin<PluginDef>({
 	min: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [min, message],
 	}) => {
 		addSuccessStep((value) => {
 			const v = (typeof value === 'bigint' || typeof value === 'number') ? value : value.length
-			return v >= min
-				? success(value)
-				: failure({
-						code: 'min:expected_min',
-						payload: {
-							target: ((typeof value === 'bigint')
-								?	'bigint'
-								:	(typeof value === 'number')
-										? 'number'
-										: 'length') as any,
-							value: value as any,
-							min: min as any,
-						},
-						message: resolveMessage(
-							{
-								code: 'min:expected_min',
-								payload: {
-									target: ((typeof value === 'bigint')
-										?	'bigint'
-										:	(typeof value === 'number')
-												? 'number'
-												: 'length') as any,
-									value,
-									min,
-								},
-							},
-							message,
-							(typeof value === 'bigint' || typeof value === 'number')
-								? `Expected a minimum value of ${min}.`
-								: `Expected a minimum length of ${min}.`,
-						),
-					})
+			if (v >= min) {
+				return success(value)
+			}
+			const target = ((typeof value === 'bigint')
+				?	'bigint'
+				:	(typeof value === 'number')
+						? 'number'
+						: 'length') as any
+			return failure(
+				createIssue({
+					code: 'min:expected_min',
+					payload: {
+						target,
+						value: value as any,
+						min: min as any,
+					},
+					customMessage: message,
+					defaultMessage: (typeof value === 'bigint' || typeof value === 'number')
+						? `Expected a minimum value of ${min}.`
+						: `Expected a minimum length of ${min}.`,
+				}),
+			)
 		})
 	},
 })

@@ -42,24 +42,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const startsWith = implStepPlugin<PluginDef>({
 	startsWith: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [prefix, message],
 	}) => {
 		addSuccessStep((value) => {
 			return value.startsWith(prefix)
 				? success(value)
-				: failure({
-						code: 'startsWith:expected_starts_with',
-						payload: { value, prefix },
-						message: resolveMessage(
-							{
-								code: 'startsWith:expected_starts_with',
-								payload: { value, prefix },
-							},
-							message,
-							`Expected the string to start with "${prefix}".`,
-						),
-					})
+				: failure(
+						createIssue({
+							code: 'startsWith:expected_starts_with',
+							payload: { value, prefix },
+							customMessage: message,
+							defaultMessage: `Expected the string to start with "${prefix}".`,
+						}),
+					)
 		})
 	},
 })

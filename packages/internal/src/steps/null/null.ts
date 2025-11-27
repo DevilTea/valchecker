@@ -48,24 +48,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const null_ = implStepPlugin<PluginDef>({
 	null: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => value === null
 				?	success(value)
-				:	failure({
-						code: 'null:expected_null',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'null:expected_null',
-								payload: { value },
-							},
-							message,
-							'Expected null.',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'null:expected_null',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected null.',
+						}),
+					),
 		)
 	},
 })

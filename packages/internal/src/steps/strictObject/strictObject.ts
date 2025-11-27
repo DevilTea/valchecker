@@ -99,7 +99,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const strictObject = implStepPlugin<PluginDef>({
 	strictObject: ({
-		utils: { addSuccessStep, success, resolveMessage, failure, isFailure, prependIssuePath },
+		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [struct, message],
 	}) => {
 		// Pre-compute metadata for each property to avoid repeated lookups
@@ -118,18 +118,14 @@ export const strictObject = implStepPlugin<PluginDef>({
 
 		addSuccessStep((value) => {
 			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
-				return failure({
-					code: 'strictObject:expected_object',
-					payload: { value },
-					message: resolveMessage(
-						{
-							code: 'strictObject:expected_object',
-							payload: { value },
-						},
-						message,
-						'Expected an object.',
-					),
-				})
+				return failure(
+					createIssue({
+						code: 'strictObject:expected_object',
+						payload: { value },
+						customMessage: message,
+						defaultMessage: 'Expected an object.',
+					}),
+				)
 			}
 
 			// Check for unknown keys
@@ -143,18 +139,14 @@ export const strictObject = implStepPlugin<PluginDef>({
 				}
 			}
 			if (unknownKeys.length > 0) {
-				return failure({
-					code: 'strictObject:unexpected_keys',
-					payload: { value, keys: unknownKeys },
-					message: resolveMessage(
-						{
-							code: 'strictObject:unexpected_keys',
-							payload: { value, keys: unknownKeys },
-						},
-						message,
-						'Unexpected object keys found.',
-					),
-				})
+				return failure(
+					createIssue({
+						code: 'strictObject:unexpected_keys',
+						payload: { value, keys: unknownKeys },
+						customMessage: message,
+						defaultMessage: 'Unexpected object keys found.',
+					}),
+				)
 			}
 
 			const issues: ExecutionIssue<any, any>[] = []

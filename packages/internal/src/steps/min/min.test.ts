@@ -97,8 +97,9 @@ describe('min step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'number', value: 5, min: 10 },
 						message: 'Expected a minimum value of 10.',
+						path: [],
+						payload: { target: 'number', value: 5, min: 10 },
 					}],
 				})
 		})
@@ -111,8 +112,9 @@ describe('min step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'bigint', value: 5n, min: 10n },
 						message: 'Expected a minimum value of 10.',
+						path: [],
+						payload: { target: 'bigint', value: 5n, min: 10n },
 					}],
 				})
 		})
@@ -125,8 +127,9 @@ describe('min step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'length', value: 'hi', min: 5 },
 						message: 'Expected a minimum length of 5.',
+						path: [],
+						payload: { target: 'length', value: 'hi', min: 5 },
 					}],
 				})
 		})
@@ -139,8 +142,9 @@ describe('min step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'length', value: [1, 2], min: 3 },
 						message: 'Expected a minimum length of 3.',
+						path: [],
+						payload: { target: 'length', value: [1, 2], min: 3 },
 					}],
 				})
 		})
@@ -163,8 +167,9 @@ describe('min step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'number', value: -1, min: 0 },
 						message: 'Expected a minimum value of 0.',
+						path: [],
+						payload: { target: 'number', value: -1, min: 0 },
 					}],
 				})
 		})
@@ -185,8 +190,9 @@ describe('min step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'number', value: -10, min: -5 },
 						message: 'Expected a minimum value of -5.',
+						path: [],
+						payload: { target: 'number', value: -10, min: -5 },
 					}],
 				})
 		})
@@ -201,8 +207,9 @@ describe('min step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'number', value: 5, min: 10 },
 						message: 'Custom error message',
+						path: [],
+						payload: { target: 'number', value: 5, min: 10 },
 					}],
 				})
 		})

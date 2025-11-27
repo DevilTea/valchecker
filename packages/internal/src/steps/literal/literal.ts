@@ -54,24 +54,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const literal = implStepPlugin<PluginDef>({
 	literal: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [literalValue, message],
 	}) => {
 		addSuccessStep(
 			value => value === literalValue
 				?	success(value as typeof literalValue)
-				:	failure({
-						code: 'literal:expected_literal',
-						payload: { value, expected: literalValue },
-						message: resolveMessage(
-							{
-								code: 'literal:expected_literal',
-								payload: { value, expected: literalValue },
-							},
-							message,
-							`Expected literal value "${String(literalValue)}".`,
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'literal:expected_literal',
+							payload: { value, expected: literalValue },
+							customMessage: message,
+							defaultMessage: `Expected literal value "${String(literalValue)}".`,
+						}),
+					),
 		)
 	},
 })

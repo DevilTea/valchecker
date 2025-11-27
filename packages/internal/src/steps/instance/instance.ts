@@ -53,24 +53,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const instance = implStepPlugin<PluginDef>({
 	instance: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [class_, message],
 	}) => {
 		addSuccessStep(
 			value => value instanceof class_
 				?	success(value)
-				:	failure({
-						code: 'instance:expected_instance',
-						payload: { value, expected: class_ },
-						message: resolveMessage(
-							{
-								code: 'instance:expected_instance',
-								payload: { value, expected: class_ },
-							},
-							message,
-							`Expected instance of ${class_.name}.`,
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'instance:expected_instance',
+							payload: { value, expected: class_ },
+							customMessage: message,
+							defaultMessage: `Expected instance of ${class_.name}.`,
+						}),
+					),
 		)
 	},
 })

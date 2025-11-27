@@ -106,8 +106,9 @@ describe('use plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: 123 },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: 123 },
 					}],
 				})
 		})
@@ -122,8 +123,9 @@ describe('use plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: -5 },
 						message: 'Must be positive',
+						path: [],
+						payload: { value: -5 },
 					}],
 				})
 		})
@@ -137,8 +139,9 @@ describe('use plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: null },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -171,8 +174,9 @@ describe('use plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'hi' },
 						message: 'Too short',
+						path: [],
+						payload: { value: 'hi' },
 					}],
 				})
 		})
@@ -217,8 +221,9 @@ describe('use plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: 123 },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: 123 },
 					}],
 				})
 		})
@@ -256,8 +261,9 @@ describe('use plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: -5 },
 						message: 'Must be positive',
+						path: [],
+						payload: { value: -5 },
 					}],
 				})
 		})

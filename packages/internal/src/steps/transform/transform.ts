@@ -58,23 +58,19 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const transform = implStepPlugin<PluginDef>({
 	transform: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [run, message],
 	}) => {
 		addSuccessStep((value) => {
 			const handleError = (err: unknown) => {
-				return failure({
-					code: 'transform:failed',
-					message: resolveMessage(
-						{
-							code: 'transform:failed',
-							payload: { value, error: err },
-						},
-						message,
-						'Transform failed',
-					),
-					payload: { value, error: err },
-				})
+				return failure(
+					createIssue({
+						code: 'transform:failed',
+						payload: { value, error: err },
+						customMessage: message,
+						defaultMessage: 'Transform failed',
+					}),
+				)
 			}
 			try {
 				const result = run(value)

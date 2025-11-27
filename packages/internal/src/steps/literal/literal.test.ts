@@ -75,8 +75,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: 'world', expected: 'hello' },
 						message: 'Expected literal value "hello".',
+						path: [],
+						payload: { value: 'world', expected: 'hello' },
 					}],
 				})
 		})
@@ -88,8 +89,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: 43, expected: 42 },
 						message: 'Expected literal value "42".',
+						path: [],
+						payload: { value: 43, expected: 42 },
 					}],
 				})
 		})
@@ -101,8 +103,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: false, expected: true },
 						message: 'Expected literal value "true".',
+						path: [],
+						payload: { value: false, expected: true },
 					}],
 				})
 		})
@@ -114,8 +117,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: 124n, expected: 123n },
 						message: 'Expected literal value "123".',
+						path: [],
+						payload: { value: 124n, expected: 123n },
 					}],
 				})
 		})
@@ -129,8 +133,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: sym2, expected: sym1 },
 						message: 'Expected literal value "Symbol(test)".',
+						path: [],
+						payload: { value: sym2, expected: sym1 },
 					}],
 				})
 		})
@@ -142,8 +147,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: 42, expected: 'hello' },
 						message: 'Expected literal value "hello".',
+						path: [],
+						payload: { value: 42, expected: 'hello' },
 					}],
 				})
 		})
@@ -178,8 +184,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: 'a', expected: '' },
 						message: 'Expected literal value "".',
+						path: [],
+						payload: { value: 'a', expected: '' },
 					}],
 				})
 		})
@@ -191,8 +198,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: 1, expected: 0 },
 						message: 'Expected literal value "0".',
+						path: [],
+						payload: { value: 1, expected: 0 },
 					}],
 				})
 		})
@@ -206,8 +214,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
-						payload: { value: 'world', expected: 'hello' },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 'world', expected: 'hello' },
 					}],
 				})
 		})
@@ -230,8 +239,9 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: 'hi' },
 						message: 'Check failed',
+						path: [],
+						payload: { value: 'hi' },
 					}],
 				})
 		})

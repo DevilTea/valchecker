@@ -54,8 +54,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: 42 },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -67,8 +68,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: 'hello' },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -80,8 +82,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: true },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: true },
 					}],
 				})
 		})
@@ -93,8 +96,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: null },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -106,8 +110,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: undefined },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -119,8 +124,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: {} },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -132,8 +138,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: [] },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -146,8 +153,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: sym },
 						message: 'Expected a bigint.',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -161,8 +169,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'bigint:expected_bigint',
-						payload: { value: 42 },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -185,8 +194,9 @@ describe('bigint plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'bigint', value: 3n, min: 5n },
 						message: 'Expected a minimum value of 5.',
+						path: [],
+						payload: { target: 'bigint', value: 3n, min: 5n },
 					}],
 				})
 		})

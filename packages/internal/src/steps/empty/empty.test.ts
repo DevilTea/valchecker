@@ -49,8 +49,9 @@ describe('empty step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'empty:expected_empty',
-						payload: { value: 'hello' },
 						message: 'Expected an empty value.',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -63,8 +64,9 @@ describe('empty step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'empty:expected_empty',
-						payload: { value: ['a'] },
 						message: 'Expected an empty value.',
+						path: [],
+						payload: { value: ['a'] },
 					}],
 				})
 		})
@@ -79,8 +81,9 @@ describe('empty step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'empty:expected_empty',
-						payload: { value: ' ' },
 						message: 'Expected an empty value.',
+						path: [],
+						payload: { value: ' ' },
 					}],
 				})
 		})
@@ -93,8 +96,9 @@ describe('empty step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'empty:expected_empty',
-						payload: { value: [''] },
 						message: 'Expected an empty value.',
+						path: [],
+						payload: { value: [''] },
 					}],
 				})
 		})
@@ -109,8 +113,9 @@ describe('empty step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'empty:expected_empty',
-						payload: { value: 'not empty' },
 						message: 'Custom message for not empty',
+						path: [],
+						payload: { value: 'not empty' },
 					}],
 				})
 		})

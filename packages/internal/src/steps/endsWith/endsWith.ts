@@ -42,24 +42,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const endsWith = implStepPlugin<PluginDef>({
 	endsWith: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [suffix, message],
 	}) => {
 		addSuccessStep((value) => {
 			return value.endsWith(suffix)
 				? success(value)
-				: failure({
-						code: 'endsWith:expected_ends_with',
-						payload: { value, suffix },
-						message: resolveMessage(
-							{
-								code: 'endsWith:expected_ends_with',
-								payload: { value, suffix },
-							},
-							message,
-							`Expected the string to end with "${suffix}".`,
-						),
-					})
+				: failure(
+						createIssue({
+							code: 'endsWith:expected_ends_with',
+							payload: { value, suffix },
+							customMessage: message,
+							defaultMessage: `Expected the string to end with "${suffix}".`,
+						}),
+					)
 		})
 	},
 })

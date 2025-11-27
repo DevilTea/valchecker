@@ -49,24 +49,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const looseNumber = implStepPlugin<PluginDef>({
 	looseNumber: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => typeof value === 'number'
 				?	success(value)
-				:	failure({
-						code: 'looseNumber:expected_number',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'looseNumber:expected_number',
-								payload: { value },
-							},
-							message,
-							'Expected a number (NaN is allowed).',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'looseNumber:expected_number',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected a number (NaN is allowed).',
+						}),
+					),
 		)
 	},
 })

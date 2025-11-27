@@ -45,7 +45,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const json = implStepPlugin<PluginDef>({
 	json: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
@@ -55,18 +55,14 @@ export const json = implStepPlugin<PluginDef>({
 					return success(value)
 				}
 				catch (error) {
-					return failure({
-						code: 'json:invalid_json',
-						payload: { value, error },
-						message: resolveMessage(
-							{
-								code: 'json:invalid_json',
-								payload: { value, error },
-							},
-							message,
-							'Expected a valid JSON string.',
-						),
-					})
+					return failure(
+						createIssue({
+							code: 'json:invalid_json',
+							payload: { value, error },
+							customMessage: message,
+							defaultMessage: 'Expected a valid JSON string.',
+						}),
+					)
 				}
 			},
 		)

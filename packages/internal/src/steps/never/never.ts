@@ -45,22 +45,18 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const never = implStepPlugin<PluginDef>({
 	never: ({
-		utils: { addSuccessStep, resolveMessage, failure },
+		utils: { addSuccessStep, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
-			value => failure({
-				code: 'never:expected_never',
-				payload: { value },
-				message: resolveMessage(
-					{
-						code: 'never:expected_never',
-						payload: { value },
-					},
-					message,
-					'Expected never.',
-				),
-			}),
+			value => failure(
+				createIssue({
+					code: 'never:expected_never',
+					payload: { value },
+					customMessage: message,
+					defaultMessage: 'Expected never.',
+				}),
+			),
 		)
 	},
 })

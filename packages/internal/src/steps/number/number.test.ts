@@ -74,8 +74,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: Number.NaN },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: Number.NaN },
 					}],
 				})
 		})
@@ -87,8 +88,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 'hello' },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -100,8 +102,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: true },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: true },
 					}],
 				})
 		})
@@ -113,8 +116,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: null },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -126,8 +130,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: undefined },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -139,8 +144,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: {} },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -152,8 +158,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: [] },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -165,8 +172,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 123n },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: 123n },
 					}],
 				})
 		})
@@ -179,8 +187,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: sym },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -194,8 +203,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 'hello' },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -218,8 +228,9 @@ describe('number plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'min:expected_min',
-						payload: { target: 'number', value: 5, min: 10 },
 						message: 'Expected a minimum value of 10.',
+						path: [],
+						payload: { target: 'number', value: 5, min: 10 },
 					}],
 				})
 		})

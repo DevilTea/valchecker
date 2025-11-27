@@ -48,7 +48,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const string = implStepPlugin<PluginDef>({
 	string: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep((value) => {
@@ -56,18 +56,14 @@ export const string = implStepPlugin<PluginDef>({
 			if (typeof value === 'string') {
 				return success(value)
 			}
-			return failure({
-				code: 'string:expected_string',
-				payload: { value },
-				message: resolveMessage(
-					{
-						code: 'string:expected_string',
-						payload: { value },
-					},
-					message,
-					'Expected a string.',
-				),
-			})
+			return failure(
+				createIssue({
+					code: 'string:expected_string',
+					payload: { value },
+					customMessage: message,
+					defaultMessage: 'Expected a string.',
+				}),
+			)
 		})
 	},
 })

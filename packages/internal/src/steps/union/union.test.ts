@@ -105,18 +105,21 @@ describe('union plugin', () => {
 					issues: [
 						{
 							code: 'number:expected_number',
-							payload: { value: 'hello' },
 							message: 'Expected a number (NaN is not allowed).',
+							path: [],
+							payload: { value: 'hello' },
 						},
 						{
 							code: 'transform:failed',
-							payload: { value: 'hello', error: new Error('fail') },
 							message: 'Transform failed',
+							path: [],
+							payload: { value: 'hello', error: new Error('fail') },
 						},
 						{
 							code: 'number:expected_number',
-							payload: { value: 'hello' },
 							message: 'Expected a number (NaN is not allowed).',
+							path: [],
+							payload: { value: 'hello' },
 						},
 					],
 				})
@@ -132,13 +135,15 @@ describe('union plugin', () => {
 					issues: [
 						{
 							code: 'string:expected_string',
-							payload: { value: null },
 							message: 'Expected a string.',
+							path: [],
+							payload: { value: null },
 						},
 						{
 							code: 'number:expected_number',
-							payload: { value: null },
 							message: 'Expected a number (NaN is not allowed).',
+							path: [],
+							payload: { value: null },
 						},
 					],
 				})
@@ -152,13 +157,15 @@ describe('union plugin', () => {
 					issues: [
 						{
 							code: 'string:expected_string',
-							payload: { value: {} },
 							message: 'Expected a string.',
+							path: [],
+							payload: { value: {} },
 						},
 						{
 							code: 'number:expected_number',
-							payload: { value: {} },
 							message: 'Expected a number (NaN is not allowed).',
+							path: [],
+							payload: { value: {} },
 						},
 					],
 				})
@@ -176,13 +183,15 @@ describe('union plugin', () => {
 					issues: [
 						{
 							code: 'string:expected_string',
-							payload: { value: null },
 							message: 'Expected a string.',
+							path: [],
+							payload: { value: null },
 						},
 						{
 							code: 'number:expected_number',
-							payload: { value: null },
 							message: 'Expected a number (NaN is not allowed).',
+							path: [],
+							payload: { value: null },
 						},
 					],
 				})
@@ -204,8 +213,9 @@ describe('union plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: 42 },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})

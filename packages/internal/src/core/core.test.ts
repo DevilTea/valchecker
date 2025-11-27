@@ -79,6 +79,7 @@ describe('core module', () => {
 					code: 'test:error',
 					payload: {},
 					message: 'Test error',
+					path: [],
 				}],
 			}
 			expect(isSuccess(result))
@@ -99,6 +100,7 @@ describe('core module', () => {
 					code: 'test:error',
 					payload: {},
 					message: 'Test error',
+					path: [],
 				}],
 			}
 			expect(isFailure(result))
@@ -150,6 +152,7 @@ describe('core module', () => {
 				code: 'test:error',
 				payload: {},
 				message: 'Test error',
+				path: [],
 			}
 			const newPath: PropertyKey[] = ['root', 'parent']
 
@@ -198,7 +201,7 @@ describe('core module', () => {
 				code: 'test:error',
 				payload: {},
 				message: 'Test error',
-				path: undefined,
+				path: [],
 			}
 			const newPath: PropertyKey[] = ['root']
 
@@ -240,6 +243,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test' },
+				path: [],
 			}, 'Custom message')
 
 			expect(result)
@@ -251,6 +255,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test' },
+				path: [],
 			}, messageFn)
 
 			expect(result)
@@ -261,6 +266,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test' },
+				path: [],
 			}, null)
 
 			expect(result)
@@ -271,6 +277,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test' },
+				path: [],
 			}, undefined)
 
 			expect(result)
@@ -294,6 +301,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test' },
+				path: [],
 			}, messageFn)
 
 			expect(result)
@@ -305,6 +313,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test', count: 5 },
+				path: [],
 			}, messageFn)
 
 			expect(result)
@@ -316,6 +325,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test' },
+				path: [],
 			}, messageFn)
 
 			expect(result)
@@ -327,6 +337,7 @@ describe('core module', () => {
 			const result = handleMessage({
 				code: 'test:error',
 				payload: { value: 'test' },
+				path: [],
 			}, messageFn)
 
 			expect(result)
@@ -336,60 +347,60 @@ describe('core module', () => {
 
 	describe('resolveMessagePriority', () => {
 		it('should use custom message if available', () => {
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				'Custom message',
-				'Default message',
-				undefined,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: 'Custom message',
+				defaultMessage: 'Default message',
+				globalMessage: undefined,
+			})
 
 			expect(result)
 				.toBe('Custom message')
 		})
 
 		it('should use default message if custom is null', () => {
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				null,
-				'Default message',
-				undefined,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: null,
+				defaultMessage: 'Default message',
+				globalMessage: undefined,
+			})
 
 			expect(result)
 				.toBe('Default message')
 		})
 
 		it('should use default message if custom is undefined', () => {
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				undefined,
-				'Default message',
-				undefined,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: undefined,
+				defaultMessage: 'Default message',
+				globalMessage: undefined,
+			})
 
 			expect(result)
 				.toBe('Default message')
 		})
 
 		it('should use global message if custom and default are null', () => {
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				null,
-				null,
-				'Global message',
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: null,
+				defaultMessage: null,
+				globalMessage: 'Global message',
+			})
 
 			expect(result)
 				.toBe('Global message')
 		})
 
 		it('should use fallback message if all messages are null', () => {
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				null,
-				null,
-				undefined,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: null,
+				defaultMessage: null,
+				globalMessage: undefined,
+			})
 
 			expect(result)
 				.toBe('Invalid value.')
@@ -397,12 +408,12 @@ describe('core module', () => {
 
 		it('should call custom message function and use its result', () => {
 			const customMessageFn = (issue: any) => `Custom: ${issue.code}`
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				customMessageFn,
-				'Default message',
-				undefined,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: customMessageFn,
+				defaultMessage: 'Default message',
+				globalMessage: undefined,
+			})
 
 			expect(result)
 				.toBe('Custom: test:error')
@@ -411,12 +422,12 @@ describe('core module', () => {
 		it('should call default message function if custom returns null', () => {
 			const customMessageFn = () => null
 			const defaultMessageFn = (issue: any) => `Default: ${issue.code}`
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				customMessageFn,
-				defaultMessageFn,
-				undefined,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: customMessageFn,
+				defaultMessage: defaultMessageFn,
+				globalMessage: undefined,
+			})
 
 			expect(result)
 				.toBe('Default: test:error')
@@ -426,12 +437,12 @@ describe('core module', () => {
 			const customMessageFn = () => null
 			const defaultMessageFn = () => null
 			const globalMessageFn = (issue: any) => `Global: ${issue.code}`
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				customMessageFn,
-				defaultMessageFn,
-				globalMessageFn,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: customMessageFn,
+				defaultMessage: defaultMessageFn,
+				globalMessage: globalMessageFn,
+			})
 
 			expect(result)
 				.toBe('Global: test:error')
@@ -441,24 +452,24 @@ describe('core module', () => {
 			const customMessageFn = () => null
 			const defaultMessageFn = () => null
 			const globalMessageFn = () => null
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				customMessageFn,
-				defaultMessageFn,
-				globalMessageFn,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: customMessageFn,
+				defaultMessage: defaultMessageFn,
+				globalMessage: globalMessageFn,
+			})
 
 			expect(result)
 				.toBe('Invalid value.')
 		})
 
 		it('should handle undefined custom message function', () => {
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' } },
-				undefined,
-				'Default message',
-				'Global message',
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
+				customMessage: undefined,
+				defaultMessage: 'Default message',
+				globalMessage: 'Global message',
+			})
 
 			expect(result)
 				.toBe('Default message')
@@ -466,12 +477,12 @@ describe('core module', () => {
 
 		it('should include path in message resolution', () => {
 			const globalMessageFn = (issue: any) => `Path: ${issue.path.join('.')}`
-			const result = resolveMessagePriority(
-				{ code: 'test:error', payload: { value: 'test' }, path: ['user', 'email'] },
-				null,
-				null,
-				globalMessageFn,
-			)
+			const result = resolveMessagePriority({
+				data: { code: 'test:error', payload: { value: 'test' }, path: ['user', 'email'] },
+				customMessage: null,
+				defaultMessage: null,
+				globalMessage: globalMessageFn,
+			})
 
 			expect(result)
 				.toBe('Path: user.email')
@@ -861,7 +872,7 @@ describe('core module', () => {
 						.toBeDefined()
 					expect(utils.prependIssuePath)
 						.toBeDefined()
-					expect(utils.resolveMessage)
+					expect(utils.createIssue)
 						.toBeDefined()
 					expect(utils.success)
 						.toBeDefined()
@@ -967,12 +978,14 @@ describe('core module', () => {
 				.toEqual({ value: 5 })
 		})
 
-		it('should support resolveMessage through utils', () => {
+		it('should support createIssue through utils', () => {
 			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
 				messageStep: ({ utils }: any) => {
-					const msg = utils.resolveMessage({ code: 'test:code', payload: {} }, null, 'default', undefined)
-					expect(msg)
+					const issue = utils.createIssue({ code: 'test:code', payload: {}, customMessage: null, defaultMessage: 'default' })
+					expect(issue.message)
 						.toBe('default')
+					expect(issue.path)
+						.toEqual([])
 				},
 			} as any
 
@@ -1055,8 +1068,9 @@ describe('core module', () => {
 				.toEqual({
 					issues: [{
 						code: 'core:unknown_exception',
-						payload: { method: 'throwStep', value: { value: 'test' }, error: new Error('sync error') },
 						message: 'An unexpected error occurred during step execution',
+						path: [],
+						payload: { method: 'throwStep', value: { value: 'test' }, error: new Error('sync error') },
 					}],
 				})
 		})
@@ -1078,8 +1092,9 @@ describe('core module', () => {
 				.toEqual({
 					issues: [{
 						code: 'core:unknown_exception',
-						payload: { method: 'asyncThrowStep', value: { value: 'test' }, error: new Error('async error') },
 						message: 'An unexpected error occurred during step execution',
+						path: [],
+						payload: { method: 'asyncThrowStep', value: { value: 'test' }, error: new Error('async error') },
 					}],
 				})
 		})

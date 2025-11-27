@@ -39,8 +39,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: 42 },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -52,8 +53,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: 'hello' },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -65,8 +67,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: null },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -78,8 +81,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: undefined },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -91,8 +95,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: {} },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -104,8 +109,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: [] },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -117,8 +123,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: 123n },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: 123n },
 					}],
 				})
 		})
@@ -131,8 +138,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: sym },
 						message: 'Expected a boolean.',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -146,8 +154,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
-						payload: { value: 42 },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -170,8 +179,9 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
-						payload: { value: false },
 						message: 'Check failed',
+						path: [],
+						payload: { value: false },
 					}],
 				})
 		})

@@ -48,24 +48,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const symbol = implStepPlugin<PluginDef>({
 	symbol: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => typeof value === 'symbol'
 				?	success(value)
-				:	failure({
-						code: 'symbol:expected_symbol',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'symbol:expected_symbol',
-								payload: { value },
-							},
-							message,
-							'Expected a symbol.',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'symbol:expected_symbol',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected a symbol.',
+						}),
+					),
 		)
 	},
 })

@@ -93,15 +93,17 @@ describe('fallback plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'fallback:failed',
+						message: 'Fallback failed',
+						path: [],
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
-								payload: { value: 'not a number' },
 								message: 'Expected a number (NaN is not allowed).',
+								path: [],
+								payload: { value: 'not a number' },
 							}],
 							error: expect.any(Error),
 						},
-						message: 'Fallback failed',
 					}],
 				})
 		})
@@ -116,15 +118,17 @@ describe('fallback plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'fallback:failed',
+						message: 'Custom fallback message',
+						path: [],
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
-								payload: { value: 'not a number' },
 								message: 'Expected a number (NaN is not allowed).',
+								path: [],
+								payload: { value: 'not a number' },
 							}],
 							error: expect.any(Error),
 						},
-						message: 'Custom fallback message',
 					}],
 				})
 		})

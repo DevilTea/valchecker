@@ -73,8 +73,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'integer:expected_integer',
-						payload: { value: 3.14 },
 						message: 'Expected an integer.',
+						path: [],
+						payload: { value: 3.14 },
 					}],
 				})
 		})
@@ -87,8 +88,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'integer:expected_integer',
-						payload: { value: -2.5 },
 						message: 'Expected an integer.',
+						path: [],
+						payload: { value: -2.5 },
 					}],
 				})
 		})
@@ -101,8 +103,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: Number.NaN },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: Number.NaN },
 					}],
 				})
 		})
@@ -115,8 +118,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'integer:expected_integer',
-						payload: { value: Infinity },
 						message: 'Expected an integer.',
+						path: [],
+						payload: { value: Infinity },
 					}],
 				})
 		})
@@ -129,8 +133,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'integer:expected_integer',
-						payload: { value: -Infinity },
 						message: 'Expected an integer.',
+						path: [],
+						payload: { value: -Infinity },
 					}],
 				})
 		})
@@ -143,8 +148,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: '42' },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: '42' },
 					}],
 				})
 		})
@@ -157,8 +163,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: true },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: true },
 					}],
 				})
 		})
@@ -171,8 +178,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: false },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: false },
 					}],
 				})
 		})
@@ -185,8 +193,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: {} },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -199,8 +208,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: [] },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -213,8 +223,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: null },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -227,8 +238,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: undefined },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -242,8 +254,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: sym },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -256,8 +269,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 42n },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: 42n },
 					}],
 				})
 		})
@@ -290,8 +304,9 @@ describe('integer step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'integer:expected_integer',
-						payload: { value: 3.14 },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: 3.14 },
 					}],
 				})
 		})

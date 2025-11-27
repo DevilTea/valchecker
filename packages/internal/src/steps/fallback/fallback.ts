@@ -55,23 +55,19 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const fallback = implStepPlugin<PluginDef>({
 	fallback: ({
-		utils: { addFailureStep, success, resolveMessage, failure },
+		utils: { addFailureStep, success, createIssue, failure },
 		params: [run, message],
 	}) => {
 		addFailureStep((issues) => {
 			const handleError = (err: unknown) => {
-				return failure({
-					code: 'fallback:failed',
-					payload: { receivedIssues: issues, error: err },
-					message: resolveMessage(
-						{
-							code: 'fallback:failed',
-							payload: { receivedIssues: issues, error: err },
-						},
-						message,
-						'Fallback failed',
-					),
-				})
+				return failure(
+					createIssue({
+						code: 'fallback:failed',
+						payload: { receivedIssues: issues, error: err },
+						customMessage: message,
+						defaultMessage: 'Fallback failed',
+					}),
+				)
 			}
 			try {
 				const result = run(issues)

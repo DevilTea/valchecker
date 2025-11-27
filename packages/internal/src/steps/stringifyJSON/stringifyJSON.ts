@@ -72,42 +72,34 @@ function hasUnserializable(val: any, visited = new WeakSet()): boolean {
 /* @__NO_SIDE_EFFECTS__ */
 export const stringifyJSON = implStepPlugin<PluginDef>({
 	stringifyJSON: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			(value) => {
 				if (hasUnserializable(value)) {
-					return failure({
-						code: 'stringifyJSON:unserializable',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'stringifyJSON:unserializable',
-								payload: { value },
-							},
-							message,
-							'Value cannot be serialized to JSON.',
-						),
-					})
+					return failure(
+						createIssue({
+							code: 'stringifyJSON:unserializable',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Value cannot be serialized to JSON.',
+						}),
+					)
 				}
 				try {
 					const json = JSON.stringify(value)
 					return success(json)
 				}
 				catch {
-					return failure({
-						code: 'stringifyJSON:unserializable',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'stringifyJSON:unserializable',
-								payload: { value },
-							},
-							message,
-							'Value cannot be serialized to JSON.',
-						),
-					})
+					return failure(
+						createIssue({
+							code: 'stringifyJSON:unserializable',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Value cannot be serialized to JSON.',
+						}),
+					)
 				}
 			},
 		)

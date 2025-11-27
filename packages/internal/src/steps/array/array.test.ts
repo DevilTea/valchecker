@@ -50,8 +50,9 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
-						payload: { value: 'not an array' },
 						message: 'Expected an array.',
+						path: [],
+						payload: { value: 'not an array' },
 					}],
 				})
 		})
@@ -63,8 +64,9 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
-						payload: { value: 42 },
 						message: 'Expected an array.',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -76,8 +78,9 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
-						payload: { value: null },
 						message: 'Expected an array.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -89,8 +92,9 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
-						payload: { value: undefined },
 						message: 'Expected an array.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -102,8 +106,9 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
-						payload: { value: {} },
 						message: 'Expected an array.',
+						path: [],
+						payload: { value: {} },
 					}],
 				})
 		})
@@ -285,8 +290,9 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
-						payload: { value: 'not an array' },
 						message: 'Custom array message',
+						path: [],
+						payload: { value: 'not an array' },
 					}],
 				})
 		})

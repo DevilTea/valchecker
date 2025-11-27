@@ -97,8 +97,9 @@ describe('max step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'max:expected_max',
-						payload: { target: 'number', value: 15, max: 10 },
 						message: 'Expected a maximum value of 10.',
+						path: [],
+						payload: { target: 'number', value: 15, max: 10 },
 					}],
 				})
 		})
@@ -111,8 +112,9 @@ describe('max step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'max:expected_max',
-						payload: { target: 'bigint', value: 15n, max: 10n },
 						message: 'Expected a maximum value of 10.',
+						path: [],
+						payload: { target: 'bigint', value: 15n, max: 10n },
 					}],
 				})
 		})
@@ -125,8 +127,9 @@ describe('max step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'max:expected_max',
-						payload: { target: 'length', value: 'hello world', max: 5 },
 						message: 'Expected a maximum length of 5.',
+						path: [],
+						payload: { target: 'length', value: 'hello world', max: 5 },
 					}],
 				})
 		})
@@ -139,8 +142,9 @@ describe('max step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'max:expected_max',
-						payload: { target: 'length', value: [1, 2, 3, 4], max: 3 },
 						message: 'Expected a maximum length of 3.',
+						path: [],
+						payload: { target: 'length', value: [1, 2, 3, 4], max: 3 },
 					}],
 				})
 		})
@@ -163,8 +167,9 @@ describe('max step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'max:expected_max',
-						payload: { target: 'number', value: 1, max: 0 },
 						message: 'Expected a maximum value of 0.',
+						path: [],
+						payload: { target: 'number', value: 1, max: 0 },
 					}],
 				})
 		})
@@ -185,8 +190,9 @@ describe('max step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'max:expected_max',
-						payload: { target: 'number', value: 0, max: -5 },
 						message: 'Expected a maximum value of -5.',
+						path: [],
+						payload: { target: 'number', value: 0, max: -5 },
 					}],
 				})
 		})
@@ -201,8 +207,9 @@ describe('max step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'max:expected_max',
-						payload: { target: 'number', value: 15, max: 10 },
 						message: 'Custom error message',
+						path: [],
+						payload: { target: 'number', value: 15, max: 10 },
 					}],
 				})
 		})

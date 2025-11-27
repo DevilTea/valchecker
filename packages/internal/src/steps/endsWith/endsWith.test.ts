@@ -57,8 +57,9 @@ describe('endsWith step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'endsWith:expected_ends_with',
-						payload: { value: 'hello there', suffix: 'world' },
 						message: 'Expected the string to end with "world".',
+						path: [],
+						payload: { value: 'hello there', suffix: 'world' },
 					}],
 				})
 		})
@@ -71,8 +72,9 @@ describe('endsWith step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'endsWith:expected_ends_with',
-						payload: { value: '', suffix: 'a' },
 						message: 'Expected the string to end with "a".',
+						path: [],
+						payload: { value: '', suffix: 'a' },
 					}],
 				})
 		})
@@ -85,8 +87,9 @@ describe('endsWith step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'endsWith:expected_ends_with',
-						payload: { value: 'short', suffix: 'longer' },
 						message: 'Expected the string to end with "longer".',
+						path: [],
+						payload: { value: 'short', suffix: 'longer' },
 					}],
 				})
 		})
@@ -99,8 +102,9 @@ describe('endsWith step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'endsWith:expected_ends_with',
-						payload: { value: 'hello world', suffix: 'World' },
 						message: 'Expected the string to end with "World".',
+						path: [],
+						payload: { value: 'hello world', suffix: 'World' },
 					}],
 				})
 		})
@@ -123,8 +127,9 @@ describe('endsWith step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'endsWith:expected_ends_with',
-						payload: { value: '你好地球', suffix: '世界' },
 						message: 'Expected the string to end with "世界".',
+						path: [],
+						payload: { value: '你好地球', suffix: '世界' },
 					}],
 				})
 		})
@@ -139,8 +144,9 @@ describe('endsWith step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'endsWith:expected_ends_with',
-						payload: { value: 'hello there', suffix: 'world' },
 						message: 'Custom message',
+						path: [],
+						payload: { value: 'hello there', suffix: 'world' },
 					}],
 				})
 		})

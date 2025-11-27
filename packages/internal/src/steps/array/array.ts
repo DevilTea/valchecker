@@ -52,23 +52,19 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const array = implStepPlugin<PluginDef>({
 	array: ({
-		utils: { addSuccessStep, success, resolveMessage, failure, isFailure, prependIssuePath },
+		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [item, message],
 	}) => {
 		addSuccessStep((value) => {
 			if (Array.isArray(value) === false) {
-				return failure({
-					code: 'array:expected_array',
-					payload: { value },
-					message: resolveMessage(
-						{
-							code: 'array:expected_array',
-							payload: { value },
-						},
-						message,
-						'Expected an array.',
-					),
-				})
+				return failure(
+					createIssue({
+						code: 'array:expected_array',
+						payload: { value },
+						customMessage: message,
+						defaultMessage: 'Expected an array.',
+					}),
+				)
 			}
 
 			// Optimized: Direct processing without Pipe overhead

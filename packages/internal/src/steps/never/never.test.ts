@@ -42,6 +42,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: 42 },
 					}],
 				})
@@ -55,6 +56,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: 'hello' },
 					}],
 				})
@@ -68,6 +70,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: true },
 					}],
 				})
@@ -81,6 +84,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: false },
 					}],
 				})
@@ -94,6 +98,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: null },
 					}],
 				})
@@ -107,6 +112,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: undefined },
 					}],
 				})
@@ -121,6 +127,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: obj },
 					}],
 				})
@@ -135,6 +142,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: arr },
 					}],
 				})
@@ -148,6 +156,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: 123n },
 					}],
 				})
@@ -162,6 +171,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: sym },
 					}],
 				})
@@ -177,6 +187,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: {} },
 					}],
 				})
@@ -190,6 +201,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: [] },
 					}],
 				})
@@ -203,6 +215,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: 0 },
 					}],
 				})
@@ -216,6 +229,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: '' },
 					}],
 				})
@@ -230,6 +244,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Expected never.',
+						path: [],
 						payload: { value: func },
 					}],
 				})
@@ -245,6 +260,7 @@ describe('never step plugin', () => {
 					issues: [{
 						code: 'never:expected_never',
 						message: 'Custom message',
+						path: [],
 						payload: { value: 42 },
 					}],
 				})

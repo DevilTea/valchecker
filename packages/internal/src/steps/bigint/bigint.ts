@@ -48,24 +48,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const bigint = implStepPlugin<PluginDef>({
 	bigint: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => typeof value === 'bigint'
 				?	success(value)
-				:	failure({
-						code: 'bigint:expected_bigint',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'bigint:expected_bigint',
-								payload: { value },
-							},
-							message,
-							'Expected a bigint.',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'bigint:expected_bigint',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected a bigint.',
+						}),
+					),
 		)
 	},
 })

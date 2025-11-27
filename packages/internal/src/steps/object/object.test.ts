@@ -40,8 +40,9 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
-						payload: { value: 'not an object' },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: 'not an object' },
 					}],
 				})
 		})
@@ -53,8 +54,9 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
-						payload: { value: 42 },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: 42 },
 					}],
 				})
 		})
@@ -66,8 +68,9 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
-						payload: { value: null },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -79,8 +82,9 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
-						payload: { value: undefined },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -92,8 +96,9 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
-						payload: { value: [] },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: [] },
 					}],
 				})
 		})
@@ -107,8 +112,9 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
-						payload: { value: 'not an object' },
 						message: 'Custom message',
+						path: [],
+						payload: { value: 'not an object' },
 					}],
 				})
 		})

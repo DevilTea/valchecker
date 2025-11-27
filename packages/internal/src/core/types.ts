@@ -7,16 +7,16 @@ export interface ExecutionIssue<
 	IssuePayload = unknown,
 > extends StandardSchemaV1.Issue {
 	/** The code of the issue. */
-	readonly code: IssueCode
+	code: IssueCode
 	/** The payload of the issue. */
-	readonly payload: IssuePayload
+	payload: IssuePayload
 	/** The error message of the issue. */
-	readonly message: string
-	/** The path of the issue, if any. */
-	readonly path?: ReadonlyArray<PropertyKey> | undefined
+	message: string
+	/** The path of the issue. */
+	path: PropertyKey[]
 }
 export interface ExecutionFailureResult<Issue extends ExecutionIssue> extends StandardSchemaV1.FailureResult {
-	readonly issues: Issue[]
+	issues: Issue[]
 }
 export type ExecutionResult<Output = unknown, Issue extends ExecutionIssue = ExecutionIssue> = ExecutionSuccessResult<Output> | ExecutionFailureResult<Issue>
 
@@ -193,20 +193,16 @@ export interface StepMethodUtils<
 
 	prependIssuePath: (issue: ExecutionIssue, path: ExecutionIssue['path']) => ExecutionIssue
 
-	// message -> defaultMessage -> globalMessage -> fallbackMessage
-	resolveMessage: (
-		issueContent: {
-			code: string
-			payload: any
-			path?: PropertyKey[]
-		},
-		customMessage?: MessageHandler<any> | undefined | null,
-		defaultMessage?: MessageHandler<any> | undefined | null,
-	) => string
-
 	success: (value: Output) => ExecutionSuccessResult<Output>
 	failure: (issue: Issue | Issue[]) => ExecutionFailureResult<Issue>
-	issue: (content: Issue) => Issue
+	createIssue: (content: {
+		code: string
+		payload: any
+		path?: PropertyKey[] | undefined
+		customMessage?: MessageHandler<any> | undefined
+		defaultMessage?: MessageHandler<any> | undefined
+	}) => Issue
+	issue: (i: Issue) => Issue
 }
 
 type ResolveExpectedThis<Def extends TStepPluginDef> = UnionToIntersection<Def> extends infer D extends TStepPluginDef
@@ -279,9 +275,9 @@ export type MessageHandler<Issue extends ExecutionIssue = ExecutionIssue>
 	=	| string
 		| ((payload: Issue extends any
 			? {
-					path: NonNullable<Issue['path']>
 					code: Issue['code']
 					payload: Issue['payload']
+					path: NonNullable<Issue['path']>
 				}
 			: never,
 		) => string | undefined | null)

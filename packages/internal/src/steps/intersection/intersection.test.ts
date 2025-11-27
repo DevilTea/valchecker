@@ -68,8 +68,9 @@ describe('intersection plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
-						payload: { value: 'hello', error: new Error('fail') },
 						message: 'Transform failed',
+						path: [],
+						payload: { value: 'hello', error: new Error('fail') },
 					}],
 				})
 		})
@@ -99,8 +100,9 @@ describe('intersection plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 'hello' },
 						message: 'Expected a number (NaN is not allowed).',
+						path: [],
+						payload: { value: 'hello' },
 					}],
 				})
 		})
@@ -115,8 +117,9 @@ describe('intersection plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
-						payload: { value: null },
 						message: 'Expected a string.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -133,8 +136,9 @@ describe('intersection plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
-						payload: { value: 'hello', error: new Error('fail') },
 						message: 'Transform failed',
+						path: [],
+						payload: { value: 'hello', error: new Error('fail') },
 					}],
 				})
 		})

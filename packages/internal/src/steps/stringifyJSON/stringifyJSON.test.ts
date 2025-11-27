@@ -67,8 +67,9 @@ describe('stringifyJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'stringifyJSON:unserializable',
-						payload: { value: undefined },
 						message: 'Value cannot be serialized to JSON.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -105,8 +106,9 @@ describe('stringifyJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'stringifyJSON:unserializable',
-						payload: { value: func },
 						message: 'Value cannot be serialized to JSON.',
+						path: [],
+						payload: { value: func },
 					}],
 				})
 		})
@@ -120,8 +122,9 @@ describe('stringifyJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'stringifyJSON:unserializable',
-						payload: { value: obj },
 						message: 'Value cannot be serialized to JSON.',
+						path: [],
+						payload: { value: obj },
 					}],
 				})
 		})
@@ -134,8 +137,9 @@ describe('stringifyJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'stringifyJSON:unserializable',
-						payload: { value: sym },
 						message: 'Value cannot be serialized to JSON.',
+						path: [],
+						payload: { value: sym },
 					}],
 				})
 		})
@@ -147,8 +151,9 @@ describe('stringifyJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'stringifyJSON:unserializable',
-						payload: { value: 123n },
 						message: 'Value cannot be serialized to JSON.',
+						path: [],
+						payload: { value: 123n },
 					}],
 				})
 		})
@@ -161,8 +166,9 @@ describe('stringifyJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'stringifyJSON:unserializable',
-						payload: { value: obj },
 						message: 'Value cannot be serialized to JSON.',
+						path: [],
+						payload: { value: obj },
 					}],
 				})
 		})
@@ -176,8 +182,9 @@ describe('stringifyJSON plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'stringifyJSON:unserializable',
-						payload: { value: expect.any(Function) },
 						message: 'Custom error message',
+						path: [],
+						payload: { value: expect.any(Function) },
 					}],
 				})
 		})

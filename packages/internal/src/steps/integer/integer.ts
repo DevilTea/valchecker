@@ -44,24 +44,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const integer = implStepPlugin<PluginDef>({
 	integer: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => Number.isInteger(value)
 				?	success(value)
-				:	failure({
-						code: 'integer:expected_integer',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'integer:expected_integer',
-								payload: { value },
-							},
-							message,
-							'Expected an integer.',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'integer:expected_integer',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected an integer.',
+						}),
+					),
 		)
 	},
 })

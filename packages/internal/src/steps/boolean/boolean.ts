@@ -48,24 +48,20 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const boolean = implStepPlugin<PluginDef>({
 	boolean: ({
-		utils: { addSuccessStep, success, resolveMessage, failure },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => typeof value === 'boolean'
 				?	success(value)
-				:	failure({
-						code: 'boolean:expected_boolean',
-						payload: { value },
-						message: resolveMessage(
-							{
-								code: 'boolean:expected_boolean',
-								payload: { value },
-							},
-							message,
-							'Expected a boolean.',
-						),
-					}),
+				:	failure(
+						createIssue({
+							code: 'boolean:expected_boolean',
+							payload: { value },
+							customMessage: message,
+							defaultMessage: 'Expected a boolean.',
+						}),
+					),
 		)
 	},
 })

@@ -161,8 +161,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
-						payload: { value: 'string' },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: 'string' },
 					}],
 				})
 		})
@@ -174,8 +175,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
-						payload: { value: 123 },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: 123 },
 					}],
 				})
 		})
@@ -187,8 +189,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
-						payload: { value: [1, 2, 3] },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: [1, 2, 3] },
 					}],
 				})
 		})
@@ -200,8 +203,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
-						payload: { value: null },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: null },
 					}],
 				})
 		})
@@ -213,8 +217,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
-						payload: { value: undefined },
 						message: 'Expected an object.',
+						path: [],
+						payload: { value: undefined },
 					}],
 				})
 		})
@@ -231,9 +236,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 'thirty' },
 						message: 'Expected a number (NaN is not allowed).',
 						path: ['age'],
+						payload: { value: 'thirty' },
 					}],
 				})
 		})
@@ -248,9 +253,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						payload: { value: 'thirty' },
 						message: 'Expected a number (NaN is not allowed).',
 						path: ['age'],
+						payload: { value: 'thirty' },
 					}],
 				})
 		})
@@ -264,8 +269,9 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
-						payload: { value: 'not an object' },
 						message: 'Custom message',
+						path: [],
+						payload: { value: 'not an object' },
 					}],
 				})
 		})
