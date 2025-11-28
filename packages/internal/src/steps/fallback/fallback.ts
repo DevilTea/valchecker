@@ -1,5 +1,5 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
-import type { IsPromise, MaybePromise } from '../../shared'
+import type { IsEqual, IsPromise, MaybePromise } from '../../shared'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -42,7 +42,11 @@ interface PluginDef extends TStepPluginDef {
 						message?: MessageHandler<Internal.Issue<InferIssue<This>>>,
 					) => Next<
 						{
-							async: IsPromise<Result> extends false ? false : true
+							operationMode: IsEqual<IsPromise<Result>, true> extends true
+								? 'async'
+								: IsEqual<IsPromise<Result>, false> extends true
+									? 'sync'
+									: 'maybe-async'
 							issue: Internal.Issue<InferIssue<This>>
 						},
 						This

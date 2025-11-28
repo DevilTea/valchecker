@@ -1,6 +1,16 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferAsync, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+
+declare namespace Internal {
+	export type OpMode<Item extends Use<Valchecker>> = InferOperationMode<Item> extends infer M extends OperationMode
+		? 'async' extends M
+			? 'async'
+			: 'maybe-async' extends M
+				? 'maybe-async'
+				: 'sync'
+		: never
+}
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'array'
@@ -38,7 +48,7 @@ interface PluginDef extends TStepPluginDef {
 						message?: MessageHandler<Meta['SelfIssue']>,
 					) => Next<
 						{
-							async: InferAsync<Item>
+							operationMode: Internal.OpMode<Item>
 							output: InferOutput<Item>[]
 							issue: Meta['SelfIssue'] | InferIssue<Item>
 						},

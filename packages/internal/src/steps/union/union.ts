@@ -1,15 +1,28 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferAsync, InferIssue, InferOutput, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { IsEqual } from 'type-fest'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
 
 	type Branches = [Use<Valchecker>, ...Use<Valchecker>[]]
 
-	type Async<B extends Branches> = (B[number] extends infer S
-		? S extends Use<Valchecker>
-			? InferAsync<S>
+	type OpMode<B extends Branches> = (
+		B[number] extends infer S
+			? S extends Use<Valchecker>
+				? InferOperationMode<S>
+				: never
 			: never
-		: never) extends false ? false : true
+	) extends infer M extends OperationMode
+		// Because union may short-circuit, if there is any mixed mode or 'maybe-async', result is 'maybe-async'
+		// If all branches are sync, result is sync
+		? IsEqual<M, 'sync'> extends true
+			? 'sync'
+			// If any branch is async, result is async
+			: IsEqual<M, 'async'> extends true
+				? 'async'
+				// Otherwise, result is maybe-async
+				: 'maybe-async'
+		: never
 
 	type Output<B extends Branches> = B[number] extends infer S
 		? S extends Use<Valchecker>
@@ -58,7 +71,7 @@ interface PluginDef extends TStepPluginDef {
 					branches: B,
 				) => Next<
 					{
-						async: Internal.Async<B>
+						operationMode: Internal.OpMode<B>
 						output: Internal.Output<B>
 						issue: Internal.Issue<B>
 					},

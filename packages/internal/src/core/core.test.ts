@@ -587,7 +587,7 @@ describe('core module', () => {
 			const steps = [
 				(result: ExecutionResult) => ({ value: (result as any).value + 1 } as ExecutionResult),
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = executor(5)
 
@@ -600,7 +600,7 @@ describe('core module', () => {
 				(result: ExecutionResult) => ({ value: (result as any).value + 1 } as ExecutionResult),
 				(result: ExecutionResult) => ({ value: (result as any).value * 2 } as ExecutionResult),
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = executor(5)
 
@@ -610,7 +610,7 @@ describe('core module', () => {
 
 		it('should execute with empty steps array', () => {
 			const steps: ((lastResult: ExecutionResult) => ExecutionResult)[] = []
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = executor(5)
 
@@ -633,7 +633,7 @@ describe('core module', () => {
 					return { issues: [{ code: 'test:error', payload: {}, message: 'Failed' }] } as ExecutionResult
 				},
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = await (executor(5) as any)
 
@@ -646,7 +646,7 @@ describe('core module', () => {
 				async (result: ExecutionResult) => ({ value: (result as any).value + 1 } as ExecutionResult),
 				(result: ExecutionResult) => ({ value: (result as any).value * 2 } as ExecutionResult),
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = await executor(5)
 
@@ -659,7 +659,7 @@ describe('core module', () => {
 				async (result: ExecutionResult) => ({ value: (result as any).value + 1 } as ExecutionResult),
 				async (result: ExecutionResult) => ({ value: (result as any).value * 2 } as ExecutionResult),
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = await executor(5)
 
@@ -671,7 +671,7 @@ describe('core module', () => {
 			const steps = [
 				(result: ExecutionResult) => ({ value: (result as any).value + 1 } as ExecutionResult),
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = executor(5)
 
@@ -686,7 +686,7 @@ describe('core module', () => {
 					return { value: value.toUpperCase() } as ExecutionResult
 				},
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			const result = executor('hello')
 
@@ -700,7 +700,7 @@ describe('core module', () => {
 					throw new Error('Test error')
 				},
 			]
-			const executor = createPipeExecutor(steps)
+			const executor = createPipeExecutor({ runtimeSteps: steps, canJIT: false })
 
 			try {
 				await executor(5)

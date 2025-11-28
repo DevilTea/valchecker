@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -48,7 +48,7 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['This'] extends Meta['ExpectedThis']
 			// Required to specify type parameter T.
-			? <T extends { async?: boolean, output?: unknown, issue?: ExecutionIssue } = never>(
+			? <T extends { operationMode?: OperationMode, output?: unknown, issue?: ExecutionIssue } = never>(
 					step: NoInfer<Use<Valchecker>> | (() => NoInfer<Use<Valchecker>>),
 				) => Next<T, this['This']>
 			: never

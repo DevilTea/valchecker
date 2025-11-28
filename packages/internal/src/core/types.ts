@@ -31,9 +31,11 @@ export interface TStepMethodMeta {
 	SelfIssue: ExecutionIssue
 }
 
+export type OperationMode = 'sync' | 'async' | 'maybe-async'
+
 export interface TExecutionContext {
 	initial: boolean
-	async: boolean
+	operationMode: OperationMode
 	input: unknown
 	output: unknown
 	issue: ExecutionIssue
@@ -50,7 +52,7 @@ export interface TValchecker {
 
 // Infering
 export type InferExecutionContext<V extends TValchecker> = V['~core']['executionStepContext']
-export type InferAsync<V extends TValchecker> = InferExecutionContext<V>['async']
+export type InferOperationMode<V extends TValchecker> = InferExecutionContext<V>['operationMode']
 export type InferInput<V extends TValchecker> = InferExecutionContext<V>['input']
 export type InferOutput<V extends TValchecker> = InferExecutionContext<V>['output']
 export type InferIssue<V extends TValchecker> = InferExecutionContext<V>['issue']
@@ -70,16 +72,22 @@ type PatchExecutionContext<Current extends TExecutionContext, Patch extends TExe
 	IsEqual<Current, any> extends true
 		? {
 				initial: Patch extends { initial: infer I extends boolean } ? I : boolean
-				async: Patch extends { async: infer A extends boolean } ? A : boolean
+				operationMode: Patch extends { operationMode: infer A extends OperationMode } ? A : OperationMode
 				input: Patch extends { input: infer I } ? I : unknown
 				output: Patch extends { output: infer O } ? O : unknown
 				issue: Patch extends { issue: infer I extends ExecutionIssue } ? I : ExecutionIssue
 			}
 		: {
 				initial: false
-				async: Patch extends { async: infer A extends boolean }
-					? (Current['async'] | A) extends false ? false : true
-					: Current['async']
+				operationMode: Patch extends { operationMode: infer A extends OperationMode }
+					? (Current['operationMode'] | A) extends infer M extends OperationMode
+							? 'async' extends M
+								? 'async'
+								: 'maybe-async' extends M
+									? 'maybe-async'
+									: 'sync'
+							: never
+					: Current['operationMode']
 				input: Patch extends { input: infer I }
 					? I
 					: Current['input']
@@ -122,11 +130,11 @@ interface OnlyInitialValcheckerMethods {
 interface OnlyNotInitialValcheckerMethods<Instance extends Valchecker> {
 	execute: (value: InferInput<Instance>) => [
 		ExecutionResult<InferOutput<Instance>, InferIssue<Instance>>,
-		InferAsync<Instance>,
-	] extends [infer Result, infer IsAsync]
-		? IsAsync extends false
+		InferOperationMode<Instance>,
+	] extends [infer Result, infer OpMode]
+		? IsEqual<OpMode, 'sync'> extends true
 			? Result
-			: IsAsync extends true
+			: IsEqual<OpMode, 'async'> extends true
 				? Promise<Result>
 				: MaybePromise<Result>
 		: never
@@ -240,7 +248,7 @@ export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToInter
 
 export type DefineExpectedValchecker<ExpectedExecutionContext extends Partial<TExecutionContext> = TExecutionContext> = Valchecker<{
 	initial: ExpectedExecutionContext extends { initial: infer I extends boolean } ? I : TExecutionContext['initial']
-	async: ExpectedExecutionContext extends { async: infer A extends boolean } ? A : TExecutionContext['async']
+	operationMode: ExpectedExecutionContext extends { operationMode: infer O extends OperationMode } ? O : TExecutionContext['operationMode']
 	input: ExpectedExecutionContext extends { input: infer I } ? I : TExecutionContext['input']
 	output: ExpectedExecutionContext extends { output: infer O } ? O : TExecutionContext['output']
 	issue: ExpectedExecutionContext extends { issue: infer C extends ExecutionIssue } ? C : TExecutionContext['issue']
@@ -265,7 +273,7 @@ export type UnknownExceptionIssue<M extends string = string> = ExecutionIssue<'c
 
 export type InitialValchecker<RegisteredStepPluginDefs extends TStepPluginDef> = Use<Valchecker<{
 	initial: true
-	async: false
+	operationMode: 'sync'
 	input: unknown
 	output: unknown
 	issue: UnknownExceptionIssue<RegisteredStepMethodName<RegisteredStepPluginDefs>>
@@ -290,3 +298,13 @@ export type MessageHandler<Issue extends ExecutionIssue = ExecutionIssue>
 				}) => string>>
 				: never
 		>
+
+export type ResolveMessageFn = (param: {
+	data: {
+		code: string
+		payload: any
+		path: PropertyKey[]
+	}
+	customMessage?: MessageHandler<any> | undefined
+	defaultMessage?: MessageHandler<any> | undefined
+}) => string

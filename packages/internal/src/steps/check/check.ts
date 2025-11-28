@@ -1,5 +1,5 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
-import type { IsPromise, MaybePromise } from '../../shared'
+import type { IsEqual, IsPromise, MaybePromise } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { returnTrue } from '../../shared'
 
@@ -104,7 +104,7 @@ interface PluginDef extends TStepPluginDef {
 								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 							) => Next<
 								{
-									async: IsPromise<Output> extends false ? false : true
+									operationMode: 'sync'
 									output: Output
 									issue: Internal.Issue<CurrentOutput> | InferIssue<This>
 								},
@@ -122,7 +122,11 @@ interface PluginDef extends TStepPluginDef {
 								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 							) => Next<
 								{
-									async: IsPromise<Result> extends false ? false : true
+									operationMode: IsEqual<IsPromise<Result>, true> extends true
+										? 'async'
+										: IsEqual<IsPromise<Result>, false> extends true
+											? 'sync'
+											: 'maybe-async'
 									output: Awaited<Result> extends (Internal.True<infer T> | false) ? T : CurrentOutput
 									issue: Internal.Issue<CurrentOutput>
 								},

@@ -7,6 +7,7 @@ import type {
 	InferAllIssue,
 	InitialValchecker,
 	MessageHandler,
+	ResolveMessageFn,
 	StepMethodUtils,
 	StepPluginImpl,
 	TStepPluginDef,
@@ -56,9 +57,13 @@ export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['pa
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export function createPipeExecutor(
-	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
-): (value: unknown) => MaybePromise<ExecutionResult> {
+export function createPipeExecutor({
+	runtimeSteps,
+	// canJIT,
+}: {
+	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
+	canJIT: boolean
+}): (value: unknown) => MaybePromise<ExecutionResult> {
 	return (value: unknown) => {
 		// Optimized: Direct execution without Pipe overhead
 		const len = runtimeSteps.length
@@ -85,16 +90,6 @@ export function createPipeExecutor(
 		return result
 	}
 }
-
-type ResolveMessageFn = (param: {
-	data: {
-		code: string
-		payload: any
-		path: PropertyKey[]
-	}
-	customMessage?: MessageHandler<any> | undefined
-	defaultMessage?: MessageHandler<any> | undefined
-}) => string
 
 /* @__NO_SIDE_EFFECTS__ */
 export function handleMessage(
@@ -223,11 +218,17 @@ function createExecutionStepMethodUtils(
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-function createProxyHandler(
-	stepMethods: Record<PropertyKey, unknown>,
-	resolveMessage: ResolveMessageFn,
-	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
-) {
+function createProxyHandler({
+	stepMethods,
+	resolveMessage,
+	runtimeSteps,
+	canJIT,
+}: {
+	stepMethods: Record<PropertyKey, unknown>
+	resolveMessage: ResolveMessageFn
+	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
+	canJIT: boolean
+}) {
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
 			if (Object.hasOwn(stepMethods, p) === false)
@@ -235,11 +236,12 @@ function createProxyHandler(
 
 			const stepMethod = stepMethods[p] as AnyFn
 			return (...params: any[]) => {
-				const newInstance = createInstance(
+				const newInstance = createInstance({
 					stepMethods,
 					resolveMessage,
-					runtimeSteps,
-				)
+					currentRuntimeSteps: runtimeSteps,
+					canJIT,
+				})
 				stepMethod({
 					utils: createExecutionStepMethodUtils(
 						p as string,
@@ -280,16 +282,22 @@ function createCoreProperties(
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-function createInstance(
-	stepMethods: Record<PropertyKey, unknown>,
-	resolveMessage: ResolveMessageFn,
-	currentRuntimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
-): any {
+function createInstance({
+	stepMethods,
+	resolveMessage,
+	currentRuntimeSteps,
+	canJIT,
+}: {
+	stepMethods: Record<PropertyKey, unknown>
+	resolveMessage: ResolveMessageFn
+	currentRuntimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
+	canJIT: boolean
+}): any {
 	const runtimeSteps = [...currentRuntimeSteps]
-	const execute = createPipeExecutor(runtimeSteps)
+	const execute = createPipeExecutor({ runtimeSteps, canJIT })
 	const coreProperties = createCoreProperties(runtimeSteps, execute)
 
-	return new Proxy(coreProperties, createProxyHandler(stepMethods, resolveMessage, runtimeSteps))
+	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps, canJIT }))
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -309,15 +317,26 @@ export function createValchecker<
 		}>
 	>
 }) {
+	const canJIT = (() => {
+		try {
+			// eslint-disable-next-line no-new-func
+			return !!new Function('return true')
+		}
+		catch {
+			return false
+		}
+	})()
+
 	const stepMethods = {} as Record<PropertyKey, unknown>
 	for (const def of steps) {
 		Object.assign(stepMethods, def)
 	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
 
-	return createInstance(
+	return createInstance({
 		stepMethods,
 		resolveMessage,
-		[],
-	) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
+		currentRuntimeSteps: [],
+		canJIT,
+	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }

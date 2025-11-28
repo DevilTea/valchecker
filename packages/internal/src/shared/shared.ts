@@ -44,7 +44,11 @@ export type OverloadParametersAndReturnType<T> = T extends {
 
 export type MaybePromise<T> = T | Promise<T>
 
-export type IsPromise<T> = T extends Promise<any> ? true : Promise<any> extends T ? boolean : false
+export type IsPromise<T> = T extends Promise<any>
+	? true
+	: Promise<any> extends T
+		? boolean
+		: false
 
 /**
  * Extracts the return type of overloads in a function type as a union. (Up to 5 overloads supported)

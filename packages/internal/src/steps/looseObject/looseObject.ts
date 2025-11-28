@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferAsync, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 
@@ -9,13 +9,17 @@ declare namespace Internal {
 		S extends Struct,
 	> = ValueOf<{
 		[K in keyof S]: S[K] extends Use<Valchecker>
-			? InferAsync<S[K]>
+			? InferOperationMode<S[K]>
 			: S[K] extends [optional: Use<Valchecker>]
-				? InferAsync<S[K][0]>
+				? InferOperationMode<S[K][0]>
 				: never
-	}> extends false
-		? false
-		: true
+	}> extends infer M extends OperationMode
+		? 'async' extends M
+			? 'async'
+			: 'maybe-async' extends M
+				? 'maybe-async'
+				: 'sync'
+		: never
 
 	export type Output<
 		S extends Struct,
