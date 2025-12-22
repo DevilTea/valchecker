@@ -45,6 +45,25 @@ Follow this workflow to define, test, and verify a new `step`.
 
 Each `step` is a modular unit that performs a specific validation or transformation. It is composed of metadata, an optional issue definition, a plugin interface, and an implementation.
 
+Before implementing a step, you must clarify the following technical details with the user to ensure the code structure is correct:
+
+1.  **Step Name**: What is the exact function name? (e.g., `min`, `email`)
+2.  **Input Type (`ExpectedCurrentValchecker`)**: What type must the previous step output for this step to be valid?
+    *   Examples: `unknown` (for initial validation), `string`, `number`, `{ length: number }`.
+3.  **Output Type (`Next`)**: Does this step transform the value?
+    *   If yes, what is the new output type?
+    *   If no, the output type remains the same.
+4.  **Arguments (`params`)**: What arguments does the step function accept?
+    *   Define the name and type of each argument (e.g., `min: number`).
+    *   Note: The last argument is typically an optional `message`.
+5.  **Issue Definition (`ExecutionIssue`)**:
+    *   **Code**: What is the unique error code? Format: `'stepname:issue_code'` (e.g., `'min:expected_min'`).
+    *   **Payload**: What data should be included in the error payload? (e.g., `{ value: unknown, min: number }`).
+    *   **Default Message**: What is the default error message? Does it depend on the payload?
+6.  **Logic**:
+    *   What is the exact condition for success?
+    *   What is the exact condition for failure?
+
 > For a complete guide on creating a step, refer to:
 > [**How to Define a Step**](./references/how-to-define-a-step.md)
 
