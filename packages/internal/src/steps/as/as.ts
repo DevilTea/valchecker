@@ -4,7 +4,7 @@ import { noop } from '../../shared'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'as'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -31,12 +31,12 @@ interface PluginDef extends TStepPluginDef {
  */
 	as: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	<T>() => Next<
 					{
 						output: T
 					},
-					this['This']
+					this['CurrentValchecker']
 				>
 			:	never
 	>

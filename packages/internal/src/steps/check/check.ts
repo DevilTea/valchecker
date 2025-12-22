@@ -17,7 +17,7 @@ declare namespace Internal {
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'check'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: Internal.Issue
 }>
 
@@ -97,7 +97,7 @@ interface PluginDef extends TStepPluginDef {
 	check:
 		| DefineStepMethod<
 			Meta,
-			this['This'] extends infer This extends Meta['ExpectedThis']
+			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 				?	[InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
 						?	<Output extends CurrentOutput>(
 								run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue>) => value is Output,
@@ -115,7 +115,7 @@ interface PluginDef extends TStepPluginDef {
 		>
 		| DefineStepMethod<
 			Meta,
-			this['This'] extends infer This extends Meta['ExpectedThis']
+			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
 						? <Result extends Internal.RunCheckResult>(
 								run: Internal.RunCheck<CurrentOutput, CurrentIssue, Result>,

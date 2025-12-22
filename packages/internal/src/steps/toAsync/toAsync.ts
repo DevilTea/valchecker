@@ -3,7 +3,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toAsync'
-	ExpectedThis: DefineExpectedValchecker<{ operationMode: 'sync' | 'maybe-async' }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ operationMode: 'sync' | 'maybe-async' }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -32,12 +32,12 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	toAsync: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	() => Next<
 					{
 						operationMode: 'async'
 					},
-					this['This']
+					this['CurrentValchecker']
 				>
 			:	never
 	>

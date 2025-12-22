@@ -8,7 +8,7 @@ declare namespace Internal {
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'fallback'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: Internal.Issue
 }>
 
@@ -35,7 +35,7 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	fallback: DefineStepMethod<
 		Meta,
-		this['This'] extends infer This extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			?	InferOutput<This> extends infer CurrentOutput
 				?	<Result extends MaybePromise<CurrentOutput>>(
 						run: (issues: InferIssue<This>[]) => Result,

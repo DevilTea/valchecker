@@ -10,7 +10,7 @@ declare namespace Internal {
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'transform'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: Internal.Issue
 }>
 
@@ -37,8 +37,8 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	transform: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			?	InferOutput<this['This']> extends infer CurrentOutput
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			?	InferOutput<this['CurrentValchecker']> extends infer CurrentOutput
 				?	<Result>(
 						run: Internal.RunTransform<CurrentOutput, Result>,
 						message?: MessageHandler<Internal.Issue<CurrentOutput>>,
@@ -52,7 +52,7 @@ interface PluginDef extends TStepPluginDef {
 							output: Awaited<NoInfer<Result>>
 							issue: Internal.Issue<CurrentOutput>
 						},
-						this['This']
+						this['CurrentValchecker']
 					>
 				:	never
 			:	never

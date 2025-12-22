@@ -18,7 +18,7 @@ declare namespace Internal {
 type Meta<T extends Internal.Input> = T extends Internal.Input
 	? DefineStepMethodMeta<{
 		Name: 'max'
-		ExpectedThis: DefineExpectedValchecker<{ output: T }>
+		ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: T }>
 		SelfIssue: Internal.Issue<T>
 	}>
 	: never
@@ -66,28 +66,28 @@ interface PluginDef extends TStepPluginDef {
 	max:
 		| DefineStepMethod<
 			Meta<number>,
-			this['This'] extends Meta<number>['ExpectedThis']
+			this['CurrentValchecker'] extends Meta<number>['ExpectedCurrentValchecker']
 				? (max: number, message?: MessageHandler<Internal.NumberIssue>) => Next<
 						{ issue: Internal.NumberIssue },
-						this['This']
+						this['CurrentValchecker']
 					>
 				: never
 		>
 		| DefineStepMethod<
 			Meta<bigint>,
-			this['This'] extends Meta<bigint>['ExpectedThis']
+			this['CurrentValchecker'] extends Meta<bigint>['ExpectedCurrentValchecker']
 				? (max: bigint, message?: MessageHandler<Internal.BigIntIssue>) => Next<
 						{ issue: Internal.BigIntIssue },
-						this['This']
+						this['CurrentValchecker']
 					>
 				: never
 		>
 		| DefineStepMethod<
 			Meta<{ length: number }>,
-			this['This'] extends Meta<{ length: number }>['ExpectedThis']
+			this['CurrentValchecker'] extends Meta<{ length: number }>['ExpectedCurrentValchecker']
 				? (max: number, message?: MessageHandler<Internal.LengthIssue>) => Next<
 						{ issue: Internal.LengthIssue },
-						this['This']
+						this['CurrentValchecker']
 					>
 				: never
 		>

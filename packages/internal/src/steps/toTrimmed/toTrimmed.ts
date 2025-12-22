@@ -3,7 +3,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toTrimmed'
-	ExpectedThis: DefineExpectedValchecker<{ output: string }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -30,8 +30,8 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	toTrimmed: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			?	() => Next<undefined, this['This']>
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			?	() => Next<undefined, this['CurrentValchecker']>
 			:	never
 	>
 }

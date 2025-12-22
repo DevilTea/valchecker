@@ -3,7 +3,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'generic'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -46,11 +46,11 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	generic: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			// Required to specify type parameter T.
 			? <T extends { operationMode?: OperationMode, output?: unknown, issue?: ExecutionIssue } = never>(
 					step: NoInfer<Use<Valchecker>> | (() => NoInfer<Use<Valchecker>>),
-				) => Next<T, this['This']>
+				) => Next<T, this['CurrentValchecker']>
 			: never
 	>
 }

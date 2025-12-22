@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'null'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: ExecutionIssue<'null:expected_null', { value: unknown }>
 }>
 
@@ -31,14 +31,14 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	null: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			?	IsExactlyAnyOrUnknown<InferOutput<this['This']>> extends true
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				?	(message?: MessageHandler<Meta['SelfIssue']>) => Next<
 						{
 							output: null
 							issue: Meta['SelfIssue']
 						},
-						this['This']
+						this['CurrentValchecker']
 					>
 				:	never
 			:	never

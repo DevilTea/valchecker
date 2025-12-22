@@ -3,7 +3,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'endsWith'
-	ExpectedThis: DefineExpectedValchecker<{ output: string }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
 	SelfIssue: ExecutionIssue<'endsWith:expected_ends_with', { value: string, suffix: string }>
 }>
 
@@ -30,10 +30,10 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	endsWith: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (suffix: string, message?: MessageHandler<Meta['SelfIssue']>) => Next<
 					{ issue: Meta['SelfIssue'] },
-					this['This']
+					this['CurrentValchecker']
 				>
 			: never
 	>

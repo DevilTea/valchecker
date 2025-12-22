@@ -49,7 +49,7 @@ declare namespace Internal {
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'looseObject'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: Internal.Issue
 }>
 
@@ -77,8 +77,8 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	looseObject: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			?	IsExactlyAnyOrUnknown<InferOutput<this['This']>> extends true
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				?	<S extends Internal.Struct>(
 						struct: S,
 						message?: MessageHandler<Internal.Issue<NoInfer<S>>>,
@@ -88,7 +88,7 @@ interface PluginDef extends TStepPluginDef {
 							output: Internal.Output<NoInfer<S>>
 							issue: Internal.Issue<NoInfer<S>>
 						},
-						this['This']
+						this['CurrentValchecker']
 					>
 				:	never
 			:	never

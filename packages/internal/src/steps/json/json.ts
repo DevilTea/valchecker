@@ -3,7 +3,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'json'
-	ExpectedThis: DefineExpectedValchecker<{ output: string }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
 	SelfIssue: ExecutionIssue<'json:invalid_json', { value: string, error: unknown }>
 }>
 
@@ -30,13 +30,13 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	json: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	(message?: MessageHandler<Meta['SelfIssue']>) => Next<
 					{
 						output: string
 						issue: Meta['SelfIssue']
 					},
-					this['This']
+					this['CurrentValchecker']
 				>
 			:	never
 	>

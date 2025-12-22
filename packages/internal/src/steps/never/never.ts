@@ -3,7 +3,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'never'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: ExecutionIssue<'never:expected_never', { value: unknown }>
 }>
 
@@ -30,13 +30,13 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	never: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	(message?: MessageHandler<Meta['SelfIssue']>) => Next<
 					{
 						output: never
 						issue: Meta['SelfIssue']
 					},
-					this['This']
+					this['CurrentValchecker']
 				>
 			:	never
 	>

@@ -22,12 +22,12 @@ export type ExecutionResult<Output = unknown, Issue extends ExecutionIssue = Exe
 
 // T type
 export interface TStepPluginDef {
-	This: unknown
+	CurrentValchecker: unknown
 }
 
 export interface TStepMethodMeta {
 	Name: string
-	ExpectedThis: DefineExpectedValchecker<any>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<any>
 	SelfIssue: ExecutionIssue
 }
 
@@ -114,7 +114,7 @@ type IsStepMethodDef<M> = [IsEqual<M, any>, IsEqual<M, unknown>, IsEqual<M, neve
 		:	true
 	:	false
 
-type ResolveStepMethodDefs<Instance extends TValchecker, This = Instance> = UnionToIntersection<InferRegisteredStepPluginDefs<Instance>> & { This: This }
+type ResolveStepMethodDefs<Instance extends TValchecker, This = Instance> = UnionToIntersection<InferRegisteredStepPluginDefs<Instance>> & { CurrentValchecker: This }
 
 type ExtractStepMethods<Instance extends Valchecker> = ResolveStepMethodDefs<Instance> extends infer Def
 	? {
@@ -215,19 +215,19 @@ export interface StepMethodUtils<
 
 type ResolveExpectedThis<Def extends TStepPluginDef> = UnionToIntersection<Def> extends infer D extends TStepPluginDef
 	? ValueOf<{ [M in keyof D as IsStepMethodDef<D[M]> extends true ? M : never]: D[M] extends { Type: 'ExecutionStep', Meta: infer Meta extends TStepMethodMeta }
-		? Meta['ExpectedThis']
+		? Meta['ExpectedCurrentValchecker']
 		: never
 	}>
 	: never
 
-export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToIntersection<StepPluginDef> & { This: Valchecker<any, StepPluginDef> }) extends infer Def extends TStepPluginDef
+export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToIntersection<StepPluginDef> & { CurrentValchecker: Valchecker<any, StepPluginDef> }) extends infer Def extends TStepPluginDef
 	? {
 		[M in keyof Def as IsStepMethodDef<Def[M]> extends true ? M : never]: Def[M]extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
 			? OverloadParametersAndReturnType<UnionToIntersection<Def[M]['Method']> extends infer Method extends AnyFn ? Method : never> extends infer MethodTuple extends [params: any[], ret: Use<Valchecker>]
 				?	(
 						payload: {
 							utils: StepMethodUtils<
-								InferOutput<Def[M]['Meta']['ExpectedThis']>,
+								InferOutput<Def[M]['Meta']['ExpectedCurrentValchecker']>,
 								// If return type is Next<{ output: ... }>
 								MethodTuple[1] extends Next<{ output: infer O }, any>
 									// Extract the new output type
@@ -256,11 +256,11 @@ export type DefineExpectedValchecker<ExpectedExecutionContext extends Partial<TE
 
 export interface DefineStepMethodMeta<Meta extends {
 	Name: string
-	ExpectedThis: DefineExpectedValchecker<any>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<any>
 	SelfIssue?: ExecutionIssue<`${Meta['Name']}:${string}`>
 }> extends TStepMethodMeta {
 	Name: Meta['Name']
-	ExpectedThis: Meta['ExpectedThis']
+	ExpectedCurrentValchecker: Meta['ExpectedCurrentValchecker']
 	SelfIssue: Meta extends { SelfIssue: ExecutionIssue }
 		? Meta['SelfIssue']
 		: never
@@ -268,7 +268,7 @@ export interface DefineStepMethodMeta<Meta extends {
 
 export interface DefineStepMethod<Meta extends TStepMethodMeta, Method extends AnyFn> { Type: 'ExecutionStep', Meta: Meta, Method: Method }
 
-export type RegisteredStepMethodName<RegisteredStepPluginDefs extends TStepPluginDef> = Exclude<keyof UnionToIntersection<RegisteredStepPluginDefs>, 'This'> extends infer N extends string ? N : never
+export type RegisteredStepMethodName<RegisteredStepPluginDefs extends TStepPluginDef> = Exclude<keyof UnionToIntersection<RegisteredStepPluginDefs>, 'CurrentValchecker'> extends infer N extends string ? N : never
 export type UnknownExceptionIssue<M extends string = string> = ExecutionIssue<'core:unknown_exception', { method: M, value: unknown, error: unknown }>
 
 export type InitialValchecker<RegisteredStepPluginDefs extends TStepPluginDef> = Use<Valchecker<{

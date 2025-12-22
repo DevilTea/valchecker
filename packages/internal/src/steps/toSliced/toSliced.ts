@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toSliced'
-	ExpectedThis: DefineExpectedValchecker<{ output: { slice: (...params: any[]) => any } }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: { slice: (...params: any[]) => any } }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -40,12 +40,12 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Issues:
 	 * None.
 	 */
-	toSliced: this['This'] extends Meta['ExpectedThis']
-		?	OverloadParametersAndReturnType<InferOutput<this['This']>['slice']> extends infer Tuple
+	toSliced: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+		?	OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['slice']> extends infer Tuple
 			?	Tuple extends [params: any[], ret: any]
 				?	DefineStepMethod<
 					Meta,
-					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['This']>
+					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['CurrentValchecker']>
 				>
 				:	never
 			:	never

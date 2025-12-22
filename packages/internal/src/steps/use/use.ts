@@ -3,7 +3,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'use'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -42,7 +42,7 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	use: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	<Schema extends { execute: (value: any) => ExecutionResult }>(
 					schema: Schema,
 				) => Next<
@@ -60,7 +60,7 @@ interface PluginDef extends TStepPluginDef {
 								:	never
 							:	never
 					},
-					this['This']
+					this['CurrentValchecker']
 				>
 			:	never
 	>

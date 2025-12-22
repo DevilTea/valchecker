@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toSorted'
-	ExpectedThis: DefineExpectedValchecker<{ output: any[] & { toSorted: (...params: any[]) => any } }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: any[] & { toSorted: (...params: any[]) => any } }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -29,12 +29,12 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Issues:
 	 * None.
 	 */
-	toSorted: this['This'] extends Meta['ExpectedThis']
-		?	OverloadParametersAndReturnType<InferOutput<this['This']>['toSorted']> extends infer Tuple
+	toSorted: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+		?	OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['toSorted']> extends infer Tuple
 			?	Tuple extends [params: any[], ret: any]
 				?	DefineStepMethod<
 					Meta,
-					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['This']>
+					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['CurrentValchecker']>
 				>
 				:	never
 			:	never

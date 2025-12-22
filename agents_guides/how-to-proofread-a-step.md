@@ -33,9 +33,9 @@ This guide should be used as the standard for code reviews of any new or modifie
     - [ ] Does the `Issues` section list **all** possible issue codes the step can produce?
 - [ ] **Method Signature**: Is the method signature type-safe and correct?
     - [ ] Does it use `DefineStepMethod<Meta, ...>`?
-    - [ ] Does it check `this['This'] extends Meta['ExpectedThis']` for type safety?
-    - [ ] For initial type validators, does it also check `IsExactlyAnyOrUnknown<InferOutput<this['This']>>`?
-    - [ ] Does it return `Next<{ output, issue }, this['This']>` with the correct types?
+    - [ ] Does it check `this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']` for type safety?
+    - [ ] For initial type validators, does it also check `IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>>`?
+    - [ ] Does it return `Next<{ output, issue }, this['CurrentValchecker']>` with the correct types?
     - [ ] Does it reference `Meta['SelfIssue']` for the issue type?
 - [ ] **Method Overloads**: If the step has multiple overloads, are they all defined as a union of `DefineStepMethod<>` types?
 

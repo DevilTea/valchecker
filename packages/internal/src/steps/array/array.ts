@@ -14,7 +14,7 @@ declare namespace Internal {
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'array'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: ExecutionIssue<'array:expected_array', { value: unknown }>
 }>
 
@@ -41,8 +41,8 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	array: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			?	IsExactlyAnyOrUnknown<InferOutput<this['This']>> extends true
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				?	<Item extends Use<Valchecker>>(
 						item: Item,
 						message?: MessageHandler<Meta['SelfIssue']>,
@@ -52,7 +52,7 @@ interface PluginDef extends TStepPluginDef {
 							output: InferOutput<Item>[]
 							issue: Meta['SelfIssue'] | InferIssue<Item>
 						},
-						this['This']
+						this['CurrentValchecker']
 					>
 				:	never
 			:	never

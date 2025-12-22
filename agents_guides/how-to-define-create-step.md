@@ -21,7 +21,7 @@ type Meta = DefineStepMethodMeta<{
 	// Step Method Name
 	Name: 'stepMethodName'
 	// Expected Valchecker Context
-	ExpectedThis: DefineExpectedValchecker // Or a more specific type constraint
+	ExpectedCurrentValchecker: DefineExpectedValchecker // Or a more specific type constraint
 	// Self Issue (Optional - omit if the step never fails)
 	SelfIssue: ExecutionIssue<'stepMethodName:error_code', { /* payload fields */ }>
 }>
@@ -31,29 +31,29 @@ type Meta = DefineStepMethodMeta<{
 
 - **Any context (step always available)**:
 	```typescript
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	```
 
 - **Number-only constraint**:
 	```typescript
-	ExpectedThis: DefineExpectedValchecker<{ output: number }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
 	// TypeScript hint: v.number().max(100) ✓ OK
 	// TypeScript hint: v.string().max(100) ✗ Error
 	```
 
 - **String or Number union**:
 	```typescript
-	ExpectedThis: DefineExpectedValchecker<{ output: string | number }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string | number }>
 	```
 
 - **Array-only constraint**:
 	```typescript
-	ExpectedThis: DefineExpectedValchecker<{ output: unknown[] }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: unknown[] }>
 	```
 
 - **Initial step (only at the start of a chain)**:
 	```typescript
-	ExpectedThis: DefineExpectedValchecker<{ initial: true }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ initial: true }>
 	// TypeScript hint: v.string() ✓ OK
 	// TypeScript hint: v.string().string() ✗ Error
 	```
@@ -109,7 +109,7 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	stepMethodName: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (param1: Type1) => Next<{ output: OutputType, issue: Meta['SelfIssue'] }>
 			: never
 	>
@@ -119,10 +119,10 @@ interface PluginDef extends TStepPluginDef {
 **Key Points:**
 
 - The interface must extend `TStepPluginDef`
-- Use conditional type checking: `this['This'] extends Meta['ExpectedThis']` to ensure type safety
-- The method should return `Next<Patch, this['This']>` where `Patch` specifies the output type and issue type
+- Use conditional type checking: `this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']` to ensure type safety
+- The method should return `Next<Patch, this['CurrentValchecker']>` where `Patch` specifies the output type and issue type
 - Reference `Meta['SelfIssue']` for the issue type in the `Next<>` type
-- For steps that work at the start of a chain (initial type validators), add the `IsExactlyAnyOrUnknown<InferOutput<this['This']>>` constraint so the method is only available on unconstrained chain contexts.
+- For steps that work at the start of a chain (initial type validators), add the `IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>>` constraint so the method is only available on unconstrained chain contexts.
 
 **Example for an initial type validator:**
 
@@ -132,14 +132,14 @@ import type { IsExactlyAnyOrUnknown, InferOutput } from '../../core'
 interface PluginDef extends TStepPluginDef {
 	string: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			? IsExactlyAnyOrUnknown<InferOutput<this['This']>> extends true
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
 					{
 						output: string
 						issue: Meta['SelfIssue']
 					},
-					this['This']
+					this['CurrentValchecker']
 				>
 				: never
 			: never

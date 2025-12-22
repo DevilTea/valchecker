@@ -95,7 +95,7 @@ import { implStepPlugin } from '@valchecker/internal'
 // 1. Define metadata
 type Meta = DefineStepMethodMeta<{
 	Name: 'positiveNumber'
-	ExpectedThis: DefineExpectedValchecker<{ output: number }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
 	SelfIssue: ExecutionIssue<'positiveNumber:not_positive', { value: number }>
 }>
 
@@ -103,8 +103,8 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	positiveNumber: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			? () => Next<{ output: number, issue: Meta['SelfIssue'] }, this['This']>
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? () => Next<{ output: number, issue: Meta['SelfIssue'] }, this['CurrentValchecker']>
 			: never
 	>
 }

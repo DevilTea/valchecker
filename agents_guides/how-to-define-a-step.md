@@ -21,7 +21,7 @@ Use `DefineStepMethodMeta<...>` to declare:
 ```typescript
 type Meta = DefineStepMethodMeta<{
 	Name: 'stepMethodName'
-	ExpectedThis: DefineExpectedValchecker // Or a narrowed constraint e.g. DefineExpectedValchecker<{ output: string }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker // Or a narrowed constraint e.g. DefineExpectedValchecker<{ output: string }>
 	SelfIssue: ExecutionIssue<'stepMethodName:error_code', { value: unknown }>
 }>
 ```
@@ -52,7 +52,7 @@ If the step cannot fail (pure transformation) omit `SelfIssue`.
 
 ## 2. Plugin Interface (`PluginDef`)
 
-Define a TypeScript interface extending `TStepPluginDef`. Gate availability via conditional types comparing `this['This']` against `Meta['ExpectedThis']`. For initial validators add `IsExactlyAnyOrUnknown<InferOutput<this['This']>>` to restrict invocation to unconstrained chains.
+Define a TypeScript interface extending `TStepPluginDef`. Gate availability via conditional types comparing `this['CurrentValchecker']` against `Meta['ExpectedCurrentValchecker']`. For initial validators add `IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>>` to restrict invocation to unconstrained chains.
 
 ```typescript
 interface PluginDef extends TStepPluginDef {
@@ -73,10 +73,10 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	stepMethodName: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (param1: Type1) => Next<
 					{ output: OutputType; issue: Meta['SelfIssue'] },
-					this['This']
+					this['CurrentValchecker']
 				>
 			: never
 	>
@@ -88,12 +88,12 @@ interface PluginDef extends TStepPluginDef {
 interface StringPluginDef extends TStepPluginDef {
 	string: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
-			? IsExactlyAnyOrUnknown<InferOutput<this['This']>> extends true
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? (message?: MessageHandler<Meta['SelfIssue']>) => Next<{
 					output: string
 					issue: Meta['SelfIssue']
-				}, this['This']>
+				}, this['CurrentValchecker']>
 				: never
 			: never
 	>
@@ -103,7 +103,7 @@ interface StringPluginDef extends TStepPluginDef {
 Key Points:
 - Extend `TStepPluginDef`.
 - Always wrap the callable signature inside the conditional block.
-- Return `Next<{ output; issue }, this['This']>` referencing `Meta['SelfIssue']`.
+- Return `Next<{ output; issue }, this['CurrentValchecker']>` referencing `Meta['SelfIssue']`.
 - Keep JSDoc exhaustive (Description / Example / Issues).
 
 ---
@@ -201,7 +201,7 @@ Internal execution exceptions are converted to a `core:unknown_exception` issue 
 - [ ] `ExpectedThis` correctly constrains context.
 - [ ] Pure transformations omit `SelfIssue`.
 - [ ] JSDoc includes Description / Example / Issues.
-- [ ] Conditional availability uses `this['This'] extends Meta['ExpectedThis']`.
+- [ ] Conditional availability uses `this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']`.
 - [ ] Initial validators gate with `IsExactlyAnyOrUnknown`.
 - [ ] All failure paths use `createIssue` with customMessage and defaultMessage.
 - [ ] Async paths handle Promise resolution/rejection.

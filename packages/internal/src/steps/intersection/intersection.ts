@@ -38,7 +38,7 @@ declare namespace Internal {
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'intersection'
-	ExpectedThis: DefineExpectedValchecker
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -64,7 +64,7 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	intersection: DefineStepMethod<
 		Meta,
-		this['This'] extends Meta['ExpectedThis']
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	<B extends [Use<Valchecker>, ...Use<Valchecker>[]]>(
 					branches: B,
 				) => Next<
@@ -73,7 +73,7 @@ interface PluginDef extends TStepPluginDef {
 						output: Internal.Output<B>
 						issue: Internal.Issue<B>
 					},
-					this['This']
+					this['CurrentValchecker']
 				>
 			:	never
 	>
