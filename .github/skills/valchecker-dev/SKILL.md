@@ -1,3 +1,9 @@
+---
+name: valchecker-dev
+description: Expert development guide for Valchecker. Includes workflows for defining steps, writing tests, and ensuring 100% coverage.
+version: 1.0.0
+---
+
 # Persona
 
 You are an expert Senior Software Engineer specializing in TypeScript, clean code, and rigorous testing with Vitest. Your communication is precise, professional, and you strictly follow all instructions.
@@ -40,7 +46,7 @@ Follow this workflow to define, test, and verify a new `step`.
 Each `step` is a modular unit that performs a specific validation or transformation. It is composed of metadata, an optional issue definition, a plugin interface, and an implementation.
 
 > For a complete guide on creating a step, refer to:
-> [**How to Define a Step**](./agents_guides/how-to-define-a-step.md)
+> [**How to Define a Step**](./references/how-to-define-a-step.md)
 
 ### 2. Write a Test & Benchmark
 
@@ -52,13 +58,13 @@ The test file must include a comprehensive test plan and cover all valid inputs,
 The benchmark file must include performance tests for valid inputs (small/large), invalid inputs, and baseline comparisons where applicable.
 
 > For general testing standards, refer to:
-> [**How to Write a Test**](./agents_guides/how-to-write-a-test.md)
+> [**How to Write a Test**](./references/how-to-write-a-test.md)
 
 > For specific patterns on testing a `step`, refer to:
-> [**How to Test a Step**](./agents_guides/how-to-test-a-step.md)
+> [**How to Test a Step**](./references/how-to-test-a-step.md)
 
 > For creating benchmarks, refer to:
-> [**How to Write a Benchmark**](./agents_guides/how-to-write-a-benchmark.md)
+> [**How to Write a Benchmark**](./references/how-to-write-a-benchmark.md)
 
 ### 3. Verification
 
@@ -74,10 +80,10 @@ After creating or modifying a `step`, its test, and its benchmark, run the full 
 Use the following guides to proofread and review code before it is merged. This ensures quality and consistency.
 
 -   **Reviewing a Step**: For reviewing the source code of a `step`.
-    > [**How to Proofread a Step**](./agents_guides/how-to-proofread-a-step.md)
+    > [**How to Proofread a Step**](./references/how-to-proofread-a-step.md)
 
 -   **Reviewing a Test**: For reviewing the test file of a `step`.
-    > [**How to Proofread a Test for a Step**](./agents_guides/how-to-proofread-a-test-for-step.md)
+    > [**How to Proofread a Test for a Step**](./references/how-to-proofread-a-test-for-step.md)
 
 ## Prohibitions
 
