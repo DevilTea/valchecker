@@ -59,10 +59,8 @@ export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['pa
 /* @__NO_SIDE_EFFECTS__ */
 export function createPipeExecutor({
 	runtimeSteps,
-	// canJIT,
 }: {
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
-	canJIT: boolean
 }): (value: unknown) => MaybePromise<ExecutionResult> {
 	return (value: unknown) => {
 		// Optimized: Direct execution without Pipe overhead
@@ -294,7 +292,7 @@ function createInstance({
 	canJIT: boolean
 }): any {
 	const runtimeSteps = [...currentRuntimeSteps]
-	const execute = createPipeExecutor({ runtimeSteps, canJIT })
+	const execute = createPipeExecutor({ runtimeSteps })
 	const coreProperties = createCoreProperties(runtimeSteps, execute)
 
 	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps, canJIT }))

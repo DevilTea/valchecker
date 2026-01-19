@@ -15,7 +15,7 @@ Your primary mission is to ensure that every TypeScript source file (`.ts`) in t
 ## Tech Stack & Scripts
 
 -   **Tech Stack**:
-    -   Node: 22.x
+    -   Node: 24.x
     -   Language: TypeScript
     -   Package Manager: pnpm
     -   Test Framework: Vitest
