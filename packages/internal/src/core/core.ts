@@ -220,12 +220,10 @@ function createProxyHandler({
 	stepMethods,
 	resolveMessage,
 	runtimeSteps,
-	canJIT,
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
-	canJIT: boolean
 }) {
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
@@ -238,7 +236,6 @@ function createProxyHandler({
 					stepMethods,
 					resolveMessage,
 					currentRuntimeSteps: runtimeSteps,
-					canJIT,
 				})
 				stepMethod({
 					utils: createExecutionStepMethodUtils(
@@ -284,18 +281,16 @@ function createInstance({
 	stepMethods,
 	resolveMessage,
 	currentRuntimeSteps,
-	canJIT,
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
 	currentRuntimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
-	canJIT: boolean
 }): any {
 	const runtimeSteps = [...currentRuntimeSteps]
 	const execute = createPipeExecutor({ runtimeSteps })
 	const coreProperties = createCoreProperties(runtimeSteps, execute)
 
-	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps, canJIT }))
+	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps }))
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -315,16 +310,6 @@ export function createValchecker<
 		}>
 	>
 }) {
-	const canJIT = (() => {
-		try {
-			// eslint-disable-next-line no-new-func
-			return !!new Function('return true')
-		}
-		catch {
-			return false
-		}
-	})()
-
 	const stepMethods = {} as Record<PropertyKey, unknown>
 	for (const def of steps) {
 		Object.assign(stepMethods, def)
@@ -335,6 +320,5 @@ export function createValchecker<
 		stepMethods,
 		resolveMessage,
 		currentRuntimeSteps: [],
-		canJIT,
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }
