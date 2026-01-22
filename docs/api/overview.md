@@ -105,8 +105,8 @@ Every schema returns results of this shape:
 
 ```ts
 type ExecutionResult<T>
-	= | { isOk: true, value: T }
-		| { isOk: false, issues: ExecutionIssue[] }
+	= | { value: T }
+		| { issues: ExecutionIssue[] }
 
 interface ExecutionIssue {
 	code: string // e.g., 'string:expected_string'

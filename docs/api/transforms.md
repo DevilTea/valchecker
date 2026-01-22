@@ -12,7 +12,7 @@ Trims whitespace from both ends.
 const schema = v.string()
 	.toTrimmed()
 
-schema.run('  hello  ') // { isOk: true, value: 'hello' }
+schema.run('  hello  ') // { value: 'hello' }
 ```
 
 ### `toTrimmedStart()`
@@ -23,7 +23,7 @@ Trims whitespace from the beginning.
 const schema = v.string()
 	.toTrimmedStart()
 
-schema.run('  hello  ') // { isOk: true, value: 'hello  ' }
+schema.run('  hello  ') // { value: 'hello  ' }
 ```
 
 ### `toTrimmedEnd()`
@@ -34,7 +34,7 @@ Trims whitespace from the end.
 const schema = v.string()
 	.toTrimmedEnd()
 
-schema.run('  hello  ') // { isOk: true, value: '  hello' }
+schema.run('  hello  ') // { value: '  hello' }
 ```
 
 ### `toUppercase()`
@@ -45,7 +45,7 @@ Converts string to uppercase.
 const schema = v.string()
 	.toUppercase()
 
-schema.run('hello') // { isOk: true, value: 'HELLO' }
+schema.run('hello') // { value: 'HELLO' }
 ```
 
 ### `toLowercase()`
@@ -56,7 +56,7 @@ Converts string to lowercase.
 const email = v.string()
 	.toLowercase()
 
-email.run('USER@EXAMPLE.COM') // { isOk: true, value: 'user@example.com' }
+email.run('USER@EXAMPLE.COM') // { value: 'user@example.com' }
 ```
 
 ## String Constraint Steps
@@ -71,8 +71,8 @@ Validates that string starts with prefix.
 const schema = v.string()
 	.startsWith('https://')
 
-schema.run('https://example.com') // { isOk: true, value: 'https://example.com' }
-schema.run('http://example.com') // { isOk: false, issues: [...] }
+schema.run('https://example.com') // { value: 'https://example.com' }
+schema.run('http://example.com') // { issues: [...] }
 ```
 
 ### `endsWith(suffix, message?)`
@@ -85,8 +85,8 @@ Validates that string ends with suffix.
 const schema = v.string()
 	.endsWith('.json')
 
-schema.run('config.json') // { isOk: true, value: 'config.json' }
-schema.run('config.yaml') // { isOk: false, issues: [...] }
+schema.run('config.json') // { value: 'config.json' }
+schema.run('config.yaml') // { issues: [...] }
 ```
 
 ### `min(length, message?)` / `max(length, message?)`
@@ -100,9 +100,9 @@ const username = v.string()
 	.min(3, 'Username too short')
 	.max(20, 'Username too long')
 
-username.run('ab') // { isOk: false, issues: [...] }
-username.run('alice') // { isOk: true, value: 'alice' }
-username.run('a'.repeat(21)) // { isOk: false, issues: [...] }
+username.run('ab') // { issues: [...] }
+username.run('alice') // { value: 'alice' }
+username.run('a'.repeat(21)) // { issues: [...] }
 ```
 
 ## Array Transforms
@@ -115,7 +115,7 @@ Keeps only elements that satisfy the predicate.
 const positives = v.array(v.number())
 	.toFiltered(n => n > 0)
 
-positives.run([1, -2, 3, -4, 5]) // { isOk: true, value: [1, 3, 5] }
+positives.run([1, -2, 3, -4, 5]) // { value: [1, 3, 5] }
 ```
 
 ### `toSorted(compareFn?)`
@@ -127,13 +127,13 @@ Returns a sorted copy of the array.
 const schema = v.array(v.number())
 	.toSorted()
 
-schema.run([3, 1, 2]) // { isOk: true, value: [1, 2, 3] }
+schema.run([3, 1, 2]) // { value: [1, 2, 3] }
 
 // Custom comparator
 const descending = v.array(v.number())
 	.toSorted((a, b) => b - a)
 
-descending.run([1, 3, 2]) // { isOk: true, value: [3, 2, 1] }
+descending.run([1, 3, 2]) // { value: [3, 2, 1] }
 ```
 
 ### `toSliced(start, end?)`
@@ -144,13 +144,13 @@ Returns a slice of the array.
 const firstThree = v.array(v.string())
 	.toSliced(0, 3)
 
-firstThree.run(['a', 'b', 'c', 'd', 'e']) // { isOk: true, value: ['a', 'b', 'c'] }
+firstThree.run(['a', 'b', 'c', 'd', 'e']) // { value: ['a', 'b', 'c'] }
 
 // Negative indices work too
 const lastTwo = v.array(v.string())
 	.toSliced(-2)
 
-lastTwo.run(['a', 'b', 'c', 'd', 'e']) // { isOk: true, value: ['d', 'e'] }
+lastTwo.run(['a', 'b', 'c', 'd', 'e']) // { value: ['d', 'e'] }
 ```
 
 ### `toLength()`
@@ -161,7 +161,7 @@ Replaces the array with its length.
 const schema = v.array(v.string())
 	.toLength()
 
-schema.run(['a', 'b', 'c']) // { isOk: true, value: 3 }
+schema.run(['a', 'b', 'c']) // { value: 3 }
 
 type T = v.Infer<typeof schema> // number
 ```
@@ -174,7 +174,7 @@ Splits a string using the provided separator.
 const schema = v.string()
 	.toSplitted(',')
 
-schema.run('a,b,c') // { isOk: true, value: ['a', 'b', 'c'] }
+schema.run('a,b,c') // { value: ['a', 'b', 'c'] }
 ```
 
 ## JSON Transforms
@@ -190,10 +190,10 @@ const schema = v.string()
 	.parseJSON()
 
 schema.run('{"key":"value"}')
-// { isOk: true, value: { key: 'value' } }
+// { value: { key: 'value' } }
 
 schema.run('invalid json')
-// { isOk: false, issues: [{ code: 'parseJSON:invalid_json', ... }] }
+// { issues: [{ code: 'parseJSON:invalid_json', ... }] }
 
 // Chain with further validation
 const userJson = v.string()
@@ -215,7 +215,7 @@ const schema = v.object({ key: v.string() })
 	.stringifyJSON()
 
 schema.run({ key: 'value' })
-// { isOk: true, value: '{"key":"value"}' }
+// { value: '{"key":"value"}' }
 ```
 
 ## Number Transforms
@@ -228,7 +228,7 @@ Converts number to string.
 const schema = v.number()
 	.toString()
 
-schema.run(123) // { isOk: true, value: '123' }
+schema.run(123) // { value: '123' }
 
 type T = v.Infer<typeof schema> // string
 ```
@@ -247,7 +247,7 @@ const slug = v.string()
 	.transform(value => value.replace(/[^a-z0-9-]+/g, '-'))
 
 slug.run('Hello World!')
-// { isOk: true, value: 'hello-world-' }
+// { value: 'hello-world-' }
 ```
 
 **Type-Changing Transform**:
@@ -260,7 +260,7 @@ const splitTags = v.string()
 type T = v.Infer<typeof splitTags> // string[]
 
 splitTags.run('js, ts, node')
-// { isOk: true, value: ['js', 'ts', 'node'] }
+// { value: ['js', 'ts', 'node'] }
 ```
 
 **Async Transform**:

@@ -98,8 +98,8 @@ interface PluginDef extends TStepPluginDef {
 	 * ```ts
 	 * const v = createValchecker({ steps: [number, positive] })
 	 * const schema = v.number().positive()
-	 * schema.run(5)   // { isOk: true, value: 5 }
-	 * schema.run(-1)  // { isOk: false, issues: [...] }
+	 * schema.run(5)   // { value: 5 }
+	 * schema.run(-1)  // { issues: [...] }
 	 * ```
 	 *
 	 * ---
@@ -159,9 +159,9 @@ const v = createValchecker({
 const schema = v.number()
 	.positive()
 
-schema.run(5) // { isOk: true, value: 5 }
-schema.run(-1) // { isOk: false, issues: [{ code: 'positive:expected_positive', ... }] }
-schema.run(0) // { isOk: false, issues: [{ code: 'positive:expected_positive', ... }] }
+schema.run(5) // { value: 5 }
+schema.run(-1) // { issues: [{ code: 'positive:expected_positive', ... }] }
+schema.run(0) // { issues: [{ code: 'positive:expected_positive', ... }] }
 ```
 
 ## Understanding the Implementation API
@@ -389,11 +389,11 @@ describe('positive step', () => {
 			const schema = v.number()
 				.positive()
 			expect(schema.run(1))
-				.toEqual({ isOk: true, value: 1 })
+				.toEqual({ value: 1 })
 			expect(schema.run(0.5))
-				.toEqual({ isOk: true, value: 0.5 })
+				.toEqual({ value: 0.5 })
 			expect(schema.run(Number.MAX_VALUE))
-				.toEqual({ isOk: true, value: Number.MAX_VALUE })
+				.toEqual({ value: Number.MAX_VALUE })
 		})
 	})
 
@@ -402,9 +402,9 @@ describe('positive step', () => {
 			const schema = v.number()
 				.positive()
 			const result = schema.run(0)
-			expect(result.isOk)
-				.toBe(false)
-			if (!result.isOk) {
+			expect('issues' in result)
+				.toBe(true)
+			if ('issues' in result) {
 				expect(result.issues[0].code)
 					.toBe('positive:expected_positive')
 			}
@@ -414,8 +414,8 @@ describe('positive step', () => {
 			const schema = v.number()
 				.positive()
 			const result = schema.run(-5)
-			expect(result.isOk)
-				.toBe(false)
+			expect('issues' in result)
+				.toBe(true)
 		})
 	})
 
@@ -424,7 +424,7 @@ describe('positive step', () => {
 			const schema = v.number()
 				.positive('Must be positive!')
 			const result = schema.run(-1)
-			if (!result.isOk) {
+			if ('issues' in result) {
 				expect(result.issues[0].message)
 					.toBe('Must be positive!')
 			}
@@ -436,7 +436,7 @@ describe('positive step', () => {
 					({ payload }) => `${payload.value} is not positive`
 				)
 			const result = schema.run(-5)
-			if (!result.isOk) {
+			if ('issues' in result) {
 				expect(result.issues[0].message)
 					.toBe('-5 is not positive')
 			}

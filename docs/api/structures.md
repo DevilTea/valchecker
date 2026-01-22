@@ -25,10 +25,10 @@ const user = v.object({
 })
 
 user.run({ id: '123', name: '  Alice  ' })
-// { isOk: true, value: { id: '123', name: 'Alice', age: undefined } }
+// { value: { id: '123', name: 'Alice', age: undefined } }
 
 user.run({ id: '123', name: '  Alice  ', extra: 'ignored' })
-// { isOk: true, value: { id: '123', name: 'Alice', age: undefined } }
+// { value: { id: '123', name: 'Alice', age: undefined } }
 // Note: 'extra' is stripped from output
 ```
 
@@ -53,10 +53,10 @@ const strict = v.strictObject({
 })
 
 strict.run({ id: '123', extra: 'not allowed' })
-// { isOk: false, issues: [{ code: 'object:unknown_key', ... }] }
+// { issues: [{ code: 'object:unknown_key', ... }] }
 
 strict.run({ id: '123' })
-// { isOk: true, value: { id: '123' } }
+// { value: { id: '123' } }
 ```
 
 ## `looseObject(shape, message?)`
@@ -78,13 +78,13 @@ const tags = v.array(v.string()
 	.max(5)
 
 tags.run(['JS', 'TS', 'NODE'])
-// { isOk: true, value: ['js', 'ts', 'node'] }
+// { value: ['js', 'ts', 'node'] }
 
 tags.run(['a', 123, 'c'])
-// { isOk: false, issues: [{ path: [1], code: 'string:expected_string', ... }] }
+// { issues: [{ path: [1], code: 'string:expected_string', ... }] }
 
 tags.run([])
-// { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
+// { issues: [{ code: 'min:expected_min', ... }] }
 ```
 
 **Chainable Methods**:
@@ -110,9 +110,9 @@ const id = v.union([
 		.min(0),
 ])
 
-id.run('abc') // { isOk: true, value: 'abc' }
-id.run(123) // { isOk: true, value: 123 }
-id.run(true) // { isOk: false, issues: [from first branch, from second branch] }
+id.run('abc') // { value: 'abc' }
+id.run(123) // { value: 123 }
+id.run(true) // { issues: [from first branch, from second branch] }
 
 type ID = v.Infer<typeof id>
 // string | number
@@ -163,7 +163,7 @@ entity.run({
 	createdBy: 'alice',
 	updatedBy: 'bob',
 })
-// { isOk: true, value: { createdAt: ..., updatedAt: ..., createdBy: ..., updatedBy: ... } }
+// { value: { createdAt: ..., updatedAt: ..., createdBy: ..., updatedBy: ... } }
 
 type Entity = v.Infer<typeof entity>
 // { createdAt: number; updatedAt: number; createdBy: string; updatedBy: string }
@@ -178,8 +178,8 @@ Validates that a value is an instance of the given constructor.
 ```ts
 const dateSchema = v.instance(Date)
 
-dateSchema.run(new Date()) // { isOk: true, value: Date }
-dateSchema.run('2024-01-01') // { isOk: false, issues: [...] }
+dateSchema.run(new Date()) // { value: Date }
+dateSchema.run('2024-01-01') // { issues: [...] }
 
 // Custom classes
 class User {
@@ -187,7 +187,7 @@ class User {
 }
 
 const userInstance = v.instance(User)
-userInstance.run(new User('Alice')) // { isOk: true, value: User { name: 'Alice' } }
+userInstance.run(new User('Alice')) // { value: User { name: 'Alice' } }
 
 // Built-in types
 const regexSchema = v.instance(RegExp)

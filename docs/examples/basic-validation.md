@@ -18,8 +18,8 @@ const v = createValchecker({ steps: allSteps })
 // Basic string validation
 const nameSchema = v.string()
 
-nameSchema.run('Alice') // { isOk: true, value: 'Alice' }
-nameSchema.run(123) // { isOk: false, issues: [...] }
+nameSchema.run('Alice') // { value: 'Alice' }
+nameSchema.run(123) // { issues: [...] }
 
 // With constraints
 const usernameSchema = v.string()
@@ -29,7 +29,7 @@ const usernameSchema = v.string()
 	.max(20)
 
 usernameSchema.run('  Alice_123  ')
-// { isOk: true, value: 'alice_123' }
+// { value: 'alice_123' }
 ```
 
 ### Numbers
@@ -41,16 +41,16 @@ const ageSchema = v.number()
 	.min(0)
 	.max(150)
 
-ageSchema.run(25) // { isOk: true, value: 25 }
-ageSchema.run(-5) // { isOk: false, issues: [...] }
-ageSchema.run(3.14) // { isOk: false, issues: [...] }
+ageSchema.run(25) // { value: 25 }
+ageSchema.run(-5) // { issues: [...] }
+ageSchema.run(3.14) // { issues: [...] }
 
 // Positive numbers only
 const priceSchema = v.number()
 	.min(0)
 
-priceSchema.run(99.99) // { isOk: true, value: 99.99 }
-priceSchema.run(Number.POSITIVE_INFINITY) // { isOk: false, issues: [...] }
+priceSchema.run(99.99) // { value: 99.99 }
+priceSchema.run(Number.POSITIVE_INFINITY) // { issues: [...] }
 ```
 
 ### Booleans
@@ -58,9 +58,9 @@ priceSchema.run(Number.POSITIVE_INFINITY) // { isOk: false, issues: [...] }
 ```ts
 const activeSchema = v.boolean()
 
-activeSchema.run(true) // { isOk: true, value: true }
-activeSchema.run(false) // { isOk: true, value: false }
-activeSchema.run('yes') // { isOk: false, issues: [...] }
+activeSchema.run(true) // { value: true }
+activeSchema.run(false) // { value: false }
+activeSchema.run('yes') // { issues: [...] }
 ```
 
 ### Literals
@@ -69,8 +69,8 @@ activeSchema.run('yes') // { isOk: false, issues: [...] }
 // Single literal
 const statusSchema = v.literal('active')
 
-statusSchema.run('active') // { isOk: true, value: 'active' }
-statusSchema.run('inactive') // { isOk: false, issues: [...] }
+statusSchema.run('active') // { value: 'active' }
+statusSchema.run('inactive') // { issues: [...] }
 
 // Null and undefined
 const nullSchema = v.literal(null)
@@ -99,7 +99,7 @@ const result = userSchema.run({
 	age: 30,
 })
 
-// { isOk: true, value: { id: '...', name: 'Alice', email: '...', age: 30 } }
+// { value: { id: '...', name: 'Alice', email: '...', age: 30 } }
 ```
 
 ### Optional Fields
@@ -153,9 +153,9 @@ const customerSchema = v.object({
 ```ts
 const numbersSchema = v.array(v.number())
 
-numbersSchema.run([1, 2, 3]) // { isOk: true, value: [1, 2, 3] }
-numbersSchema.run([1, 'two', 3]) // { isOk: false, issues: [...] }
-numbersSchema.run('not array') // { isOk: false, issues: [...] }
+numbersSchema.run([1, 2, 3]) // { value: [1, 2, 3] }
+numbersSchema.run([1, 'two', 3]) // { issues: [...] }
+numbersSchema.run('not array') // { issues: [...] }
 ```
 
 ### Array Constraints
@@ -166,7 +166,7 @@ const tagsSchema = v.array(v.string())
 	.max(10) // Maximum 10 tags
 
 tagsSchema.run(['javascript', 'typescript']) // Valid
-tagsSchema.run([]) // { isOk: false, issues: [...] }
+tagsSchema.run([]) // { issues: [...] }
 ```
 
 ### Array of Objects
@@ -197,7 +197,7 @@ const positiveNumbersSchema = v.array(v.number())
 	.toFiltered(n => n > 0)
 
 positiveNumbersSchema.run([1, -2, 3, -4, 5])
-// { isOk: true, value: [1, 3, 5] }
+// { value: [1, 3, 5] }
 ```
 
 ## Union Types
@@ -241,8 +241,8 @@ const statusSchema = v.union([
 	v.literal('cancelled'),
 ])
 
-statusSchema.run('active') // { isOk: true, value: 'active' }
-statusSchema.run('unknown') // { isOk: false, issues: [...] }
+statusSchema.run('active') // { value: 'active' }
+statusSchema.run('unknown') // { issues: [...] }
 
 // Type inference
 type Status = v.Infer<typeof statusSchema>
@@ -257,9 +257,9 @@ const coordinateSchema = v.array(v.number())
 	.min(2)
 	.max(2)
 
-coordinateSchema.run([10, 20]) // { isOk: true, value: [10, 20] }
-coordinateSchema.run([10]) // { isOk: false, issues: [...] }
-coordinateSchema.run([10, 20, 30]) // { isOk: false, issues: [...] }
+coordinateSchema.run([10, 20]) // { value: [10, 20] }
+coordinateSchema.run([10]) // { issues: [...] }
+coordinateSchema.run([10, 20, 30]) // { issues: [...] }
 ```
 
 ## Type Inference
@@ -302,7 +302,7 @@ const schema = v.object({
 
 const result = schema.run({ name: '', age: -5 })
 
-if (result.isOk) {
+if ('value' in result) {
 	// TypeScript knows result.value is the validated type
 	console.log(result.value.name, result.value.age)
 }
@@ -311,7 +311,7 @@ else {
 	for (const issue of result.issues) {
 		console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
 	}
-	// [minLength:expected_min_length] name: Expected minimum length of 1
+	// [min:expected_min] name: Expected minimum value of 1
 	// [min:expected_min] age: Expected minimum value of 0
 }
 ```
@@ -365,7 +365,7 @@ const listUsersRequestSchema = v.object({
 function handleListUsers(rawQuery: unknown) {
 	const result = listUsersRequestSchema.run(rawQuery)
 
-	if (!result.isOk) {
+	if ('issues' in result) {
 		return { error: 'Invalid request', issues: result.issues }
 	}
 

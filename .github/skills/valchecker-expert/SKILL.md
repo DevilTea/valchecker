@@ -35,7 +35,7 @@ const result = userSchema.run({
   age: 30,
 })
 
-if (result.isOk) {
+if ('value' in result) {
   console.log('Valid:', result.value)
 } else {
   console.log('Errors:', result.issues)
@@ -80,7 +80,7 @@ Validation returns a discriminated union:
 ```typescript
 const result = schema.run(data)
 
-if (result.isOk) {
+if ('value' in result) {
   // Success: result.value is validated and typed
   const value: string = result.value
 } else {
@@ -138,7 +138,7 @@ const formSchema = v.object({
 })
 
 const result = formSchema.run(formData)
-if (!result.isOk) {
+if ('issues' in result) {
   displayErrors(result.issues)
 }
 ```
@@ -204,7 +204,7 @@ See [Type Inference Guide](./references/type-inference.md) for advanced patterns
 2. **Compose schemas** - Build reusable schema pieces
 3. **Custom messages** - Provide helpful error messages
 4. **Test validation** - Validate your validation logic
-5. **Handle errors** - Always check `result.isOk`
+5. **Handle errors** - Always check for `value` or `issues`
 
 ## Production Bundle Size
 

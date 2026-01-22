@@ -36,7 +36,7 @@ Each step processes the value and can either:
 ```typescript
 const schema = v.string().toTrimmed()
 const result = schema.run('  hello  ')
-// result is synchronous: { isOk: true, value: 'hello' }
+// result is synchronous: { value: 'hello' }
 ```
 
 ### Asynchronous Pipeline
@@ -58,12 +58,12 @@ const result = await userSchema.execute(data)
 
 ## Result Handling
 
-Results are discriminated unions with `isOk` discriminator:
+Results are discriminated unions with `value` or `issues` discriminator:
 
 ```typescript
 const result = schema.run(data)
 
-if (result.isOk) {
+if ('value' in result) {
   // Success branch
   console.log(result.value)  // Your validated data
   console.log(result.issues) // undefined
@@ -116,7 +116,7 @@ const result = schema.run({
   ],
 })
 
-if (!result.isOk) {
+if ('issues' in result) {
   result.issues[0].path
   // ['users', 1, 'email']
   //  object  array string
@@ -149,7 +149,7 @@ const schema = v.string()
   .min(5, 'Username must be at least 5 characters')
 
 const result = schema.run('ab')
-if (!result.isOk) {
+if ('issues' in result) {
   console.log(result.issues[0].message)
   // 'Username must be at least 5 characters'
 }
@@ -164,7 +164,7 @@ const schema = v.number()
   .min(0, ({ payload }) => `Expected positive, got ${payload.value}`)
 
 const result = schema.run(-5)
-if (!result.isOk) {
+if ('issues' in result) {
   console.log(result.issues[0].message)
   // 'Expected positive, got -5'
 }

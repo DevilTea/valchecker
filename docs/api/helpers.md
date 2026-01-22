@@ -16,8 +16,8 @@ Runs a custom validation predicate or type guard.
 const positive = v.number()
 	.check(value => value > 0, 'Must be positive')
 
-positive.run(5) // { isOk: true, value: 5 }
-positive.run(-1) // { isOk: false, issues: [{ code: 'check:failed', message: 'Must be positive' }] }
+positive.run(5) // { value: 5 }
+positive.run(-1) // { issues: [{ code: 'check:failed', message: 'Must be positive' }] }
 ```
 
 #### Return Values
@@ -83,9 +83,9 @@ const safeNumber = v.number()
 	.min(0)
 	.fallback(() => 0)
 
-safeNumber.run(42) // { isOk: true, value: 42 }
-safeNumber.run(-5) // { isOk: true, value: 0 }  (min failed, used fallback)
-safeNumber.run('invalid') // { isOk: true, value: 0 }  (number failed, used fallback)
+safeNumber.run(42) // { value: 42 }
+safeNumber.run(-5) // { value: 0 }  (min failed, used fallback)
+safeNumber.run('invalid') // { value: 0 }  (number failed, used fallback)
 ```
 
 #### Dynamic Fallbacks
@@ -96,7 +96,7 @@ const schema = v.string()
 	.fallback(() => ({ items: [], count: 0 }))
 
 schema.run('invalid json')
-// { isOk: true, value: { items: [], count: 0 } }
+// { value: { items: [], count: 0 } }
 ```
 
 #### Default Values for Optional Fields
@@ -110,7 +110,7 @@ const config = v.object({
 })
 
 config.run({})
-// { isOk: true, value: { port: 3000, host: 'localhost' } }
+// { value: { port: 3000, host: 'localhost' } }
 ```
 
 ### `transform(fn, message?)`
@@ -121,7 +121,7 @@ Transforms the value to a new type or shape.
 const schema = v.string()
 	.transform(value => value.split(','))
 
-schema.run('a,b,c') // { isOk: true, value: ['a', 'b', 'c'] }
+schema.run('a,b,c') // { value: ['a', 'b', 'c'] }
 
 type T = v.Infer<typeof schema> // string[]
 ```
@@ -150,7 +150,7 @@ const userSchema = v.object({
 userSchema.run({
 	name: '  ALICE  ',
 })
-// { isOk: true, value: { name: 'alice', email: undefined } }
+// { value: { name: 'alice', email: undefined } }
 ```
 
 #### Composing Unknown Input
@@ -256,10 +256,10 @@ Coerces strings to numbers before validation.
 ```ts
 const schema = v.looseNumber()
 
-schema.run('42') // { isOk: true, value: 42 }
-schema.run(42) // { isOk: true, value: 42 }
-schema.run('3.14') // { isOk: true, value: 3.14 }
-schema.run('abc') // { isOk: false, issues: [...] }
+schema.run('42') // { value: 42 }
+schema.run(42) // { value: 42 }
+schema.run('3.14') // { value: 3.14 }
+schema.run('abc') // { issues: [...] }
 ```
 
 ### `looseObject(shape, message?)`
@@ -272,7 +272,7 @@ const schema = v.looseObject({
 })
 
 schema.run({ name: 'Alice', extra: 'allowed' })
-// { isOk: true, value: { name: 'Alice' } }
+// { value: { name: 'Alice' } }
 // Note: unknown keys are stripped from output
 ```
 
@@ -282,8 +282,8 @@ schema.run({ name: 'Alice', extra: 'allowed' })
 
 ```ts
 type Result<T>
-	= | { isOk: true, value: T }
-		| { isOk: false, issues: Issue[] }
+	= | { value: T }
+		| { issues: Issue[] }
 
 interface Issue {
 	code: string
@@ -298,7 +298,7 @@ interface Issue {
 ```ts
 const result = schema.run(input)
 
-if (result.isOk) {
+if ('value' in result) {
 	// Success: result.value is fully typed
 	console.log(result.value)
 }
@@ -315,7 +315,7 @@ else {
 ```ts
 function parse<T>(schema: Schema<T>, data: unknown): T {
 	const result = schema.run(data)
-	if (!result.isOk) {
+	if ('issues' in result) {
 		throw new ValidationError(result.issues)
 	}
 	return result.value
@@ -335,7 +335,7 @@ class ValidationError extends Error {
 ```ts
 function safeParse<T>(schema: Schema<T>, data: unknown): { success: true, data: T } | { success: false, error: Issue[] } {
 	const result = schema.run(data)
-	if (result.isOk) {
+	if ('value' in result) {
 		return { success: true, data: result.value }
 	}
 	return { success: false, error: result.issues }

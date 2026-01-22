@@ -55,7 +55,7 @@ const userSchema = v.object({
 	email: v.string(),
 	age: [v.number()
 		.integer()
-		.min(0)],  // Optional with [] wrapper
+		.min(0)], // Optional with [] wrapper
 })
 ```
 
@@ -65,8 +65,8 @@ Calling `schema.execute(value)` or `schema.run(value)` returns a discriminated u
 
 ```ts
 type Result<T>
-	= | { isOk: true, value: T } // Success
-		| { isOk: false, issues: Issue[] } // Failure
+	= | { value: T } // Success
+		| { issues: Issue[] } // Failure
 ```
 
 ### 3. Issue Structure
@@ -110,7 +110,7 @@ const schema = v.string()
 	.transform(s => s.toUpperCase())
 
 const result = schema.run('  hello  ')
-// => { isOk: true, value: 'HELLO' }
+// => { value: 'HELLO' }
 ```
 
 ### Failure Path
@@ -123,7 +123,7 @@ const schema = v.number()
 	.max(100)
 
 const result = schema.run(-5)
-// => { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
+// => { issues: [{ code: 'min:expected_min', ... }] }
 ```
 
 ### Recovery Path
@@ -135,8 +135,8 @@ const schema = v.number()
 	.min(0)
 	.fallback(() => 0)
 
-schema.run(-5) // => { isOk: true, value: 0 }
-schema.run(50) // => { isOk: true, value: 50 }
+schema.run(-5) // => { value: 0 }
+schema.run(50) // => { value: 50 }
 ```
 
 ## Message Resolution Priority
@@ -234,8 +234,8 @@ type T = v.Infer<typeof schema> // number
 ```ts
 const schema = v.object({
 	required: v.string(),
-	optional: [v.string()],  // Optional with [] wrapper
-	both: [v.string()],  // Optional (nullable not supported as separate step)
+	optional: [v.string()], // Optional with [] wrapper
+	both: [v.string()], // Optional (nullable not supported as separate step)
 })
 
 type T = v.Infer<typeof schema>
@@ -385,7 +385,7 @@ Capture `issues` in monitoring tools—they contain structured codes for dashboa
 ```ts
 const result = schema.run(input)
 
-if (!result.isOk) {
+if ('issues' in result) {
 	// Log structured data for monitoring
 	logger.warn('Validation failed', {
 		issues: result.issues.map(i => ({

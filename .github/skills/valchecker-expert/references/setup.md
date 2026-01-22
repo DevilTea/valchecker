@@ -109,7 +109,7 @@ const result = userSchema.run({
   age: 30,
 })
 
-if (result.isOk) {
+if ('value' in result) {
   console.log('Valid:', result.value)
   // { name: 'Alice', email: 'alice@example.com', age: 30 }
 } else {
@@ -134,7 +134,7 @@ type User = v.Infer<typeof userSchema>
 
 const result = userSchema.run(data)
 
-if (result.isOk) {
+if ('value' in result) {
   // TypeScript knows result.value is User
   const user: User = result.value
 }

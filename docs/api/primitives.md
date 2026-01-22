@@ -11,8 +11,8 @@ Validates that a value is a JavaScript string.
 ```ts
 const schema = v.string('Must be a string')
 
-schema.run('hello') // { isOk: true, value: 'hello' }
-schema.run(123) // { isOk: false, issues: [{ code: 'string:expected_string', ... }] }
+schema.run('hello') // { value: 'hello' }
+schema.run(123) // { issues: [{ code: 'string:expected_string', ... }] }
 ```
 
 **Chainable Methods**:
@@ -34,9 +34,9 @@ const quantity = v.number()
 	.integer()
 	.min(1)
 
-quantity.run(5) // { isOk: true, value: 5 }
-quantity.run(0) // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
-quantity.run(Number.NaN) // { isOk: false, issues: [{ code: 'number:expected_number', ... }] }
+quantity.run(5) // { value: 5 }
+quantity.run(0) // { issues: [{ code: 'min:expected_min', ... }] }
+quantity.run(Number.NaN) // { issues: [{ code: 'number:expected_number', ... }] }
 ```
 
 **Chainable Methods**:
@@ -54,8 +54,8 @@ Validates that a value is exactly `true` or `false`.
 ```ts
 const toggle = v.boolean()
 
-toggle.run(true) // { isOk: true, value: true }
-toggle.run('true') // { isOk: false, issues: [{ code: 'boolean:expected_boolean', ... }] }
+toggle.run(true) // { value: true }
+toggle.run('true') // { issues: [{ code: 'boolean:expected_boolean', ... }] }
 ```
 
 ## `bigint(message?)`
@@ -68,9 +68,9 @@ Validates that a value is a JavaScript BigInt.
 const id = v.bigint()
 	.min(0n)
 
-id.run(42n) // { isOk: true, value: 42n }
-id.run(-1n) // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
-id.run(42) // { isOk: false, issues: [{ code: 'bigint:expected_bigint', ... }] }
+id.run(42n) // { value: 42n }
+id.run(-1n) // { issues: [{ code: 'min:expected_min', ... }] }
+id.run(42) // { issues: [{ code: 'bigint:expected_bigint', ... }] }
 ```
 
 **Chainable Methods**:
@@ -85,8 +85,8 @@ Validates that a value is a JavaScript Symbol.
 ```ts
 const schema = v.symbol()
 
-schema.run(Symbol('test')) // { isOk: true, value: Symbol(test) }
-schema.run('symbol') // { isOk: false, issues: [...] }
+schema.run(Symbol('test')) // { value: Symbol(test) }
+schema.run('symbol') // { issues: [...] }
 ```
 
 ## `literal(value, message?)`
@@ -98,13 +98,13 @@ Matches a single literal value (string, number, boolean, symbol, null, or undefi
 ```ts
 const envSchema = v.literal('production')
 
-envSchema.run('production') // { isOk: true, value: 'production' }
-envSchema.run('development') // { isOk: false, issues: [...] }
+envSchema.run('production') // { value: 'production' }
+envSchema.run('development') // { issues: [...] }
 
 // Null literal
 const nullSchema = v.literal(null)
-nullSchema.run(null) // { isOk: true, value: null }
-nullSchema.run(undefined) // { isOk: false, issues: [...] }
+nullSchema.run(null) // { value: null }
+nullSchema.run(undefined) // { issues: [...] }
 ```
 
 **Use Cases**:
@@ -119,9 +119,9 @@ Accepts any value without validation. Useful as a starting point for deferred va
 ```ts
 const schema = v.unknown()
 
-schema.run('anything') // { isOk: true, value: 'anything' }
-schema.run(123) // { isOk: true, value: 123 }
-schema.run(null) // { isOk: true, value: null }
+schema.run('anything') // { value: 'anything' }
+schema.run(123) // { value: 123 }
+schema.run(null) // { value: null }
 
 // Common pattern: defer validation with use()
 const deferredSchema = v.unknown()
@@ -147,7 +147,7 @@ Always fails validation. Useful for exhaustive checks or unreachable paths.
 ```ts
 const schema = v.never()
 
-schema.run('anything') // { isOk: false, issues: [{ code: 'never:unexpected_value', ... }] }
+schema.run('anything') // { issues: [{ code: 'never:unexpected_value', ... }] }
 ```
 
 ## Nullish Types
@@ -161,8 +161,8 @@ Accepts only `null`.
 ```ts
 const schema = v.null_()
 
-schema.run(null) // { isOk: true, value: null }
-schema.run(undefined) // { isOk: false, issues: [...] }
+schema.run(null) // { value: null }
+schema.run(undefined) // { issues: [...] }
 ```
 
 ### `undefined_(message?)`
@@ -174,8 +174,8 @@ Accepts only `undefined`.
 ```ts
 const schema = v.undefined_()
 
-schema.run(undefined) // { isOk: true, value: undefined }
-schema.run(null) // { isOk: false, issues: [...] }
+schema.run(undefined) // { value: undefined }
+schema.run(null) // { issues: [...] }
 ```
 
 ## Constraint Validators
@@ -191,15 +191,15 @@ const age = v.number()
 	.min(0)
 	.max(150)
 
-age.run(25) // { isOk: true, value: 25 }
-age.run(-5) // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
+age.run(25) // { value: 25 }
+age.run(-5) // { issues: [{ code: 'min:expected_min', ... }] }
 
 const username = v.string()
 	.min(3)
 	.max(20)
 
-username.run('alice') // { isOk: true, value: 'alice' }
-username.run('ab') // { isOk: false, issues: [...] }
+username.run('alice') // { value: 'alice' }
+username.run('ab') // { issues: [...] }
 ```
 
 ### `integer(message?)`
@@ -212,8 +212,8 @@ Validates that a number is an integer (no decimals).
 const schema = v.number()
 	.integer()
 
-schema.run(42) // { isOk: true, value: 42 }
-schema.run(42.5) // { isOk: false, issues: [...] }
+schema.run(42) // { value: 42 }
+schema.run(42.5) // { issues: [...] }
 ```
 
 ### `empty(message?)`
@@ -226,14 +226,14 @@ Validates that value has a length property and is empty (length === 0). Works wi
 const emptyString = v.string()
 	.empty()
 
-emptyString.run('') // { isOk: true, value: '' }
-emptyString.run('x') // { isOk: false, issues: [...] }
+emptyString.run('') // { value: '' }
+emptyString.run('x') // { issues: [...] }
 
 const emptyArray = v.array(v.string())
 	.empty()
 
-emptyArray.run([]) // { isOk: true, value: [] }
-emptyArray.run(['a']) // { isOk: false, issues: [...] }
+emptyArray.run([]) // { value: [] }
+emptyArray.run(['a']) // { issues: [...] }
 ```
 
 ### `startsWith(prefix, message?)`
@@ -246,8 +246,8 @@ Validates that a string starts with the specified prefix.
 const schema = v.string()
 	.startsWith('https://')
 
-schema.run('https://example.com') // { isOk: true, value: 'https://example.com' }
-schema.run('http://example.com') // { isOk: false, issues: [...] }
+schema.run('https://example.com') // { value: 'https://example.com' }
+schema.run('http://example.com') // { issues: [...] }
 ```
 
 ### `endsWith(suffix, message?)`
@@ -260,8 +260,8 @@ Validates that a string ends with the specified suffix.
 const schema = v.string()
 	.endsWith('.json')
 
-schema.run('config.json') // { isOk: true, value: 'config.json' }
-schema.run('config.yaml') // { isOk: false, issues: [...] }
+schema.run('config.json') // { value: 'config.json' }
+schema.run('config.yaml') // { issues: [...] }
 ```
 
 ## Custom Messages

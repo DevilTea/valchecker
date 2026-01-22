@@ -57,7 +57,7 @@ type User = v.Infer<typeof UserSchema>
 // Validate with detailed issue reporting
 const result = UserSchema.run(input)
 
-if (result.isOk) {
+if ('value' in result) {
   console.log(result.value) // Fully typed User
 } else {
   console.log(result.issues) // Structured issues with paths
@@ -178,7 +178,7 @@ type User = v.Infer<typeof UserSchema>
 // Validate with detailed issue reporting
 const result = UserSchema.run(input)
 
-if (result.isOk) {
+if ('value' in result) {
 	console.log(result.value) // Fully typed User
 }
 else {

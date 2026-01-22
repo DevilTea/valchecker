@@ -72,7 +72,7 @@ const result = await userSchema.execute({
 	email: 'ALICE@EXAMPLE.COM',
 })
 
-if (result.isOk) {
+if ('value' in result) {
 	console.log(result.value)
 	// => { name: 'Alice', age: 25, email: 'alice@example.com' }
 }
@@ -99,8 +99,8 @@ Every validation returns a discriminated union result:
 
 ```ts
 type ValidationResult<T>
-	= | { isOk: true, value: T }
-		| { isOk: false, issues: Issue[] }
+	= | { value: T }
+		| { issues: Issue[] }
 ```
 
 ### Working with Issues
@@ -121,7 +121,7 @@ Example of handling issues:
 ```ts
 const result = await userSchema.execute({ name: '', age: -5, email: 'invalid' })
 
-if (!result.isOk) {
+if ('issues' in result) {
 	for (const issue of result.issues) {
 		console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
 	}
@@ -178,8 +178,8 @@ const schema = v.number()
 	.min(0)
 	.fallback(() => 0)
 
-schema.run(-5) // => { isOk: true, value: 0 }
-schema.run(10) // => { isOk: true, value: 10 }
+schema.run(-5) // => { value: 0 }
+schema.run(10) // => { value: 10 }
 ```
 
 ## Async Validation
@@ -221,7 +221,7 @@ type User = v.Infer<typeof schema>
 
 const result = await schema.execute({ name: 'Bob', age: 30 })
 
-if (result.isOk) {
+if ('value' in result) {
 	// result.value is fully typed
 	console.log(result.value.isAdult) // ✓ Type-safe
 }
@@ -235,7 +235,7 @@ Use `v.InferInput` to extract the expected input type:
 const schema = v.object({
 	name: v.string()
 		.toTrimmed(),
-	tags: [v.array(v.string())],  // Optional
+	tags: [v.array(v.string())], // Optional
 })
 
 type Input = v.InferInput<typeof schema>
@@ -271,8 +271,9 @@ function validate<T>(schema: StandardSchema<T>, input: unknown): T {
 ```ts
 const schema = v.object({
 	required: v.string(),
-	optional: [v.string()],  // Optional with [] wrapper
-	withDefault: [v.string().fallback(() => 'default')],  // Optional with default
+	optional: [v.string()], // Optional with [] wrapper
+	withDefault: [v.string()
+		.fallback(() => 'default')], // Optional with default
 })
 ```
 
@@ -300,7 +301,7 @@ const addressSchema = v.object({
 const userSchema = v.object({
 	name: v.string(),
 	address: addressSchema,
-	billingAddress: [addressSchema],  // Optional
+	billingAddress: [addressSchema], // Optional
 })
 ```
 
