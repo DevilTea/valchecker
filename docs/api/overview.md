@@ -104,15 +104,15 @@ All 47 built-in steps, organized by category:
 Every schema returns results of this shape:
 
 ```ts
-type ExecutionResult<T> =
-  | { isOk: true; value: T }
-  | { isOk: false; issues: ExecutionIssue[] }
+type ExecutionResult<T>
+	= | { isOk: true, value: T }
+		| { isOk: false, issues: ExecutionIssue[] }
 
 interface ExecutionIssue {
-  code: string           // e.g., 'string:expected_string'
-  message: string        // Human-readable error
-  path: PropertyKey[]    // Location in data: ['user', 'email']
-  payload: unknown       // Issue-specific data
+	code: string // e.g., 'string:expected_string'
+	message: string // Human-readable error
+	path: PropertyKey[] // Location in data: ['user', 'email']
+	payload: unknown // Issue-specific data
 }
 ```
 
@@ -143,10 +143,10 @@ All steps support method chaining to build complex pipelines:
 
 ```ts
 const schema = v.string()
-  .toTrimmed()           // Transform
-  .check(s => s.length > 0, 'Required')  // Validate
-  .toLowercase()         // Transform
-  .check(s => /^[a-z]+$/.test(s))  // Validate
+	.toTrimmed() // Transform
+	.check(s => s.length > 0, 'Required') // Validate
+	.toLowercase() // Transform
+	.check(s => /^[a-z]+$/.test(s)) // Validate
 ```
 
 ## Standard Schema Compliance

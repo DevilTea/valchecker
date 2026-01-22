@@ -13,10 +13,11 @@ Runs a custom validation predicate or type guard.
 #### Basic Validation
 
 ```ts
-const positive = v.number().check(value => value > 0, 'Must be positive')
+const positive = v.number()
+	.check(value => value > 0, 'Must be positive')
 
-positive.run(5)   // { isOk: true, value: 5 }
-positive.run(-1)  // { isOk: false, issues: [{ code: 'check:failed', message: 'Must be positive' }] }
+positive.run(5) // { isOk: true, value: 5 }
+positive.run(-1) // { isOk: false, issues: [{ code: 'check:failed', message: 'Must be positive' }] }
 ```
 
 #### Return Values
@@ -27,11 +28,14 @@ The check function can return:
 - `string`: Validation fails with that string as the message
 
 ```ts
-const schema = v.string().check(value => {
-  if (value.length < 3) return 'Too short'
-  if (value.length > 20) return 'Too long'
-  return true
-})
+const schema = v.string()
+	.check((value) => {
+		if (value.length < 3)
+			return 'Too short'
+		if (value.length > 20)
+			return 'Too long'
+		return true
+	})
 ```
 
 #### Type Guards (Narrowing)
@@ -39,30 +43,33 @@ const schema = v.string().check(value => {
 ```ts
 const isString = (value: unknown): value is string => typeof value === 'string'
 
-const schema = v.unknown().check(isString)
+const schema = v.unknown()
+	.check(isString)
 
-type T = v.Infer<typeof schema>  // string
+type T = v.Infer<typeof schema> // string
 ```
 
 #### Cross-Property Validation
 
 ```ts
 const passwordConfirm = v.object({
-  password: v.string().min(8),
-  confirmPassword: v.string(),
-}).check((obj) => {
-  return obj.password === obj.confirmPassword || 'Passwords must match'
+	password: v.string()
+		.min(8),
+	confirmPassword: v.string(),
 })
+	.check((obj) => {
+		return obj.password === obj.confirmPassword || 'Passwords must match'
+	})
 ```
 
 #### Async Checks
 
 ```ts
 const uniqueEmail = v.string()
-  .check(async (value) => {
-    const exists = await db.users.exists({ email: value })
-    return !exists || 'Email already registered'
-  })
+	.check(async (value) => {
+		const exists = await db.users.exists({ email: value })
+		return !exists || 'Email already registered'
+	})
 
 const result = await uniqueEmail.execute('test@example.com')
 ```
@@ -72,10 +79,12 @@ const result = await uniqueEmail.execute('test@example.com')
 Provides a fallback value when validation fails. The failure is caught and replaced with the fallback.
 
 ```ts
-const safeNumber = v.number().min(0).fallback(() => 0)
+const safeNumber = v.number()
+	.min(0)
+	.fallback(() => 0)
 
-safeNumber.run(42)        // { isOk: true, value: 42 }
-safeNumber.run(-5)        // { isOk: true, value: 0 }  (min failed, used fallback)
+safeNumber.run(42) // { isOk: true, value: 42 }
+safeNumber.run(-5) // { isOk: true, value: 0 }  (min failed, used fallback)
 safeNumber.run('invalid') // { isOk: true, value: 0 }  (number failed, used fallback)
 ```
 
@@ -83,8 +92,8 @@ safeNumber.run('invalid') // { isOk: true, value: 0 }  (number failed, used fall
 
 ```ts
 const schema = v.string()
-  .parseJSON()
-  .fallback(() => ({ items: [], count: 0 }))
+	.parseJSON()
+	.fallback(() => ({ items: [], count: 0 }))
 
 schema.run('invalid json')
 // { isOk: true, value: { items: [], count: 0 } }
@@ -94,8 +103,10 @@ schema.run('invalid json')
 
 ```ts
 const config = v.object({
-  port: [v.number().fallback(() => 3000)],
-  host: [v.string().fallback(() => 'localhost')],
+	port: [v.number()
+		.fallback(() => 3000)],
+	host: [v.string()
+		.fallback(() => 'localhost')],
 })
 
 config.run({})
@@ -107,11 +118,12 @@ config.run({})
 Transforms the value to a new type or shape.
 
 ```ts
-const schema = v.string().transform(value => value.split(','))
+const schema = v.string()
+	.transform(value => value.split(','))
 
 schema.run('a,b,c') // { isOk: true, value: ['a', 'b', 'c'] }
 
-type T = v.Infer<typeof schema>  // string[]
+type T = v.Infer<typeof schema> // string[]
 ```
 
 See [Transforms](/api/transforms) for detailed documentation.
@@ -125,16 +137,18 @@ Delegates validation to another schema. Useful for reusing schemas and composing
 ```ts
 // Define reusable schemas
 const stringSchema = v.string()
-  .toTrimmed()
-  .toLowercase()
+	.toTrimmed()
+	.toLowercase()
 
 const userSchema = v.object({
-  name: v.unknown().use(stringSchema),
-  email: [v.unknown().use(stringSchema)],  // Optional
+	name: v.unknown()
+		.use(stringSchema),
+	email: [v.unknown()
+		.use(stringSchema)], // Optional
 })
 
 userSchema.run({
-  name: '  ALICE  ',
+	name: '  ALICE  ',
 })
 // { isOk: true, value: { name: 'alice', email: undefined } }
 ```
@@ -143,12 +157,12 @@ userSchema.run({
 
 ```ts
 const dataSchema = v.unknown()
-  .use(v.object({
-    type: v.literal('user'),
-    payload: v.object({
-      name: v.string(),
-    }),
-  }))
+	.use(v.object({
+		type: v.literal('user'),
+		payload: v.object({
+			name: v.string(),
+		}),
+	}))
 ```
 
 ### `as<T>()`
@@ -156,10 +170,11 @@ const dataSchema = v.unknown()
 Type assertion step for converting types without runtime transformation. Use with caution.
 
 ```ts
-const schema = v.unknown().as<string>()
+const schema = v.unknown()
+	.as<string>()
 
 // This doesn't validate at runtime - it only changes the type
-type T = v.Infer<typeof schema>  // string
+type T = v.Infer<typeof schema> // string
 ```
 
 ## Message Handling
@@ -170,34 +185,35 @@ Define a message resolver when creating the valchecker instance:
 
 ```ts
 const v = createValchecker({
-  steps: allSteps,
-  message: ({ code, payload, path }) => {
-    // Use your i18n library
-    return i18n.t(`validation.${code}`, { ...payload, path: path.join('.') })
-  },
+	steps: allSteps,
+	message: ({ code, payload, path }) => {
+		// Use your i18n library
+		return i18n.t(`validation.${code}`, { ...payload, path: path.join('.') })
+	},
 })
 ```
 
 ### Message Resolution Priority
 
 1. **Per-step message** (highest priority)
-   ```ts
-   v.number().min(1, 'Quantity must be at least 1')
-   ```
+```ts
+v.number()
+	.min(1, 'Quantity must be at least 1')
+```
 
 2. **Global handler**
-   ```ts
-   createValchecker({ steps, message: handler })
-   ```
+```ts
+createValchecker({ steps, message: handler })
+```
 
 3. **Built-in fallback** (lowest priority)
 
 ### Dynamic Messages
 
 ```ts
-const schema = v.number().min(10, ({ payload }) =>
-  `Value must be at least 10, got ${payload.value}`
-)
+const schema = v.number()
+	.min(10, ({ payload }) =>
+		`Value must be at least 10, got ${payload.value}`)
 ```
 
 ## Recursive Schemas
@@ -208,26 +224,26 @@ Creates recursive/self-referential schemas with proper typing.
 
 ```ts
 interface TreeNode {
-  value: number
-  children?: TreeNode[]
+	value: number
+	children?: TreeNode[]
 }
 
 const treeSchema = v.object({
-  value: v.number(),
-  children: [v.array(
-    v.generic<{ output: TreeNode }>(() => treeSchema)
-  )],  // Optional array of tree nodes
+	value: v.number(),
+	children: [v.array(
+		v.generic<{ output: TreeNode }>(() => treeSchema)
+	)], // Optional array of tree nodes
 })
 
 const result = treeSchema.run({
-  value: 1,
-  children: [
-    { value: 2 },
-    {
-      value: 3,
-      children: [{ value: 4 }],
-    },
-  ],
+	value: 1,
+	children: [
+		{ value: 2 },
+		{
+			value: 3,
+			children: [{ value: 4 }],
+		},
+	],
 })
 ```
 
@@ -240,10 +256,10 @@ Coerces strings to numbers before validation.
 ```ts
 const schema = v.looseNumber()
 
-schema.run('42')   // { isOk: true, value: 42 }
-schema.run(42)     // { isOk: true, value: 42 }
+schema.run('42') // { isOk: true, value: 42 }
+schema.run(42) // { isOk: true, value: 42 }
 schema.run('3.14') // { isOk: true, value: 3.14 }
-schema.run('abc')  // { isOk: false, issues: [...] }
+schema.run('abc') // { isOk: false, issues: [...] }
 ```
 
 ### `looseObject(shape, message?)`
@@ -252,7 +268,7 @@ Alias for `object()` that explicitly allows unknown keys.
 
 ```ts
 const schema = v.looseObject({
-  name: v.string(),
+	name: v.string(),
 })
 
 schema.run({ name: 'Alice', extra: 'allowed' })
@@ -265,15 +281,15 @@ schema.run({ name: 'Alice', extra: 'allowed' })
 ### Result Type
 
 ```ts
-type Result<T> =
-  | { isOk: true; value: T }
-  | { isOk: false; issues: Issue[] }
+type Result<T>
+	= | { isOk: true, value: T }
+		| { isOk: false, issues: Issue[] }
 
 interface Issue {
-  code: string
-  message: string
-  path: PropertyKey[]
-  payload: unknown
+	code: string
+	message: string
+	path: PropertyKey[]
+	payload: unknown
 }
 ```
 
@@ -283,13 +299,14 @@ interface Issue {
 const result = schema.run(input)
 
 if (result.isOk) {
-  // Success: result.value is fully typed
-  console.log(result.value)
-} else {
-  // Failure: result.issues contains all errors
-  for (const issue of result.issues) {
-    console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
-  }
+	// Success: result.value is fully typed
+	console.log(result.value)
+}
+else {
+	// Failure: result.issues contains all errors
+	for (const issue of result.issues) {
+		console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
+	}
 }
 ```
 
@@ -297,30 +314,31 @@ if (result.isOk) {
 
 ```ts
 function parse<T>(schema: Schema<T>, data: unknown): T {
-  const result = schema.run(data)
-  if (!result.isOk) {
-    throw new ValidationError(result.issues)
-  }
-  return result.value
+	const result = schema.run(data)
+	if (!result.isOk) {
+		throw new ValidationError(result.issues)
+	}
+	return result.value
 }
 
 class ValidationError extends Error {
-  constructor(public issues: Issue[]) {
-    super(`Validation failed: ${issues.map(i => i.message).join(', ')}`)
-    this.name = 'ValidationError'
-  }
+	constructor(public issues: Issue[]) {
+		super(`Validation failed: ${issues.map(i => i.message)
+			.join(', ')}`)
+		this.name = 'ValidationError'
+	}
 }
 ```
 
 ### Safe Parse Pattern
 
 ```ts
-function safeParse<T>(schema: Schema<T>, data: unknown): { success: true; data: T } | { success: false; error: Issue[] } {
-  const result = schema.run(data)
-  if (result.isOk) {
-    return { success: true, data: result.value }
-  }
-  return { success: false, error: result.issues }
+function safeParse<T>(schema: Schema<T>, data: unknown): { success: true, data: T } | { success: false, error: Issue[] } {
+	const result = schema.run(data)
+	if (result.isOk) {
+		return { success: true, data: result.value }
+	}
+	return { success: false, error: result.issues }
 }
 ```
 
@@ -333,8 +351,8 @@ import type { StandardSchema } from '@standard-schema/spec'
 
 // All valchecker schemas are Standard Schema compatible
 const userSchema: StandardSchema<User> = v.object({
-  name: v.string(),
-  email: v.string(),
+	name: v.string(),
+	email: v.string(),
 })
 
 // Use with any Standard Schema compatible library

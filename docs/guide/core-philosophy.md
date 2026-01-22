@@ -21,9 +21,9 @@ A **step** is a small plugin function that receives the current execution state 
 
 ```ts
 // Using built-in steps
-const schema = v.string()   // Step 1: Validate string type
-  .toTrimmed()              // Step 2: Transform by trimming
-  .minLength(3)             // Step 3: Validate minimum length
+const schema = v.string() // Step 1: Validate string type
+	.toTrimmed() // Step 2: Transform by trimming
+	.minLength(3) // Step 3: Validate minimum length
 
 // Steps chain together to form a pipeline
 ```
@@ -49,9 +49,15 @@ Chain steps together. Complex structures like `object`, `array`, `union`, and `i
 
 ```ts
 const userSchema = v.object({
-  name: v.string().toTrimmed().minLength(1),
-  email: v.string().email(),
-  age: v.number().int().min(0).optional(),
+	name: v.string()
+		.toTrimmed()
+		.minLength(1),
+	email: v.string()
+		.email(),
+	age: v.number()
+		.int()
+		.min(0)
+		.optional(),
 })
 ```
 
@@ -60,9 +66,9 @@ const userSchema = v.object({
 Calling `schema.execute(value)` or `schema.run(value)` returns a discriminated union:
 
 ```ts
-type Result<T> =
-  | { isOk: true; value: T }      // Success
-  | { isOk: false; issues: Issue[] }  // Failure
+type Result<T>
+	= | { isOk: true, value: T } // Success
+		| { isOk: false, issues: Issue[] } // Failure
 ```
 
 ### 3. Issue Structure
@@ -71,10 +77,10 @@ Each issue includes comprehensive debugging information:
 
 ```ts
 interface Issue {
-  code: string        // Identifier like 'string:expected_string'
-  message: string     // Human-readable error description
-  path: PropertyKey[] // Location in nested data: ['user', 'email']
-  payload: unknown    // Raw metadata about the failure
+	code: string // Identifier like 'string:expected_string'
+	message: string // Human-readable error description
+	path: PropertyKey[] // Location in nested data: ['user', 'email']
+	payload: unknown // Raw metadata about the failure
 }
 ```
 
@@ -84,11 +90,11 @@ Pipelines automatically switch to async mode when any step returns a `Promise`. 
 
 ```ts
 const pipeline = v.string()
-  .toTrimmed()
-  .check(async (value) => {
-    const exists = await db.users.exists(value)
-    return !exists || 'Username already taken'
-  })
+	.toTrimmed()
+	.check(async (value) => {
+		const exists = await db.users.exists(value)
+		return !exists || 'Username already taken'
+	})
 
 // Async steps make the entire pipeline async
 const result = await pipeline.execute('alice')
@@ -102,8 +108,8 @@ When all steps pass, the final transformed value is returned:
 
 ```ts
 const schema = v.string()
-  .toTrimmed()
-  .transform(s => s.toUpperCase())
+	.toTrimmed()
+	.transform(s => s.toUpperCase())
 
 const result = schema.run('  hello  ')
 // => { isOk: true, value: 'HELLO' }
@@ -114,7 +120,9 @@ const result = schema.run('  hello  ')
 When a step fails, execution stops and issues are returned:
 
 ```ts
-const schema = v.number().min(0).max(100)
+const schema = v.number()
+	.min(0)
+	.max(100)
 
 const result = schema.run(-5)
 // => { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
@@ -126,11 +134,11 @@ const result = schema.run(-5)
 
 ```ts
 const schema = v.number()
-  .min(0)
-  .fallback(() => 0)
+	.min(0)
+	.fallback(() => 0)
 
-schema.run(-5)  // => { isOk: true, value: 0 }
-schema.run(50)  // => { isOk: true, value: 50 }
+schema.run(-5) // => { isOk: true, value: 0 }
+schema.run(50) // => { isOk: true, value: 50 }
 ```
 
 ## Message Resolution Priority
@@ -142,7 +150,8 @@ Error messages are resolved in the following order:
 Pass a custom message directly to the step:
 
 ```ts
-v.number().min(1, 'Quantity must be at least 1')
+v.number()
+	.min(1, 'Quantity must be at least 1')
 ```
 
 ### 2. Global Handler
@@ -151,11 +160,11 @@ Define a message resolver when creating the valchecker instance:
 
 ```ts
 const v = createValchecker({
-  steps: allSteps,
-  message: ({ code, payload }) => {
-    // Use your i18n library
-    return i18n.t(`validation.${code}`, payload)
-  },
+	steps: allSteps,
+	message: ({ code, payload }) => {
+		// Use your i18n library
+		return i18n.t(`validation.${code}`, payload)
+	},
 })
 ```
 
@@ -171,22 +180,23 @@ Each issue carries a `path` array showing how to reach the failing value:
 
 ```ts
 const schema = v.object({
-  user: v.object({
-    contacts: v.array(
-      v.object({
-        email: v.string().email(),
-      })
-    ),
-  }),
+	user: v.object({
+		contacts: v.array(
+			v.object({
+				email: v.string()
+					.email(),
+			})
+		),
+	}),
 })
 
 const result = schema.run({
-  user: {
-    contacts: [
-      { email: 'valid@test.com' },
-      { email: 'invalid-email' },  // ← This fails
-    ],
-  },
+	user: {
+		contacts: [
+			{ email: 'valid@test.com' },
+			{ email: 'invalid-email' }, // ← This fails
+		],
+	},
 })
 
 // result.issues[0].path === ['user', 'contacts', 1, 'email']
@@ -202,8 +212,8 @@ Valchecker maintains full type inference through every step:
 
 ```ts
 const schema = v.object({
-  name: v.string(),
-  age: v.number(),
+	name: v.string(),
+	age: v.number(),
 })
 
 type T = v.Infer<typeof schema>
@@ -216,20 +226,24 @@ Transforms update the inferred type:
 
 ```ts
 const schema = v.string()
-  .transform(s => s.split(','))  // string → string[]
-  .transform(arr => arr.length)  // string[] → number
+	.transform(s => s.split(',')) // string → string[]
+	.transform(arr => arr.length) // string[] → number
 
-type T = v.Infer<typeof schema>  // number
+type T = v.Infer<typeof schema> // number
 ```
 
 ### Optional and Nullable
 
 ```ts
 const schema = v.object({
-  required: v.string(),
-  optional: v.string().optional(),
-  nullable: v.string().nullable(),
-  both: v.string().optional().nullable(),
+	required: v.string(),
+	optional: v.string()
+		.optional(),
+	nullable: v.string()
+		.nullable(),
+	both: v.string()
+		.optional()
+		.nullable(),
 })
 
 type T = v.Infer<typeof schema>
@@ -245,8 +259,10 @@ type T = v.Infer<typeof schema>
 
 ```ts
 const schema = v.object({
-  name: v.string().toTrimmed(),  // Input: string, Output: string (trimmed)
-  tags: v.string().transform(s => s.split(',')),  // Input: string, Output: string[]
+	name: v.string()
+		.toTrimmed(), // Input: string, Output: string (trimmed)
+	tags: v.string()
+		.transform(s => s.split(',')), // Input: string, Output: string[]
 })
 
 type Input = v.InferInput<typeof schema>
@@ -264,11 +280,11 @@ Validates object shape and runs nested schemas for each property:
 
 ```ts
 const schema = v.object({
-  name: v.string(),
-  address: v.object({
-    city: v.string(),
-    zip: v.string(),
-  }),
+	name: v.string(),
+	address: v.object({
+		city: v.string(),
+		zip: v.string(),
+	}),
 })
 ```
 
@@ -277,7 +293,8 @@ const schema = v.object({
 Validates array type and runs a schema for each element:
 
 ```ts
-const schema = v.array(v.number().min(0))
+const schema = v.array(v.number()
+	.min(0))
 ```
 
 ### Tuple
@@ -286,12 +303,12 @@ Validates fixed-length arrays with specific types at each position:
 
 ```ts
 const schema = v.tuple([
-  v.string(),   // Position 0
-  v.number(),   // Position 1
-  v.boolean(),  // Position 2
+	v.string(), // Position 0
+	v.number(), // Position 1
+	v.boolean(), // Position 2
 ])
 
-type T = v.Infer<typeof schema>  // [string, number, boolean]
+type T = v.Infer<typeof schema> // [string, number, boolean]
 ```
 
 ### Union
@@ -300,12 +317,12 @@ Tries schemas in order, returns first success:
 
 ```ts
 const schema = v.union([
-  v.string(),
-  v.number(),
-  v.literal(null),
+	v.string(),
+	v.number(),
+	v.literal(null),
 ])
 
-type T = v.Infer<typeof schema>  // string | number | null
+type T = v.Infer<typeof schema> // string | number | null
 ```
 
 ### Intersection
@@ -340,10 +357,14 @@ Use tree-shaking in production to exclude unused steps:
 ```ts
 // Development: convenient
 import { allSteps, createValchecker } from 'valchecker'
-const v = createValchecker({ steps: allSteps })
 
+const v = createValchecker({ steps: allSteps })
+```
+
+```ts
 // Production: optimized
-import { createValchecker, string, number, object } from 'valchecker'
+import { createValchecker, number, object, string } from 'valchecker'
+
 const v = createValchecker({ steps: [string, number, object] })
 ```
 
@@ -356,13 +377,13 @@ Define schemas once and reuse them—avoid recreating inside hot paths:
 const userSchema = v.object({ /* ... */ })
 
 function validateUser(input: unknown) {
-  return userSchema.run(input)
+	return userSchema.run(input)
 }
 
 // ✗ Bad: Creates new schema on every call
 function validateUser(input: unknown) {
-  const schema = v.object({ /* ... */ })  // Wasteful
-  return schema.run(input)
+	const schema = v.object({ /* ... */ }) // Wasteful
+	return schema.run(input)
 }
 ```
 
@@ -374,13 +395,13 @@ Capture `issues` in monitoring tools—they contain structured codes for dashboa
 const result = schema.run(input)
 
 if (!result.isOk) {
-  // Log structured data for monitoring
-  logger.warn('Validation failed', {
-    issues: result.issues.map(i => ({
-      code: i.code,
-      path: i.path.join('.'),
-    })),
-  })
+	// Log structured data for monitoring
+	logger.warn('Validation failed', {
+		issues: result.issues.map(i => ({
+			code: i.code,
+			path: i.path.join('.'),
+		})),
+	})
 }
 ```
 

@@ -162,10 +162,14 @@ import { v } from 'valchecker'
 
 // Define a user schema with composable steps
 const UserSchema = v.object({
-  name: v.string().toTrimmed().min(1),
-  email: v.string(),
-  age: [v.number().integer().min(0)],  // Optional
-  role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
+	name: v.string()
+		.toTrimmed()
+		.min(1),
+	email: v.string(),
+	age: [v.number()
+		.integer()
+		.min(0)], // Optional
+	role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
 })
 
 // Full type inference - no manual types needed
@@ -175,9 +179,10 @@ type User = v.Infer<typeof UserSchema>
 const result = UserSchema.run(input)
 
 if (result.isOk) {
-  console.log(result.value) // Fully typed User
-} else {
-  console.log(result.issues) // Structured issues with paths
+	console.log(result.value) // Fully typed User
+}
+else {
+	console.log(result.issues) // Structured issues with paths
 }
 ```
 

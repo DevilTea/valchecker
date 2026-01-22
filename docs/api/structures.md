@@ -17,9 +17,11 @@ Validates an object with specified properties. Unknown keys are allowed by defau
 
 ```ts
 const user = v.object({
-  id: v.string(),
-  name: v.string().toTrimmed(),
-  age: [v.number().min(0)], // Optional
+	id: v.string(),
+	name: v.string()
+		.toTrimmed(),
+	age: [v.number()
+		.min(0)], // Optional
 })
 
 user.run({ id: '123', name: '  Alice  ' })
@@ -47,7 +49,7 @@ Like `object()` but rejects unknown keys.
 
 ```ts
 const strict = v.strictObject({
-  id: v.string(),
+	id: v.string(),
 })
 
 strict.run({ id: '123', extra: 'not allowed' })
@@ -70,9 +72,10 @@ Validates each element of an array with the provided schema.
 - Plus any issues from element validators (with index in path)
 
 ```ts
-const tags = v.array(v.string().toLowercase())
-  .min(1)
-  .max(5)
+const tags = v.array(v.string()
+	.toLowercase())
+	.min(1)
+	.max(5)
 
 tags.run(['JS', 'TS', 'NODE'])
 // { isOk: true, value: ['js', 'ts', 'node'] }
@@ -100,13 +103,16 @@ Tries each schema in order, returns the first success. Fails only if all schemas
 
 ```ts
 const id = v.union([
-  v.string().toTrimmed(),
-  v.number().integer().min(0),
+	v.string()
+		.toTrimmed(),
+	v.number()
+		.integer()
+		.min(0),
 ])
 
-id.run('abc')      // { isOk: true, value: 'abc' }
-id.run(123)        // { isOk: true, value: 123 }
-id.run(true)       // { isOk: false, issues: [from first branch, from second branch] }
+id.run('abc') // { isOk: true, value: 'abc' }
+id.run(123) // { isOk: true, value: 123 }
+id.run(true) // { isOk: false, issues: [from first branch, from second branch] }
 
 type ID = v.Infer<typeof id>
 // string | number
@@ -118,15 +124,15 @@ For objects with a discriminator field:
 
 ```ts
 const event = v.union([
-  v.object({
-    type: v.literal('click'),
-    x: v.number(),
-    y: v.number(),
-  }),
-  v.object({
-    type: v.literal('keypress'),
-    key: v.string(),
-  }),
+	v.object({
+		type: v.literal('click'),
+		x: v.number(),
+		y: v.number(),
+	}),
+	v.object({
+		type: v.literal('keypress'),
+		key: v.string(),
+	}),
 ])
 
 type Event = v.Infer<typeof event>
@@ -140,22 +146,22 @@ Runs all schemas and merges their results. All schemas must pass.
 
 ```ts
 const timestamped = v.object({
-  createdAt: v.number(),
-  updatedAt: v.number(),
+	createdAt: v.number(),
+	updatedAt: v.number(),
 })
 
 const auditable = v.object({
-  createdBy: v.string(),
-  updatedBy: v.string(),
+	createdBy: v.string(),
+	updatedBy: v.string(),
 })
 
 const entity = v.intersection([timestamped, auditable])
 
 entity.run({
-  createdAt: 1234567890,
-  updatedAt: 1234567890,
-  createdBy: 'alice',
-  updatedBy: 'bob',
+	createdAt: 1234567890,
+	updatedAt: 1234567890,
+	createdBy: 'alice',
+	updatedBy: 'bob',
 })
 // { isOk: true, value: { createdAt: ..., updatedAt: ..., createdBy: ..., updatedBy: ... } }
 
@@ -172,16 +178,16 @@ Validates that a value is an instance of the given constructor.
 ```ts
 const dateSchema = v.instance(Date)
 
-dateSchema.run(new Date())      // { isOk: true, value: Date }
-dateSchema.run('2024-01-01')    // { isOk: false, issues: [...] }
+dateSchema.run(new Date()) // { isOk: true, value: Date }
+dateSchema.run('2024-01-01') // { isOk: false, issues: [...] }
 
 // Custom classes
 class User {
-  constructor(public name: string) {}
+	constructor(public name: string) {}
 }
 
 const userInstance = v.instance(User)
-userInstance.run(new User('Alice'))  // { isOk: true, value: User { name: 'Alice' } }
+userInstance.run(new User('Alice')) // { isOk: true, value: User { name: 'Alice' } }
 
 // Built-in types
 const regexSchema = v.instance(RegExp)
@@ -195,20 +201,20 @@ Structural validators automatically prepend keys or indexes to issue paths:
 
 ```ts
 const schema = v.object({
-  users: v.array(
-    v.object({
-      profile: v.object({
-        name: v.string(),
-      }),
-    }),
-  ),
+	users: v.array(
+		v.object({
+			profile: v.object({
+				name: v.string(),
+			}),
+		}),
+	),
 })
 
 schema.run({
-  users: [
-    { profile: { name: 'Alice' } },
-    { profile: { name: 123 } },  // ← Invalid
-  ],
+	users: [
+		{ profile: { name: 'Alice' } },
+		{ profile: { name: 123 } }, // ← Invalid
+	],
 })
 // issues[0].path === ['users', 1, 'profile', 'name']
 ```
@@ -224,31 +230,35 @@ Structures can be freely nested and combined:
 
 ```ts
 const addressSchema = v.object({
-  street: v.string(),
-  city: v.string(),
-  zip: v.string(),
+	street: v.string(),
+	city: v.string(),
+	zip: v.string(),
 })
 
 const companySchema = v.object({
-  name: v.string(),
-  addresses: v.array(addressSchema).min(1),
-  contacts: v.object({
-    primary: v.string(),
-    backup: [v.string()],
-  }),
+	name: v.string(),
+	addresses: v.array(addressSchema)
+		.min(1),
+	contacts: v.object({
+		primary: v.string(),
+		backup: [v.string()],
+	}),
 })
 
 const orderSchema = v.object({
-  id: v.string(),
-  company: companySchema,
-  items: v.array(
-    v.object({
-      productId: v.string(),
-      quantity: v.number().integer().min(1),
-      price: v.number().min(0),
-    })
-  ),
-  shippingAddress: addressSchema,
-  billingAddress: [addressSchema],  // Optional
+	id: v.string(),
+	company: companySchema,
+	items: v.array(
+		v.object({
+			productId: v.string(),
+			quantity: v.number()
+				.integer()
+				.min(1),
+			price: v.number()
+				.min(0),
+		})
+	),
+	shippingAddress: addressSchema,
+	billingAddress: [addressSchema], // Optional
 })
 ```

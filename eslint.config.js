@@ -16,7 +16,7 @@ export default deviltea(
 	},
 	{
 		rules: {
-			// overrides
+			'style/no-mixed-spaces-and-tabs': 'warn',
 		},
 	},
 )

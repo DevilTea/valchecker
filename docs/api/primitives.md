@@ -12,7 +12,7 @@ Validates that a value is a JavaScript string.
 const schema = v.string('Must be a string')
 
 schema.run('hello') // { isOk: true, value: 'hello' }
-schema.run(123)     // { isOk: false, issues: [{ code: 'string:expected_string', ... }] }
+schema.run(123) // { isOk: false, issues: [{ code: 'string:expected_string', ... }] }
 ```
 
 **Chainable Methods**:
@@ -31,11 +31,11 @@ Validates that a value is a finite JavaScript number (rejects `NaN` and `Infinit
 
 ```ts
 const quantity = v.number()
-  .integer()
-  .min(1)
+	.integer()
+	.min(1)
 
-quantity.run(5)          // { isOk: true, value: 5 }
-quantity.run(0)          // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
+quantity.run(5) // { isOk: true, value: 5 }
+quantity.run(0) // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
 quantity.run(Number.NaN) // { isOk: false, issues: [{ code: 'number:expected_number', ... }] }
 ```
 
@@ -54,8 +54,8 @@ Validates that a value is exactly `true` or `false`.
 ```ts
 const toggle = v.boolean()
 
-toggle.run(true)    // { isOk: true, value: true }
-toggle.run('true')  // { isOk: false, issues: [{ code: 'boolean:expected_boolean', ... }] }
+toggle.run(true) // { isOk: true, value: true }
+toggle.run('true') // { isOk: false, issues: [{ code: 'boolean:expected_boolean', ... }] }
 ```
 
 ## `bigint(message?)`
@@ -65,11 +65,12 @@ Validates that a value is a JavaScript BigInt.
 **Issue Code**: `'bigint:expected_bigint'`
 
 ```ts
-const id = v.bigint().min(0n)
+const id = v.bigint()
+	.min(0n)
 
-id.run(42n)  // { isOk: true, value: 42n }
-id.run(-1n)  // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
-id.run(42)   // { isOk: false, issues: [{ code: 'bigint:expected_bigint', ... }] }
+id.run(42n) // { isOk: true, value: 42n }
+id.run(-1n) // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
+id.run(42) // { isOk: false, issues: [{ code: 'bigint:expected_bigint', ... }] }
 ```
 
 **Chainable Methods**:
@@ -84,8 +85,8 @@ Validates that a value is a JavaScript Symbol.
 ```ts
 const schema = v.symbol()
 
-schema.run(Symbol('test'))  // { isOk: true, value: Symbol(test) }
-schema.run('symbol')        // { isOk: false, issues: [...] }
+schema.run(Symbol('test')) // { isOk: true, value: Symbol(test) }
+schema.run('symbol') // { isOk: false, issues: [...] }
 ```
 
 ## `literal(value, message?)`
@@ -97,12 +98,12 @@ Matches a single literal value (string, number, boolean, symbol, null, or undefi
 ```ts
 const envSchema = v.literal('production')
 
-envSchema.run('production')  // { isOk: true, value: 'production' }
+envSchema.run('production') // { isOk: true, value: 'production' }
 envSchema.run('development') // { isOk: false, issues: [...] }
 
 // Null literal
 const nullSchema = v.literal(null)
-nullSchema.run(null)      // { isOk: true, value: null }
+nullSchema.run(null) // { isOk: true, value: null }
 nullSchema.run(undefined) // { isOk: false, issues: [...] }
 ```
 
@@ -118,12 +119,13 @@ Accepts any value without validation. Useful as a starting point for deferred va
 ```ts
 const schema = v.unknown()
 
-schema.run('anything')  // { isOk: true, value: 'anything' }
-schema.run(123)         // { isOk: true, value: 123 }
-schema.run(null)        // { isOk: true, value: null }
+schema.run('anything') // { isOk: true, value: 'anything' }
+schema.run(123) // { isOk: true, value: 123 }
+schema.run(null) // { isOk: true, value: null }
 
 // Common pattern: defer validation with use()
-const deferredSchema = v.unknown().use(actualSchema)
+const deferredSchema = v.unknown()
+	.use(actualSchema)
 ```
 
 ### `any()`
@@ -133,7 +135,7 @@ Accepts any value, typed as `any` in TypeScript.
 ```ts
 const schema = v.any()
 
-type T = v.Infer<typeof schema>  // any
+type T = v.Infer<typeof schema> // any
 ```
 
 ### `never(message?)`
@@ -145,7 +147,7 @@ Always fails validation. Useful for exhaustive checks or unreachable paths.
 ```ts
 const schema = v.never()
 
-schema.run('anything')  // { isOk: false, issues: [{ code: 'never:unexpected_value', ... }] }
+schema.run('anything') // { isOk: false, issues: [{ code: 'never:unexpected_value', ... }] }
 ```
 
 ## Nullish Types
@@ -159,7 +161,7 @@ Accepts only `null`.
 ```ts
 const schema = v.null_()
 
-schema.run(null)      // { isOk: true, value: null }
+schema.run(null) // { isOk: true, value: null }
 schema.run(undefined) // { isOk: false, issues: [...] }
 ```
 
@@ -173,7 +175,7 @@ Accepts only `undefined`.
 const schema = v.undefined_()
 
 schema.run(undefined) // { isOk: true, value: undefined }
-schema.run(null)      // { isOk: false, issues: [...] }
+schema.run(null) // { isOk: false, issues: [...] }
 ```
 
 ## Constraint Validators
@@ -185,15 +187,19 @@ Validates minimum and maximum bounds. Works with numbers, bigints, and anything 
 **Issue Codes**: `'min:expected_min'`, `'max:expected_max'`
 
 ```ts
-const age = v.number().min(0).max(150)
+const age = v.number()
+	.min(0)
+	.max(150)
 
-age.run(25)   // { isOk: true, value: 25 }
-age.run(-5)   // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
+age.run(25) // { isOk: true, value: 25 }
+age.run(-5) // { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
 
-const username = v.string().min(3).max(20)
+const username = v.string()
+	.min(3)
+	.max(20)
 
-username.run('alice')  // { isOk: true, value: 'alice' }
-username.run('ab')     // { isOk: false, issues: [...] }
+username.run('alice') // { isOk: true, value: 'alice' }
+username.run('ab') // { isOk: false, issues: [...] }
 ```
 
 ### `integer(message?)`
@@ -203,10 +209,11 @@ Validates that a number is an integer (no decimals).
 **Issue Code**: `'integer:expected_integer'`
 
 ```ts
-const schema = v.number().integer()
+const schema = v.number()
+	.integer()
 
-schema.run(42)    // { isOk: true, value: 42 }
-schema.run(42.5)  // { isOk: false, issues: [...] }
+schema.run(42) // { isOk: true, value: 42 }
+schema.run(42.5) // { isOk: false, issues: [...] }
 ```
 
 ### `empty(message?)`
@@ -216,14 +223,16 @@ Validates that value has a length property and is empty (length === 0). Works wi
 **Issue Code**: `'empty:expected_empty'`
 
 ```ts
-const emptyString = v.string().empty()
+const emptyString = v.string()
+	.empty()
 
-emptyString.run('')   // { isOk: true, value: '' }
-emptyString.run('x')  // { isOk: false, issues: [...] }
+emptyString.run('') // { isOk: true, value: '' }
+emptyString.run('x') // { isOk: false, issues: [...] }
 
-const emptyArray = v.array(v.string()).empty()
+const emptyArray = v.array(v.string())
+	.empty()
 
-emptyArray.run([])   // { isOk: true, value: [] }
+emptyArray.run([]) // { isOk: true, value: [] }
 emptyArray.run(['a']) // { isOk: false, issues: [...] }
 ```
 
@@ -234,10 +243,11 @@ Validates that a string starts with the specified prefix.
 **Issue Code**: `'startsWith:expected_starts_with'`
 
 ```ts
-const schema = v.string().startsWith('https://')
+const schema = v.string()
+	.startsWith('https://')
 
-schema.run('https://example.com')  // { isOk: true, value: 'https://example.com' }
-schema.run('http://example.com')   // { isOk: false, issues: [...] }
+schema.run('https://example.com') // { isOk: true, value: 'https://example.com' }
+schema.run('http://example.com') // { isOk: false, issues: [...] }
 ```
 
 ### `endsWith(suffix, message?)`
@@ -247,10 +257,11 @@ Validates that a string ends with the specified suffix.
 **Issue Code**: `'endsWith:expected_ends_with'`
 
 ```ts
-const schema = v.string().endsWith('.json')
+const schema = v.string()
+	.endsWith('.json')
 
-schema.run('config.json')  // { isOk: true, value: 'config.json' }
-schema.run('config.yaml')  // { isOk: false, issues: [...] }
+schema.run('config.json') // { isOk: true, value: 'config.json' }
+schema.run('config.yaml') // { isOk: false, issues: [...] }
 ```
 
 ## Custom Messages
@@ -267,7 +278,7 @@ const schema = v.string('Please enter a valid string')
 
 ```ts
 const schema = v.string(({ payload }) =>
-  `Expected string, received ${typeof payload.value}`
+	`Expected string, received ${typeof payload.value}`
 )
 ```
 
@@ -275,7 +286,7 @@ const schema = v.string(({ payload }) =>
 
 ```ts
 const schema = v.string()
-  .min(3, 'Too short')
-  .max(20, 'Too long')
-  .startsWith('http', 'Must start with http')
+	.min(3, 'Too short')
+	.max(20, 'Too long')
+	.startsWith('http', 'Must start with http')
 ```

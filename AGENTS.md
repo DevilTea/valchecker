@@ -72,22 +72,22 @@ Steps follow a three-layer pattern:
 ```typescript
 // Example: See packages/internal/src/steps/string/string.ts
 type Meta = DefineStepMethodMeta<{
-  Name: 'stepName'
-  ExpectedCurrentValchecker: DefineExpectedValchecker
-  SelfIssue: ExecutionIssue<'stepName:issue_code', { value: unknown }>
+	Name: 'stepName'
+	ExpectedCurrentValchecker: DefineExpectedValchecker
+	SelfIssue: ExecutionIssue<'stepName:issue_code', { value: unknown }>
 }>
 
 interface PluginDef extends TStepPluginDef {
-  /** JSDoc with Description, Example, and Issues sections */
-  stepName: DefineStepMethod<Meta, /* method signature */>
+	/** JSDoc with Description, Example, and Issues sections */
+	stepName: DefineStepMethod<Meta, /* method signature */>
 }
 
 export const stepName = implStepPlugin<PluginDef>({
-  stepName: ({ utils, params }) => {
-    utils.addSuccessStep((value) => {
-      // validation logic
-    })
-  },
+	stepName: ({ utils, params }) => {
+		utils.addSuccessStep((value) => {
+			// validation logic
+		})
+	},
 })
 ```
 
@@ -109,10 +109,10 @@ Test file template:
  * - Coverage goals: 100%
  */
 describe('stepName plugin', () => {
-  describe('valid inputs', () => { /* ... */ })
-  describe('invalid inputs', () => { /* ... */ })
-  describe('custom messages', () => { /* ... */ })
-  describe('chaining', () => { /* ... */ })
+	describe('valid inputs', () => { /* ... */ })
+	describe('invalid inputs', () => { /* ... */ })
+	describe('custom messages', () => { /* ... */ })
+	describe('chaining', () => { /* ... */ })
 })
 ```
 
