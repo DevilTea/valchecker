@@ -12,7 +12,7 @@ export default defineConfig({
 		nav: [
 			{ text: 'Guide', link: '/guide/quick-start' },
 			{ text: 'API Reference', link: '/api/overview' },
-			{ text: 'Examples', link: '/examples/async-validation' },
+			{ text: 'Examples', link: '/examples/basic-validation' },
 		],
 
 		sidebar: [
@@ -21,6 +21,7 @@ export default defineConfig({
 				items: [
 					{ text: 'Quick Start', link: '/guide/quick-start' },
 					{ text: 'Core Philosophy', link: '/guide/core-philosophy' },
+					{ text: 'Custom Steps', link: '/guide/custom-steps' },
 				],
 			},
 			{
@@ -36,6 +37,7 @@ export default defineConfig({
 			{
 				text: 'Examples',
 				items: [
+					{ text: 'Basic Validation', link: '/examples/basic-validation' },
 					{ text: 'Async Validation', link: '/examples/async-validation' },
 					{ text: 'Custom Messages', link: '/examples/custom-messages' },
 					{ text: 'Fallback Chains', link: '/examples/fallback-chains' },

@@ -4,40 +4,57 @@ Structural validators orchestrate nested validation pipelines and maintain prope
 
 ## `object(shape, message?)`
 
-Validates an object with specified properties. Unknown keys are allowed by default.
+Validates an object with specified properties. Unknown keys are allowed by default (see `strictObject()` for strict mode).
 
 **Parameters**:
-- `shape`: Object mapping keys to schemas. Wrap schema in `[]` for optional properties.
+- `shape`: Object mapping keys to schemas
+- Properties can be wrapped in `[]` to make them optional
 - `message`: Custom error message or handler
 
 **Issue Codes**:
-- `'object:expected_object'`: Value is not an object
+- `'object:expected_object'`: Value is not an object or is an array/null
 - Plus any issues from nested property validators
 
 ```ts
 const user = v.object({
-	id: v.string(),
-	name: v.string()
-		.toTrimmed(),
-	age: [v.number()
-		.min(0)], // Optional property
+  id: v.string(),
+  name: v.string().toTrimmed(),
+  age: [v.number().min(0)], // Optional
 })
 
-user.execute({ id: '123', name: '  Alice  ' })
-// { value: { id: '123', name: 'Alice', age: undefined } }
+user.run({ id: '123', name: '  Alice  ' })
+// { isOk: true, value: { id: '123', name: 'Alice', age: undefined } }
+
+user.run({ id: '123', name: '  Alice  ', extra: 'ignored' })
+// { isOk: true, value: { id: '123', name: 'Alice', age: undefined } }
+// Note: 'extra' is stripped from output
+```
+
+### Type Inference
+
+```ts
+type User = v.Infer<typeof user>
+// { id: string; name: string; age: number | undefined }
 ```
 
 ## `strictObject(shape, message?)`
 
 Like `object()` but rejects unknown keys.
 
+**Issue Codes**:
+- `'object:expected_object'`: Value is not an object
+- `'object:unknown_key'`: Object contains keys not in shape
+
 ```ts
 const strict = v.strictObject({
-	id: v.string(),
+  id: v.string(),
 })
 
-strict.execute({ id: '123', extra: 'not allowed' })
-// { issues: [{ code: 'object:unknown_key', ... }] }
+strict.run({ id: '123', extra: 'not allowed' })
+// { isOk: false, issues: [{ code: 'object:unknown_key', ... }] }
+
+strict.run({ id: '123' })
+// { isOk: true, value: { id: '123' } }
 ```
 
 ## `looseObject(shape, message?)`
@@ -53,16 +70,18 @@ Validates each element of an array with the provided schema.
 - Plus any issues from element validators (with index in path)
 
 ```ts
-const tags = v.array(v.string()
-	.toLowercase())
-	.min(1)
-	.max(5)
+const tags = v.array(v.string().toLowercase())
+  .min(1)
+  .max(5)
 
-tags.execute(['JS', 'TS', 'NODE'])
-// { value: ['js', 'ts', 'node'] }
+tags.run(['JS', 'TS', 'NODE'])
+// { isOk: true, value: ['js', 'ts', 'node'] }
 
-tags.execute(['a', 123, 'c'])
-// { issues: [{ path: [1], code: 'string:expected_string', ... }] }
+tags.run(['a', 123, 'c'])
+// { isOk: false, issues: [{ path: [1], code: 'string:expected_string', ... }] }
+
+tags.run([])
+// { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
 ```
 
 **Chainable Methods**:
@@ -75,36 +94,73 @@ tags.execute(['a', 123, 'c'])
 
 ## `union(schemas, message?)`
 
-Tries each schema in order, returning the first success.
+Tries each schema in order, returns the first success. Fails only if all schemas fail.
 
-**Issue Code**: `'union:no_match'` when all branches fail
+**Issue Code**: Union itself doesn't produce issues; you see issues from branches if all fail
 
 ```ts
 const id = v.union([
-	v.string()
-		.toTrimmed(),
-	v.number()
-		.integer()
-		.min(0),
+  v.string().toTrimmed(),
+  v.number().integer().min(0),
 ])
 
-id.execute('abc') // { value: 'abc' }
-id.execute(123) // { value: 123 }
-id.execute(true) // { issues: [{ code: 'union:no_match', ... }] }
+id.run('abc')      // { isOk: true, value: 'abc' }
+id.run(123)        // { isOk: true, value: 123 }
+id.run(true)       // { isOk: false, issues: [from first branch, from second branch] }
+
+type ID = v.Infer<typeof id>
+// string | number
+```
+
+### Discriminated Unions
+
+For objects with a discriminator field:
+
+```ts
+const event = v.union([
+  v.object({
+    type: v.literal('click'),
+    x: v.number(),
+    y: v.number(),
+  }),
+  v.object({
+    type: v.literal('keypress'),
+    key: v.string(),
+  }),
+])
+
+type Event = v.Infer<typeof event>
+// | { type: 'click'; x: number; y: number }
+// | { type: 'keypress'; key: string }
 ```
 
 ## `intersection(schemas, message?)`
 
-Runs all schemas and merges their results.
+Runs all schemas and merges their results. All schemas must pass.
 
 ```ts
-const auditable = v.object({ createdAt: v.number() })
-const softDelete = v.object({ deletedAt: [v.number()] })
+const timestamped = v.object({
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
 
-const entity = v.intersection([auditable, softDelete])
+const auditable = v.object({
+  createdBy: v.string(),
+  updatedBy: v.string(),
+})
 
-entity.execute({ createdAt: 1234567890 })
-// { value: { createdAt: 1234567890, deletedAt: undefined } }
+const entity = v.intersection([timestamped, auditable])
+
+entity.run({
+  createdAt: 1234567890,
+  updatedAt: 1234567890,
+  createdBy: 'alice',
+  updatedBy: 'bob',
+})
+// { isOk: true, value: { createdAt: ..., updatedAt: ..., createdBy: ..., updatedBy: ... } }
+
+type Entity = v.Infer<typeof entity>
+// { createdAt: number; updatedAt: number; createdBy: string; updatedBy: string }
 ```
 
 ## `instance(constructor, message?)`
@@ -116,17 +172,22 @@ Validates that a value is an instance of the given constructor.
 ```ts
 const dateSchema = v.instance(Date)
 
-dateSchema.execute(new Date())
-// { value: Date instance }
+dateSchema.run(new Date())      // { isOk: true, value: Date }
+dateSchema.run('2024-01-01')    // { isOk: false, issues: [...] }
 
-dateSchema.execute('2024-01-01')
-// { issues: [{ code: 'instance:expected_instance', ... }] }
+// Custom classes
+class User {
+  constructor(public name: string) {}
+}
+
+const userInstance = v.instance(User)
+userInstance.run(new User('Alice'))  // { isOk: true, value: User { name: 'Alice' } }
+
+// Built-in types
+const regexSchema = v.instance(RegExp)
+const errorSchema = v.instance(Error)
+const mapSchema = v.instance(Map)
 ```
-
-Useful for:
-- `Date` objects
-- Custom class instances
-- Built-in types like `Map`, `Set`, `RegExp`
 
 ## Nested Issue Paths
 
@@ -134,15 +195,60 @@ Structural validators automatically prepend keys or indexes to issue paths:
 
 ```ts
 const schema = v.object({
-	items: v.array(
-		v.object({
-			id: v.string(),
-		}),
-	),
+  users: v.array(
+    v.object({
+      profile: v.object({
+        name: v.string(),
+      }),
+    }),
+  ),
 })
 
-schema.execute({ items: [{ id: 123 }] })
-// issues[0].path === ['items', 0, 'id']
+schema.run({
+  users: [
+    { profile: { name: 'Alice' } },
+    { profile: { name: 123 } },  // ← Invalid
+  ],
+})
+// issues[0].path === ['users', 1, 'profile', 'name']
 ```
 
-This makes it easy to highlight the exact failing field in forms or API responses.
+This makes it easy to:
+- Highlight exact failing fields in forms
+- Map errors to UI components
+- Generate human-readable error locations
+
+## Combining Structures
+
+Structures can be freely nested and combined:
+
+```ts
+const addressSchema = v.object({
+  street: v.string(),
+  city: v.string(),
+  zip: v.string(),
+})
+
+const companySchema = v.object({
+  name: v.string(),
+  addresses: v.array(addressSchema).min(1),
+  contacts: v.object({
+    primary: v.string(),
+    backup: [v.string()],
+  }),
+})
+
+const orderSchema = v.object({
+  id: v.string(),
+  company: companySchema,
+  items: v.array(
+    v.object({
+      productId: v.string(),
+      quantity: v.number().integer().min(1),
+      price: v.number().min(0),
+    })
+  ),
+  shippingAddress: addressSchema,
+  billingAddress: [addressSchema],  // Optional
+})
+```

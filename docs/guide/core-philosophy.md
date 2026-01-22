@@ -2,159 +2,390 @@
 
 Valchecker is built around modular "steps" that execute in a deterministic pipeline. Each step validates, transforms, or short-circuits data while preserving TypeScript inference. This guide explains the mental model so you can design reliable validation flows and extend the library confidently.
 
+## The Mental Model
+
+```
+Input → [Step 1] → [Step 2] → [Step 3] → ... → Output
+              ↓          ↓          ↓
+           Issues     Issues     Issues
+```
+
+Data flows through a pipeline of steps. Each step can:
+- **Pass**: Forward the value (possibly transformed) to the next step
+- **Fail**: Emit one or more issues and halt the current branch
+- **Recover**: Catch failures and provide fallback values
+
 ## Everything is a Step
 
-- A **step** is a small plugin function that receives the current execution state and returns either a success result or validation issues.
-- Steps are composed through helper factories like `string()`, `number()`, `array()`, or authored manually using `implStepPlugin()` from `@valchecker/internal`.
-- Because steps are plain functions, you can reuse them across CLI tools, API handlers, background jobs, or any runtime surface.
+A **step** is a small plugin function that receives the current execution state and returns either a success result or validation issues. Steps are the atomic unit of validation in Valchecker.
 
 ```ts
 // Using built-in steps
-const schema = v.string()
-	.toTrimmed()
-	.min(3)
+const schema = v.string()   // Step 1: Validate string type
+  .toTrimmed()              // Step 2: Transform by trimming
+  .minLength(3)             // Step 3: Validate minimum length
 
 // Steps chain together to form a pipeline
 ```
 
+### Step Categories
+
+Valchecker organizes steps into logical categories:
+
+| Category | Purpose | Examples |
+|----------|---------|----------|
+| **Primitives** | Type validation | `string()`, `number()`, `boolean()`, `bigint()`, `symbol()` |
+| **Structures** | Compound types | `object()`, `array()`, `tuple()`, `record()`, `map()`, `set()` |
+| **Constraints** | Value restrictions | `min()`, `max()`, `minLength()`, `maxLength()`, `regex()`, `email()` |
+| **Transforms** | Value modification | `toTrimmed()`, `toLowercase()`, `transform()`, `parseJSON()` |
+| **Flow Control** | Pipeline behavior | `optional()`, `nullable()`, `fallback()`, `union()`, `check()` |
+| **Helpers** | Utility operations | `use()`, `clone()`, `pipe()` |
+
 ## The Pipeline Contract
 
-1. **Schema Creation**: Chain steps together. Complex structures like `object`, `array`, `union`, and `intersection` orchestrate nested pipelines internally.
+### 1. Schema Creation
 
-2. **Execution**: Calling `schema.execute(value)` returns a discriminated union:
-   - Success: `{ value: T }` where `T` is the inferred output type
-   - Failure: `{ issues: ExecutionIssue[] }` with structured error information
+Chain steps together. Complex structures like `object`, `array`, `union`, and `intersection` orchestrate nested pipelines internally.
 
-3. **Issue Structure**: Each issue includes:
-   - `code`: Identifier like `'string:expected_string'` or `'check:failed'`
-   - `message`: Human-readable error description
-   - `path`: Array describing the location in nested data (e.g., `['user', 'email']`)
-   - `payload`: Raw metadata about the failure
+```ts
+const userSchema = v.object({
+  name: v.string().toTrimmed().minLength(1),
+  email: v.string().email(),
+  age: v.number().int().min(0).optional(),
+})
+```
 
-4. **Async Detection**: Pipelines automatically switch to async mode when any step returns a `Promise`. Mix sync and async steps freely.
+### 2. Execution
+
+Calling `schema.execute(value)` or `schema.run(value)` returns a discriminated union:
+
+```ts
+type Result<T> =
+  | { isOk: true; value: T }      // Success
+  | { isOk: false; issues: Issue[] }  // Failure
+```
+
+### 3. Issue Structure
+
+Each issue includes comprehensive debugging information:
+
+```ts
+interface Issue {
+  code: string        // Identifier like 'string:expected_string'
+  message: string     // Human-readable error description
+  path: PropertyKey[] // Location in nested data: ['user', 'email']
+  payload: unknown    // Raw metadata about the failure
+}
+```
+
+### 4. Async Detection
+
+Pipelines automatically switch to async mode when any step returns a `Promise`. Mix sync and async steps freely:
 
 ```ts
 const pipeline = v.string()
-	.toTrimmed()
-	.check(value => value.length > 0, 'String cannot be empty')
-	.transform(value => value.toUpperCase())
+  .toTrimmed()
+  .check(async (value) => {
+    const exists = await db.users.exists(value)
+    return !exists || 'Username already taken'
+  })
 
-const result = await pipeline.execute('  hello  ')
-// => { value: 'HELLO' }
+// Async steps make the entire pipeline async
+const result = await pipeline.execute('alice')
+```
+
+## Pipeline Execution Flow
+
+### Success Path
+
+When all steps pass, the final transformed value is returned:
+
+```ts
+const schema = v.string()
+  .toTrimmed()
+  .transform(s => s.toUpperCase())
+
+const result = schema.run('  hello  ')
+// => { isOk: true, value: 'HELLO' }
+```
+
+### Failure Path
+
+When a step fails, execution stops and issues are returned:
+
+```ts
+const schema = v.number().min(0).max(100)
+
+const result = schema.run(-5)
+// => { isOk: false, issues: [{ code: 'min:expected_min', ... }] }
+```
+
+### Recovery Path
+
+`fallback()` catches failures and provides alternative values:
+
+```ts
+const schema = v.number()
+  .min(0)
+  .fallback(() => 0)
+
+schema.run(-5)  // => { isOk: true, value: 0 }
+schema.run(50)  // => { isOk: true, value: 50 }
 ```
 
 ## Message Resolution Priority
 
 Error messages are resolved in the following order:
 
-1. **Per-step override**: Passed directly to the step
-	```ts
-	v.number()
-		.min(1, 'Quantity must be at least 1')
-	```
+### 1. Per-step Override
 
-2. **Global handler**: Defined when creating the valchecker instance
-	```ts
-	const v = createValchecker({
-		steps: allSteps,
-		message: ({ code, payload }) => translate(code, payload),
-	})
-	```
+Pass a custom message directly to the step:
 
-3. **Built-in fallback**: Default message from the step implementation
+```ts
+v.number().min(1, 'Quantity must be at least 1')
+```
+
+### 2. Global Handler
+
+Define a message resolver when creating the valchecker instance:
+
+```ts
+const v = createValchecker({
+  steps: allSteps,
+  message: ({ code, payload }) => {
+    // Use your i18n library
+    return i18n.t(`validation.${code}`, payload)
+  },
+})
+```
+
+### 3. Built-in Fallback
+
+Default message from the step implementation.
 
 This allows you to centralize translations while still overriding specific cases.
 
 ## Paths and Traceability
 
-- Each issue carries a `path` array showing how to reach the failing value
-- Structural steps (`object`, `array`) automatically append keys or indexes
-- Custom steps should append path segments when descending into nested data
+Each issue carries a `path` array showing how to reach the failing value:
 
 ```ts
 const schema = v.object({
-	user: v.object({
-		email: v.string(),
-	}),
+  user: v.object({
+    contacts: v.array(
+      v.object({
+        email: v.string().email(),
+      })
+    ),
+  }),
 })
 
-const result = schema.execute({ user: { email: 123 } })
-// result.issues[0].path === ['user', 'email']
+const result = schema.run({
+  user: {
+    contacts: [
+      { email: 'valid@test.com' },
+      { email: 'invalid-email' },  // ← This fails
+    ],
+  },
+})
+
+// result.issues[0].path === ['user', 'contacts', 1, 'email']
 ```
 
-This makes it trivial to highlight the exact field in forms or API responses.
+This makes it trivial to highlight the exact field in forms or map errors to UI components.
 
-## Extending Valchecker
+## Type Inference Deep Dive
 
-To create custom validation steps, use `implStepPlugin()` following the pattern from existing steps:
+Valchecker maintains full type inference through every step:
+
+### Basic Inference
 
 ```ts
-import type { DefineStepMethod, DefineStepMethodMeta, TStepPluginDef } from '@valchecker/internal'
-import { implStepPlugin } from '@valchecker/internal'
+const schema = v.object({
+  name: v.string(),
+  age: v.number(),
+})
 
-// 1. Define metadata
-type Meta = DefineStepMethodMeta<{
-	Name: 'positiveNumber'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
-	SelfIssue: ExecutionIssue<'positiveNumber:not_positive', { value: number }>
-}>
+type T = v.Infer<typeof schema>
+// { name: string; age: number }
+```
 
-// 2. Define plugin interface
-interface PluginDef extends TStepPluginDef {
-	positiveNumber: DefineStepMethod<
-		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? () => Next<{ output: number, issue: Meta['SelfIssue'] }, this['CurrentValchecker']>
-			: never
-	>
-}
+### Transform Inference
 
-// 3. Implement the step
-export const positiveNumber = implStepPlugin<PluginDef>({
-	positiveNumber: ({ utils: { addSuccessStep, success, failure, resolveMessage } }) => {
-		addSuccessStep((value) => {
-			if (value > 0) {
-				return success(value)
-			}
+Transforms update the inferred type:
 
-			return failure({
-				code: 'positiveNumber:not_positive',
-				payload: { value },
-				message: resolveMessage(
-					{ code: 'positiveNumber:not_positive', payload: { value } },
-					null,
-					'Value must be positive',
-				),
-			})
-		})
-	},
+```ts
+const schema = v.string()
+  .transform(s => s.split(','))  // string → string[]
+  .transform(arr => arr.length)  // string[] → number
+
+type T = v.Infer<typeof schema>  // number
+```
+
+### Optional and Nullable
+
+```ts
+const schema = v.object({
+  required: v.string(),
+  optional: v.string().optional(),
+  nullable: v.string().nullable(),
+  both: v.string().optional().nullable(),
+})
+
+type T = v.Infer<typeof schema>
+// {
+//   required: string
+//   optional: string | undefined
+//   nullable: string | null
+//   both: string | null | undefined
+// }
+```
+
+### Input vs Output Types
+
+```ts
+const schema = v.object({
+  name: v.string().toTrimmed(),  // Input: string, Output: string (trimmed)
+  tags: v.string().transform(s => s.split(',')),  // Input: string, Output: string[]
+})
+
+type Input = v.InferInput<typeof schema>
+// { name: string; tags: string }
+
+type Output = v.Infer<typeof schema>
+// { name: string; tags: string[] }
+```
+
+## Structural Steps
+
+### Object
+
+Validates object shape and runs nested schemas for each property:
+
+```ts
+const schema = v.object({
+  name: v.string(),
+  address: v.object({
+    city: v.string(),
+    zip: v.string(),
+  }),
 })
 ```
 
-See `packages/internal/src/steps/` for complete examples of primitive, structural, and transformation steps.
+### Array
 
-## Testing Requirements
+Validates array type and runs a schema for each element:
 
-- Every step `.ts` file must have a sibling `.test.ts` with 100% code coverage
-- Tests use Vitest and should cover success paths, failure paths, async variants, and edge cases
-- Run the full verification sequence after changes:
-  ```bash
-  pnpm -w lint
-  pnpm -w typecheck
-  pnpm -w test
-  ```
+```ts
+const schema = v.array(v.number().min(0))
+```
 
-## Production Best Practices
+### Tuple
 
-- **Selective imports**: Use tree-shaking in production to exclude unused steps
-- **Schema reuse**: Define schemas once and reuse them—avoid recreating inside hot paths
-- **Observability**: Capture `issues` in monitoring tools—they contain structured codes for dashboards
-- **Documentation**: Document custom steps so consumers understand configuration and failure modes
+Validates fixed-length arrays with specific types at each position:
+
+```ts
+const schema = v.tuple([
+  v.string(),   // Position 0
+  v.number(),   // Position 1
+  v.boolean(),  // Position 2
+])
+
+type T = v.Infer<typeof schema>  // [string, number, boolean]
+```
+
+### Union
+
+Tries schemas in order, returns first success:
+
+```ts
+const schema = v.union([
+  v.string(),
+  v.number(),
+  v.literal(null),
+])
+
+type T = v.Infer<typeof schema>  // string | number | null
+```
+
+### Intersection
+
+Merges multiple object schemas:
+
+```ts
+const base = v.object({ id: v.string() })
+const timestamped = v.object({ createdAt: v.date() })
+
+const schema = v.intersection([base, timestamped])
+
+type T = v.Infer<typeof schema>
+// { id: string; createdAt: Date }
+```
 
 ## Design Principles
 
-1. **Deterministic**: Same input always produces the same result
-2. **Composable**: Steps combine without special handling
-3. **Type-safe**: Full inference through transforms and checks
-4. **Extensible**: Add custom steps without modifying core
-5. **Debuggable**: Structured issues enable precise error reporting
+1. **Deterministic**: Same input always produces the same result—no hidden state
+2. **Composable**: Steps combine without special handling or configuration
+3. **Type-safe**: Full TypeScript inference through transforms, checks, and branches
+4. **Extensible**: Add custom steps without modifying core library
+5. **Debuggable**: Structured issues with paths enable precise error reporting
+6. **Tree-shakable**: Import only what you need for minimal bundle size
+
+## Production Best Practices
+
+### Selective Imports
+
+Use tree-shaking in production to exclude unused steps:
+
+```ts
+// Development: convenient
+import { allSteps, createValchecker } from 'valchecker'
+const v = createValchecker({ steps: allSteps })
+
+// Production: optimized
+import { createValchecker, string, number, object } from 'valchecker'
+const v = createValchecker({ steps: [string, number, object] })
+```
+
+### Schema Reuse
+
+Define schemas once and reuse them—avoid recreating inside hot paths:
+
+```ts
+// ✓ Good: Define once, reuse
+const userSchema = v.object({ /* ... */ })
+
+function validateUser(input: unknown) {
+  return userSchema.run(input)
+}
+
+// ✗ Bad: Creates new schema on every call
+function validateUser(input: unknown) {
+  const schema = v.object({ /* ... */ })  // Wasteful
+  return schema.run(input)
+}
+```
+
+### Observability
+
+Capture `issues` in monitoring tools—they contain structured codes for dashboards:
+
+```ts
+const result = schema.run(input)
+
+if (!result.isOk) {
+  // Log structured data for monitoring
+  logger.warn('Validation failed', {
+    issues: result.issues.map(i => ({
+      code: i.code,
+      path: i.path.join('.'),
+    })),
+  })
+}
+```
+
+## Next Steps
+
+- **[Custom Steps](/guide/custom-steps)** - Create your own validation steps
+- **[API Reference](/api/overview)** - Explore all available validation steps
+- **[Examples](/examples/basic-validation)** - See real-world validation patterns
