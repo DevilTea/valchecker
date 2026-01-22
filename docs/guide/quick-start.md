@@ -51,8 +51,7 @@ const userSchema = v.object({
 	age: v.number()
 		.min(0),
 	email: v.string()
-		.toLowercase()
-		.email(),
+		.toLowercase(),
 })
 ```
 
@@ -126,9 +125,9 @@ if (!result.isOk) {
 	for (const issue of result.issues) {
 		console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
 	}
-	// [minLength:expected_min_length] name: Expected minimum length of 1
+	// [min:expected_min] name: Expected minimum value of 1
 	// [min:expected_min] age: Expected minimum value of 0
-	// [email:expected_email] email: Expected a valid email address
+	// [string:expected_string] email: Expected a string.
 }
 ```
 
@@ -148,11 +147,11 @@ const payloadSchema = v.unknown()
 					id: v.string()
 						.toTrimmed(),
 					quantity: v.number()
-						.int()
+						.integer()
 						.min(1),
 				}),
 			)
-				.toFiltered(({ quantity }) => quantity > 0),
+				.toFiltered(item => item.quantity > 0),
 		}),
 	)
 ```
@@ -190,7 +189,7 @@ Mix async steps (database lookups, API calls) seamlessly:
 ```ts
 const usernameSchema = v.string()
 	.toTrimmed()
-	.minLength(3)
+	.min(3)
 	.check(async (value) => {
 		const exists = await db.users.exists(value)
 		return exists ? 'Username already taken' : true
@@ -236,8 +235,7 @@ Use `v.InferInput` to extract the expected input type:
 const schema = v.object({
 	name: v.string()
 		.toTrimmed(),
-	tags: v.array(v.string())
-		.optional(),
+	tags: [v.array(v.string())],  // Optional
 })
 
 type Input = v.InferInput<typeof schema>
@@ -256,8 +254,7 @@ import type { StandardSchema } from '@standard-schema/spec'
 
 const userSchema = v.object({
 	name: v.string(),
-	email: v.string()
-		.email(),
+	email: v.string(),
 })
 
 // Works with any library that accepts StandardSchema
@@ -274,11 +271,8 @@ function validate<T>(schema: StandardSchema<T>, input: unknown): T {
 ```ts
 const schema = v.object({
 	required: v.string(),
-	optional: v.string()
-		.optional(),
-	withDefault: v.string()
-		.optional()
-		.fallback(() => 'default'),
+	optional: [v.string()],  // Optional with [] wrapper
+	withDefault: [v.string().fallback(() => 'default')],  // Optional with default
 })
 ```
 
@@ -300,14 +294,13 @@ type T = v.Infer<typeof schema> // string | number | null
 const addressSchema = v.object({
 	street: v.string(),
 	city: v.string(),
-	zip: v.string()
-		.regex(/^\d{5}$/),
+	zip: v.string(),
 })
 
 const userSchema = v.object({
 	name: v.string(),
 	address: addressSchema,
-	billingAddress: addressSchema.optional(),
+	billingAddress: [addressSchema],  // Optional
 })
 ```
 

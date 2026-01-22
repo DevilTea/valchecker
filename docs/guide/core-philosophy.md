@@ -6,8 +6,8 @@ Valchecker is built around modular "steps" that execute in a deterministic pipel
 
 ```
 Input → [Step 1] → [Step 2] → [Step 3] → ... → Output
-              ↓          ↓          ↓
-           Issues     Issues     Issues
+               ↓          ↓          ↓
+            Issues     Issues     Issues
 ```
 
 Data flows through a pipeline of steps. Each step can:
@@ -23,7 +23,7 @@ A **step** is a small plugin function that receives the current execution state 
 // Using built-in steps
 const schema = v.string() // Step 1: Validate string type
 	.toTrimmed() // Step 2: Transform by trimming
-	.minLength(3) // Step 3: Validate minimum length
+	.min(3) // Step 3: Validate minimum length
 
 // Steps chain together to form a pipeline
 ```
@@ -35,11 +35,11 @@ Valchecker organizes steps into logical categories:
 | Category | Purpose | Examples |
 |----------|---------|----------|
 | **Primitives** | Type validation | `string()`, `number()`, `boolean()`, `bigint()`, `symbol()` |
-| **Structures** | Compound types | `object()`, `array()`, `tuple()`, `record()`, `map()`, `set()` |
-| **Constraints** | Value restrictions | `min()`, `max()`, `minLength()`, `maxLength()`, `regex()`, `email()` |
+| **Structures** | Compound types | `object()`, `array()`, `union()`, `intersection()`, `instance()` |
+| **Constraints** | Value restrictions | `min()`, `max()`, `empty()`, `integer()`, `startsWith()`, `endsWith()` |
 | **Transforms** | Value modification | `toTrimmed()`, `toLowercase()`, `transform()`, `parseJSON()` |
-| **Flow Control** | Pipeline behavior | `optional()`, `nullable()`, `fallback()`, `union()`, `check()` |
-| **Helpers** | Utility operations | `use()`, `clone()`, `pipe()` |
+| **Flow Control** | Pipeline behavior | `check()`, `fallback()`, `use()`, `as()`, `generic()` |
+| **Helpers** | Utility operations | `json()`, `toAsync()` |
 
 ## The Pipeline Contract
 
@@ -51,13 +51,11 @@ Chain steps together. Complex structures like `object`, `array`, `union`, and `i
 const userSchema = v.object({
 	name: v.string()
 		.toTrimmed()
-		.minLength(1),
-	email: v.string()
-		.email(),
-	age: v.number()
-		.int()
-		.min(0)
-		.optional(),
+		.min(1),
+	email: v.string(),
+	age: [v.number()
+		.integer()
+		.min(0)],  // Optional with [] wrapper
 })
 ```
 
@@ -183,8 +181,7 @@ const schema = v.object({
 	user: v.object({
 		contacts: v.array(
 			v.object({
-				email: v.string()
-					.email(),
+				email: v.string(),
 			})
 		),
 	}),
@@ -194,7 +191,7 @@ const result = schema.run({
 	user: {
 		contacts: [
 			{ email: 'valid@test.com' },
-			{ email: 'invalid-email' }, // ← This fails
+			{ email: 123 }, // ← This fails
 		],
 	},
 })
@@ -237,21 +234,15 @@ type T = v.Infer<typeof schema> // number
 ```ts
 const schema = v.object({
 	required: v.string(),
-	optional: v.string()
-		.optional(),
-	nullable: v.string()
-		.nullable(),
-	both: v.string()
-		.optional()
-		.nullable(),
+	optional: [v.string()],  // Optional with [] wrapper
+	both: [v.string()],  // Optional (nullable not supported as separate step)
 })
 
 type T = v.Infer<typeof schema>
 // {
 //   required: string
 //   optional: string | undefined
-//   nullable: string | null
-//   both: string | null | undefined
+//   both: string | undefined
 // }
 ```
 
@@ -331,12 +322,12 @@ Merges multiple object schemas:
 
 ```ts
 const base = v.object({ id: v.string() })
-const timestamped = v.object({ createdAt: v.date() })
+const timestamped = v.object({ createdAt: v.number() })
 
 const schema = v.intersection([base, timestamped])
 
 type T = v.Infer<typeof schema>
-// { id: string; createdAt: Date }
+// { id: string; createdAt: number }
 ```
 
 ## Design Principles
