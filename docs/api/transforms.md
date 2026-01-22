@@ -300,7 +300,7 @@ Use `transform` to add computed properties:
 const userWithAge = v.object({
 	name: v.string(),
 	birthYear: v.number()
-		.int(),
+		.integer(),
 })
 	.transform(user => ({
 		...user,

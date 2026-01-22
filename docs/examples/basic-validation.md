@@ -25,9 +25,8 @@ nameSchema.run(123) // { isOk: false, issues: [...] }
 const usernameSchema = v.string()
 	.toTrimmed()
 	.toLowercase()
-	.minLength(3)
-	.maxLength(20)
-	.regex(/^[a-z0-9_]+$/, 'Only lowercase letters, numbers, and underscores')
+	.min(3)
+	.max(20)
 
 usernameSchema.run('  Alice_123  ')
 // { isOk: true, value: 'alice_123' }
@@ -38,7 +37,7 @@ usernameSchema.run('  Alice_123  ')
 ```ts
 // Basic number validation
 const ageSchema = v.number()
-	.int()
+	.integer()
 	.min(0)
 	.max(150)
 
@@ -46,9 +45,8 @@ ageSchema.run(25) // { isOk: true, value: 25 }
 ageSchema.run(-5) // { isOk: false, issues: [...] }
 ageSchema.run(3.14) // { isOk: false, issues: [...] }
 
-// Finite numbers only
+// Positive numbers only
 const priceSchema = v.number()
-	.finite()
 	.min(0)
 
 priceSchema.run(99.99) // { isOk: true, value: 99.99 }
@@ -85,14 +83,12 @@ const undefinedSchema = v.literal(undefined)
 
 ```ts
 const userSchema = v.object({
-	id: v.string()
-		.uuid(),
+	id: v.string(),
 	name: v.string()
-		.minLength(1),
-	email: v.string()
-		.email(),
+		.min(1),
+	email: v.string(),
 	age: v.number()
-		.int()
+		.integer()
 		.min(0),
 })
 
@@ -111,11 +107,8 @@ const result = userSchema.run({
 ```ts
 const profileSchema = v.object({
 	name: v.string(),
-	bio: v.string()
-		.optional(), // string | undefined
-	website: v.string()
-		.url()
-		.optional(), // string | undefined
+	bio: [v.string()], // string | undefined
+	website: [v.string()], // string | undefined
 })
 
 // Both valid:
@@ -128,8 +121,7 @@ profileSchema.run({ name: 'Alice', bio: 'Developer', website: 'https://alice.dev
 ```ts
 const settingsSchema = v.object({
 	theme: v.string(),
-	customColor: v.string()
-		.nullable(), // string | null
+	customColor: v.union([v.string(), v.literal(null)]), // string | null
 })
 
 settingsSchema.run({ theme: 'dark', customColor: null }) // Valid
@@ -143,16 +135,14 @@ const addressSchema = v.object({
 	street: v.string(),
 	city: v.string(),
 	country: v.string(),
-	zip: v.string()
-		.regex(/^\d{5}(-\d{4})?$/),
+	zip: v.string(),
 })
 
 const customerSchema = v.object({
 	name: v.string(),
-	email: v.string()
-		.email(),
+	email: v.string(),
 	shippingAddress: addressSchema,
-	billingAddress: addressSchema.optional(),
+	billingAddress: [addressSchema],
 })
 ```
 
@@ -172,8 +162,8 @@ numbersSchema.run('not array') // { isOk: false, issues: [...] }
 
 ```ts
 const tagsSchema = v.array(v.string())
-	.minLength(1) // At least one tag
-	.maxLength(10) // Maximum 10 tags
+	.min(1) // At least one tag
+	.max(10) // Maximum 10 tags
 
 tagsSchema.run(['javascript', 'typescript']) // Valid
 tagsSchema.run([]) // { isOk: false, issues: [...] }
@@ -185,7 +175,7 @@ tagsSchema.run([]) // { isOk: false, issues: [...] }
 const orderItemSchema = v.object({
 	productId: v.string(),
 	quantity: v.number()
-		.int()
+		.integer()
 		.min(1),
 	price: v.number()
 		.min(0),
@@ -194,7 +184,7 @@ const orderItemSchema = v.object({
 const orderSchema = v.object({
 	id: v.string(),
 	items: v.array(orderItemSchema)
-		.minLength(1),
+		.min(1),
 	total: v.number()
 		.min(0),
 })
@@ -215,10 +205,9 @@ positiveNumbersSchema.run([1, -2, 3, -4, 5])
 ```ts
 // String or number
 const idSchema = v.union([
-	v.string()
-		.uuid(),
+	v.string(),
 	v.number()
-		.int()
+		.integer()
 		.min(1),
 ])
 
@@ -245,7 +234,12 @@ eventSchema.run({ type: 'keypress', key: 'Enter' }) // Valid
 ## Enum Validation
 
 ```ts
-const statusSchema = v.enum(['pending', 'active', 'completed', 'cancelled'])
+const statusSchema = v.union([
+	v.literal('pending'),
+	v.literal('active'),
+	v.literal('completed'),
+	v.literal('cancelled'),
+])
 
 statusSchema.run('active') // { isOk: true, value: 'active' }
 statusSchema.run('unknown') // { isOk: false, issues: [...] }
@@ -255,25 +249,17 @@ type Status = v.Infer<typeof statusSchema>
 // 'pending' | 'active' | 'completed' | 'cancelled'
 ```
 
-## Tuple Validation
+## Array Type Validation
 
 ```ts
-// Fixed-length array with specific types
-const coordinateSchema = v.tuple([v.number(), v.number()])
+// Specific array patterns can be validated using array with constraints
+const coordinateSchema = v.array(v.number())
+	.min(2)
+	.max(2)
 
 coordinateSchema.run([10, 20]) // { isOk: true, value: [10, 20] }
 coordinateSchema.run([10]) // { isOk: false, issues: [...] }
 coordinateSchema.run([10, 20, 30]) // { isOk: false, issues: [...] }
-
-// Mixed types
-const recordSchema = v.tuple([
-	v.string(), // name
-	v.number(), // age
-	v.boolean(), // active
-])
-
-type Record = v.Infer<typeof recordSchema>
-// [string, number, boolean]
 ```
 
 ## Type Inference
@@ -283,15 +269,12 @@ Valchecker automatically infers TypeScript types:
 ```ts
 const userSchema = v.object({
 	id: v.number()
-		.int(),
+		.integer(),
 	name: v.string(),
-	email: v.string()
-		.email(),
-	role: v.enum(['admin', 'user', 'guest']),
-	tags: v.array(v.string())
-		.optional(),
-	metadata: v.record(v.string(), v.unknown())
-		.optional(),
+	email: v.string(),
+	role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
+	tags: [v.array(v.string())],
+	metadata: [v.object({})],
 })
 
 // Automatically inferred type
@@ -311,9 +294,9 @@ type User = v.Infer<typeof userSchema>
 ```ts
 const schema = v.object({
 	name: v.string()
-		.minLength(1),
+		.min(1),
 	age: v.number()
-		.int()
+		.integer()
 		.min(0),
 })
 
@@ -338,42 +321,44 @@ else {
 ```ts
 // Define schemas
 const paginationSchema = v.object({
-	page: v.number()
-		.int()
-		.min(1)
-		.optional()
+	page: v.union([
+		v.number()
+			.integer()
+			.min(1),
+		v.literal(undefined),
+	])
 		.fallback(() => 1),
-	limit: v.number()
-		.int()
-		.min(1)
-		.max(100)
-		.optional()
+	limit: v.union([
+		v.number()
+			.integer()
+			.min(1)
+			.max(100),
+		v.literal(undefined),
+	])
 		.fallback(() => 20),
 })
 
 const sortSchema = v.object({
 	field: v.string(),
-	order: v.enum(['asc', 'desc'])
-		.optional()
+	order: v.union([
+		v.literal('asc'),
+		v.literal('desc'),
+		v.literal(undefined),
+	])
 		.fallback(() => 'asc' as const),
 })
 
 const filterSchema = v.object({
-	status: v.enum(['active', 'inactive', 'all'])
-		.optional(),
-	search: v.string()
-		.toTrimmed()
-		.optional(),
-	createdAfter: v.string()
-		.datetime()
-		.optional(),
+	status: [v.union([v.literal('active'), v.literal('inactive'), v.literal('all')])],
+	search: [v.string()
+		.toTrimmed()],
+	createdAfter: [v.string()],
 })
 
 const listUsersRequestSchema = v.object({
-	pagination: paginationSchema.optional()
-		.fallback(() => ({ page: 1, limit: 20 })),
-	sort: sortSchema.optional(),
-	filters: filterSchema.optional(),
+	pagination: [paginationSchema],
+	sort: [sortSchema],
+	filters: [filterSchema],
 })
 
 // Usage in API handler
