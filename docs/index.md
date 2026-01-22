@@ -45,10 +45,10 @@ const codeExample = `import { v } from 'valchecker'
 
 // Define a user schema with composable steps
 const UserSchema = v.object({
-  name: v.string().trim().minLength(1),
-  email: v.string().email(),
-  age: v.number().int().min(0).optional(),
-  role: v.enum(['admin', 'user', 'guest']),
+  name: v.string().toTrimmed().min(1),
+  email: v.string(),
+  age: [v.number().integer().min(0)],  // Optional
+  role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
 })
 
 // Full type inference - no manual types needed
@@ -162,10 +162,10 @@ import { v } from 'valchecker'
 
 // Define a user schema with composable steps
 const UserSchema = v.object({
-  name: v.string().trim().minLength(1),
-  email: v.string().email(),
-  age: v.number().int().min(0).optional(),
-  role: v.enum(['admin', 'user', 'guest']),
+  name: v.string().toTrimmed().min(1),
+  email: v.string(),
+  age: [v.number().integer().min(0)],  // Optional
+  role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
 })
 
 // Full type inference - no manual types needed
