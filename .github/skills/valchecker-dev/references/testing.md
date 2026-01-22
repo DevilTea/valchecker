@@ -32,14 +32,14 @@ describe('stepName plugin', () => {
   describe('valid inputs', () => {
     it('should pass for [condition]', () => {
       const schema = v./* chain */
-      expect(schema.run(validInput)).toEqual({ value: expectedValue })
+      expect(schema.execute(validInput)).toEqual({ value: expectedValue })
     })
   })
 
   describe('invalid inputs', () => {
     it('should fail for [condition]', () => {
       const schema = v./* chain */
-      const result = schema.run(invalidInput)
+      const result = schema.execute(invalidInput)
       expect('issues' in result).toBe(false)
       if ('issues' in result) {
         expect(result.issues[0].code).toBe('stepName:issue_code')
@@ -50,7 +50,7 @@ describe('stepName plugin', () => {
   describe('custom messages', () => {
     it('should use string message', () => {
       const schema = v./* chain */.stepName('Custom message')
-      const result = schema.run(invalidInput)
+      const result = schema.execute(invalidInput)
       if ('issues' in result) {
         expect(result.issues[0].message).toBe('Custom message')
       }
@@ -96,17 +96,17 @@ Test all scenarios where validation should pass:
 describe('valid inputs', () => {
   it('should pass for positive numbers', () => {
     const schema = v.number().min(0)
-    expect(schema.run(5)).toEqual({ value: 5 })
+    expect(schema.execute(5)).toEqual({ value: 5 })
   })
 
   it('should pass for zero', () => {
     const schema = v.number().min(0)
-    expect(schema.run(0)).toEqual({ value: 0 })
+    expect(schema.execute(0)).toEqual({ value: 0 })
   })
 
   it('should pass for large numbers', () => {
     const schema = v.number().min(0)
-    expect(schema.run(Number.MAX_SAFE_INTEGER)).toEqual({ value: Number.MAX_SAFE_INTEGER })
+    expect(schema.execute(Number.MAX_SAFE_INTEGER)).toEqual({ value: Number.MAX_SAFE_INTEGER })
   })
 })
 ```
@@ -119,7 +119,7 @@ Test all scenarios where validation should fail:
 describe('invalid inputs', () => {
   it('should fail for negative numbers', () => {
     const schema = v.number().min(0)
-    const result = schema.run(-5)
+    const result = schema.execute(-5)
     expect('issues' in result).toBe(false)
     if ('issues' in result) {
       expect(result.issues[0].code).toBe('min:expected_min')
@@ -128,7 +128,7 @@ describe('invalid inputs', () => {
 
   it('should fail for wrong type', () => {
     const schema = v.number().min(0)
-    const result = schema.run('not a number')
+    const result = schema.execute('not a number')
     expect('issues' in result).toBe(false)
   })
 })
@@ -142,7 +142,7 @@ Test both string and function message handlers:
 describe('custom messages', () => {
   it('should use custom string message', () => {
     const schema = v.number().min(0, 'Must be positive')
-    const result = schema.run(-5)
+    const result = schema.execute(-5)
     if ('issues' in result) {
       expect(result.issues[0].message).toBe('Must be positive')
     }
@@ -152,7 +152,7 @@ describe('custom messages', () => {
     const schema = v.number().min(0, ({ payload }) => 
       `Value ${payload.value} must be at least ${payload.minimum}`
     )
-    const result = schema.run(-5)
+    const result = schema.execute(-5)
     if ('issues' in result) {
       expect(result.issues[0].message).toContain('Value -5')
     }
@@ -160,7 +160,7 @@ describe('custom messages', () => {
 
   it('should use default message when not provided', () => {
     const schema = v.number().min(0)
-    const result = schema.run(-5)
+    const result = schema.execute(-5)
     if ('issues' in result) {
       expect(result.issues[0].message).toBeTruthy()
     }
@@ -176,13 +176,13 @@ Test that the step works correctly in chains:
 describe('chaining', () => {
   it('should work with other constraints', () => {
     const schema = v.number().min(0).max(100)
-    expect(schema.run(50)).toEqual({ value: 50 })
-    expect('issues' in schema.run(101)).toBe(true)
+    expect(schema.execute(50)).toEqual({ value: 50 })
+    expect('issues' in schema.execute(101)).toBe(true)
   })
 
   it('should work with transforms', () => {
     const schema = v.string().toTrimmed().min(1)
-    expect(schema.run('  hello  ')).toEqual({ value: 'hello' })
+    expect(schema.execute('  hello  ')).toEqual({ value: 'hello' })
   })
 })
 ```
@@ -246,15 +246,15 @@ pnpm test --coverage -- --reporter=text-summary
    ```typescript
    // ✗ Bad - only tests success
    it('should work', () => {
-     expect(schema.run(5)).toEqual({ value: 5 })
+     expect(schema.execute(5)).toEqual({ value: 5 })
    })
    
    // ✓ Good - tests both
    it('should pass for valid input', () => {
-     expect(schema.run(5)).toEqual({ value: 5 })
+     expect(schema.execute(5)).toEqual({ value: 5 })
    })
    it('should fail for invalid input', () => {
-     const result = schema.run(-5)
+     const result = schema.execute(-5)
      expect('issues' in result).toBe(false)
    })
    ```

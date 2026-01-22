@@ -29,7 +29,7 @@ const userSchema = v.object({
   age: v.number().integer().min(0),
 })
 
-const result = userSchema.run({
+const result = userSchema.execute({
   name: '  Alice  ',
   email: 'alice@example.com',
   age: 30,
@@ -78,7 +78,7 @@ const schema = v.string()
 Validation returns a discriminated union:
 
 ```typescript
-const result = schema.run(data)
+const result = schema.execute(data)
 
 if ('value' in result) {
   // Success: result.value is validated and typed
@@ -96,12 +96,13 @@ if ('value' in result) {
 Automatically inferred types:
 
 ```typescript
+import { InferOutput, InferInput } from 'valchecker'
 const schema = v.object({
   name: v.string(),
   age: v.number(),
 })
 
-type User = v.Infer<typeof schema>
+type User = InferOutput<typeof schema>
 // { name: string; age: number }
 ```
 
@@ -137,7 +138,7 @@ const formSchema = v.object({
   password: v.string().min(8),
 })
 
-const result = formSchema.run(formData)
+const result = formSchema.execute(formData)
 if ('issues' in result) {
   displayErrors(result.issues)
 }
@@ -153,7 +154,7 @@ const requestSchema = v.object({
   limit: v.number().integer().min(1).max(100).fallback(() => 20),
 })
 
-const validated = requestSchema.run(req.query)
+const validated = requestSchema.execute(req.query)
 ```
 
 ### Async Validation
@@ -165,7 +166,7 @@ const schema = v.string()
     return !exists  // Return boolean
   })
 
-const result = await schema.run(email)  // Await when async
+const result = await schema.execute(email)  // Await when async
 ```
 
 See [Error Handling](./references/error-handling.md) for error management.
@@ -175,24 +176,27 @@ See [Error Handling](./references/error-handling.md) for error management.
 ### Basic Types
 
 ```typescript
-type User = v.Infer<typeof userSchema>
+import { InferOutput, InferInput } from 'valchecker'
+type User = InferOutput<typeof userSchema>
 ```
 
 ### Input Types
 
 ```typescript
-type UserInput = v.InferInput<typeof userSchema>
+import { InferOutput, InferInput } from 'valchecker'
+type UserInput = InferInput<typeof userSchema>
 ```
 
 ### Optional Fields
 
 ```typescript
+import { InferOutput, InferInput } from 'valchecker'
 const schema = v.object({
   name: v.string(),           // Required
   nickname: [v.string()],     // Optional
 })
 
-type T = v.Infer<typeof schema>
+type T = InferOutput<typeof schema>
 // { name: string; nickname?: string }
 ```
 

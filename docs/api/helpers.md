@@ -13,11 +13,13 @@ Runs a custom validation predicate or type guard.
 #### Basic Validation
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const positive = v.number()
 	.check(value => value > 0, 'Must be positive')
 
-positive.run(5) // { value: 5 }
-positive.run(-1) // { issues: [{ code: 'check:failed', message: 'Must be positive' }] }
+positive.execute(5) // { value: 5 }
+positive.execute(-1) // { issues: [{ code: 'check:failed', message: 'Must be positive' }] }
 ```
 
 #### Return Values
@@ -28,6 +30,8 @@ The check function can return:
 - `string`: Validation fails with that string as the message
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.check((value) => {
 		if (value.length < 3)
@@ -41,17 +45,21 @@ const schema = v.string()
 #### Type Guards (Narrowing)
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const isString = (value: unknown): value is string => typeof value === 'string'
 
 const schema = v.unknown()
 	.check(isString)
 
-type T = v.Infer<typeof schema> // string
+type T = InferOutput<typeof schema> // string
 ```
 
 #### Cross-Property Validation
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const passwordConfirm = v.object({
 	password: v.string()
 		.min(8),
@@ -65,6 +73,8 @@ const passwordConfirm = v.object({
 #### Async Checks
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const uniqueEmail = v.string()
 	.check(async (value) => {
 		const exists = await db.users.exists({ email: value })
@@ -79,29 +89,35 @@ const result = await uniqueEmail.execute('test@example.com')
 Provides a fallback value when validation fails. The failure is caught and replaced with the fallback.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const safeNumber = v.number()
 	.min(0)
 	.fallback(() => 0)
 
-safeNumber.run(42) // { value: 42 }
-safeNumber.run(-5) // { value: 0 }  (min failed, used fallback)
-safeNumber.run('invalid') // { value: 0 }  (number failed, used fallback)
+safeNumber.execute(42) // { value: 42 }
+safeNumber.execute(-5) // { value: 0 }  (min failed, used fallback)
+safeNumber.execute('invalid') // { value: 0 }  (number failed, used fallback)
 ```
 
 #### Dynamic Fallbacks
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.parseJSON()
 	.fallback(() => ({ items: [], count: 0 }))
 
-schema.run('invalid json')
+schema.execute('invalid json')
 // { value: { items: [], count: 0 } }
 ```
 
 #### Default Values for Optional Fields
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const config = v.object({
 	port: [v.number()
 		.fallback(() => 3000)],
@@ -109,7 +125,7 @@ const config = v.object({
 		.fallback(() => 'localhost')],
 })
 
-config.run({})
+config.execute({})
 // { value: { port: 3000, host: 'localhost' } }
 ```
 
@@ -118,12 +134,14 @@ config.run({})
 Transforms the value to a new type or shape.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.transform(value => value.split(','))
 
-schema.run('a,b,c') // { value: ['a', 'b', 'c'] }
+schema.execute('a,b,c') // { value: ['a', 'b', 'c'] }
 
-type T = v.Infer<typeof schema> // string[]
+type T = InferOutput<typeof schema> // string[]
 ```
 
 See [Transforms](/api/transforms) for detailed documentation.
@@ -135,6 +153,7 @@ See [Transforms](/api/transforms) for detailed documentation.
 Delegates validation to another schema. Useful for reusing schemas and composing validations.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Define reusable schemas
 const stringSchema = v.string()
 	.toTrimmed()
@@ -147,7 +166,7 @@ const userSchema = v.object({
 		.use(stringSchema)], // Optional
 })
 
-userSchema.run({
+userSchema.execute({
 	name: '  ALICE  ',
 })
 // { value: { name: 'alice', email: undefined } }
@@ -156,6 +175,8 @@ userSchema.run({
 #### Composing Unknown Input
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const dataSchema = v.unknown()
 	.use(v.object({
 		type: v.literal('user'),
@@ -170,11 +191,13 @@ const dataSchema = v.unknown()
 Type assertion step for converting types without runtime transformation. Use with caution.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.unknown()
 	.as<string>()
 
 // This doesn't validate at runtime - it only changes the type
-type T = v.Infer<typeof schema> // string
+type T = InferOutput<typeof schema> // string
 ```
 
 ## Message Handling
@@ -184,6 +207,8 @@ type T = v.Infer<typeof schema> // string
 Define a message resolver when creating the valchecker instance:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const v = createValchecker({
 	steps: allSteps,
 	message: ({ code, payload, path }) => {
@@ -197,12 +222,16 @@ const v = createValchecker({
 
 1. **Per-step message** (highest priority)
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 v.number()
 	.min(1, 'Quantity must be at least 1')
 ```
 
 2. **Global handler**
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 createValchecker({ steps, message: handler })
 ```
 
@@ -211,6 +240,8 @@ createValchecker({ steps, message: handler })
 ### Dynamic Messages
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.number()
 	.min(10, ({ payload }) =>
 		`Value must be at least 10, got ${payload.value}`)
@@ -223,6 +254,8 @@ const schema = v.number()
 Creates recursive/self-referential schemas with proper typing.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 interface TreeNode {
 	value: number
 	children?: TreeNode[]
@@ -235,7 +268,7 @@ const treeSchema = v.object({
 	)], // Optional array of tree nodes
 })
 
-const result = treeSchema.run({
+const result = treeSchema.execute({
 	value: 1,
 	children: [
 		{ value: 2 },
@@ -254,12 +287,14 @@ const result = treeSchema.run({
 Coerces strings to numbers before validation.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.looseNumber()
 
-schema.run('42') // { value: 42 }
-schema.run(42) // { value: 42 }
-schema.run('3.14') // { value: 3.14 }
-schema.run('abc') // { issues: [...] }
+schema.execute('42') // { value: 42 }
+schema.execute(42) // { value: 42 }
+schema.execute('3.14') // { value: 3.14 }
+schema.execute('abc') // { issues: [...] }
 ```
 
 ### `looseObject(shape, message?)`
@@ -267,11 +302,13 @@ schema.run('abc') // { issues: [...] }
 Alias for `object()` that explicitly allows unknown keys.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.looseObject({
 	name: v.string(),
 })
 
-schema.run({ name: 'Alice', extra: 'allowed' })
+schema.execute({ name: 'Alice', extra: 'allowed' })
 // { value: { name: 'Alice' } }
 // Note: unknown keys are stripped from output
 ```
@@ -281,6 +318,8 @@ schema.run({ name: 'Alice', extra: 'allowed' })
 ### Result Type
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 type Result<T>
 	= | { value: T }
 		| { issues: Issue[] }
@@ -296,7 +335,9 @@ interface Issue {
 ### Handling Results
 
 ```ts
-const result = schema.run(input)
+import { InferOutput } from '@valchecker/internal'
+
+const result = schema.execute(input)
 
 if ('value' in result) {
 	// Success: result.value is fully typed
@@ -313,8 +354,10 @@ else {
 ### Creating a Parse Function
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 function parse<T>(schema: Schema<T>, data: unknown): T {
-	const result = schema.run(data)
+	const result = schema.execute(data)
 	if ('issues' in result) {
 		throw new ValidationError(result.issues)
 	}
@@ -333,8 +376,10 @@ class ValidationError extends Error {
 ### Safe Parse Pattern
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 function safeParse<T>(schema: Schema<T>, data: unknown): { success: true, data: T } | { success: false, error: Issue[] } {
-	const result = schema.run(data)
+	const result = schema.execute(data)
 	if ('value' in result) {
 		return { success: true, data: result.value }
 	}
@@ -348,6 +393,7 @@ Valchecker implements Standard Schema V1, enabling interoperability:
 
 ```ts
 import type { StandardSchema } from '@standard-schema/spec'
+import { InferOutput } from '@valchecker/internal'
 
 // All valchecker schemas are Standard Schema compatible
 const userSchema: StandardSchema<User> = v.object({

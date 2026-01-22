@@ -61,7 +61,7 @@ const userSchema = v.object({
 
 ### 2. Execution
 
-Calling `schema.execute(value)` or `schema.run(value)` returns a discriminated union:
+Calling `schema.execute(value)` returns a discriminated union:
 
 ```ts
 type Result<T>
@@ -109,7 +109,7 @@ const schema = v.string()
 	.toTrimmed()
 	.transform(s => s.toUpperCase())
 
-const result = schema.run('  hello  ')
+const result = await schema.execute('  hello  ')
 // => { value: 'HELLO' }
 ```
 
@@ -122,7 +122,7 @@ const schema = v.number()
 	.min(0)
 	.max(100)
 
-const result = schema.run(-5)
+const result = await schema.execute(-5)
 // => { issues: [{ code: 'min:expected_min', ... }] }
 ```
 
@@ -135,8 +135,8 @@ const schema = v.number()
 	.min(0)
 	.fallback(() => 0)
 
-schema.run(-5) // => { value: 0 }
-schema.run(50) // => { value: 50 }
+const result1 = await schema.execute(-5) // => { value: 0 }
+const result2 = await schema.execute(50) // => { value: 50 }
 ```
 
 ## Message Resolution Priority
@@ -187,7 +187,7 @@ const schema = v.object({
 	}),
 })
 
-const result = schema.run({
+const result = schema.execute({
 	user: {
 		contacts: [
 			{ email: 'valid@test.com' },
@@ -208,12 +208,14 @@ Valchecker maintains full type inference through every step:
 ### Basic Inference
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.object({
 	name: v.string(),
 	age: v.number(),
 })
 
-type T = v.Infer<typeof schema>
+type T = InferOutput<typeof schema>
 // { name: string; age: number }
 ```
 
@@ -222,23 +224,27 @@ type T = v.Infer<typeof schema>
 Transforms update the inferred type:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.transform(s => s.split(',')) // string → string[]
 	.transform(arr => arr.length) // string[] → number
 
-type T = v.Infer<typeof schema> // number
+type T = InferOutput<typeof schema> // number
 ```
 
 ### Optional and Nullable
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.object({
 	required: v.string(),
 	optional: [v.string()], // Optional with [] wrapper
 	both: [v.string()], // Optional (nullable not supported as separate step)
 })
 
-type T = v.Infer<typeof schema>
+type T = InferOutput<typeof schema>
 // {
 //   required: string
 //   optional: string | undefined
@@ -249,6 +255,8 @@ type T = v.Infer<typeof schema>
 ### Input vs Output Types
 
 ```ts
+import { InferInput, InferOutput } from '@valchecker/internal'
+
 const schema = v.object({
 	name: v.string()
 		.toTrimmed(), // Input: string, Output: string (trimmed)
@@ -256,10 +264,10 @@ const schema = v.object({
 		.transform(s => s.split(',')), // Input: string, Output: string[]
 })
 
-type Input = v.InferInput<typeof schema>
+type Input = InferInput<typeof schema>
 // { name: string; tags: string }
 
-type Output = v.Infer<typeof schema>
+type Output = InferOutput<typeof schema>
 // { name: string; tags: string[] }
 ```
 
@@ -293,13 +301,15 @@ const schema = v.array(v.number()
 Validates fixed-length arrays with specific types at each position:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.tuple([
 	v.string(), // Position 0
 	v.number(), // Position 1
 	v.boolean(), // Position 2
 ])
 
-type T = v.Infer<typeof schema> // [string, number, boolean]
+type T = InferOutput<typeof schema> // [string, number, boolean]
 ```
 
 ### Union
@@ -307,13 +317,15 @@ type T = v.Infer<typeof schema> // [string, number, boolean]
 Tries schemas in order, returns first success:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.union([
 	v.string(),
 	v.number(),
 	v.literal(null),
 ])
 
-type T = v.Infer<typeof schema> // string | number | null
+type T = InferOutput<typeof schema> // string | number | null
 ```
 
 ### Intersection
@@ -321,12 +333,14 @@ type T = v.Infer<typeof schema> // string | number | null
 Merges multiple object schemas:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const base = v.object({ id: v.string() })
 const timestamped = v.object({ createdAt: v.number() })
 
 const schema = v.intersection([base, timestamped])
 
-type T = v.Infer<typeof schema>
+type T = InferOutput<typeof schema>
 // { id: string; createdAt: number }
 ```
 
@@ -368,13 +382,13 @@ Define schemas once and reuse them—avoid recreating inside hot paths:
 const userSchema = v.object({ /* ... */ })
 
 function validateUser(input: unknown) {
-	return userSchema.run(input)
+	return userSchema.execute(input)
 }
 
 // ✗ Bad: Creates new schema on every call
 function validateUser(input: unknown) {
 	const schema = v.object({ /* ... */ }) // Wasteful
-	return schema.run(input)
+	return schema.execute(input)
 }
 ```
 
@@ -383,7 +397,7 @@ function validateUser(input: unknown) {
 Capture `issues` in monitoring tools—they contain structured codes for dashboards:
 
 ```ts
-const result = schema.run(input)
+const result = await schema.execute(input)
 
 if ('issues' in result) {
 	// Log structured data for monitoring

@@ -16,11 +16,11 @@ describe('stepName', () => {
   const schema = v./* chain */
 
   bench('valid input', () => {
-    schema.run(validInput)
+    schema.execute(validInput)
   })
 
   bench('invalid input', () => {
-    schema.run(invalidInput)
+    schema.execute(invalidInput)
   })
 })
 ```
@@ -39,15 +39,15 @@ describe('min', () => {
   const schema = v.number().min(0)
 
   bench('valid input (positive)', () => {
-    schema.run(100)
+    schema.execute(100)
   })
 
   bench('invalid input (negative)', () => {
-    schema.run(-100)
+    schema.execute(-100)
   })
 
   bench('boundary value (zero)', () => {
-    schema.run(0)
+    schema.execute(0)
   })
 })
 ```
@@ -64,19 +64,19 @@ describe('toTrimmed', () => {
   const schema = v.string().toTrimmed()
 
   bench('already trimmed', () => {
-    schema.run('hello')
+    schema.execute('hello')
   })
 
   bench('leading whitespace', () => {
-    schema.run('  hello')
+    schema.execute('  hello')
   })
 
   bench('trailing whitespace', () => {
-    schema.run('hello  ')
+    schema.execute('hello  ')
   })
 
   bench('both sides whitespace', () => {
-    schema.run('  hello  ')
+    schema.execute('  hello  ')
   })
 })
 ```
@@ -99,11 +99,11 @@ describe('complex object', () => {
   const invalidData = { name: 'Alice', age: 'thirty' }
 
   bench('valid nested object', () => {
-    schema.run(validData)
+    schema.execute(validData)
   })
 
   bench('invalid nested object', () => {
-    schema.run(invalidData)
+    schema.execute(invalidData)
   })
 })
 ```
@@ -153,18 +153,18 @@ pnpm bench packages/internal/src/steps/step-name
    ```typescript
    // Good - compare related operations
    bench('valid number', () => {
-     schema.run(42)
+     schema.execute(42)
    })
    bench('valid number (boundary)', () => {
-     schema.run(0)
+     schema.execute(0)
    })
    
    // Less useful - too different
    bench('valid number', () => {
-     schema.run(42)
+     schema.execute(42)
    })
    bench('valid string', () => {
-     schema.run('hello')
+     schema.execute('hello')
    })
    ```
 

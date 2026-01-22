@@ -63,7 +63,7 @@ Valchecker provides two execution methods:
 
 ### `execute()` - Always Async
 
-Use `execute()` when your pipeline contains async steps or when you prefer consistent async handling:
+Use `execute()` for async validation. It always returns a Promise:
 
 ```ts
 const result = await userSchema.execute({
@@ -80,17 +80,6 @@ else {
 	console.error(result.issues)
 	// Array of structured issues with codes, paths, and messages
 }
-```
-
-### `run()` - Sync When Possible
-
-Use `run()` for purely synchronous pipelines. Returns a `MaybePromise`:
-
-```ts
-const result = userSchema.run({ name: 'Bob', age: 30, email: 'bob@test.com' })
-
-// If sync, result is immediately available
-// If async, result is a Promise
 ```
 
 ## Understanding Results
@@ -166,7 +155,9 @@ const schema = v.string()
 	.transform(s => s.split(',')) // string → string[]
 	.transform(arr => arr.length) // string[] → number
 
-type Output = v.Infer<typeof schema> // number
+// The output type will be inferred through the transforms
+const result = await schema.execute('a,b,c')
+// result.value is typed as number (length of the array)
 ```
 
 ### Fallback Values
@@ -178,8 +169,8 @@ const schema = v.number()
 	.min(0)
 	.fallback(() => 0)
 
-schema.run(-5) // => { value: 0 }
-schema.run(10) // => { value: 10 }
+const result1 = await schema.execute(-5) // => { value: 0 }
+const result2 = await schema.execute(10) // => { value: 10 }
 ```
 
 ## Async Validation
@@ -207,6 +198,8 @@ When a pipeline contains async steps, `run()` returns a `Promise`. Use `execute(
 Valchecker automatically infers output types through the entire pipeline:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.object({
 	name: v.string(),
 	age: v.number(),
@@ -215,8 +208,7 @@ const schema = v.object({
 		...user,
 		isAdult: user.age >= 18,
 	}))
-
-type User = v.Infer<typeof schema>
+type User = InferOutput<typeof schema>
 // { name: string; age: number; isAdult: boolean }
 
 const result = await schema.execute({ name: 'Bob', age: 30 })
@@ -227,21 +219,23 @@ if ('value' in result) {
 }
 ```
 
-### Extracting Input Types
+### Extracting Input and Output Types
 
-Use `v.InferInput` to extract the expected input type:
+Use TypeScript's utility types to extract types from schemas:
 
 ```ts
+import { InferInput, InferOutput } from '@valchecker/internal'
+
 const schema = v.object({
 	name: v.string()
 		.toTrimmed(),
 	tags: [v.array(v.string())], // Optional
 })
 
-type Input = v.InferInput<typeof schema>
+type Input = InferInput<typeof schema>
 // { name: string; tags?: string[] | undefined }
 
-type Output = v.Infer<typeof schema>
+type Output = InferOutput<typeof schema>
 // { name: string; tags: string[] | undefined }
 ```
 
@@ -280,13 +274,15 @@ const schema = v.object({
 ### Union Types
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.union([
 	v.string(),
 	v.number(),
 	v.literal(null),
 ])
 
-type T = v.Infer<typeof schema> // string | number | null
+type T = InferOutput<typeof schema> // string | number | null
 ```
 
 ### Nested Objects

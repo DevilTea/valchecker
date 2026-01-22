@@ -9,10 +9,12 @@ Validates that a value is a JavaScript string.
 **Issue Code**: `'string:expected_string'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string('Must be a string')
 
-schema.run('hello') // { value: 'hello' }
-schema.run(123) // { issues: [{ code: 'string:expected_string', ... }] }
+schema.execute('hello') // { value: 'hello' }
+schema.execute(123) // { issues: [{ code: 'string:expected_string', ... }] }
 ```
 
 **Chainable Methods**:
@@ -30,13 +32,15 @@ Validates that a value is a finite JavaScript number (rejects `NaN` and `Infinit
 **Issue Code**: `'number:expected_number'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const quantity = v.number()
 	.integer()
 	.min(1)
 
-quantity.run(5) // { value: 5 }
-quantity.run(0) // { issues: [{ code: 'min:expected_min', ... }] }
-quantity.run(Number.NaN) // { issues: [{ code: 'number:expected_number', ... }] }
+quantity.execute(5) // { value: 5 }
+quantity.execute(0) // { issues: [{ code: 'min:expected_min', ... }] }
+quantity.execute(Number.NaN) // { issues: [{ code: 'number:expected_number', ... }] }
 ```
 
 **Chainable Methods**:
@@ -52,10 +56,12 @@ Validates that a value is exactly `true` or `false`.
 **Issue Code**: `'boolean:expected_boolean'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const toggle = v.boolean()
 
-toggle.run(true) // { value: true }
-toggle.run('true') // { issues: [{ code: 'boolean:expected_boolean', ... }] }
+toggle.execute(true) // { value: true }
+toggle.execute('true') // { issues: [{ code: 'boolean:expected_boolean', ... }] }
 ```
 
 ## `bigint(message?)`
@@ -65,12 +71,14 @@ Validates that a value is a JavaScript BigInt.
 **Issue Code**: `'bigint:expected_bigint'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const id = v.bigint()
 	.min(0n)
 
-id.run(42n) // { value: 42n }
-id.run(-1n) // { issues: [{ code: 'min:expected_min', ... }] }
-id.run(42) // { issues: [{ code: 'bigint:expected_bigint', ... }] }
+id.execute(42n) // { value: 42n }
+id.execute(-1n) // { issues: [{ code: 'min:expected_min', ... }] }
+id.execute(42) // { issues: [{ code: 'bigint:expected_bigint', ... }] }
 ```
 
 **Chainable Methods**:
@@ -83,10 +91,12 @@ Validates that a value is a JavaScript Symbol.
 **Issue Code**: `'symbol:expected_symbol'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.symbol()
 
-schema.run(Symbol('test')) // { value: Symbol(test) }
-schema.run('symbol') // { issues: [...] }
+schema.execute(Symbol('test')) // { value: Symbol(test) }
+schema.execute('symbol') // { issues: [...] }
 ```
 
 ## `literal(value, message?)`
@@ -96,15 +106,17 @@ Matches a single literal value (string, number, boolean, symbol, null, or undefi
 **Issue Code**: `'literal:expected_literal'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const envSchema = v.literal('production')
 
-envSchema.run('production') // { value: 'production' }
-envSchema.run('development') // { issues: [...] }
+envSchema.execute('production') // { value: 'production' }
+envSchema.execute('development') // { issues: [...] }
 
 // Null literal
 const nullSchema = v.literal(null)
-nullSchema.run(null) // { value: null }
-nullSchema.run(undefined) // { issues: [...] }
+nullSchema.execute(null) // { value: null }
+nullSchema.execute(undefined) // { issues: [...] }
 ```
 
 **Use Cases**:
@@ -117,11 +129,13 @@ nullSchema.run(undefined) // { issues: [...] }
 Accepts any value without validation. Useful as a starting point for deferred validation.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.unknown()
 
-schema.run('anything') // { value: 'anything' }
-schema.run(123) // { value: 123 }
-schema.run(null) // { value: null }
+schema.execute('anything') // { value: 'anything' }
+schema.execute(123) // { value: 123 }
+schema.execute(null) // { value: null }
 
 // Common pattern: defer validation with use()
 const deferredSchema = v.unknown()
@@ -133,9 +147,11 @@ const deferredSchema = v.unknown()
 Accepts any value, typed as `any` in TypeScript.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.any()
 
-type T = v.Infer<typeof schema> // any
+type T = InferOutput<typeof schema> // any
 ```
 
 ### `never(message?)`
@@ -145,9 +161,11 @@ Always fails validation. Useful for exhaustive checks or unreachable paths.
 **Issue Code**: `'never:unexpected_value'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.never()
 
-schema.run('anything') // { issues: [{ code: 'never:unexpected_value', ... }] }
+schema.execute('anything') // { issues: [{ code: 'never:unexpected_value', ... }] }
 ```
 
 ## Nullish Types
@@ -159,10 +177,12 @@ Accepts only `null`.
 **Issue Code**: `'null:expected_null'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.null_()
 
-schema.run(null) // { value: null }
-schema.run(undefined) // { issues: [...] }
+schema.execute(null) // { value: null }
+schema.execute(undefined) // { issues: [...] }
 ```
 
 ### `undefined_(message?)`
@@ -172,10 +192,12 @@ Accepts only `undefined`.
 **Issue Code**: `'undefined:expected_undefined'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.undefined_()
 
-schema.run(undefined) // { value: undefined }
-schema.run(null) // { issues: [...] }
+schema.execute(undefined) // { value: undefined }
+schema.execute(null) // { issues: [...] }
 ```
 
 ## Constraint Validators
@@ -187,19 +209,21 @@ Validates minimum and maximum bounds. Works with numbers, bigints, and anything 
 **Issue Codes**: `'min:expected_min'`, `'max:expected_max'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const age = v.number()
 	.min(0)
 	.max(150)
 
-age.run(25) // { value: 25 }
-age.run(-5) // { issues: [{ code: 'min:expected_min', ... }] }
+age.execute(25) // { value: 25 }
+age.execute(-5) // { issues: [{ code: 'min:expected_min', ... }] }
 
 const username = v.string()
 	.min(3)
 	.max(20)
 
-username.run('alice') // { value: 'alice' }
-username.run('ab') // { issues: [...] }
+username.execute('alice') // { value: 'alice' }
+username.execute('ab') // { issues: [...] }
 ```
 
 ### `integer(message?)`
@@ -209,11 +233,13 @@ Validates that a number is an integer (no decimals).
 **Issue Code**: `'integer:expected_integer'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.number()
 	.integer()
 
-schema.run(42) // { value: 42 }
-schema.run(42.5) // { issues: [...] }
+schema.execute(42) // { value: 42 }
+schema.execute(42.5) // { issues: [...] }
 ```
 
 ### `empty(message?)`
@@ -223,17 +249,19 @@ Validates that value has a length property and is empty (length === 0). Works wi
 **Issue Code**: `'empty:expected_empty'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const emptyString = v.string()
 	.empty()
 
-emptyString.run('') // { value: '' }
-emptyString.run('x') // { issues: [...] }
+emptyString.execute('') // { value: '' }
+emptyString.execute('x') // { issues: [...] }
 
 const emptyArray = v.array(v.string())
 	.empty()
 
-emptyArray.run([]) // { value: [] }
-emptyArray.run(['a']) // { issues: [...] }
+emptyArray.execute([]) // { value: [] }
+emptyArray.execute(['a']) // { issues: [...] }
 ```
 
 ### `startsWith(prefix, message?)`
@@ -243,11 +271,13 @@ Validates that a string starts with the specified prefix.
 **Issue Code**: `'startsWith:expected_starts_with'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.startsWith('https://')
 
-schema.run('https://example.com') // { value: 'https://example.com' }
-schema.run('http://example.com') // { issues: [...] }
+schema.execute('https://example.com') // { value: 'https://example.com' }
+schema.execute('http://example.com') // { issues: [...] }
 ```
 
 ### `endsWith(suffix, message?)`
@@ -257,11 +287,13 @@ Validates that a string ends with the specified suffix.
 **Issue Code**: `'endsWith:expected_ends_with'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.endsWith('.json')
 
-schema.run('config.json') // { value: 'config.json' }
-schema.run('config.yaml') // { issues: [...] }
+schema.execute('config.json') // { value: 'config.json' }
+schema.execute('config.yaml') // { issues: [...] }
 ```
 
 ## Custom Messages
@@ -271,12 +303,16 @@ Every primitive accepts a message parameter for custom error messages:
 ### Static Message
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string('Please enter a valid string')
 ```
 
 ### Dynamic Message
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string(({ payload }) =>
 	`Expected string, received ${typeof payload.value}`
 )
@@ -285,6 +321,8 @@ const schema = v.string(({ payload }) =>
 ### Per-Step Messages
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.min(3, 'Too short')
 	.max(20, 'Too long')

@@ -41,7 +41,10 @@ features:
 <script setup>
 import { ref } from 'vue'
 
-const codeExample = `import { v } from 'valchecker'
+const codeExample = `import { allSteps, createValchecker } from 'valchecker'
+
+// Create a valchecker instance
+const v = createValchecker({ steps: allSteps })
 
 // Define a user schema with composable steps
 const UserSchema = v.object({
@@ -51,11 +54,8 @@ const UserSchema = v.object({
   role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
 })
 
-// Full type inference - no manual types needed
-type User = v.Infer<typeof UserSchema>
-
 // Validate with detailed issue reporting
-const result = UserSchema.run(input)
+const result = await UserSchema.execute(input)
 
 if ('value' in result) {
   console.log(result.value) // Fully typed User
@@ -173,10 +173,10 @@ const UserSchema = v.object({
 })
 
 // Full type inference - no manual types needed
-type User = v.Infer<typeof UserSchema>
+type User = InferOutput<typeof UserSchema>
 
 // Validate with detailed issue reporting
-const result = UserSchema.run(input)
+const result = await UserSchema.execute(input)
 
 if ('value' in result) {
 	console.log(result.value) // Fully typed User

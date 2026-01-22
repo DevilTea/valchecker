@@ -29,8 +29,8 @@ interface PluginDef extends TStepPluginDef {
    * ```ts
    * const v = createValchecker({ steps: [number, positive] })
    * const schema = v.number().positive()
-   * schema.run(5) // { value: 5 }
-   * schema.run(-5) // { issues: [...] }
+   * schema.execute(5) // { value: 5 }
+   * schema.execute(-5) // { issues: [...] }
    * ```
    *
    * ---
@@ -99,8 +99,8 @@ interface PluginDef extends TStepPluginDef {
    * ```ts
    * const v = createValchecker({ steps: [number, toPositive] })
    * const schema = v.number().toPositive()
-   * schema.run(-5) // { value: 5 }
-   * schema.run(5) // { value: 5 }
+   * schema.execute(-5) // { value: 5 }
+   * schema.execute(5) // { value: 5 }
    * ```
    *
    * ---
@@ -157,8 +157,8 @@ interface PluginDef extends TStepPluginDef {
    * ### Example:
    * ```ts
    * const schema = v.number().min(0).defaultTo(0)
-   * schema.run(-5) // { value: 0 }
-   * schema.run(5) // { value: 5 }
+   * schema.execute(-5) // { value: 0 }
+   * schema.execute(5) // { value: 5 }
    * ```
    *
    * ---
@@ -222,8 +222,8 @@ interface PluginDef extends TStepPluginDef {
    * ### Example:
    * ```ts
    * const schema = v.string().hasLength(5)
-   * schema.run('hello') // { value: 'hello' }
-   * schema.run('hi') // { issues: [...] }
+   * schema.execute('hello') // { value: 'hello' }
+   * schema.execute('hi') // { issues: [...] }
    * ```
    *
    * ---

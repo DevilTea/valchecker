@@ -24,36 +24,30 @@ Each step processes the value and can either:
 - **Transform** the value before passing it
 - **Fail** and stop the pipeline
 
-## Execution: run() vs execute()
+## Execution: execute()
+
+Valchecker schemas are executed using the `execute()` method, which always returns a Promise:
 
 | Method | Returns | When to Use |
 |--------|---------|-------------|
-| `run(value)` | Result or Promise<Result> | Auto-detects async/sync |
-| `execute(value)` | Promise<Result> | Always async |
+| `execute(value)` | Promise<Result> | Always - for consistent async handling |
 
-### Synchronous Pipeline
+### Example
 
 ```typescript
 const schema = v.string().toTrimmed()
-const result = schema.run('  hello  ')
-// result is synchronous: { value: 'hello' }
+const result = await schema.execute('  hello  ')
+// result: { value: 'hello' }
 ```
 
-### Asynchronous Pipeline
+### With Async Steps
 
 ```typescript
 const schema = v.string().check(async (value) => {
   return await checkDatabase(value)
 })
-const result = await schema.run('hello')
+const result = await schema.execute('hello')
 // result is returned from Promise
-```
-
-### Always Async
-
-```typescript
-const result = await userSchema.execute(data)
-// Consistent async handling regardless of steps
 ```
 
 ## Result Handling
@@ -61,7 +55,7 @@ const result = await userSchema.execute(data)
 Results are discriminated unions with `value` or `issues` discriminator:
 
 ```typescript
-const result = schema.run(data)
+const result = schema.execute(data)
 
 if ('value' in result) {
   // Success branch
@@ -109,7 +103,7 @@ const schema = v.object({
   })),
 })
 
-const result = schema.run({
+const result = schema.execute({
   users: [
     { email: 'alice@example.com' },
     { email: 123 },  // Error here!
@@ -136,8 +130,8 @@ const userSchema = v.object({
 })
 
 // Both valid:
-userSchema.run({ name: 'Alice' })
-userSchema.run({ name: 'Alice', nickname: 'Ali' })
+userSchema.execute({ name: 'Alice' })
+userSchema.execute({ name: 'Alice', nickname: 'Ali' })
 ```
 
 ## Custom Error Messages
@@ -148,7 +142,7 @@ Provide custom messages for better UX:
 const schema = v.string()
   .min(5, 'Username must be at least 5 characters')
 
-const result = schema.run('ab')
+const result = schema.execute('ab')
 if ('issues' in result) {
   console.log(result.issues[0].message)
   // 'Username must be at least 5 characters'
@@ -163,7 +157,7 @@ Use functions for dynamic messages:
 const schema = v.number()
   .min(0, ({ payload }) => `Expected positive, got ${payload.value}`)
 
-const result = schema.run(-5)
+const result = schema.execute(-5)
 if ('issues' in result) {
   console.log(result.issues[0].message)
   // 'Expected positive, got -5'
@@ -187,22 +181,26 @@ v.string()
 Transforms change what data type leaves the schema:
 
 ```typescript
+import { InferInput, InferOutput } from 'valchecker'
+
 const schema = v.string()
   .toFiltered(c => c !== 'a')  // string → string (filtered)
 
-type Input = v.InferInput<typeof schema>   // string
-type Output = v.Infer<typeof schema>       // string
+type Input = InferInput<typeof schema>   // string
+type Output = InferOutput<typeof schema> // string
 ```
 
 ### More Complex Example
 
 ```typescript
-const schema = v.string()
-  .toSplitted(',')           // string → string[]
-  .transform(arr => arr.length)  // string[] → number
+import { InferInput, InferOutput } from 'valchecker'
 
-type Input = v.InferInput<typeof schema>   // string
-type Output = v.Infer<typeof schema>       // number
+const schema = v.string()
+  .toSplitted(',')            // string → string[]
+  .transform(arr => arr.length) // string[] → number
+
+type Input = InferInput<typeof schema>    // string
+type Output = InferOutput<typeof schema>  // number
 ```
 
 ## Composition

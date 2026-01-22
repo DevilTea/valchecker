@@ -16,6 +16,8 @@ Validates an object with specified properties. Unknown keys are allowed by defau
 - Plus any issues from nested property validators
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const user = v.object({
 	id: v.string(),
 	name: v.string()
@@ -24,10 +26,10 @@ const user = v.object({
 		.min(0)], // Optional
 })
 
-user.run({ id: '123', name: '  Alice  ' })
+user.execute({ id: '123', name: '  Alice  ' })
 // { value: { id: '123', name: 'Alice', age: undefined } }
 
-user.run({ id: '123', name: '  Alice  ', extra: 'ignored' })
+user.execute({ id: '123', name: '  Alice  ', extra: 'ignored' })
 // { value: { id: '123', name: 'Alice', age: undefined } }
 // Note: 'extra' is stripped from output
 ```
@@ -35,7 +37,9 @@ user.run({ id: '123', name: '  Alice  ', extra: 'ignored' })
 ### Type Inference
 
 ```ts
-type User = v.Infer<typeof user>
+import { InferOutput } from '@valchecker/internal'
+
+type User = InferOutput<typeof user>
 // { id: string; name: string; age: number | undefined }
 ```
 
@@ -48,14 +52,16 @@ Like `object()` but rejects unknown keys.
 - `'object:unknown_key'`: Object contains keys not in shape
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const strict = v.strictObject({
 	id: v.string(),
 })
 
-strict.run({ id: '123', extra: 'not allowed' })
+strict.execute({ id: '123', extra: 'not allowed' })
 // { issues: [{ code: 'object:unknown_key', ... }] }
 
-strict.run({ id: '123' })
+strict.execute({ id: '123' })
 // { value: { id: '123' } }
 ```
 
@@ -72,18 +78,20 @@ Validates each element of an array with the provided schema.
 - Plus any issues from element validators (with index in path)
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const tags = v.array(v.string()
 	.toLowercase())
 	.min(1)
 	.max(5)
 
-tags.run(['JS', 'TS', 'NODE'])
+tags.execute(['JS', 'TS', 'NODE'])
 // { value: ['js', 'ts', 'node'] }
 
-tags.run(['a', 123, 'c'])
+tags.execute(['a', 123, 'c'])
 // { issues: [{ path: [1], code: 'string:expected_string', ... }] }
 
-tags.run([])
+tags.execute([])
 // { issues: [{ code: 'min:expected_min', ... }] }
 ```
 
@@ -102,6 +110,8 @@ Tries each schema in order, returns the first success. Fails only if all schemas
 **Issue Code**: Union itself doesn't produce issues; you see issues from branches if all fail
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const id = v.union([
 	v.string()
 		.toTrimmed(),
@@ -110,11 +120,11 @@ const id = v.union([
 		.min(0),
 ])
 
-id.run('abc') // { value: 'abc' }
-id.run(123) // { value: 123 }
-id.run(true) // { issues: [from first branch, from second branch] }
+id.execute('abc') // { value: 'abc' }
+id.execute(123) // { value: 123 }
+id.execute(true) // { issues: [from first branch, from second branch] }
 
-type ID = v.Infer<typeof id>
+type ID = InferOutput<typeof id>
 // string | number
 ```
 
@@ -123,6 +133,8 @@ type ID = v.Infer<typeof id>
 For objects with a discriminator field:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const event = v.union([
 	v.object({
 		type: v.literal('click'),
@@ -135,7 +147,7 @@ const event = v.union([
 	}),
 ])
 
-type Event = v.Infer<typeof event>
+type Event = InferOutput<typeof event>
 // | { type: 'click'; x: number; y: number }
 // | { type: 'keypress'; key: string }
 ```
@@ -145,6 +157,8 @@ type Event = v.Infer<typeof event>
 Runs all schemas and merges their results. All schemas must pass.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const timestamped = v.object({
 	createdAt: v.number(),
 	updatedAt: v.number(),
@@ -157,7 +171,7 @@ const auditable = v.object({
 
 const entity = v.intersection([timestamped, auditable])
 
-entity.run({
+entity.execute({
 	createdAt: 1234567890,
 	updatedAt: 1234567890,
 	createdBy: 'alice',
@@ -165,7 +179,7 @@ entity.run({
 })
 // { value: { createdAt: ..., updatedAt: ..., createdBy: ..., updatedBy: ... } }
 
-type Entity = v.Infer<typeof entity>
+type Entity = InferOutput<typeof entity>
 // { createdAt: number; updatedAt: number; createdBy: string; updatedBy: string }
 ```
 
@@ -176,10 +190,12 @@ Validates that a value is an instance of the given constructor.
 **Issue Code**: `'instance:expected_instance'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const dateSchema = v.instance(Date)
 
-dateSchema.run(new Date()) // { value: Date }
-dateSchema.run('2024-01-01') // { issues: [...] }
+dateSchema.execute(new Date()) // { value: Date }
+dateSchema.execute('2024-01-01') // { issues: [...] }
 
 // Custom classes
 class User {
@@ -187,7 +203,7 @@ class User {
 }
 
 const userInstance = v.instance(User)
-userInstance.run(new User('Alice')) // { value: User { name: 'Alice' } }
+userInstance.execute(new User('Alice')) // { value: User { name: 'Alice' } }
 
 // Built-in types
 const regexSchema = v.instance(RegExp)
@@ -200,6 +216,8 @@ const mapSchema = v.instance(Map)
 Structural validators automatically prepend keys or indexes to issue paths:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.object({
 	users: v.array(
 		v.object({
@@ -210,7 +228,7 @@ const schema = v.object({
 	),
 })
 
-schema.run({
+schema.execute({
 	users: [
 		{ profile: { name: 'Alice' } },
 		{ profile: { name: 123 } }, // ← Invalid
@@ -229,6 +247,8 @@ This makes it easy to:
 Structures can be freely nested and combined:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const addressSchema = v.object({
 	street: v.string(),
 	city: v.string(),

@@ -31,7 +31,7 @@ import { allSteps, createValchecker } from 'valchecker'
 const v = createValchecker({ steps: allSteps })
 
 const schema = v.string()
-const result = schema.run('hello')
+const result = schema.execute('hello')
 ```
 
 ### For Production (Selective Imports)
@@ -53,7 +53,7 @@ const schema = v.object({
 
 ### Core Functions
 ```typescript
-import { createValchecker, Infer, InferInput } from 'valchecker'
+import { createValchecker, InferInput, InferOutput } from 'valchecker'
 ```
 
 ### All Steps (Convenience)
@@ -103,7 +103,7 @@ const userSchema = v.object({
 })
 
 // Validate data
-const result = userSchema.run({
+const result = userSchema.execute({
   name: '  Alice  ',
   email: 'alice@example.com',
   age: 30,
@@ -123,16 +123,18 @@ if ('value' in result) {
 Valchecker works great with TypeScript:
 
 ```typescript
+import { InferOutput } from 'valchecker'
+
 const userSchema = v.object({
   name: v.string(),
   age: v.number(),
 })
 
 // Automatically inferred type
-type User = v.Infer<typeof userSchema>
+type User = InferOutput<typeof userSchema>
 // { name: string; age: number }
 
-const result = userSchema.run(data)
+const result = userSchema.execute(data)
 
 if ('value' in result) {
   // TypeScript knows result.value is User

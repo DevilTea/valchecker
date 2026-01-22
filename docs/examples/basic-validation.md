@@ -5,6 +5,7 @@ This example demonstrates fundamental validation patterns with Valchecker, cover
 ## Setup
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 import { allSteps, createValchecker } from 'valchecker'
 
 const v = createValchecker({ steps: allSteps })
@@ -15,11 +16,12 @@ const v = createValchecker({ steps: allSteps })
 ### Strings
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Basic string validation
 const nameSchema = v.string()
 
-nameSchema.run('Alice') // { value: 'Alice' }
-nameSchema.run(123) // { issues: [...] }
+nameSchema.execute('Alice') // { value: 'Alice' }
+nameSchema.execute(123) // { issues: [...] }
 
 // With constraints
 const usernameSchema = v.string()
@@ -28,49 +30,53 @@ const usernameSchema = v.string()
 	.min(3)
 	.max(20)
 
-usernameSchema.run('  Alice_123  ')
+usernameSchema.execute('  Alice_123  ')
 // { value: 'alice_123' }
 ```
 
 ### Numbers
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Basic number validation
 const ageSchema = v.number()
 	.integer()
 	.min(0)
 	.max(150)
 
-ageSchema.run(25) // { value: 25 }
-ageSchema.run(-5) // { issues: [...] }
-ageSchema.run(3.14) // { issues: [...] }
+ageSchema.execute(25) // { value: 25 }
+ageSchema.execute(-5) // { issues: [...] }
+ageSchema.execute(3.14) // { issues: [...] }
 
 // Positive numbers only
 const priceSchema = v.number()
 	.min(0)
 
-priceSchema.run(99.99) // { value: 99.99 }
-priceSchema.run(Number.POSITIVE_INFINITY) // { issues: [...] }
+priceSchema.execute(99.99) // { value: 99.99 }
+priceSchema.execute(Number.POSITIVE_INFINITY) // { issues: [...] }
 ```
 
 ### Booleans
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const activeSchema = v.boolean()
 
-activeSchema.run(true) // { value: true }
-activeSchema.run(false) // { value: false }
-activeSchema.run('yes') // { issues: [...] }
+activeSchema.execute(true) // { value: true }
+activeSchema.execute(false) // { value: false }
+activeSchema.execute('yes') // { issues: [...] }
 ```
 
 ### Literals
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Single literal
 const statusSchema = v.literal('active')
 
-statusSchema.run('active') // { value: 'active' }
-statusSchema.run('inactive') // { issues: [...] }
+statusSchema.execute('active') // { value: 'active' }
+statusSchema.execute('inactive') // { issues: [...] }
 
 // Null and undefined
 const nullSchema = v.literal(null)
@@ -82,6 +88,8 @@ const undefinedSchema = v.literal(undefined)
 ### Basic Objects
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const userSchema = v.object({
 	id: v.string(),
 	name: v.string()
@@ -92,7 +100,7 @@ const userSchema = v.object({
 		.min(0),
 })
 
-const result = userSchema.run({
+const result = userSchema.execute({
 	id: '123e4567-e89b-12d3-a456-426614174000',
 	name: 'Alice',
 	email: 'alice@example.com',
@@ -105,6 +113,8 @@ const result = userSchema.run({
 ### Optional Fields
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const profileSchema = v.object({
 	name: v.string(),
 	bio: [v.string()], // string | undefined
@@ -112,25 +122,29 @@ const profileSchema = v.object({
 })
 
 // Both valid:
-profileSchema.run({ name: 'Alice' })
-profileSchema.run({ name: 'Alice', bio: 'Developer', website: 'https://alice.dev' })
+profileSchema.execute({ name: 'Alice' })
+profileSchema.execute({ name: 'Alice', bio: 'Developer', website: 'https://alice.dev' })
 ```
 
 ### Nullable Fields
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const settingsSchema = v.object({
 	theme: v.string(),
 	customColor: v.union([v.string(), v.literal(null)]), // string | null
 })
 
-settingsSchema.run({ theme: 'dark', customColor: null }) // Valid
-settingsSchema.run({ theme: 'dark', customColor: '#fff' }) // Valid
+settingsSchema.execute({ theme: 'dark', customColor: null }) // Valid
+settingsSchema.execute({ theme: 'dark', customColor: '#fff' }) // Valid
 ```
 
 ### Nested Objects
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const addressSchema = v.object({
 	street: v.string(),
 	city: v.string(),
@@ -151,27 +165,33 @@ const customerSchema = v.object({
 ### Basic Arrays
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const numbersSchema = v.array(v.number())
 
-numbersSchema.run([1, 2, 3]) // { value: [1, 2, 3] }
-numbersSchema.run([1, 'two', 3]) // { issues: [...] }
-numbersSchema.run('not array') // { issues: [...] }
+numbersSchema.execute([1, 2, 3]) // { value: [1, 2, 3] }
+numbersSchema.execute([1, 'two', 3]) // { issues: [...] }
+numbersSchema.execute('not array') // { issues: [...] }
 ```
 
 ### Array Constraints
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const tagsSchema = v.array(v.string())
 	.min(1) // At least one tag
 	.max(10) // Maximum 10 tags
 
-tagsSchema.run(['javascript', 'typescript']) // Valid
-tagsSchema.run([]) // { issues: [...] }
+tagsSchema.execute(['javascript', 'typescript']) // Valid
+tagsSchema.execute([]) // { issues: [...] }
 ```
 
 ### Array of Objects
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const orderItemSchema = v.object({
 	productId: v.string(),
 	quantity: v.number()
@@ -193,16 +213,19 @@ const orderSchema = v.object({
 ### Filtering Arrays
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const positiveNumbersSchema = v.array(v.number())
 	.toFiltered(n => n > 0)
 
-positiveNumbersSchema.run([1, -2, 3, -4, 5])
+positiveNumbersSchema.execute([1, -2, 3, -4, 5])
 // { value: [1, 3, 5] }
 ```
 
 ## Union Types
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // String or number
 const idSchema = v.union([
 	v.string(),
@@ -211,8 +234,8 @@ const idSchema = v.union([
 		.min(1),
 ])
 
-idSchema.run('123e4567-e89b-12d3-a456-426614174000') // Valid
-idSchema.run(42) // Valid
+idSchema.execute('123e4567-e89b-12d3-a456-426614174000') // Valid
+idSchema.execute(42) // Valid
 
 // Discriminated union (recommended for objects)
 const eventSchema = v.union([
@@ -227,13 +250,15 @@ const eventSchema = v.union([
 	}),
 ])
 
-eventSchema.run({ type: 'click', x: 100, y: 200 }) // Valid
-eventSchema.run({ type: 'keypress', key: 'Enter' }) // Valid
+eventSchema.execute({ type: 'click', x: 100, y: 200 }) // Valid
+eventSchema.execute({ type: 'keypress', key: 'Enter' }) // Valid
 ```
 
 ## Enum Validation
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const statusSchema = v.union([
 	v.literal('pending'),
 	v.literal('active'),
@@ -241,25 +266,26 @@ const statusSchema = v.union([
 	v.literal('cancelled'),
 ])
 
-statusSchema.run('active') // { value: 'active' }
-statusSchema.run('unknown') // { issues: [...] }
+statusSchema.execute('active') // { value: 'active' }
+statusSchema.execute('unknown') // { issues: [...] }
 
 // Type inference
-type Status = v.Infer<typeof statusSchema>
+type Status = InferOutput<typeof statusSchema>
 // 'pending' | 'active' | 'completed' | 'cancelled'
 ```
 
 ## Array Type Validation
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Specific array patterns can be validated using array with constraints
 const coordinateSchema = v.array(v.number())
 	.min(2)
 	.max(2)
 
-coordinateSchema.run([10, 20]) // { value: [10, 20] }
-coordinateSchema.run([10]) // { issues: [...] }
-coordinateSchema.run([10, 20, 30]) // { issues: [...] }
+coordinateSchema.execute([10, 20]) // { value: [10, 20] }
+coordinateSchema.execute([10]) // { issues: [...] }
+coordinateSchema.execute([10, 20, 30]) // { issues: [...] }
 ```
 
 ## Type Inference
@@ -267,6 +293,8 @@ coordinateSchema.run([10, 20, 30]) // { issues: [...] }
 Valchecker automatically infers TypeScript types:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const userSchema = v.object({
 	id: v.number()
 		.integer(),
@@ -278,7 +306,7 @@ const userSchema = v.object({
 })
 
 // Automatically inferred type
-type User = v.Infer<typeof userSchema>
+type User = InferOutput<typeof userSchema>
 // {
 //   id: number
 //   name: string
@@ -292,6 +320,8 @@ type User = v.Infer<typeof userSchema>
 ## Working with Results
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.object({
 	name: v.string()
 		.min(1),
@@ -300,7 +330,7 @@ const schema = v.object({
 		.min(0),
 })
 
-const result = schema.run({ name: '', age: -5 })
+const result = schema.execute({ name: '', age: -5 })
 
 if ('value' in result) {
 	// TypeScript knows result.value is the validated type
@@ -319,6 +349,7 @@ else {
 ## Complete Example: API Request Validation
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Define schemas
 const paginationSchema = v.object({
 	page: v.union([
@@ -363,7 +394,7 @@ const listUsersRequestSchema = v.object({
 
 // Usage in API handler
 function handleListUsers(rawQuery: unknown) {
-	const result = listUsersRequestSchema.run(rawQuery)
+	const result = listUsersRequestSchema.execute(rawQuery)
 
 	if ('issues' in result) {
 		return { error: 'Invalid request', issues: result.issues }

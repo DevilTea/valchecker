@@ -98,8 +98,8 @@ interface PluginDef extends TStepPluginDef {
 	 * ```ts
 	 * const v = createValchecker({ steps: [number, positive] })
 	 * const schema = v.number().positive()
-	 * schema.run(5)   // { value: 5 }
-	 * schema.run(-1)  // { issues: [...] }
+	 * schema.execute(5)   // { value: 5 }
+	 * schema.execute(-1)  // { issues: [...] }
 	 * ```
 	 *
 	 * ---
@@ -159,9 +159,9 @@ const v = createValchecker({
 const schema = v.number()
 	.positive()
 
-schema.run(5) // { value: 5 }
-schema.run(-1) // { issues: [{ code: 'positive:expected_positive', ... }] }
-schema.run(0) // { issues: [{ code: 'positive:expected_positive', ... }] }
+schema.execute(5) // { value: 5 }
+schema.execute(-1) // { issues: [{ code: 'positive:expected_positive', ... }] }
+schema.execute(0) // { issues: [{ code: 'positive:expected_positive', ... }] }
 ```
 
 ## Understanding the Implementation API
@@ -254,6 +254,8 @@ v.number()
 Steps that modify the output type:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 type Meta = DefineStepMethodMeta<{
 	Name: 'toSplitArray'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -287,7 +289,7 @@ export const toSplitArray = implStepPlugin<PluginDef>({
 // Usage: string → string[]
 const schema = v.string()
 	.toSplitArray(',')
-type Output = v.Infer<typeof schema> // string[]
+type Output = InferOutput<typeof schema> // string[]
 ```
 
 ### Async Steps
@@ -388,11 +390,11 @@ describe('positive step', () => {
 		it('should pass for positive numbers', () => {
 			const schema = v.number()
 				.positive()
-			expect(schema.run(1))
+			expect(schema.execute(1))
 				.toEqual({ value: 1 })
-			expect(schema.run(0.5))
+			expect(schema.execute(0.5))
 				.toEqual({ value: 0.5 })
-			expect(schema.run(Number.MAX_VALUE))
+			expect(schema.execute(Number.MAX_VALUE))
 				.toEqual({ value: Number.MAX_VALUE })
 		})
 	})
@@ -401,7 +403,7 @@ describe('positive step', () => {
 		it('should fail for zero', () => {
 			const schema = v.number()
 				.positive()
-			const result = schema.run(0)
+			const result = schema.execute(0)
 			expect('issues' in result)
 				.toBe(true)
 			if ('issues' in result) {
@@ -413,7 +415,7 @@ describe('positive step', () => {
 		it('should fail for negative numbers', () => {
 			const schema = v.number()
 				.positive()
-			const result = schema.run(-5)
+			const result = schema.execute(-5)
 			expect('issues' in result)
 				.toBe(true)
 		})
@@ -423,7 +425,7 @@ describe('positive step', () => {
 		it('should use custom message when provided', () => {
 			const schema = v.number()
 				.positive('Must be positive!')
-			const result = schema.run(-1)
+			const result = schema.execute(-1)
 			if ('issues' in result) {
 				expect(result.issues[0].message)
 					.toBe('Must be positive!')
@@ -435,7 +437,7 @@ describe('positive step', () => {
 				.positive(
 					({ payload }) => `${payload.value} is not positive`
 				)
-			const result = schema.run(-5)
+			const result = schema.execute(-5)
 			if ('issues' in result) {
 				expect(result.issues[0].message)
 					.toBe('-5 is not positive')

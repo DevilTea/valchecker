@@ -34,7 +34,7 @@ Import only what you need for optimal bundle size. Recommended for:
 
 ## Complete Step Reference
 
-All 47 built-in steps, organized by category:
+All 46 built-in steps, organized by category:
 
 ### Primitive Type Validators
 - `string()` - Validates string type
@@ -120,7 +120,7 @@ interface ExecutionIssue {
 
 ```ts
 // Sync when possible, async if needed
-const result = schema.run(input)
+const result = schema.execute(input)
 // Returns: ExecutionResult<T> | Promise<ExecutionResult<T>>
 
 // Always async

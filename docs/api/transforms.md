@@ -9,10 +9,12 @@ Transform steps reshape data without leaving the validation pipeline. They can b
 Trims whitespace from both ends.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.toTrimmed()
 
-schema.run('  hello  ') // { value: 'hello' }
+schema.execute('  hello  ') // { value: 'hello' }
 ```
 
 ### `toTrimmedStart()`
@@ -20,10 +22,12 @@ schema.run('  hello  ') // { value: 'hello' }
 Trims whitespace from the beginning.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.toTrimmedStart()
 
-schema.run('  hello  ') // { value: 'hello  ' }
+schema.execute('  hello  ') // { value: 'hello  ' }
 ```
 
 ### `toTrimmedEnd()`
@@ -31,10 +35,12 @@ schema.run('  hello  ') // { value: 'hello  ' }
 Trims whitespace from the end.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.toTrimmedEnd()
 
-schema.run('  hello  ') // { value: '  hello' }
+schema.execute('  hello  ') // { value: '  hello' }
 ```
 
 ### `toUppercase()`
@@ -42,10 +48,12 @@ schema.run('  hello  ') // { value: '  hello' }
 Converts string to uppercase.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.toUppercase()
 
-schema.run('hello') // { value: 'HELLO' }
+schema.execute('hello') // { value: 'HELLO' }
 ```
 
 ### `toLowercase()`
@@ -53,10 +61,12 @@ schema.run('hello') // { value: 'HELLO' }
 Converts string to lowercase.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const email = v.string()
 	.toLowercase()
 
-email.run('USER@EXAMPLE.COM') // { value: 'user@example.com' }
+email.execute('USER@EXAMPLE.COM') // { value: 'user@example.com' }
 ```
 
 ## String Constraint Steps
@@ -68,11 +78,13 @@ Validates that string starts with prefix.
 **Issue Code**: `'startsWith:expected_starts_with'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.startsWith('https://')
 
-schema.run('https://example.com') // { value: 'https://example.com' }
-schema.run('http://example.com') // { issues: [...] }
+schema.execute('https://example.com') // { value: 'https://example.com' }
+schema.execute('http://example.com') // { issues: [...] }
 ```
 
 ### `endsWith(suffix, message?)`
@@ -82,11 +94,13 @@ Validates that string ends with suffix.
 **Issue Code**: `'endsWith:expected_ends_with'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.endsWith('.json')
 
-schema.run('config.json') // { value: 'config.json' }
-schema.run('config.yaml') // { issues: [...] }
+schema.execute('config.json') // { value: 'config.json' }
+schema.execute('config.yaml') // { issues: [...] }
 ```
 
 ### `min(length, message?)` / `max(length, message?)`
@@ -96,13 +110,15 @@ Validates string length constraints. These are separate steps that validate the 
 **Issue Codes**: `'min:expected_min'`, `'max:expected_max'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const username = v.string()
 	.min(3, 'Username too short')
 	.max(20, 'Username too long')
 
-username.run('ab') // { issues: [...] }
-username.run('alice') // { value: 'alice' }
-username.run('a'.repeat(21)) // { issues: [...] }
+username.execute('ab') // { issues: [...] }
+username.execute('alice') // { value: 'alice' }
+username.execute('a'.repeat(21)) // { issues: [...] }
 ```
 
 ## Array Transforms
@@ -112,10 +128,12 @@ username.run('a'.repeat(21)) // { issues: [...] }
 Keeps only elements that satisfy the predicate.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const positives = v.array(v.number())
 	.toFiltered(n => n > 0)
 
-positives.run([1, -2, 3, -4, 5]) // { value: [1, 3, 5] }
+positives.execute([1, -2, 3, -4, 5]) // { value: [1, 3, 5] }
 ```
 
 ### `toSorted(compareFn?)`
@@ -123,17 +141,18 @@ positives.run([1, -2, 3, -4, 5]) // { value: [1, 3, 5] }
 Returns a sorted copy of the array.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Default sort (string comparison)
 const schema = v.array(v.number())
 	.toSorted()
 
-schema.run([3, 1, 2]) // { value: [1, 2, 3] }
+schema.execute([3, 1, 2]) // { value: [1, 2, 3] }
 
 // Custom comparator
 const descending = v.array(v.number())
 	.toSorted((a, b) => b - a)
 
-descending.run([1, 3, 2]) // { value: [3, 2, 1] }
+descending.execute([1, 3, 2]) // { value: [3, 2, 1] }
 ```
 
 ### `toSliced(start, end?)`
@@ -141,16 +160,18 @@ descending.run([1, 3, 2]) // { value: [3, 2, 1] }
 Returns a slice of the array.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const firstThree = v.array(v.string())
 	.toSliced(0, 3)
 
-firstThree.run(['a', 'b', 'c', 'd', 'e']) // { value: ['a', 'b', 'c'] }
+firstThree.execute(['a', 'b', 'c', 'd', 'e']) // { value: ['a', 'b', 'c'] }
 
 // Negative indices work too
 const lastTwo = v.array(v.string())
 	.toSliced(-2)
 
-lastTwo.run(['a', 'b', 'c', 'd', 'e']) // { value: ['d', 'e'] }
+lastTwo.execute(['a', 'b', 'c', 'd', 'e']) // { value: ['d', 'e'] }
 ```
 
 ### `toLength()`
@@ -158,12 +179,14 @@ lastTwo.run(['a', 'b', 'c', 'd', 'e']) // { value: ['d', 'e'] }
 Replaces the array with its length.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.array(v.string())
 	.toLength()
 
-schema.run(['a', 'b', 'c']) // { value: 3 }
+schema.execute(['a', 'b', 'c']) // { value: 3 }
 
-type T = v.Infer<typeof schema> // number
+type T = InferOutput<typeof schema> // number
 ```
 
 ### `toSplitted(separator)`
@@ -171,10 +194,12 @@ type T = v.Infer<typeof schema> // number
 Splits a string using the provided separator.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.toSplitted(',')
 
-schema.run('a,b,c') // { value: ['a', 'b', 'c'] }
+schema.execute('a,b,c') // { value: ['a', 'b', 'c'] }
 ```
 
 ## JSON Transforms
@@ -186,13 +211,15 @@ Parses a JSON string into a value.
 **Issue Code**: `'parseJSON:invalid_json'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.parseJSON()
 
-schema.run('{"key":"value"}')
+schema.execute('{"key":"value"}')
 // { value: { key: 'value' } }
 
-schema.run('invalid json')
+schema.execute('invalid json')
 // { issues: [{ code: 'parseJSON:invalid_json', ... }] }
 
 // Chain with further validation
@@ -211,10 +238,12 @@ Serializes a value to JSON string.
 **Issue Code**: `'stringifyJSON:unserializable'`
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.object({ key: v.string() })
 	.stringifyJSON()
 
-schema.run({ key: 'value' })
+schema.execute({ key: 'value' })
 // { value: '{"key":"value"}' }
 ```
 
@@ -225,12 +254,14 @@ schema.run({ key: 'value' })
 Converts number to string.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.number()
 	.toString()
 
-schema.run(123) // { value: '123' }
+schema.execute(123) // { value: '123' }
 
-type T = v.Infer<typeof schema> // string
+type T = InferOutput<typeof schema> // string
 ```
 
 ## Custom Transform
@@ -242,30 +273,36 @@ Apply a custom transformation function. The function can be sync or async.
 **Sync Transform**:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const slug = v.string()
 	.toLowercase()
 	.transform(value => value.replace(/[^a-z0-9-]+/g, '-'))
 
-slug.run('Hello World!')
+slug.execute('Hello World!')
 // { value: 'hello-world-' }
 ```
 
 **Type-Changing Transform**:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const splitTags = v.string()
 	.transform(value => value.split(',')
 		.map(s => s.trim()))
 
-type T = v.Infer<typeof splitTags> // string[]
+type T = InferOutput<typeof splitTags> // string[]
 
-splitTags.run('js, ts, node')
+splitTags.execute('js, ts, node')
 // { value: ['js', 'ts', 'node'] }
 ```
 
 **Async Transform**:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const enriched = v.object({ id: v.string() })
 	.transform(async (value) => {
 		const details = await db.fetchDetails(value.id)
@@ -280,6 +317,8 @@ const result = await enriched.execute({ id: '123' })
 Transforms can fail by throwing or returning a failure:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const safeParseInt = v.string()
 	.transform((value) => {
 		const num = Number.parseInt(value, 10)
@@ -297,6 +336,8 @@ const safeParseInt = v.string()
 Use `transform` to add computed properties:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const userWithAge = v.object({
 	name: v.string(),
 	birthYear: v.number()
@@ -308,13 +349,15 @@ const userWithAge = v.object({
 			.getFullYear() - user.birthYear,
 	}))
 
-type T = v.Infer<typeof userWithAge>
+type T = InferOutput<typeof userWithAge>
 // { name: string; birthYear: number; age: number }
 ```
 
 ### Picking/Omitting Properties
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const fullUser = v.object({
 	id: v.string(),
 	name: v.string(),
@@ -324,7 +367,7 @@ const fullUser = v.object({
 
 const publicUser = fullUser.transform(({ password, ...rest }) => rest)
 
-type T = v.Infer<typeof publicUser>
+type T = InferOutput<typeof publicUser>
 // { id: string; name: string; email: string }
 ```
 
@@ -335,6 +378,8 @@ type T = v.Infer<typeof publicUser>
 Converts a sync or maybe-async schema into an async schema, ensuring all execution happens asynchronously.
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.transform(x => x.toUpperCase())
 	.toAsync()
@@ -348,6 +393,8 @@ const result = await schema.execute('hello')
 Transforms can be chained to build complex pipelines:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const processedData = v.string()
 	.toTrimmed() // " hello, world " → "hello, world"
 	.toLowercase() // "Hello, World" → "hello, world"
@@ -361,6 +408,8 @@ const processedData = v.string()
 When any transform returns a `Promise`, the entire pipeline becomes async:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
+
 const schema = v.string()
 	.toTrimmed() // sync
 	.transform(async (v) => { // makes pipeline async
@@ -372,7 +421,7 @@ const schema = v.string()
 const result = await schema.execute('INPUT')
 
 // Or with run()
-const result = await schema.run('INPUT') // Returns Promise
+const result = await schema.execute('INPUT') // Returns Promise
 ```
 
 Valchecker preserves execution order even across async boundaries.
@@ -382,6 +431,7 @@ Valchecker preserves execution order even across async boundaries.
 Use `transform` when you need to change the value. Use `check` when you only need to validate:
 
 ```ts
+import { InferOutput } from '@valchecker/internal'
 // Transform: changes the value
 const trimmed = v.string()
 	.transform(s => s.trim())
