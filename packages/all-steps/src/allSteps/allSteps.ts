@@ -2,7 +2,7 @@ import * as _all from '@valchecker/internal'
 
 type _All = typeof _all
 
-type AllSteps = _all.ValueOf<{
+export type AllSteps = _all.ValueOf<{
 	[K in keyof _All]: _All[K] extends { '~def'?: _all.TStepPluginDef } ? _All[K] : never
 }>[]
 
