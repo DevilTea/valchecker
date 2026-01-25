@@ -144,8 +144,6 @@ if ('issues' in result) {
 }
 ```
 
-See [Common Patterns](./references/patterns.md) for more examples.
-
 ### API Validation
 
 ```typescript
@@ -168,8 +166,6 @@ const schema = v.string()
 
 const result = await schema.execute(email)  // Await when async
 ```
-
-See [Error Handling](./references/error-handling.md) for error management.
 
 ## Type Inference
 
@@ -200,7 +196,7 @@ type T = InferOutput<typeof schema>
 // { name: string; nickname?: string }
 ```
 
-See [Type Inference Guide](./references/type-inference.md) for advanced patterns.
+See [Type Inference Guide](./references/core-concepts.md#type-inference) in Core Concepts.
 
 ## Best Practices
 
@@ -234,6 +230,8 @@ const v = createValchecker({ steps: allSteps })
 - **Need a pattern?** Find it in [Common Patterns](./references/patterns.md)
 - **Need all steps?** See [Step Reference](./references/step-reference.md)
 - **Error handling?** Check [Error Handling](./references/error-handling.md)
+- **Performance tips?** See [Performance Guide](./references/performance.md)
+- **Type questions?** See [Type Inference](./references/type-inference.md)
 
 ## External Resources
 
