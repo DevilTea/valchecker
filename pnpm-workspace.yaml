@@ -29,3 +29,13 @@ catalog:
   vue: ^3.5.18
   vue-tsc: ^3.0.5
   zx: ^8.8.5
+
+# Supply-chain security baseline (see DevilTea/hub templates/pnpm-security.md)
+minimumReleaseAge: 4320
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+strictDepBuilds: true
+ignoredBuiltDependencies:
+  - esbuild
+  - simple-git-hooks
+onlyBuiltDependencies: []
