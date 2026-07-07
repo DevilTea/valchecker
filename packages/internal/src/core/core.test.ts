@@ -891,9 +891,9 @@ describe('core module', () => {
 
 			const v = createValchecker({ steps: [mockStep1, mockStep2] })
 
-			expect(Object.prototype.hasOwnProperty.call(v, 'method1'))
+			expect(Object.hasOwn(v, 'method1'))
 				.toBe(false)
-			expect(Object.prototype.hasOwnProperty.call(v, 'method2'))
+			expect(Object.hasOwn(v, 'method2'))
 				.toBe(false)
 		})
 

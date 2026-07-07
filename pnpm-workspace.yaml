@@ -1,11 +1,20 @@
+# Supply-chain security baseline (see DevilTea/hub templates/pnpm-security.md)
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  - '@deviltea/eslint-config'
+  - '@deviltea/tsconfig'
+blockExoticSubdeps: true
+strictDepBuilds: true
+shellEmulator: true
+trustPolicy: no-downgrade
 packages:
   - docs
   - packages/*
 
 catalog:
   '@clack/prompts': ^0.11.0
-  '@deviltea/eslint-config': 6.0.0
-  '@deviltea/tsconfig': 0.0.8
+  '@deviltea/eslint-config': 8.0.2
+  '@deviltea/tsconfig': 0.0.10
   '@shikijs/vitepress-twoslash': ^3.23.0
   '@standard-schema/spec': ^1.1.0
   '@types/node': ^24.13.2
@@ -30,12 +39,6 @@ catalog:
   vue-tsc: ^3.3.6
   zx: ^8.8.5
 
-# Supply-chain security baseline (see DevilTea/hub templates/pnpm-security.md)
-minimumReleaseAge: 4320
-trustPolicy: no-downgrade
-blockExoticSubdeps: true
-strictDepBuilds: true
-shellEmulator: true
 ignoredBuiltDependencies:
   - esbuild
   - simple-git-hooks
