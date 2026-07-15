@@ -72,4 +72,4 @@ The release workflow no longer:
 
 Versions before `1.0.0-rc.0` were development releases and did not provide the full compatibility guarantees documented for the 1.0 line. Refer to Git history and merged pull requests for detailed pre-1.0 changes.
 
-[1.0.0-rc.0]: https://github.com/DevilTea/valchecker/compare/v0.0.32...v1.0.0-rc.0
+[1.0.0-rc.0]: https://github.com/DevilTea/valchecker/releases/tag/v1.0.0-rc.0
