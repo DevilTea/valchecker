@@ -5,3 +5,17 @@
  */
 export * from './core'
 export * from './steps'
+export type {
+	AnyFn,
+	Class,
+	IsEqual,
+	IsExactlyAnyOrUnknown,
+	IsPromise,
+	MaybePromise,
+	MaybePromiseLike,
+	OverloadParametersAndReturnType,
+	OverloadReturnType,
+	Simplify,
+	UnionToIntersection,
+	ValueOf,
+} from './shared'
