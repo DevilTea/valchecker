@@ -1,6 +1,13 @@
 # Quick Start
 
-Get valchecker running in minutes and start validating runtime data with full TypeScript type safety.
+Get Valchecker running and validate runtime data with inferred TypeScript input and output types.
+
+## Requirements
+
+- Node.js 22 or newer
+- ESM
+
+CommonJS applications may use dynamic `import('valchecker')`. Synchronous `require('valchecker')` is not supported.
 
 ## Installation
 
@@ -12,13 +19,19 @@ npm install valchecker
 yarn add valchecker
 ```
 
-## Import Strategy
+## Import strategy
 
-Valchecker offers two ways to import validation steps:
+### Default instance
 
-### Option 1: All Steps (Convenience)
+The main package exports `v`, an instance containing every built-in step:
 
-Import `allSteps` to get every built-in validator. Best for prototyping, CLIs, or apps where bundle size isn't critical.
+```ts
+import { v } from 'valchecker'
+```
+
+Use it for the shortest setup and for applications where importing the complete step set is acceptable.
+
+### Custom instance with all steps
 
 ```ts
 import { allSteps, createValchecker } from 'valchecker'
@@ -26,44 +39,42 @@ import { allSteps, createValchecker } from 'valchecker'
 const v = createValchecker({ steps: allSteps })
 ```
 
-### Option 2: Selective Imports (Tree-Shaking)
+### Selective steps
 
-Import only the steps you need for maximum bundle optimization.
-
-```ts
-import { createValchecker, number, object, string } from 'valchecker'
-
-const v = createValchecker({ steps: [string, number, object] })
-```
-
-::: tip Recommended Approach
-During development, use `allSteps` for convenience. Before production, analyze your usage and switch to selective imports for smaller bundles.
-:::
-
-## Your First Schema
-
-Define a schema by chaining validation and transformation steps:
+Import only the plugins used by the application:
 
 ```ts
-const userSchema = v.object({
-	name: v.string()
-		.toTrimmed(),
-	age: v.number()
-		.min(0),
-	email: v.string()
-		.toLowercase(),
+import {
+	createValchecker,
+	min,
+	number,
+	object,
+	string,
+	toTrimmed,
+} from 'valchecker'
+
+const v = createValchecker({
+	steps: [string, number, object, min, toTrimmed],
 })
 ```
 
-Every method call returns a new schema with the step appended. Schemas are immutable and can be safely reused.
+The runtime and type exports of all published packages are checked against `api-surface.json`.
 
-## Execute Validation
+## Define a schema
 
-Valchecker provides two execution methods:
+```ts
+import { v } from 'valchecker'
 
-### `execute()` - Always Async
+const userSchema = v.object({
+	name: v.string().toTrimmed(),
+	age: v.number().integer().min(0),
+	email: v.string().toLowercase(),
+})
+```
 
-Use `execute()` for async validation. It always returns a Promise:
+Every fluent method returns a new immutable schema. The previous schema can be reused safely.
+
+## Execute validation
 
 ```ts
 const result = await userSchema.execute({
@@ -72,110 +83,161 @@ const result = await userSchema.execute({
 	email: 'ALICE@EXAMPLE.COM',
 })
 
-if ('value' in result) {
+if (v.isSuccess(result)) {
 	console.log(result.value)
-	// => { name: 'Alice', age: 25, email: 'alice@example.com' }
+	// { name: 'Alice', age: 25, email: 'alice@example.com' }
 }
 else {
 	console.error(result.issues)
-	// Array of structured issues with codes, paths, and messages
 }
 ```
 
-## Understanding Results
+`await` works for both synchronous and asynchronous pipelines. It does not imply that `execute()` always returns a promise.
 
-Every validation returns a discriminated union result:
+## Execution modes
+
+### Synchronous pipelines
+
+A fully synchronous pipeline returns its result immediately:
 
 ```ts
-type ValidationResult<T>
+const schema = v.string().toTrimmed()
+const result = schema.execute(' value ')
+// { value: 'value' }
+```
+
+### Maybe-async pipelines
+
+Callback-driven pipelines can return either a result or a promise depending on which steps are reached for the current input:
+
+```ts
+const schema = v.string().check(async (value) => {
+	return value.length > 0
+})
+
+const validResult = schema.execute('value')
+// Promise<ExecutionResult<string>>
+
+const typeFailure = schema.execute(42)
+// Synchronous failure: the async callback is not reached.
+```
+
+Valchecker supports native promises, cross-realm promises, and custom `PromiseLike` values.
+
+### Always-async pipelines
+
+Use `.toAsync()` when an API boundary must always return a native promise:
+
+```ts
+const schema = v.string()
+	.check(async value => value.length > 0)
+	.toAsync()
+
+const result = await schema.execute(input)
+```
+
+See [Valchecker 1.0 Contract](/guide/v1-contract) for the complete execution semantics.
+
+## Result values
+
+A successful result contains the final transformed value. A failed result contains structured issues.
+
+```ts
+type Result<T, Issue>
 	= | { value: T }
 		| { issues: Issue[] }
 ```
 
-### Working with Issues
-
-Each issue contains structured information for debugging and user feedback:
+Each issue contains:
 
 ```ts
 interface Issue {
-	code: string // e.g., 'string:expected_string', 'min:expected_min'
-	path: PropertyKey[] // e.g., ['users', 0, 'email']
-	message: string // Human-readable message
-	payload: unknown // Issue-specific data
+	code: string
+	path: PropertyKey[]
+	message: string
+	payload: unknown
 }
 ```
 
-Example of handling issues:
+Issue paths are immutable from the parent validator's perspective: nesting a child issue creates a new issue/path rather than mutating the child object.
 
-```ts
-const result = await userSchema.execute({ name: '', age: -5, email: 'invalid' })
+## Transformations
 
-if ('issues' in result) {
-	for (const issue of result.issues) {
-		console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
-	}
-	// [min:expected_min] name: Expected minimum value of 1
-	// [min:expected_min] age: Expected minimum value of 0
-	// [string:expected_string] email: Expected a string.
-}
-```
-
-## Transform and Fallback
-
-Chain transformations and provide fallback values for resilient pipelines:
-
-```ts
-const payloadSchema = v.unknown()
-	.parseJSON('Invalid JSON')
-	.fallback(() => ({ items: [] }))
-	.check(value => Array.isArray(value.items), 'items must be an array')
-	.use(
-		v.object({
-			items: v.array(
-				v.object({
-					id: v.string()
-						.toTrimmed(),
-					quantity: v.number()
-						.integer()
-						.min(1),
-				}),
-			)
-				.toFiltered(item => item.quantity > 0),
-		}),
-	)
-```
-
-### Transform Chain
-
-Transforms update both the runtime value and the TypeScript type:
+Transforms update the runtime value and inferred output type:
 
 ```ts
 const schema = v.string()
-	.toTrimmed() // string → string (trimmed)
-	.transform(s => s.split(',')) // string → string[]
-	.transform(arr => arr.length) // string[] → number
+	.toTrimmed()
+	.transform(value => value.split(','))
+	.transform(values => values.length)
 
-// The output type will be inferred through the transforms
 const result = await schema.execute('a,b,c')
-// result.value is typed as number (length of the array)
+// Successful value: 3
 ```
 
-### Fallback Values
+## Fallbacks
 
-`fallback()` catches validation failures and provides alternative values:
+`fallback()` runs after an earlier validation failure and can recover with a replacement value:
 
 ```ts
 const schema = v.number()
 	.min(0)
 	.fallback(() => 0)
 
-const result1 = await schema.execute(-5) // => { value: 0 }
-const result2 = await schema.execute(10) // => { value: 10 }
+await schema.execute(-5)
+// { value: 0 }
 ```
 
-## Async Validation
+A fallback callback may also return a `PromiseLike` value, making the reached path asynchronous.
 
-Mix async steps (database lookups, API calls) seamlessly:
+## Object fields
+
+### Required and optional
+
+A one-element tuple marks a field as optional:
+
+```ts
+const schema = v.object({
+	name: v.string(),
+	nickname: [v.string()],
+})
+```
+
+Object validators read declared fields from own properties only. Inherited prototype values do not satisfy declared fields.
+
+### Object variants
+
+- `object(shape)` validates declared fields and omits unknown properties from output.
+- `strictObject(shape)` also rejects unknown enumerable own string and symbol keys.
+- `looseObject(shape)` preserves unknown own properties and their descriptors.
+
+## Unions
+
+Branches are evaluated in declaration order. The first successful branch's transformed output is returned:
+
+```ts
+const schema = v.union([
+	v.string().transform(value => value.length),
+	v.number(),
+])
+
+await schema.execute('abc')
+// { value: 3 }
+```
+
+## Delegation
+
+Use `use()` to delegate to another schema while preserving its transformed output and issue types:
+
+```ts
+const portSchema = v.number().integer().min(1).max(65535)
+
+const configSchema = v.unknown()
+	.parseJSON('Invalid JSON')
+	.use(v.object({ port: portSchema }))
+```
+
+## Async validation
 
 ```ts
 const usernameSchema = v.string()
@@ -189,47 +251,17 @@ const usernameSchema = v.string()
 const result = await usernameSchema.execute('alice')
 ```
 
-::: warning Async Detection
-When a pipeline contains async steps, `run()` returns a `Promise`. Use `execute()` if you want consistent async behavior.
-:::
+## Type inference
 
-## Type Inference
-
-Valchecker automatically infers output types through the entire pipeline:
+The supported advanced type helpers are exported from `@valchecker/internal`:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+import type { InferInput, InferOutput } from '@valchecker/internal'
+import { v } from 'valchecker'
 
 const schema = v.object({
-	name: v.string(),
-	age: v.number(),
-})
-	.transform(user => ({
-		...user,
-		isAdult: user.age >= 18,
-	}))
-type User = InferOutput<typeof schema>
-// { name: string; age: number; isAdult: boolean }
-
-const result = await schema.execute({ name: 'Bob', age: 30 })
-
-if ('value' in result) {
-	// result.value is fully typed
-	console.log(result.value.isAdult) // ✓ Type-safe
-}
-```
-
-### Extracting Input and Output Types
-
-Use TypeScript's utility types to extract types from schemas:
-
-```ts
-import { InferInput, InferOutput } from '@valchecker/internal'
-
-const schema = v.object({
-	name: v.string()
-		.toTrimmed(),
-	tags: [v.array(v.string())], // Optional
+	name: v.string().toTrimmed(),
+	tags: [v.array(v.string())],
 })
 
 type Input = InferInput<typeof schema>
@@ -239,71 +271,36 @@ type Output = InferOutput<typeof schema>
 // { name: string; tags: string[] | undefined }
 ```
 
-## Standard Schema Compliance
+`@valchecker/internal` is the semver-covered advanced package for plugin authors and type helpers. Do not import package-private source paths.
 
-Valchecker implements the [Standard Schema V1](https://github.com/standard-schema/standard-schema) specification, enabling interoperability with Standard Schema compatible libraries:
+## Standard Schema V1
 
-```ts
-import type { StandardSchema } from '@standard-schema/spec'
-
-const userSchema = v.object({
-	name: v.string(),
-	email: v.string(),
-})
-
-// Works with any library that accepts StandardSchema
-function validate<T>(schema: StandardSchema<T>, input: unknown): T {
-	const result = schema['~standard'].validate(input)
-	// ...
-}
-```
-
-## Common Patterns
-
-### Optional Fields
+Valchecker schemas expose the Standard Schema V1 interface:
 
 ```ts
-const schema = v.object({
-	required: v.string(),
-	optional: [v.string()], // Optional with [] wrapper
-	withDefault: [v.string()
-		.fallback(() => 'default')], // Optional with default
-})
+const result = schema['~standard'].validate(input)
 ```
 
-### Union Types
+The Standard Schema validator preserves sync/maybe-async behavior and returns transformed output on success.
+
+## Custom messages
+
+Message priority is:
+
+1. custom step message,
+2. global `createValchecker` message handler,
+3. built-in default message,
+4. `"Invalid value."`.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.union([
-	v.string(),
-	v.number(),
-	v.literal(null),
-])
-
-type T = InferOutput<typeof schema> // string | number | null
+const schema = v.number()
+	.min(1, 'Quantity must be at least 1')
 ```
 
-### Nested Objects
+## Next steps
 
-```ts
-const addressSchema = v.object({
-	street: v.string(),
-	city: v.string(),
-	zip: v.string(),
-})
-
-const userSchema = v.object({
-	name: v.string(),
-	address: addressSchema,
-	billingAddress: [addressSchema], // Optional
-})
-```
-
-## Next Steps
-
-- **[Core Philosophy](/guide/core-philosophy)** - Understand the step pipeline architecture
-- **[Custom Steps](/guide/custom-steps)** - Create your own validation steps
-- **[API Reference](/api/overview)** - Explore all available validation steps
-- **[Examples](/examples/basic-validation)** - See real-world validation patterns
+- **[Valchecker 1.0 Contract](/guide/v1-contract)** — Complete compatibility and semantic contract
+- **[Core Philosophy](/guide/core-philosophy)** — Step pipeline architecture
+- **[Custom Steps](/guide/custom-steps)** — Supported plugin-author API
+- **[API Reference](/api/overview)** — Built-in validation steps
+- **[Examples](/examples/basic-validation)** — Applied patterns
