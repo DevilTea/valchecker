@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
 import process from 'node:process'
 
@@ -214,4 +214,13 @@ async function main(): Promise<void> {
 	}
 }
 
-await main()
+try {
+	await main()
+}
+catch (error) {
+	if (process.argv.includes('--verify-only')) {
+		const text = error instanceof Error ? error.stack ?? error.message : String(error)
+		await writeFile(resolve(releaseDirectory, 'verification-error.txt'), `${text}\n`)
+	}
+	throw error
+}
