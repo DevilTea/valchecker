@@ -1,30 +1,8 @@
 /**
  * Test Plan for check.ts
  *
- * This test file covers the `check` step plugin implementation.
- *
- * Functions and Classes:
- * - check: The step plugin that runs a custom check function.
- *
- * Input Scenarios:
- * - Synchronous check returning true: pass.
- * - Synchronous check returning false: fail with default message.
- * - Synchronous check returning string: fail with string as message.
- * - Synchronous check using addIssue: collect issues.
- * - Synchronous check using narrow: narrow type.
- * - Asynchronous check: handle promises.
- * - Check throwing error: handle exceptions.
- * - Custom message handler: custom error message.
- *
- * Expected Outputs and Behaviors:
- * - Success: Returns the value.
- * - Failure: Issues with 'check:failed' code.
- * - Async: Promise resolution.
- *
- * Error Handling and Exceptions:
- * - Catches exceptions and returns issues.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
+ * Covers synchronous and asynchronous checks, issue collection, narrowing,
+ * custom messages, thrown errors, and rejected promises.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -142,6 +120,22 @@ describe('check plugin', () => {
 		it('should handle thrown errors', () => {
 			const result = v.check(() => {
 				throw new Error('Thrown error')
+			})
+				.execute('error')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'check:failed',
+						message: 'Check failed',
+						path: [],
+						payload: { value: 'error', error: expect.any(Error) },
+					}],
+				})
+		})
+
+		it('should handle rejected checks', async () => {
+			const result = await v.check(async () => {
+				throw new Error('Rejected error')
 			})
 				.execute('error')
 			expect(result)
