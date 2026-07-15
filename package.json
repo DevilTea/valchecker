@@ -1,7 +1,7 @@
 {
 	"name": "monorepo",
 	"type": "module",
-	"version": "0.0.32",
+	"version": "1.0.0-rc.0",
 	"private": true,
 	"packageManager": "pnpm@10.34.4",
 	"description": "A JS / TS value checker.",
@@ -27,7 +27,8 @@
 		"publint": "pnpm -r --filter='./packages/*' exec publint",
 		"release:prepare": "tsx ./scripts/prepare-release.ts",
 		"release:publish": "tsx ./scripts/publish-release.ts",
-		"release:validate": "pnpm build && pnpm api:surface && pnpm publint && pnpm test:package && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm docs:build",
+		"release:readiness": "tsx ./scripts/check-release-readiness.ts",
+		"release:validate": "pnpm release:readiness && pnpm build && pnpm api:surface && pnpm publint && pnpm test:package && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm docs:build",
 		"docs:dev": "pnpm -r --filter=./docs run dev",
 		"docs:build": "pnpm -r --filter=./docs run build",
 		"docs:preview": "pnpm -r --filter=./docs run preview",
