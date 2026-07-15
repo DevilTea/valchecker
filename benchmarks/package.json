@@ -8,7 +8,8 @@
 	},
 	"scripts": {
 		"bench": "node ./src/run.mjs",
-		"smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke.json",
+		"report": "node ./src/report.mjs",
+		"smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke/raw.json && node ./src/report.mjs --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/report.md --html ../artifacts/benchmark-smoke/report.html",
 		"verify": "node ./src/verify.mjs"
 	},
 	"dependencies": {
