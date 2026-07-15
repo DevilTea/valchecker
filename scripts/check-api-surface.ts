@@ -6,7 +6,9 @@ import ts from 'typescript'
 
 const root = resolve(import.meta.dirname, '..')
 const expectedPath = resolve(root, 'api-surface.json')
-const actualPath = resolve(root, 'artifacts/api-surface.actual.json')
+const artifactDirectory = resolve(root, 'artifacts')
+const actualPath = resolve(artifactDirectory, 'api-surface.actual.json')
+const errorPath = resolve(artifactDirectory, 'api-surface.error.txt')
 
 const packages = {
 	'@valchecker/internal': resolve(root, 'packages/internal/dist/index'),
@@ -74,16 +76,18 @@ async function getApiSurface(): Promise<ApiSurface> {
 	return Object.fromEntries(entries) as ApiSurface
 }
 
-const actual = await getApiSurface()
-const serialized = `${JSON.stringify(actual, null, '\t')}\n`
-await mkdir(dirname(actualPath), { recursive: true })
-await writeFile(actualPath, serialized)
+async function main(): Promise<void> {
+	await mkdir(artifactDirectory, { recursive: true })
+	const actual = await getApiSurface()
+	const serialized = `${JSON.stringify(actual, null, '\t')}\n`
+	await writeFile(actualPath, serialized)
 
-if (process.argv.includes('--write')) {
-	await writeFile(expectedPath, serialized)
-	console.log(`Updated ${expectedPath}`)
-}
-else {
+	if (process.argv.includes('--write')) {
+		await writeFile(expectedPath, serialized)
+		console.log(`Updated ${expectedPath}`)
+		return
+	}
+
 	const expected = await readFile(expectedPath, 'utf8')
 	if (expected !== serialized) {
 		console.error(`Public API surface changed. Review ${actualPath} and run \`pnpm api:surface:update\` when the change is intentional.`)
@@ -92,4 +96,14 @@ else {
 	else {
 		console.log('Public runtime and type export surfaces match api-surface.json.')
 	}
+}
+
+try {
+	await main()
+}
+catch (error) {
+	await mkdir(dirname(errorPath), { recursive: true })
+	const diagnostic = error instanceof Error ? error.stack ?? error.message : String(error)
+	await writeFile(errorPath, `${diagnostic}\n`)
+	throw error
 }
