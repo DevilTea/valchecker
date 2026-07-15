@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
-import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -27,31 +26,48 @@ const thresholds = {
 	branches: 85,
 } as const
 
-const summary = JSON.parse(await readFile(summaryPath, 'utf8')) as Record<string, FileCoverageSummary>
-const failures: string[] = []
+function percentage(metric: CoverageMetric): number {
+	return metric.pct === 'Unknown' ? 100 : metric.pct
+}
 
-for (const [filename, coverage] of Object.entries(summary)) {
-	if (filename === 'total')
-		continue
+export async function checkCoverage(): Promise<boolean> {
+	const summary = JSON.parse(await readFile(summaryPath, 'utf8')) as Record<string, FileCoverageSummary>
+	const total = summary.total
+	if (!total)
+		throw new Error(`Coverage summary does not contain a total entry: ${summaryPath}`)
 
-	const path = relative(root, filename).split(sep).join('/')
-	for (const [metric, minimum] of Object.entries(thresholds) as Array<[keyof typeof thresholds, number]>) {
-		const result = coverage[metric]
-		if (result.total === 0)
+	console.log([
+		'Coverage total:',
+		`lines ${percentage(total.lines)}%`,
+		`statements ${percentage(total.statements)}%`,
+		`functions ${percentage(total.functions)}%`,
+		`branches ${percentage(total.branches)}%`,
+	].join(' '))
+
+	const failures: string[] = []
+	for (const [filename, coverage] of Object.entries(summary)) {
+		if (filename === 'total')
 			continue
 
-		const percentage = result.pct === 'Unknown' ? 100 : result.pct
-		if (percentage < minimum)
-			failures.push(`${path}: ${metric} ${percentage}% < ${minimum}%`)
-	}
-}
+		const path = relative(root, filename).split(sep).join('/')
+		for (const [metric, minimum] of Object.entries(thresholds) as Array<[keyof typeof thresholds, number]>) {
+			const result = coverage[metric]
+			if (result.total === 0)
+				continue
 
-if (failures.length > 0) {
-	console.error('Per-file coverage thresholds were not met:')
-	for (const failure of failures)
-		console.error(`- ${failure}`)
-	process.exitCode = 1
-}
-else {
+			const actual = percentage(result)
+			if (actual < minimum)
+				failures.push(`${path}: ${metric} ${actual}% < ${minimum}%`)
+		}
+	}
+
+	if (failures.length > 0) {
+		console.error('Per-file coverage thresholds were not met:')
+		for (const failure of failures)
+			console.error(`- ${failure}`)
+		return false
+	}
+
 	console.log('Per-file coverage thresholds passed: lines/statements/functions >= 90%, branches >= 85%.')
+	return true
 }
