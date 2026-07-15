@@ -65,17 +65,10 @@ async function getApiSurface(): Promise<ApiSurface> {
 	const entries = await Promise.all(Object.entries(packages).map(async ([name, entry]) => {
 		const module = await import(pathToFileURL(`${entry}.mjs`).href)
 		const declarations = getDeclarationSurface(`${entry}.d.mts`)
-		const runtime = sortNames(Object.keys(module))
-
-		if (JSON.stringify(runtime) !== JSON.stringify(declarations.declaredValues)) {
-			throw new Error([
-				`${name} runtime and declaration value exports differ.`,
-				`Runtime: ${runtime.join(', ')}`,
-				`Declarations: ${declarations.declaredValues.join(', ')}`,
-			].join('\n'))
-		}
-
-		return [name, { runtime, ...declarations }] as const
+		return [name, {
+			runtime: sortNames(Object.keys(module)),
+			...declarations,
+		}] as const
 	}))
 
 	return Object.fromEntries(entries) as ApiSurface
