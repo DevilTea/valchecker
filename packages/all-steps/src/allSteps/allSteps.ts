@@ -1,5 +1,7 @@
 import * as _all from '@valchecker/internal'
 
+const runtimeExecutionStepDefMarker = Symbol.for('valchecker:runtimeExecutionStepDefMarker')
+
 type _All = typeof _all
 
 export type AllSteps = _all.ValueOf<{
@@ -8,4 +10,4 @@ export type AllSteps = _all.ValueOf<{
 
 /* @__NO_SIDE_EFFECTS__ */
 export const allSteps: AllSteps = Object.values(_all as any)
-	.filter(step => (step && typeof step === 'object' && (step as any)[_all.runtimeExecutionStepDefMarker])) as AllSteps
+	.filter(step => (step && typeof step === 'object' && (step as any)[runtimeExecutionStepDefMarker])) as AllSteps
