@@ -108,7 +108,7 @@ async function main(): Promise<void> {
 	assertNonEmptyString(plan.npmTag, 'release-plan.json.npmTag')
 	assertNonEmptyString(plan.channel, 'release-plan.json.channel')
 	if (plan.publish !== false)
-		throw new Error('release-plan.json.publish must remain false until an explicit publish request')
+		throw new Error('release-plan.json.publish must remain false; publication requires a separate explicit workflow dispatch')
 	assertExactArray(plan.packages, packageDefinitions.map(item => item.name), 'release-plan.json.packages')
 	if (!Array.isArray(plan.externalPrerequisites) || plan.externalPrerequisites.length !== 2)
 		throw new Error('release-plan.json.externalPrerequisites must list the two external publishing prerequisites')
@@ -158,7 +158,9 @@ async function main(): Promise<void> {
 
 	const changelog = await readText('CHANGELOG.md')
 	assertContains(changelog, `## [${plan.version}] - Unreleased`, 'CHANGELOG.md')
-	assertContains(changelog, `publish under the npm \`next\` tag`, 'CHANGELOG.md')
+	assertContains(changelog, `npm \`${plan.npmTag}\` tag`, 'CHANGELOG.md')
+	for (const heading of ['### Added', '### Changed', '### Removed', '### Security'])
+		assertContains(changelog, heading, 'CHANGELOG.md')
 	assertNoPlaceholders(changelog, 'CHANGELOG.md')
 
 	const migration = await readText('MIGRATION.md')
@@ -181,6 +183,7 @@ async function main(): Promise<void> {
 	assertContains(releasing, 'npm trusted publisher', 'RELEASING.md')
 	assertContains(releasing, 'publish <version> to <tag>', 'RELEASING.md')
 	assertContains(releasing, 'partial release', 'RELEASING.md')
+	assertContains(releasing, 'RC readiness checklist', 'RELEASING.md')
 	assertNoPlaceholders(releasing, 'RELEASING.md')
 
 	const releaseWorkflow = await readText('.github/workflows/release.yml')
