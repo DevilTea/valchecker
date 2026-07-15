@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
@@ -85,7 +85,7 @@ async function assertEsmOnlyPackage(packageDirectory: string): Promise<void> {
 		throw new Error(`${manifest.name} still exposes a CommonJS require condition`)
 
 	const distFiles = await listFiles(join(packageDirectory, 'dist'))
-	const forbidden = distFiles.filter(file => /\.(?:cjs|cts)$/.test(file))
+	const forbidden = distFiles.filter(file => /(?:\.cjs(?:\.map)?|\.d\.cts(?:\.map)?)$/.test(file))
 	if (forbidden.length > 0)
 		throw new Error(`${manifest.name} contains CommonJS artifacts: ${forbidden.join(', ')}`)
 }
@@ -156,15 +156,15 @@ void (async () => {
 	await writeFile(join(consumerDirectory, 'typecheck.ts'), `
 import { createValchecker, object, string, v } from 'valchecker'
 import { allSteps } from '@valchecker/all-steps'
-import type { InitialValchecker } from '@valchecker/internal'
+import type { ExecutionResult } from '@valchecker/internal'
 
 const schema = v.object({ name: v.string() })
 const result = schema.execute({ name: 'Ada' })
 const selective = createValchecker({ steps: [string, object] })
-const internalContract: InitialValchecker = selective
+const typedResult: ExecutionResult = result
 
-void result
-void internalContract
+void selective
+void typedResult
 void allSteps
 `)
 
