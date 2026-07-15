@@ -12,6 +12,7 @@ export default defineConfig({
 		nav: [
 			{ text: 'Guide', link: '/guide/quick-start' },
 			{ text: '1.0 Contract', link: '/guide/v1-contract' },
+			{ text: 'Migration', link: '/guide/migration-to-1' },
 			{ text: 'API Reference', link: '/api/overview' },
 			{ text: 'Examples', link: '/examples/basic-validation' },
 		],
@@ -22,6 +23,7 @@ export default defineConfig({
 				items: [
 					{ text: 'Quick Start', link: '/guide/quick-start' },
 					{ text: '1.0 Contract', link: '/guide/v1-contract' },
+					{ text: 'Migrating to 1.0', link: '/guide/migration-to-1' },
 					{ text: 'Core Philosophy', link: '/guide/core-philosophy' },
 					{ text: 'Custom Steps', link: '/guide/custom-steps' },
 				],
