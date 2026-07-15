@@ -10,6 +10,7 @@ on:
         default: standard
         type: choice
         options:
+          - smoke
           - standard
           - full
       adapters:
