@@ -17,7 +17,9 @@ The active candidate is defined in `release-plan.json`. It records:
 - the release channel,
 - the ordered package list,
 - external publishing prerequisites,
-- `publish: false` until an explicit publication request is made.
+- `publish: false` to assert that repository state never authorizes publication.
+
+The separate, manually dispatched and environment-approved npm workflow is the publication authorization. A pull request, merge, tag, or value committed to `release-plan.json` must never publish a package by itself.
 
 `pnpm release:readiness` validates this plan against package manifests, changelog, migration/support/releasing documents, and workflow safety properties.
 
