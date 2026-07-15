@@ -1,7 +1,7 @@
 /**
  * Benchmark plan for toAsync:
  * - Operations benchmarked: toAsync validation with various input types and sizes
- * - Input scenarios: sync/async valid inputs, failure results
+ * - Input scenarios: sync/maybe-async valid inputs, failure results
  * - Comparison baselines: Native Promise.resolve where applicable
  */
 
@@ -19,9 +19,9 @@ describe('toAsync benchmarks', () => {
 				.execute('hello')
 		})
 
-		bench('valid input - async transform', async () => {
+		bench('valid input - maybe-async transform', async () => {
 			await v.string()
-				.transform(async (x: string) => x.toUpperCase())
+				.transform((x: string): string | Promise<string> => Promise.resolve(x.toUpperCase()))
 				.toAsync()
 				.execute('hello')
 		})

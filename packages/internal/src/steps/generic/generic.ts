@@ -1,5 +1,6 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
+import { isPromiseLike } from '../../shared'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'generic'
@@ -77,13 +78,13 @@ export const generic = implStepPlugin<PluginDef>({
 					// Execute step synchronously
 					result = runtimeSteps[i]!(result)
 					// Check if current result is a promise
-					if (result instanceof Promise) {
+					if (isPromiseLike(result)) {
 						isAsync = true
 						// Once we hit async, chain all remaining steps
-						for (let j = i + 1; j < len; j++) {
-							result = result.then(runtimeSteps[j]!)
-						}
-						return result
+						let chain = Promise.resolve(result as PromiseLike<ExecutionResult>)
+						for (let j = i + 1; j < len; j++)
+							chain = chain.then(runtimeSteps[j]!)
+						return chain
 					}
 				}
 				return result

@@ -1,9 +1,9 @@
 import type { IsEqual } from 'type-fest'
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
+import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
-
 	type Branches = [Use<Valchecker>, ...Use<Valchecker>[]]
 
 	type OpMode<B extends Branches> = (
@@ -13,15 +13,9 @@ declare namespace Internal {
 				: never
 			: never
 	) extends infer M extends OperationMode
-		// Because union may short-circuit, if there is any mixed mode or 'maybe-async', result is 'maybe-async'
-		// If all branches are sync, result is sync
 		? IsEqual<M, 'sync'> extends true
 			? 'sync'
-			// If any branch is async, result is async
-			: IsEqual<M, 'async'> extends true
-				? 'async'
-				// Otherwise, result is maybe-async
-				: 'maybe-async'
+			: 'maybe-async'
 		: never
 
 	type Output<B extends Branches> = B[number] extends infer S
@@ -45,7 +39,8 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value passes at least one of the provided branches.
+	 * Checks that the value passes at least one of the provided branches and returns
+	 * the first successful branch output.
 	 *
 	 * ---
 	 *
@@ -84,70 +79,48 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const union = implStepPlugin<PluginDef>({
 	union: ({
-		utils: { addSuccessStep, success, failure, isFailure },
+		utils: { addSuccessStep, failure, isFailure },
 		params: [branches],
 	}) => {
-		// Pre-compute execute functions to avoid proxy access in loop
-		const branchExecutors = branches.map(b => b['~execute'])
-		const len = branches.length
+		const branchExecutors = branches.map(branch => branch['~execute'])
+		const len = branchExecutors.length
 
 		addSuccessStep((value) => {
-			// Optimized: Direct processing without Pipe overhead
 			const issues: ExecutionIssue[] = []
 
-			const processBranchResult = (result: ExecutionResult) => {
+			const processBranchResult = (result: ExecutionResult): ExecutionSuccessResult<unknown> | null => {
 				if (isFailure(result)) {
-					// Optimize: Avoid spread by using direct loop
-					for (const issue of result.issues!) {
+					for (const issue of result.issues)
 						issues.push(issue)
-					}
-					return false
+					return null
 				}
-				return true
+				return result
 			}
 
-			// Try each branch synchronously until we hit async or find success
-			let isAsync = false
 			for (let i = 0; i < len; i++) {
-				if (isAsync) {
-					// Already in async mode, skip
-					continue
-				}
 				const branchResult = branchExecutors[i]!(value)
 
-				if (branchResult instanceof Promise) {
-					isAsync = true
-					// Hit async, chain remaining branches
-					let chain = branchResult.then((r) => {
-						if (processBranchResult(r)) {
-							return { success: true }
-						}
-						return { success: false }
-					})
-
+				if (isPromiseLike(branchResult)) {
+					let chain = Promise.resolve(branchResult)
+						.then(processBranchResult)
 					for (let j = i + 1; j < len; j++) {
-						const jExecutor = branchExecutors[j]!
-						chain = chain.then((result) => {
-							if (result.success)
-								return result
-							return Promise.resolve(jExecutor(value))
-								.then(r => ({
-									success: processBranchResult(r),
-								}))
+						const execute = branchExecutors[j]!
+						chain = chain.then((successResult) => {
+							if (successResult != null)
+								return successResult
+							return Promise.resolve(execute(value))
+								.then(processBranchResult)
 						})
 					}
-
-					return chain.then(result =>
-						(result.success || issues.length === 0) ? success(value) : failure(issues),
-					)
+					return chain.then(successResult => successResult ?? failure(issues))
 				}
 
-				if (processBranchResult(branchResult)) {
-					return success(value)
-				}
+				const successResult = processBranchResult(branchResult)
+				if (successResult != null)
+					return successResult
 			}
 
-			return issues.length === 0 ? success(value) : failure(issues)
+			return failure(issues)
 		})
 	},
 })

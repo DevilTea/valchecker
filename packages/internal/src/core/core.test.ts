@@ -505,7 +505,7 @@ describe('core module', () => {
 				.toBe('Invalid value.')
 		})
 
-		it('should handle undefined custom message function', () => {
+		it('should prefer global message over default when custom is undefined', () => {
 			const result = resolveMessagePriority({
 				data: { code: 'test:error', payload: { value: 'test' }, path: [] },
 				customMessage: undefined,
@@ -514,7 +514,7 @@ describe('core module', () => {
 			})
 
 			expect(result)
-				.toBe('Default message')
+				.toBe('Global message')
 		})
 
 		it('should include path in message resolution', () => {
@@ -545,7 +545,7 @@ describe('core module', () => {
 				.toBe('C:test:error')
 		})
 
-		it('should fall back to default message map when custom does not match', () => {
+		it('should prefer the global message map when custom does not match', () => {
 			const result = resolveMessagePriority({
 				data: { code: 'test:error', payload: {}, path: [] },
 				customMessage: { 'other:error': () => 'C' } as any,
@@ -554,7 +554,7 @@ describe('core module', () => {
 			})
 
 			expect(result)
-				.toBe('D:test:error')
+				.toBe('G')
 		})
 
 		it('should fall back to global message map when custom and default do not match', () => {

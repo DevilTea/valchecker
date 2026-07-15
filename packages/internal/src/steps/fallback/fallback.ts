@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
-import type { IsEqual, IsPromise, MaybePromise } from '../../shared'
+import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
 	export type Issue<I extends ExecutionIssue = ExecutionIssue> = ExecutionIssue<'fallback:failed', { receivedIssues: I[], error?: unknown }>
@@ -37,13 +38,13 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			?	InferOutput<This> extends infer CurrentOutput
-				?	<Result extends MaybePromise<CurrentOutput>>(
+				?	<Result extends MaybePromiseLike<CurrentOutput>>(
 						run: (issues: InferIssue<This>[]) => Result,
 						message?: MessageHandler<Internal.Issue<InferIssue<This>>>,
 					) => Next<
 						{
 							operationMode: IsEqual<IsPromise<Result>, true> extends true
-								? 'async'
+								? 'maybe-async'
 								: IsEqual<IsPromise<Result>, false> extends true
 									? 'sync'
 									: 'maybe-async'
@@ -75,8 +76,8 @@ export const fallback = implStepPlugin<PluginDef>({
 			}
 			try {
 				const result = run(issues)
-				return result instanceof Promise
-					?	result
+				return isPromiseLike(result)
+					?	Promise.resolve(result)
 							.then(res => success(res))
 							.catch(err => handleError(err))
 					:	success(result)

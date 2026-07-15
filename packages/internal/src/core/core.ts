@@ -1,4 +1,4 @@
-import type { AnyFn, MaybePromise } from '../shared'
+import type { AnyFn, MaybePromise, MaybePromiseLike } from '../shared'
 import type {
 	ExecutionFailureResult,
 	ExecutionIssue,
@@ -12,7 +12,7 @@ import type {
 	StepPluginImpl,
 	TStepPluginDef,
 } from './types'
-import { runtimeExecutionStepDefMarker } from '../shared'
+import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 /* @__NO_SIDE_EFFECTS__ */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(stepImpl: StepPluginImpl<StepPluginDef>): StepPluginImpl<StepPluginDef> {
@@ -32,28 +32,16 @@ export function isFailure(result: ExecutionResult): result is ExecutionFailureRe
 
 /* @__NO_SIDE_EFFECTS__ */
 export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['path']): ExecutionIssue {
-	if (path == null || path.length === 0) {
+	if (path == null || path.length === 0)
 		return issue
-	}
-	// Optimize: Avoid spread operator and Array.from for better performance
+
 	const existingPath = issue.path
-	if (existingPath == null || existingPath.length === 0) {
-		(issue as any).path = path
+	return {
+		...issue,
+		path: existingPath == null || existingPath.length === 0
+			? [...path]
+			: [...path, ...existingPath],
 	}
-	else {
-		// Direct array allocation with known length is faster
-		const pathLen = path.length
-		const existingLen = existingPath.length
-		const newPath = Array.from({ length: pathLen + existingLen })
-		for (let i = 0; i < pathLen; i++) {
-			newPath[i] = path[i]
-		}
-		for (let i = 0; i < existingLen; i++) {
-			newPath[pathLen + i] = existingPath[i]
-		}
-		(issue as any).path = newPath
-	}
-	return issue
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -63,26 +51,16 @@ export function createPipeExecutor({
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
 }): (value: unknown) => MaybePromise<ExecutionResult> {
 	return (value: unknown) => {
-		// Optimized: Direct execution without Pipe overhead
 		const len = runtimeSteps.length
-		let result: any = { value } as ExecutionResult
-		let isAsync = false
+		let result: MaybePromise<ExecutionResult> = { value }
 
 		for (let i = 0; i < len; i++) {
-			if (isAsync) {
-				// Already in async mode, skip synchronous execution
-				continue
-			}
-			// Execute step synchronously
-			result = runtimeSteps[i]!(result)
-			// Check if current result is a promise
-			if (result instanceof Promise) {
-				isAsync = true
-				// Once we hit async, chain all remaining steps
-				for (let j = i + 1; j < len; j++) {
-					result = result.then(runtimeSteps[j]!)
-				}
-				return result
+			result = runtimeSteps[i]!(result as ExecutionResult)
+			if (isPromiseLike(result)) {
+				let chain = Promise.resolve(result)
+				for (let j = i + 1; j < len; j++)
+					chain = chain.then(runtimeSteps[j]!)
+				return chain
 			}
 		}
 		return result
@@ -102,9 +80,11 @@ export function handleMessage(
 		return message
 	if (typeof message === 'function')
 		return message(data)
-	const _message = (message as any)[data.code]
-	if (_message != null)
-		return _message(data)
+	if (Object.hasOwn(message, data.code)) {
+		const mappedMessage = (message as any)[data.code]
+		if (typeof mappedMessage === 'function')
+			return mappedMessage(data)
+	}
 	return null
 }
 
@@ -127,12 +107,12 @@ export function resolveMessagePriority({
 	const customMsg = handleMessage(data, customMessage)
 	if (customMsg != null)
 		return customMsg
-	const defaultMsg = handleMessage(data, defaultMessage)
-	if (defaultMsg != null)
-		return defaultMsg
 	const globalMsg = handleMessage(data, globalMessage)
 	if (globalMsg != null)
 		return globalMsg
+	const defaultMsg = handleMessage(data, defaultMessage)
+	if (defaultMsg != null)
+		return defaultMsg
 	return 'Invalid value.'
 }
 
@@ -159,7 +139,7 @@ function createExecutionStepMethodUtils(
 	resolveMessage: ResolveMessageFn,
 ): StepMethodUtils<any, any, any> {
 	const wrapWithErrorHandling = (
-		fn: (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>,
+		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
 	) => (lastResult: ExecutionResult) => {
 		const failure = (error: unknown) => ({
 			issues: [{
@@ -171,8 +151,9 @@ function createExecutionStepMethodUtils(
 		})
 		try {
 			const r = fn(lastResult)
-			return r instanceof Promise
-				? r.catch(error => failure(error))
+			return isPromiseLike(r)
+				? Promise.resolve(r)
+						.catch(error => failure(error))
 				: r
 		}
 		catch (error) {
@@ -293,6 +274,16 @@ function createInstance({
 	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps }))
 }
 
+const reservedStepMethodNames = new Set<PropertyKey>([
+	'~standard',
+	'~core',
+	'~execute',
+	'execute',
+	'isSuccess',
+	'isFailure',
+	'then',
+])
+
 /* @__NO_SIDE_EFFECTS__ */
 export function createValchecker<
 	ExecutionSteps extends StepPluginImpl<any>[],
@@ -310,9 +301,23 @@ export function createValchecker<
 		}>
 	>
 }) {
-	const stepMethods = {} as Record<PropertyKey, unknown>
+	const stepMethods = Object.create(null) as Record<PropertyKey, unknown>
 	for (const def of steps) {
-		Object.assign(stepMethods, def)
+		for (const method of Reflect.ownKeys(def)) {
+			if (method === runtimeExecutionStepDefMarker)
+				continue
+			if (typeof method !== 'string')
+				throw new TypeError(`Invalid step method name: ${String(method)}`)
+			if (reservedStepMethodNames.has(method))
+				throw new TypeError(`Reserved step method: ${method}`)
+			if (Object.hasOwn(stepMethods, method))
+				throw new TypeError(`Duplicate step method: ${method}`)
+
+			const stepMethod = Reflect.get(def, method)
+			if (typeof stepMethod !== 'function')
+				throw new TypeError(`Invalid step method: ${method}`)
+			stepMethods[method] = stepMethod
+		}
 	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
 

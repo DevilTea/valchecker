@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
-import type { IsEqual, IsPromise, MaybePromise } from '../../shared'
+import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { returnTrue } from '../../shared'
+import { isPromiseLike, returnTrue } from '../../shared'
 
 declare namespace Internal {
 	export type True<T> = true & { readonly '~output': T }
@@ -9,7 +9,7 @@ declare namespace Internal {
 		readonly narrow: <T extends Input>() => True<T>
 		readonly addIssue: (issue: I) => void
 	}
-	export type RunCheckResult = MaybePromise<void | boolean | string | True<any>>
+	export type RunCheckResult = MaybePromiseLike<void | boolean | string | True<any>>
 	export type RunCheck<Input = any, I extends ExecutionIssue = ExecutionIssue, Result extends RunCheckResult = RunCheckResult> = (value: Input, utils: RunCheckUtils<Input, I>) => Result
 
 	export type Issue<Input = unknown> = ExecutionIssue<'check:failed', { value: Input, error?: unknown }>
@@ -123,7 +123,7 @@ interface PluginDef extends TStepPluginDef {
 							) => Next<
 								{
 									operationMode: IsEqual<IsPromise<Result>, true> extends true
-										? 'async'
+										? 'maybe-async'
 										: IsEqual<IsPromise<Result>, false> extends true
 											? 'sync'
 											: 'maybe-async'
@@ -188,8 +188,8 @@ export const check = implStepPlugin<PluginDef>({
 						? failure(issues)
 						: success(value)
 				}
-				return checkResult instanceof Promise
-					?	checkResult
+				return isPromiseLike(checkResult)
+					?	Promise.resolve(checkResult)
 							.then(processCheckResult)
 							.catch(err => handleError(err))
 					:	processCheckResult(checkResult)
