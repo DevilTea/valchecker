@@ -1,12 +1,18 @@
 # API Overview
 
-This reference documents the complete public API of Valchecker. Each validation step is designed to be composable, type-safe, and runtime-focused.
+This reference summarizes Valchecker's public schema API. The normative compatibility and semantic definition is the [Valchecker 1.0 Contract](/guide/v1-contract).
 
-## Import Strategies
+## Import strategies
 
-Valchecker provides two ways to import validation steps:
+### Default instance
 
-### All Steps (Convenience)
+```ts
+import { v } from 'valchecker'
+```
+
+The default instance contains every built-in step.
+
+### Custom instance with all steps
 
 ```ts
 import { allSteps, createValchecker } from 'valchecker'
@@ -14,141 +20,160 @@ import { allSteps, createValchecker } from 'valchecker'
 const v = createValchecker({ steps: allSteps })
 ```
 
-Bundles every built-in step into your valchecker instance. Best for:
-- Rapid prototyping
-- CLI tools
-- Applications where bundle size isn't critical
-
-### Selective Imports (Tree-Shaking)
+### Selective imports
 
 ```ts
 import { createValchecker, number, object, string } from 'valchecker'
 
-const v = createValchecker({ steps: [string, number, object] })
+const v = createValchecker({
+	steps: [string, number, object],
+})
 ```
 
-Import only what you need for optimal bundle size. Recommended for:
-- Production web applications
-- Libraries shipped to npm
-- Any size-sensitive deployment
+Use selective plugins when the importing application needs explicit control over its runtime step set.
 
-## Complete Step Reference
+## Primitive validators
 
-All 46 built-in steps, organized by category:
+- `string()` — string values
+- `number()` — finite number values
+- `boolean()` — boolean values
+- `bigint()` — bigint values
+- `symbol()` — symbol values
+- `literal(value)` — exact literal match
+- `null_()` — `null`
+- `undefined_()` — `undefined`
+- `unknown()` — passthrough typed as `unknown`
+- `any()` — passthrough typed as `any`
+- `never()` — always fails
 
-### Primitive Type Validators
-- `string()` - Validates string type
-- `number()` - Validates finite number type
-- `boolean()` - Validates boolean type
-- `bigint()` - Validates bigint type
-- `symbol()` - Validates symbol type
-- `literal(value)` - Validates exact value match
-- `unknown()` - Passthrough validator (accepts any)
-- `any()` - Passthrough with `any` type
-- `never()` - Always fails validation
+## Structure validators
 
-### Nullish Type Validators
-- `null_()` - Validates null
-- `undefined_()` - Validates undefined
+- `object(shape)` — validates declared own properties and omits unknown properties from output
+- `strictObject(shape)` — validates declared own properties and rejects unknown enumerable own string and symbol keys
+- `looseObject(shape)` — validates declared own properties and preserves unknown own properties
+- `array(elementSchema)` — validates and transforms each array element
+- `union(schemas)` — returns the first successful branch's transformed output
+- `intersection(schemas)` — composes compatible branch outputs
+- `instance(constructor)` — validates a class instance
 
-### Structure Validators
-- `object(shape)` - Validates object with specific properties (unknown keys allowed)
-- `strictObject(shape)` - Validates object and rejects unknown keys
-- `looseObject(shape)` - Alias for `object()` (explicitly allows unknown keys)
-- `array(elementSchema)` - Validates each array element
-- `union(schemas)` - Tries each schema, returns first success
-- `intersection(schemas)` - Merges multiple object schemas
-- `instance(constructor)` - Validates class instance
-
-### Constraint Validators
-- `min(value)` - Validates minimum (for number, bigint, or length)
-- `max(value)` - Validates maximum (for number, bigint, or length)
-- `integer()` - Validates integer (no decimals)
-- `empty()` - Validates empty (length === 0)
-- `startsWith(prefix)` - Validates string prefix
-- `endsWith(suffix)` - Validates string suffix
-
-### Data Transformation Steps
-- `transform(fn)` - Custom transformation function
-- `toTrimmed()` - Trim whitespace from both ends
-- `toTrimmedStart()` - Trim whitespace from start
-- `toTrimmedEnd()` - Trim whitespace from end
-- `toUppercase()` - Convert to uppercase
-- `toLowercase()` - Convert to lowercase
-- `toString()` - Convert to string
-- `toSorted(fn?)` - Sort array
-- `toFiltered(predicate)` - Filter array elements
-- `toSliced(start, end?)` - Slice array
-- `toSplitted(separator)` - Split string into array
-- `toLength()` - Replace array with its length
-- `toAsync()` - Force async operation mode
-- `parseJSON()` - Parse JSON string to value
-- `stringifyJSON()` - Stringify value to JSON
-- `json()` - Validate JSON string (no parse)
-
-### Flow Control Steps
-- `check(predicate)` - Custom validation check
-- `fallback(getValue)` - Provide default on failure
-- `use(schema)` - Delegate to another schema
-- `as<T>()` - Type cast (runtime no-op)
-- `generic<T>(factory)` - Recursive schema support
-
-### Loose Variants
-- `looseNumber()` - Coerce strings to numbers
-- `looseObject(shape)` - Object with unknown keys allowed
-
-## Execution API
-
-### Result Type
-
-Every schema returns results of this shape:
+A one-element tuple marks an object property as optional:
 
 ```ts
-type ExecutionResult<T>
+const schema = v.object({
+	required: v.string(),
+	optional: [v.number()],
+})
+```
+
+See [Object schemas](/guide/v1-contract#object-schemas), [Union semantics](/guide/v1-contract#union-semantics), and [Intersection semantics](/guide/v1-contract#intersection-semantics) for exact behavior.
+
+## Constraints
+
+- `min(value)` — minimum numeric value or minimum length
+- `max(value)` — maximum numeric value or maximum length
+- `integer()` — integer numbers
+- `empty()` — values whose supported length is zero
+- `startsWith(prefix)` — string prefix
+- `endsWith(suffix)` — string suffix
+
+## Transformations
+
+- `transform(fn)` — custom output transformation
+- `toTrimmed()` — trim both ends
+- `toTrimmedStart()` — trim the start
+- `toTrimmedEnd()` — trim the end
+- `toUppercase()` — uppercase string
+- `toLowercase()` — lowercase string
+- `toString()` — convert a supported value to string
+- `toSorted(compare?)` — sorted array output
+- `toFiltered(predicate)` — filtered array output
+- `toSliced(start, end?)` — sliced output
+- `toSplitted(separator)` — split string output
+- `toLength()` — length output
+- `parseJSON()` — parse a JSON string
+- `stringifyJSON()` — stringify a supported value
+- `json()` — JSON-compatible value validation
+- `toAsync()` — force the complete schema to return a native promise
+
+## Flow control
+
+- `check(predicate)` — custom validation
+- `fallback(getValue)` — recover from an earlier failure
+- `use(schema)` — delegate to another schema
+- `as<T>()` — compile-time assertion with no runtime validation
+- `generic<T>(factory)` — lazy/recursive schema construction
+
+Callback-driven steps may return direct or `PromiseLike` values according to their individual contract.
+
+## Loose primitives
+
+- `looseNumber()` — accepts supported number-like inputs and produces a number
+
+## Execution result
+
+```ts
+type ExecutionResult<T, Issue>
 	= | { value: T }
-		| { issues: ExecutionIssue[] }
+		| { issues: Issue[] }
 
 interface ExecutionIssue {
-	code: string // e.g., 'string:expected_string'
-	message: string // Human-readable error
-	path: PropertyKey[] // Location in data: ['user', 'email']
-	payload: unknown // Issue-specific data
+	code: string
+	message: string
+	path: PropertyKey[]
+	payload: unknown
 }
 ```
 
-### Execution Methods
+Use the exported helpers or discriminate by `value`/`issues`:
 
 ```ts
-// Sync when possible, async if needed
-const result = schema.execute(input)
-// Returns: ExecutionResult<T> | Promise<ExecutionResult<T>>
-
-// Always async
 const result = await schema.execute(input)
-// Returns: Promise<ExecutionResult<T>>
+
+if (v.isSuccess(result)) {
+	result.value
+}
+else {
+	result.issues
+}
 ```
 
-## API Categories
+## Execution modes
 
-Navigate to specific category pages for detailed documentation:
+`execute()` does not have one universal return shape:
 
-- **[Primitives](/api/primitives)** - Base type validators
-- **[Structures](/api/structures)** - Compound type validators
-- **[Transforms](/api/transforms)** - Data reshaping steps
-- **[Helpers](/api/helpers)** - Flow control and utilities
+```ts
+const synchronousResult = v.string().execute('value')
+// ExecutionResult<string>
 
-## Method Chaining
+const maybeAsyncSchema = v.string().check(async value => value.length > 0)
+const reachedAsyncWork = maybeAsyncSchema.execute('value')
+// Promise<ExecutionResult<string>>
 
-All steps support method chaining to build complex pipelines:
+const earlyFailure = maybeAsyncSchema.execute(42)
+// Synchronous failure because the async callback is not reached.
+```
+
+`await schema.execute(input)` is safe for either mode, but `await` does not change the schema's return type. Append `.toAsync()` when every invocation must return a native promise.
+
+## Method chaining
+
+Every step returns a new immutable schema:
 
 ```ts
 const schema = v.string()
-	.toTrimmed() // Transform
-	.check(s => s.length > 0, 'Required') // Validate
-	.toLowercase() // Transform
-	.check(s => /^[a-z]+$/.test(s)) // Validate
+	.toTrimmed()
+	.check(value => value.length > 0, 'Required')
+	.toLowercase()
 ```
 
-## Standard Schema Compliance
+## Standard Schema V1
 
-Valchecker implements [Standard Schema V1](https://github.com/standard-schema/standard-schema), enabling interoperability with compatible libraries and tools.
+Every schema exposes `~standard` for Standard Schema V1 integrations. It preserves synchronous or asynchronous completion and returns transformed output on success.
+
+## Detailed references
+
+- **[Valchecker 1.0 Contract](/guide/v1-contract)** — normative behavior and compatibility
+- **[Primitives](/api/primitives)** — primitive validators
+- **[Structures](/api/structures)** — object, array, union and intersection
+- **[Transforms](/api/transforms)** — output transformations
+- **[Helpers](/api/helpers)** — flow control and utilities
