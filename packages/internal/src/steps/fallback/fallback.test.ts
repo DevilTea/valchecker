@@ -1,29 +1,8 @@
 /**
  * Test Plan for fallback.ts
  *
- * This test file covers the `fallback` step plugin implementation.
- *
- * Functions and Classes:
- * - fallback: The step plugin that provides a fallback value when previous validation fails.
- *
- * Input Scenarios:
- * - Previous step succeeds: should not run fallback.
- * - Previous step fails: should run fallback function.
- * - Fallback function throws error: should return fallback:failed issue.
- * - Async fallback function: should handle promises.
- * - Custom message: should use custom message for fallback failure.
- * - Issues passed to fallback: should receive issues array.
- *
- * Expected Outputs and Behaviors:
- * - Success: Returns the original value if no fallback needed.
- * - Fallback success: Returns the fallback value.
- * - Fallback failure: Issues with code 'fallback:failed'.
- * - Async: Promise resolution.
- *
- * Error Handling and Exceptions:
- * - No exceptions; fallback errors handled via issues.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
+ * Covers bypassed, synchronous, asynchronous, throwing, and rejecting fallback
+ * paths, including received issues and custom messages.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -87,6 +66,31 @@ describe('fallback plugin', () => {
 			const result = v.number()
 				.fallback(() => {
 					throw new Error('Fallback error')
+				})
+				.execute('not a number')
+			expect(result)
+				.toEqual({
+					issues: [{
+						code: 'fallback:failed',
+						message: 'Fallback failed',
+						path: [],
+						payload: {
+							receivedIssues: [{
+								code: 'number:expected_number',
+								message: 'Expected a number (NaN is not allowed).',
+								path: [],
+								payload: { value: 'not a number' },
+							}],
+							error: expect.any(Error),
+						},
+					}],
+				})
+		})
+
+		it('should handle fallback function that rejects', async () => {
+			const result = await v.number()
+				.fallback(async () => {
+					throw new Error('Rejected fallback error')
 				})
 				.execute('not a number')
 			expect(result)

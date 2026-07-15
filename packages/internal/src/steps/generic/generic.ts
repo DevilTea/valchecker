@@ -68,19 +68,10 @@ export const generic = implStepPlugin<PluginDef>({
 				const runtimeSteps = stepOrFactory()['~core'].runtimeSteps
 				const len = runtimeSteps.length
 				let result: any = lastResult
-				let isAsync = false
 
 				for (let i = 0; i < len; i++) {
-					if (isAsync) {
-					// Already in async mode, skip synchronous execution
-						continue
-					}
-					// Execute step synchronously
 					result = runtimeSteps[i]!(result)
-					// Check if current result is a promise
 					if (isPromiseLike(result)) {
-						isAsync = true
-						// Once we hit async, chain all remaining steps
 						let chain = Promise.resolve(result as PromiseLike<ExecutionResult>)
 						for (let j = i + 1; j < len; j++)
 							chain = chain.then(runtimeSteps[j]!)

@@ -8,14 +8,14 @@
  *
  * Input Scenarios:
  * - Using generic with direct step: number, string.
- * - Using generic with factory function: string.
+ * - Using generic with factory function: sync and async pipelines.
  * - Integration with other steps: inside array, inside object.
  * - Invalid inputs: when added step fails.
  *
  * Expected Outputs and Behaviors:
  * - Success: The added step executes correctly, returns value.
  * - Failure: Issues from the added step.
- * - Async: Not applicable.
+ * - Async: Factory pipelines assimilate promises and continue remaining steps.
  *
  * Error Handling and Exceptions:
  * - No exceptions; all errors handled via issues from the added step.
@@ -24,9 +24,9 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { array, createValchecker, generic, number, object, string } from '../..'
+import { array, createValchecker, generic, number, object, string, transform } from '../..'
 
-const v = createValchecker({ steps: [generic, array, number, object, string] })
+const v = createValchecker({ steps: [generic, array, number, object, string, transform] })
 
 describe('generic plugin', () => {
 	describe('valid generics (direct step)', () => {
@@ -67,6 +67,15 @@ describe('generic plugin', () => {
 			const result = schema.execute('world')
 			expect(result)
 				.toEqual({ value: 'world' })
+		})
+
+		it('should continue the factory pipeline after an async step', async () => {
+			const schema = v.generic<{ operationMode: 'maybe-async', output: string }>(() => v.string()
+				.transform(async value => value.trim())
+				.transform(value => value.toUpperCase()))
+
+			await expect(schema.execute('  async  '))
+				.resolves.toEqual({ value: 'ASYNC' })
 		})
 
 		it('should handle recursive structures using generic', () => {
