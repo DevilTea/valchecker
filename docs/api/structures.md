@@ -1,140 +1,149 @@
 # Structures
 
-Structural validators orchestrate nested validation pipelines and maintain proper issue paths for complex data shapes.
+Structural validators compose nested schemas and prepend property keys or array indexes to child issue paths without mutating the child issue object.
+
+The normative edge-case behavior is defined in the [Valchecker 1.0 Contract](/guide/v1-contract#object-schemas).
 
 ## `object(shape, message?)`
 
-Validates an object with specified properties. Unknown keys are allowed by default (see `strictObject()` for strict mode).
+Validates declared fields from own properties. Unknown input properties do not cause failure, but they are omitted from the output.
 
-**Parameters**:
-- `shape`: Object mapping keys to schemas
-- Properties can be wrapped in `[]` to make them optional
-- `message`: Custom error message or handler
+**Issues**:
 
-**Issue Codes**:
-- `'object:expected_object'`: Value is not an object or is an array/null
-- Plus any issues from nested property validators
+- `object:expected_object` — the input is not a non-null, non-array object
+- issues produced by declared field schemas
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 const user = v.object({
 	id: v.string(),
-	name: v.string()
-		.toTrimmed(),
-	age: [v.number()
-		.min(0)], // Optional
+	name: v.string().toTrimmed(),
+	age: [v.number().min(0)],
 })
 
-user.execute({ id: '123', name: '  Alice  ' })
+await user.execute({
+	id: '123',
+	name: '  Alice  ',
+	extra: 'ignored',
+})
 // { value: { id: '123', name: 'Alice', age: undefined } }
-
-user.execute({ id: '123', name: '  Alice  ', extra: 'ignored' })
-// { value: { id: '123', name: 'Alice', age: undefined } }
-// Note: 'extra' is stripped from output
 ```
 
-### Type Inference
+A declared inherited value does not count as an input property:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-type User = InferOutput<typeof user>
-// { id: string; name: string; age: number | undefined }
+const input = Object.create({ id: 'inherited' })
+await v.object({ id: v.string() }).execute(input)
+// Failure at path ['id']
 ```
 
 ## `strictObject(shape, message?)`
 
-Like `object()` but rejects unknown keys.
+Validates declared own fields and rejects unknown enumerable own keys, including symbols.
 
-**Issue Codes**:
-- `'object:expected_object'`: Value is not an object
-- `'object:unknown_key'`: Object contains keys not in shape
+**Issues**:
+
+- `strictObject:expected_object` — the input is not a non-null, non-array object
+- `strictObject:unexpected_keys` — unknown keys were found; payload `keys` is `PropertyKey[]`
+- issues produced by declared field schemas
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 const strict = v.strictObject({
 	id: v.string(),
 })
 
-strict.execute({ id: '123', extra: 'not allowed' })
-// { issues: [{ code: 'object:unknown_key', ... }] }
-
-strict.execute({ id: '123' })
-// { value: { id: '123' } }
+await strict.execute({ id: '123', extra: true })
+// { issues: [{ code: 'strictObject:unexpected_keys', ... }] }
 ```
+
+Unknown-key detection happens before declared field validation.
 
 ## `looseObject(shape, message?)`
 
-Alias for `object()`. Explicitly allows unknown keys while validating declared properties.
+Validates declared own fields and preserves unknown own properties in the output. It is not an alias for `object()`.
+
+**Issues**:
+
+- `looseObject:expected_object` — the input is not a non-null, non-array object
+- issues produced by declared field schemas
+
+```ts
+const loose = v.looseObject({
+	name: v.string().toTrimmed(),
+})
+
+await loose.execute({
+	name: '  Alice  ',
+	metadata: { source: 'import' },
+})
+// {
+//   value: {
+//     name: 'Alice',
+//     metadata: { source: 'import' },
+//   },
+// }
+```
+
+Descriptors of unknown properties are preserved. Declared validated properties are materialized as normal writable data properties so an input getter or read-only descriptor cannot retain a stale value.
+
+## Optional fields
+
+Wrap a schema in a one-element tuple:
+
+```ts
+const schema = v.object({
+	required: v.string(),
+	optional: [v.number()],
+})
+```
+
+The input property may be absent. The declared output property is `undefined` when absent.
+
+## Safe `__proto__` fields
+
+When `__proto__` is declared in the shape, the validated output receives an own enumerable data property. Valchecker does not invoke the legacy prototype setter.
 
 ## `array(elementSchema, message?)`
 
-Validates each element of an array with the provided schema.
+Validates each element in index order and returns an array of transformed element outputs.
 
-**Issue Codes**:
-- `'array:expected_array'`: Value is not an array
-- Plus any issues from element validators (with index in path)
+**Issues**:
+
+- `array:expected_array` — the input is not an array
+- element issues with the numeric index prepended to their path
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const tags = v.array(v.string()
-	.toLowercase())
+const tags = v.array(v.string().toLowercase())
 	.min(1)
 	.max(5)
 
-tags.execute(['JS', 'TS', 'NODE'])
+await tags.execute(['JS', 'TS', 'NODE'])
 // { value: ['js', 'ts', 'node'] }
 
-tags.execute(['a', 123, 'c'])
-// { issues: [{ path: [1], code: 'string:expected_string', ... }] }
-
-tags.execute([])
-// { issues: [{ code: 'min:expected_min', ... }] }
+await tags.execute(['valid', 123])
+// issues[0].path === [1]
 ```
 
-**Chainable Methods**:
-- `min(count)` - Minimum array length
-- `max(count)` - Maximum array length
-- `toFiltered(predicate)` - Filter elements
-- `toSorted(compareFn?)` - Sort array
-- `toSliced(start, end?)` - Slice array
-- `toLength()` - Replace array with its length (number)
+Common array-compatible steps include `min`, `max`, `toFiltered`, `toSorted`, `toSliced`, and `toLength`.
 
-## `union(schemas, message?)`
+## `union(schemas)`
 
-Tries each schema in order, returns the first success. Fails only if all schemas fail.
-
-**Issue Code**: Union itself doesn't produce issues; you see issues from branches if all fail
+Evaluates branches in declaration order and returns the first successful branch's transformed output.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const id = v.union([
-	v.string()
-		.toTrimmed(),
-	v.number()
-		.integer()
-		.min(0),
+const identifier = v.union([
+	v.string().toTrimmed().transform(value => value.length),
+	v.number().integer().min(0),
 ])
 
-id.execute('abc') // { value: 'abc' }
-id.execute(123) // { value: 123 }
-id.execute(true) // { issues: [from first branch, from second branch] }
-
-type ID = InferOutput<typeof id>
-// string | number
+await identifier.execute(' abc ')
+// { value: 3 }
 ```
 
-### Discriminated Unions
+If every branch fails, the failure contains collected branch issues. Branch order can affect the selected output and performance.
 
-For objects with a discriminator field:
+### Discriminated unions
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 const event = v.union([
 	v.object({
 		type: v.literal('click'),
@@ -146,19 +155,15 @@ const event = v.union([
 		key: v.string(),
 	}),
 ])
-
-type Event = InferOutput<typeof event>
-// | { type: 'click'; x: number; y: number }
-// | { type: 'keypress'; key: string }
 ```
 
-## `intersection(schemas, message?)`
+Valchecker does not require a separate discriminated-union primitive; ordered object branches and literal fields provide the behavior.
 
-Runs all schemas and merges their results. All schemas must pass.
+## `intersection(schemas)`
+
+Executes every branch and composes compatible outputs.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 const timestamped = v.object({
 	createdAt: v.number(),
 	updatedAt: v.number(),
@@ -170,54 +175,41 @@ const auditable = v.object({
 })
 
 const entity = v.intersection([timestamped, auditable])
-
-entity.execute({
-	createdAt: 1234567890,
-	updatedAt: 1234567890,
-	createdBy: 'alice',
-	updatedBy: 'bob',
-})
-// { value: { createdAt: ..., updatedAt: ..., createdBy: ..., updatedBy: ... } }
-
-type Entity = InferOutput<typeof entity>
-// { createdAt: number; updatedAt: number; createdBy: string; updatedBy: string }
 ```
+
+Only plain objects are recursively composed. The merge supports enumerable string and symbol keys, compatible cycles, and shared-reference topology.
+
+Equal primitive values and the same non-plain reference are preserved. Distinct `Date`, `Map`, class, or other non-plain instances conflict rather than being spread into `{}`.
+
+**Issue**:
+
+- `intersection:conflicting_outputs` — branch outputs cannot be composed; the payload contains the original outputs
+
+After the first asynchronous branch is encountered, remaining branches start together. A synchronous failure encountered before asynchronous work remains fail-fast.
+
+See [Intersection semantics](/guide/v1-contract#intersection-semantics) for the complete graph merge contract.
 
 ## `instance(constructor, message?)`
 
-Validates that a value is an instance of the given constructor.
+Validates with `instanceof` against the provided constructor.
 
-**Issue Code**: `'instance:expected_instance'`
+**Issue**:
+
+- `instance:expected_instance`
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 const dateSchema = v.instance(Date)
 
-dateSchema.execute(new Date()) // { value: Date }
-dateSchema.execute('2024-01-01') // { issues: [...] }
+await dateSchema.execute(new Date())
+// { value: Date }
 
-// Custom classes
-class User {
-	constructor(public name: string) {}
-}
-
-const userInstance = v.instance(User)
-userInstance.execute(new User('Alice')) // { value: User { name: 'Alice' } }
-
-// Built-in types
-const regexSchema = v.instance(RegExp)
-const errorSchema = v.instance(Error)
-const mapSchema = v.instance(Map)
+await dateSchema.execute('2026-01-01')
+// { issues: [...] }
 ```
 
-## Nested Issue Paths
-
-Structural validators automatically prepend keys or indexes to issue paths:
+## Nested issue paths
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 const schema = v.object({
 	users: v.array(
 		v.object({
@@ -228,57 +220,15 @@ const schema = v.object({
 	),
 })
 
-schema.execute({
+const result = await schema.execute({
 	users: [
 		{ profile: { name: 'Alice' } },
-		{ profile: { name: 123 } }, // ← Invalid
+		{ profile: { name: 123 } },
 	],
 })
-// issues[0].path === ['users', 1, 'profile', 'name']
+
+// On failure:
+// result.issues[0].path === ['users', 1, 'profile', 'name']
 ```
 
-This makes it easy to:
-- Highlight exact failing fields in forms
-- Map errors to UI components
-- Generate human-readable error locations
-
-## Combining Structures
-
-Structures can be freely nested and combined:
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const addressSchema = v.object({
-	street: v.string(),
-	city: v.string(),
-	zip: v.string(),
-})
-
-const companySchema = v.object({
-	name: v.string(),
-	addresses: v.array(addressSchema)
-		.min(1),
-	contacts: v.object({
-		primary: v.string(),
-		backup: [v.string()],
-	}),
-})
-
-const orderSchema = v.object({
-	id: v.string(),
-	company: companySchema,
-	items: v.array(
-		v.object({
-			productId: v.string(),
-			quantity: v.number()
-				.integer()
-				.min(1),
-			price: v.number()
-				.min(0),
-		})
-	),
-	shippingAddress: addressSchema,
-	billingAddress: [addressSchema], // Optional
-})
-```
+Symbols remain symbol path segments. Frozen or reused child issue objects are supported because path prepending clones instead of mutating.
