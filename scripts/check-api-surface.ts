@@ -38,15 +38,16 @@ function getDeclarationSurface(declarationPath: string): Pick<PackageSurface, 'd
 			skipLibCheck: true,
 		},
 	})
+	const checker = program.getTypeChecker()
 	const source = program.getSourceFile(declarationPath)
-	if (!source?.symbol)
+	const moduleSymbol = source ? checker.getSymbolAtLocation(source) : undefined
+	if (!moduleSymbol)
 		throw new Error(`Unable to load declaration entrypoint: ${declarationPath}`)
 
-	const checker = program.getTypeChecker()
 	const values = new Set<string>()
 	const typeOnly = new Set<string>()
 
-	for (const exported of checker.getExportsOfModule(source.symbol)) {
+	for (const exported of checker.getExportsOfModule(moduleSymbol)) {
 		const symbol = exported.flags & ts.SymbolFlags.Alias
 			? checker.getAliasedSymbol(exported)
 			: exported
