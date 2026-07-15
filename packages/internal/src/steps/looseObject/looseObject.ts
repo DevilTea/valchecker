@@ -1,11 +1,12 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
 	export type Struct = Record<string, Use<Valchecker> | [optional: Use<Valchecker>]>
 
-	export type Async<
+	export type OpMode<
 		S extends Struct,
 	> = ValueOf<{
 		[K in keyof S]: S[K] extends Use<Valchecker>
@@ -13,12 +14,14 @@ declare namespace Internal {
 			: S[K] extends [optional: Use<Valchecker>]
 				? InferOperationMode<S[K][0]>
 				: never
-	}> extends infer M extends OperationMode
-		? 'async' extends M
-			? 'async'
-			: 'maybe-async' extends M
-				? 'maybe-async'
-				: 'sync'
+	}> extends infer M
+		? [M] extends [never]
+				? 'sync'
+				: M extends OperationMode
+					? IsEqual<M, 'sync'> extends true
+						? 'sync'
+						: 'maybe-async'
+					: never
 		: never
 
 	export type Output<
@@ -32,9 +35,9 @@ declare namespace Internal {
 	>
 
 	export type Issue<S extends Struct = never>
-		=	| ExecutionIssue<'looseObject:expected_object', { value: unknown }>
+		= | ExecutionIssue<'looseObject:expected_object', { value: unknown }>
 			| (
-			IsEqual<Struct, never> extends true
+			IsEqual<S, never> extends true
 				? never
 				: ValueOf<{
 					[K in keyof S]: S[K] extends Use<Valchecker>
@@ -44,7 +47,6 @@ declare namespace Internal {
 							: never
 				}>
 			)
-
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -84,7 +86,7 @@ interface PluginDef extends TStepPluginDef {
 						message?: MessageHandler<Internal.Issue<NoInfer<S>>>,
 					) => Next<
 						{
-							async: Internal.Async<NoInfer<S>>
+							operationMode: Internal.OpMode<NoInfer<S>>
 							output: Internal.Output<NoInfer<S>>
 							issue: Internal.Issue<NoInfer<S>>
 						},
@@ -95,13 +97,31 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+function getOwnValue(value: object, key: string): any {
+	return Object.hasOwn(value, key)
+		? (value as Record<string, any>)[key]
+		: undefined
+}
+
+function setOutputValue(output: Record<string, any>, key: string, value: unknown): void {
+	if (key === '__proto__' && !Object.hasOwn(output, key)) {
+		Object.defineProperty(output, key, {
+			configurable: true,
+			enumerable: true,
+			value,
+			writable: true,
+		})
+		return
+	}
+	output[key] = value
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 export const looseObject = implStepPlugin<PluginDef>({
 	looseObject: ({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [struct, message],
 	}) => {
-		// Pre-compute metadata for each property to avoid repeated lookups
 		const keys = Object.keys(struct)
 		const keysLen = keys.length
 		const propsMeta: Array<{ key: string, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
@@ -127,73 +147,58 @@ export const looseObject = implStepPlugin<PluginDef>({
 			}
 
 			const issues: ExecutionIssue<any, any>[] = []
-			const output: Record<string, any> = Object.defineProperties(
-				{},
-				Object.getOwnPropertyDescriptors(value),
-			)
+			const descriptors = Object.getOwnPropertyDescriptors(value)
+			for (const key of keys)
+				delete descriptors[key]
+			const output: Record<string, any> = Object.defineProperties({}, descriptors)
 
-			// Inline processPropResult for better performance
-			// Process properties synchronously until we hit async
-			let isAsync = false
 			for (let i = 0; i < keysLen; i++) {
-				if (isAsync) {
-					// Already in async mode, skip
-					continue
-				}
 				const { key, isOptional, execute } = propsMeta[i]!
-				const propValue = (value as any)[key]
-
+				const propValue = getOwnValue(value, key)
 				const propResult = (isOptional && propValue === void 0)
 					? success(propValue)
 					: execute(propValue)
 
-				if (propResult instanceof Promise) {
-					isAsync = true
-					// Hit async, chain remaining properties
-					let chain = propResult.then((r) => {
-						if (isFailure(r)) {
-							for (const issue of r.issues!) {
-								issues.push(prependIssuePath(issue, [key]))
+				if (isPromiseLike(propResult)) {
+					let chain = Promise.resolve(propResult)
+						.then((r) => {
+							if (isFailure(r)) {
+								for (const issue of r.issues)
+									issues.push(prependIssuePath(issue, [key]))
 							}
-						}
-						else {
-							output[key] = r.value!
-						}
-					})
+							else {
+								setOutputValue(output, key, r.value)
+							}
+						})
 
 					for (let j = i + 1; j < keysLen; j++) {
 						const nextMeta = propsMeta[j]!
-						const nextPropValue = (value as any)[nextMeta.key]
-
-						chain = chain.then((): void | Promise<void> => {
-							return Promise.resolve(
-								(nextMeta.isOptional && nextPropValue === void 0)
-									? success(nextPropValue)
-									: nextMeta.execute(nextPropValue),
-							)
-								.then((r) => {
-									if (isFailure(r)) {
-										for (const issue of r.issues!) {
-											issues.push(prependIssuePath(issue, [nextMeta.key]))
-										}
-									}
-									else {
-										output[nextMeta.key] = r.value!
-									}
-								})
-						})
+						const nextPropValue = getOwnValue(value, nextMeta.key)
+						chain = chain.then(() => Promise.resolve(
+							(nextMeta.isOptional && nextPropValue === void 0)
+								? success(nextPropValue)
+								: nextMeta.execute(nextPropValue),
+						)
+							.then((r) => {
+								if (isFailure(r)) {
+									for (const issue of r.issues)
+										issues.push(prependIssuePath(issue, [nextMeta.key]))
+								}
+								else {
+									setOutputValue(output, nextMeta.key, r.value)
+								}
+							}))
 					}
 
 					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
 				}
 
 				if (isFailure(propResult)) {
-					for (const issue of propResult.issues!) {
+					for (const issue of propResult.issues)
 						issues.push(prependIssuePath(issue, [key]))
-					}
 				}
 				else {
-					output[key] = propResult.value!
+					setOutputValue(output, key, propResult.value)
 				}
 			}
 

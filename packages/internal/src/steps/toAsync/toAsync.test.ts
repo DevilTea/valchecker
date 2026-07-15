@@ -1,9 +1,9 @@
 /**
  * Test plan for toAsync step:
- * - Functions tested: toAsync validation that forces maybe-async operation to be async.
- * - Valid inputs: maybe-async operations (sync and async).
+ * - Functions tested: toAsync validation that forces sync or maybe-async operation to be async.
+ * - Valid inputs: sync and maybe-async operations.
  * - Invalid inputs: N/A (toAsync doesn't fail).
- * - Edge cases: sync values, async values, success results, failure results.
+ * - Edge cases: sync values, maybe-async values, success results, failure results.
  * - Expected behaviors: Success returns Promise.resolve({ value }); failure returns Promise.resolve({ issues }).
  * - Error handling: No errors expected as Promise.resolve handles all inputs.
  * - Coverage goals: 100% statement, branch, and function coverage.
@@ -25,9 +25,9 @@ describe('toAsync plugin', () => {
 				.toEqual({ value: 'HELLO' })
 		})
 
-		it('should handle already async result', async () => {
+		it('should convert maybe-async success result to async', async () => {
 			const result = await v.string()
-				.transform(async (x: string) => x.toUpperCase())
+				.transform((x: string): string | Promise<string> => Promise.resolve(x.toUpperCase()))
 				.toAsync()
 				.execute('hello')
 			expect(result)
@@ -69,11 +69,9 @@ describe('toAsync plugin', () => {
 				.toEqual({ value: 'hello' })
 		})
 
-		it('should handle async errors in transform', async () => {
+		it('should handle maybe-async errors in transform', async () => {
 			const result = await v.string()
-				.transform(async () => {
-					throw new Error('async error')
-				})
+				.transform((_value: string): string | Promise<string> => Promise.reject(new Error('async error')))
 				.toAsync()
 				.execute('test')
 			expect(result)

@@ -43,10 +43,11 @@ export type OverloadParametersAndReturnType<T> = T extends {
 } ? [P1, R1] : never
 
 export type MaybePromise<T> = T | Promise<T>
+export type MaybePromiseLike<T> = T | PromiseLike<T>
 
-export type IsPromise<T> = T extends Promise<any>
+export type IsPromise<T> = T extends PromiseLike<any>
 	? true
-	: Promise<any> extends T
+	: PromiseLike<any> extends T
 		? boolean
 		: false
 
@@ -76,6 +77,13 @@ export type OverloadReturnType<T> = T extends {
 } ? R1 : never
 
 // Utils
+/* @__NO_SIDE_EFFECTS__ */
+export function isPromiseLike<T = unknown>(value: unknown): value is PromiseLike<T> {
+	return (typeof value === 'object' || typeof value === 'function')
+		&& value !== null
+		&& typeof (value as { then?: unknown }).then === 'function'
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 export function returnTrue() {
 	return true

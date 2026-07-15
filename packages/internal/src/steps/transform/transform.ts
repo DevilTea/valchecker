@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
 	export type RunTransform<Input = any, Result = any> = (value: Input) => Result
@@ -44,8 +45,8 @@ interface PluginDef extends TStepPluginDef {
 						message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 					) => Next<
 						{
-							async: IsEqual<IsPromise<Result>, true> extends true
-								? 'async'
+							operationMode: IsEqual<IsPromise<Result>, true> extends true
+								? 'maybe-async'
 								: IsEqual<IsPromise<Result>, false> extends true
 									? 'sync'
 									: 'maybe-async'
@@ -78,8 +79,8 @@ export const transform = implStepPlugin<PluginDef>({
 			}
 			try {
 				const result = run(value)
-				return result instanceof Promise
-					?	result
+				return isPromiseLike(result)
+					?	Promise.resolve(result)
 							.then(res => success(res))
 							.catch(err => handleError(err))
 					:	success(result)

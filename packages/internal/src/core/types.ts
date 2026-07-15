@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
-import type { AnyFn, IsEqual, MaybePromise, OverloadParametersAndReturnType, UnionToIntersection, ValueOf } from '../shared'
+import type { AnyFn, IsEqual, MaybePromise, MaybePromiseLike, OverloadParametersAndReturnType, UnionToIntersection, ValueOf } from '../shared'
 
 export interface ExecutionSuccessResult<Output> extends StandardSchemaV1.SuccessResult<Output> { }
 export interface ExecutionIssue<
@@ -192,9 +192,9 @@ export interface StepMethodUtils<
 	Output,
 	Issue extends ExecutionIssue,
 > {
-	addStep: (fn: (lastResult: ExecutionResult<Input, Issue>) => MaybePromise<ExecutionResult<Output, Issue>>) => void
-	addSuccessStep: (fn: (value: Input) => MaybePromise<ExecutionResult<Output, Issue>>) => void
-	addFailureStep: (fn: (issues: ExecutionIssue[]) => MaybePromise<ExecutionResult<Output, Issue>>) => void
+	addStep: (fn: (lastResult: ExecutionResult<Input, Issue>) => MaybePromiseLike<ExecutionResult<Output, Issue>>) => void
+	addSuccessStep: (fn: (value: Input) => MaybePromiseLike<ExecutionResult<Output, Issue>>) => void
+	addFailureStep: (fn: (issues: ExecutionIssue[]) => MaybePromiseLike<ExecutionResult<Output, Issue>>) => void
 
 	isSuccess: (result: ExecutionResult) => result is ExecutionSuccessResult<any>
 	isFailure: (result: ExecutionResult) => result is ExecutionFailureResult<any>

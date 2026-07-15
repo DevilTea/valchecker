@@ -1,15 +1,12 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
-import type { IsExactlyAnyOrUnknown } from '../../shared'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
-	export type OpMode<Item extends Use<Valchecker>> = InferOperationMode<Item> extends infer M extends OperationMode
-		? 'async' extends M
-			? 'async'
-			: 'maybe-async' extends M
-				? 'maybe-async'
-				: 'sync'
-		: never
+	export type OpMode<Item extends Use<Valchecker>> = IsEqual<InferOperationMode<Item>, 'sync'> extends true
+		? 'sync'
+		: 'maybe-async'
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -106,10 +103,11 @@ export const array = implStepPlugin<PluginDef>({
 				const itemValue = value[i]!
 				const itemResult = execute(itemValue)
 
-				if (itemResult instanceof Promise) {
+				if (isPromiseLike(itemResult)) {
 					isAsync = true
 					// Hit async, chain remaining items
-					let chain = itemResult.then(r => processItemResult(r, i))
+					let chain = Promise.resolve(itemResult)
+						.then(r => processItemResult(r, i))
 					for (let j = i + 1; j < len; j++) {
 						const jValue = value[j]!
 						const jIndex = j
