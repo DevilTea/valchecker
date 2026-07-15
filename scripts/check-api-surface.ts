@@ -77,11 +77,24 @@ async function getApiSurface(): Promise<ApiSurface> {
 	return Object.fromEntries(entries) as ApiSurface
 }
 
+function assertRuntimeDeclarationsMatch(surface: ApiSurface): void {
+	for (const [name, packageSurface] of Object.entries(surface)) {
+		if (JSON.stringify(packageSurface.runtime) !== JSON.stringify(packageSurface.declaredValues)) {
+			throw new Error([
+				`${name} runtime and declaration value exports differ.`,
+				`Runtime: ${packageSurface.runtime.join(', ')}`,
+				`Declarations: ${packageSurface.declaredValues.join(', ')}`,
+			].join('\n'))
+		}
+	}
+}
+
 async function main(): Promise<void> {
 	await mkdir(artifactDirectory, { recursive: true })
 	const actual = await getApiSurface()
 	const serialized = `${JSON.stringify(actual, null, '\t')}\n`
 	await writeFile(actualPath, serialized)
+	assertRuntimeDeclarationsMatch(actual)
 
 	if (process.argv.includes('--write')) {
 		await writeFile(expectedPath, serialized)
@@ -89,8 +102,8 @@ async function main(): Promise<void> {
 		return
 	}
 
-	const expected = await readFile(expectedPath, 'utf8')
-	if (expected !== serialized) {
+	const expected = JSON.parse(await readFile(expectedPath, 'utf8')) as ApiSurface
+	if (JSON.stringify(expected) !== JSON.stringify(actual)) {
 		console.error(`Public API surface changed. Review ${actualPath} and run \`pnpm api:surface:update\` when the change is intentional.`)
 		process.exitCode = 1
 	}
