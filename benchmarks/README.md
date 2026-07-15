@@ -14,11 +14,22 @@ Zod 4 and Zod 4 jitless run in separate Node.js processes because the jitless co
 
 ## Running
 
-Build Valchecker first, then install the isolated benchmark dependencies and run a profile:
+Build Valchecker first, then install the isolated benchmark dependencies:
 
 ```bash
 pnpm build
 pnpm --dir benchmarks install --ignore-workspace --lockfile=false
+```
+
+Verify every adapter and full-tier scenario without timing:
+
+```bash
+pnpm --dir benchmarks verify
+```
+
+Run a benchmark profile:
+
+```bash
 pnpm --dir benchmarks bench -- --mode standard
 ```
 
@@ -32,12 +43,12 @@ Raw output defaults to `benchmarks/results/raw.json`. Use `--output <path>`, `--
 
 ## Methodology
 
-Every adapter implements the same schema families and fixtures. Before timing a scenario, the runner verifies that each adapter produces the expected success/failure state and, where outputs matter, the expected transformed output.
+Every adapter implements the same schema families and fixtures. Before timing a scenario, the runner verifies that each adapter produces the expected success/failure state and, where outputs matter, the expected transformed output. CI also executes every full-tier scenario once across all adapters.
 
 The suite separates:
 
-1. schema construction,
-2. schema construction plus first validation (cold), and
+1. complete schema construction, including all child schemas,
+2. complete schema construction plus first validation (cold), and
 3. validation using an already-created and warmed schema.
 
 Scenarios cover primitive pipelines, flat and nested objects, strict unknown-key rejection, arrays, ordered unions, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
