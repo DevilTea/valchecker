@@ -64,23 +64,18 @@ jobs:
       - name: Verify All Benchmark Scenarios
         run: pnpm --dir benchmarks verify
 
-      - name: Resolve Seed
+      - name: Run Benchmark
         shell: bash
         run: |
           seed="$REQUESTED_SEED"
           if [[ -z "$seed" ]]; then
             seed="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           fi
-          echo "BENCHMARK_SEED=$seed" >> "$GITHUB_ENV"
-
-      - name: Run Benchmark
-        shell: bash
-        run: |
           mkdir -p artifacts/benchmark
           pnpm --dir benchmarks bench -- \
             --mode "$BENCHMARK_MODE" \
             --adapters "$BENCHMARK_ADAPTERS" \
-            --seed "$BENCHMARK_SEED" \
+            --seed "$seed" \
             --output ../artifacts/benchmark/raw.json
 
       - name: Generate Reports
