@@ -36,6 +36,9 @@ function parseArguments(argv: string[]): { manifest: string, verifyOnly: boolean
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
 		const value = argv[index + 1]
+		if (argument === '--') {
+			continue
+		}
 		if (argument === '--manifest' && value) {
 			manifest = resolve(root, value)
 			index++
@@ -104,6 +107,11 @@ function isAtLeast(actual: number[], minimum: readonly number[]): boolean {
 	return true
 }
 
+function isPrereleaseVersion(version: string): boolean {
+	const withoutBuildMetadata = version.split('+', 1)[0]!
+	return withoutBuildMetadata.includes('-')
+}
+
 function assertPreparedPackages(value: unknown, version: string): PreparedPackage[] {
 	if (!Array.isArray(value) || value.length !== expectedPackages.length)
 		throw new Error(`Release manifest must contain exactly ${expectedPackages.length} packages`)
@@ -160,7 +168,7 @@ async function main(): Promise<void> {
 	const confirmation = requireEnvironment('PUBLISH_CONFIRMATION')
 	if (confirmation !== `publish ${requestedVersion} to ${npmTag}`)
 		throw new Error(`Confirmation must exactly equal: publish ${requestedVersion} to ${npmTag}`)
-	const isPrerelease = requestedVersion.includes('-')
+	const isPrerelease = isPrereleaseVersion(requestedVersion)
 	if (isPrerelease && npmTag !== 'next')
 		throw new Error('Prerelease versions must use the next npm tag')
 	if (!isPrerelease && npmTag !== 'latest')
