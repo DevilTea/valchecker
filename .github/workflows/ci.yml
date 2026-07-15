@@ -95,6 +95,9 @@ jobs:
       - name: Install Benchmark Dependencies
         run: pnpm --dir benchmarks install --ignore-workspace --lockfile=false
 
+      - name: Verify All Benchmark Scenarios
+        run: pnpm --dir benchmarks verify
+
       - name: Benchmark Correctness Smoke
         env:
           BENCHMARK_SEED: ci-smoke
