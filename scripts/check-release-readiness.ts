@@ -28,13 +28,20 @@ const packageDefinitions = [
 	{ name: 'valchecker', path: 'packages/valchecker/package.json' },
 ] as const
 
+const expectedExternalPrerequisites = [
+	'GitHub environment npm is protected and restricted to main',
+	'npm trusted publisher is configured for all three packages',
+] as const
+
 const requiredReleaseFiles = [
+	'README.md',
 	'CHANGELOG.md',
 	'MIGRATION.md',
 	'SUPPORT.md',
 	'RELEASING.md',
 	'api-surface.json',
 	'docs/guide/v1-contract.md',
+	'docs/guide/migration-to-1.md',
 	'.github/workflows/ci.yml',
 	'.github/workflows/release.yml',
 ] as const
@@ -105,23 +112,17 @@ async function main(): Promise<void> {
 	if (plan.schemaVersion !== 1)
 		throw new Error(`release-plan.json schemaVersion must be 1, received ${String(plan.schemaVersion)}`)
 	assertValidSemver(plan.version, 'release-plan.json.version')
-	assertNonEmptyString(plan.npmTag, 'release-plan.json.npmTag')
-	assertNonEmptyString(plan.channel, 'release-plan.json.channel')
+	if (plan.npmTag !== 'next')
+		throw new Error(`release-plan.json.npmTag must be "next" for this release candidate, received ${String(plan.npmTag)}`)
+	if (plan.channel !== 'release-candidate')
+		throw new Error(`release-plan.json.channel must be "release-candidate", received ${String(plan.channel)}`)
 	if (plan.publish !== false)
-		throw new Error('release-plan.json.publish must remain false; publication requires a separate explicit workflow dispatch')
+		throw new Error('release-plan.json.publish must remain false; repository state never authorizes publication')
 	assertExactArray(plan.packages, packageDefinitions.map(item => item.name), 'release-plan.json.packages')
-	if (!Array.isArray(plan.externalPrerequisites) || plan.externalPrerequisites.length !== 2)
-		throw new Error('release-plan.json.externalPrerequisites must list the two external publishing prerequisites')
-	for (const [index, prerequisite] of plan.externalPrerequisites.entries())
-		assertNonEmptyString(prerequisite, `release-plan.json.externalPrerequisites[${index}]`)
+	assertExactArray(plan.externalPrerequisites, expectedExternalPrerequisites, 'release-plan.json.externalPrerequisites')
 
 	const withoutBuild = plan.version.split('+', 1)[0]!
-	const prerelease = withoutBuild.includes('-')
-	if (prerelease && plan.npmTag !== 'next')
-		throw new Error('A prerelease plan must use the next npm tag')
-	if (!prerelease && plan.npmTag !== 'latest')
-		throw new Error('A stable release plan must use the latest npm tag')
-	if (plan.channel === 'release-candidate' && !/-rc\.\d+(?:\+|$)/.test(plan.version))
+	if (!/-rc\.\d+$/.test(withoutBuild))
 		throw new Error('A release-candidate plan must use an -rc.N version')
 
 	const rootManifest = await readJson<PackageManifest>('package.json')
@@ -156,9 +157,16 @@ async function main(): Promise<void> {
 			throw new Error(`${path} must not be empty`)
 	}
 
+	const readme = await readText('README.md')
+	assertContains(readme, 'Migrating to 1.0', 'README.md')
+	assertContains(readme, './MIGRATION.md', 'README.md')
+	assertContains(readme, './SUPPORT.md', 'README.md')
+	assertContains(readme, './RELEASING.md', 'README.md')
+
 	const changelog = await readText('CHANGELOG.md')
 	assertContains(changelog, `## [${plan.version}] - Unreleased`, 'CHANGELOG.md')
 	assertContains(changelog, `npm \`${plan.npmTag}\` tag`, 'CHANGELOG.md')
+	assertContains(changelog, `[${plan.version}]: https://github.com/DevilTea/valchecker/releases/tag/v${plan.version}`, 'CHANGELOG.md')
 	for (const heading of ['### Added', '### Changed', '### Removed', '### Security'])
 		assertContains(changelog, heading, 'CHANGELOG.md')
 	assertNoPlaceholders(changelog, 'CHANGELOG.md')
@@ -170,6 +178,11 @@ async function main(): Promise<void> {
 	assertContains(migration, '.toAsync()', 'MIGRATION.md')
 	assertContains(migration, 'intersection:conflicting_outputs', 'MIGRATION.md')
 	assertNoPlaceholders(migration, 'MIGRATION.md')
+
+	const migrationPage = await readText('docs/guide/migration-to-1.md')
+	assertContains(migrationPage, plan.version, 'docs/guide/migration-to-1.md')
+	assertContains(migrationPage, 'MIGRATION.md', 'docs/guide/migration-to-1.md')
+	assertContains(migrationPage, '/guide/v1-contract', 'docs/guide/migration-to-1.md')
 
 	const support = await readText('SUPPORT.md')
 	assertContains(support, 'Semantic Versioning', 'SUPPORT.md')
@@ -184,6 +197,7 @@ async function main(): Promise<void> {
 	assertContains(releasing, 'publish <version> to <tag>', 'RELEASING.md')
 	assertContains(releasing, 'partial release', 'RELEASING.md')
 	assertContains(releasing, 'RC readiness checklist', 'RELEASING.md')
+	assertContains(releasing, 'repository state never authorizes publication', 'RELEASING.md')
 	assertNoPlaceholders(releasing, 'RELEASING.md')
 
 	const releaseWorkflow = await readText('.github/workflows/release.yml')
@@ -215,7 +229,7 @@ async function main(): Promise<void> {
 	assertContains(ciWorkflow, 'Verify Publish Inputs', '.github/workflows/ci.yml')
 
 	console.log(`Release readiness verified for ${plan.version} (${plan.npmTag}); publishing remains disabled.`)
-	for (const prerequisite of plan.externalPrerequisites as string[])
+	for (const prerequisite of plan.externalPrerequisites)
 		console.log(`External prerequisite: ${prerequisite}`)
 }
 
