@@ -238,9 +238,14 @@ Runtime and declaration exports are recorded in `api-surface.json`; CI rejects u
 
 - [Quick Start](https://deviltea.github.io/valchecker/guide/quick-start)
 - [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract)
+- [Migrating to 1.0](https://deviltea.github.io/valchecker/guide/migration-to-1)
 - [Custom Steps](https://deviltea.github.io/valchecker/guide/custom-steps)
 - [API Reference](https://deviltea.github.io/valchecker/api/overview)
 - [Examples](https://deviltea.github.io/valchecker/examples/basic-validation)
+- [Complete migration guide](./MIGRATION.md)
+- [Changelog](./CHANGELOG.md)
+- [Support policy](./SUPPORT.md)
+- [Release process](./RELEASING.md)
 
 ## Development
 
