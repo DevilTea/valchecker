@@ -30,7 +30,7 @@ function parseArguments(argv) {
 			index++
 		}
 		else if (argument === '--adapters' && value) {
-			options.adapters = value.split(',').filter(Boolean)
+			options.adapters = value.split(',').map(adapter => adapter.trim()).filter(Boolean)
 			index++
 		}
 		else if (argument === '--seed' && value) {
@@ -43,6 +43,10 @@ function parseArguments(argv) {
 	}
 
 	getProfile(options.mode)
+	if (options.adapters.length === 0)
+		throw new Error('At least one benchmark adapter is required')
+	if (new Set(options.adapters).size !== options.adapters.length)
+		throw new Error('Benchmark adapters must not contain duplicates')
 	for (const adapter of options.adapters) {
 		if (!defaultAdapters.includes(adapter))
 			throw new Error(`Unknown adapter: ${adapter}`)
@@ -131,7 +135,9 @@ const result = {
 		logicalCpuCount: os.cpus().length,
 		totalMemoryBytes: os.totalmem(),
 		commit: process.env.GITHUB_SHA ?? process.env.BENCHMARK_COMMIT ?? null,
-		runner: process.env.RUNNER_NAME ?? null,
+		runnerName: process.env.RUNNER_NAME ?? null,
+		runnerImageOS: process.env.ImageOS ?? null,
+		runnerImageVersion: process.env.ImageVersion ?? null,
 	},
 	order,
 	libraries,

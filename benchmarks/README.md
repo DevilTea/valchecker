@@ -12,13 +12,31 @@ This suite compares Valchecker with pinned releases of Zod 3, Zod 4, Zod 4 with 
 
 Zod 4 and Zod 4 jitless run in separate Node.js processes because the jitless configuration is global.
 
-## Running
+## Manual GitHub Actions run
 
-Build Valchecker first, then install the isolated benchmark dependencies:
+Use the repository’s **Benchmark** workflow to run a controlled comparison on `ubuntu-24.04` and Node.js 24. The workflow accepts:
+
+- `profile`: `smoke`, `standard`, or `full`
+- `adapters`: a comma-separated subset of `valchecker,zod3,zod4,zod4-jitless,valibot`
+- `seed`: an optional deterministic execution-order seed
+
+A blank seed is replaced with a value derived from the commit and workflow run. The job first verifies every full-tier scenario across every adapter, then runs the requested sample profile. Use `smoke` to validate the workflow and report pipeline; use `standard` or `full` for published comparisons.
+
+Each completed run publishes:
+
+- `raw.json`: all samples and environment metadata; the source of truth
+- `report.md`: a scenario-by-scenario report also written to the Actions job summary
+- `report.html`: a standalone human-readable report
+
+The artifact is retained for 90 days. Record the commit, seed, Node.js version, runner image, and CPU model when comparing separate runs.
+
+## Local run
+
+Build Valchecker first, then install the isolated benchmark dependencies without lifecycle scripts:
 
 ```bash
 pnpm build
-pnpm --dir benchmarks install --ignore-workspace --lockfile=false
+pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
 ```
 
 Verify every adapter and full-tier scenario without timing:
@@ -31,6 +49,15 @@ Run a benchmark profile:
 
 ```bash
 pnpm --dir benchmarks bench -- --mode standard
+```
+
+Generate reports from the raw result:
+
+```bash
+pnpm --dir benchmarks report -- \
+  --input results/raw.json \
+  --markdown results/report.md \
+  --html results/report.html
 ```
 
 Profiles:
@@ -53,10 +80,12 @@ The suite separates:
 
 Scenarios cover primitive pipelines, flat and nested objects, strict unknown-key rejection, arrays, ordered unions, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
 
-Each library runs in a dedicated Node.js process. Library order is shuffled from a recorded seed. Results include every sample, median and mean throughput, median nanoseconds per operation, relative margin of error, package versions, Node.js version, CPU, operating system, and commit metadata.
+Each library runs in a dedicated Node.js process. Library order is shuffled from a recorded seed. Results include every sample, median and mean throughput, median nanoseconds per operation, relative margin of error, package versions, Node.js version, CPU, operating system, runner image, and commit metadata.
 
 ## Interpretation
 
-Do not combine construction, cold, and warm results into one ranking. They measure different costs. Failure results are also reported separately because libraries differ substantially in issue construction and branch traversal.
+Do not combine construction, cold, and warm results into one ranking. They measure different costs. Compare libraries only within the same scenario and category.
+
+Results with relative margin of error above 5% are marked unstable in generated reports and should be rerun before drawing conclusions. Failure results include each library’s issue construction and traversal behavior.
 
 The benchmark suite intentionally avoids asynchronous validation and intersection comparisons in the primary set: Promise scheduling would dominate the former, while intersection output semantics are not equivalent across libraries.
