@@ -49,18 +49,27 @@ jobs:
         run: pnpm test:package
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm lint 2>&1 | tee lint.log
+
+      - name: Upload Lint Log
+        if: failure() && hashFiles('lint.log') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lint-log
+          path: lint.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Typecheck
         run: pnpm typecheck 2>&1 | tee typecheck.log
 
       - name: Upload Typecheck Log
-        if: failure()
+        if: failure() && hashFiles('typecheck.log') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: typecheck-log
           path: typecheck.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
   Benchmark-Smoke:
