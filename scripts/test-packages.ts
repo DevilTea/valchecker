@@ -11,12 +11,29 @@ const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 interface PackageDefinition {
 	name: string
 	directory: string
+	workspaceDependencies: string[]
+}
+
+interface PackageManifest {
+	name: string
+	version: string
+	type?: string
+	exports?: Record<string, Record<string, unknown>>
+	dependencies?: Record<string, string>
 }
 
 const packages: PackageDefinition[] = [
-	{ name: '@valchecker/internal', directory: 'packages/internal' },
-	{ name: '@valchecker/all-steps', directory: 'packages/all-steps' },
-	{ name: 'valchecker', directory: 'packages/valchecker' },
+	{ name: '@valchecker/internal', directory: 'packages/internal', workspaceDependencies: [] },
+	{
+		name: '@valchecker/all-steps',
+		directory: 'packages/all-steps',
+		workspaceDependencies: ['@valchecker/internal'],
+	},
+	{
+		name: 'valchecker',
+		directory: 'packages/valchecker',
+		workspaceDependencies: ['@valchecker/internal', '@valchecker/all-steps'],
+	},
 ]
 
 function run(command: string, args: string[], cwd = root): Promise<void> {
@@ -70,19 +87,36 @@ async function packPackage(
 	])
 
 	const created = (await readdir(tarballDirectory)).filter(file => !before.has(file))
-	if (created.length !== 1 || !created[0]?.endsWith('.tgz')) {
+	if (created.length !== 1 || !created[0]?.endsWith('.tgz'))
 		throw new Error(`Expected one tarball for ${definition.name}, got: ${created.join(', ')}`)
-	}
 
 	return join(tarballDirectory, created[0])
 }
 
-async function assertEsmOnlyPackage(packageDirectory: string): Promise<void> {
-	const manifest = JSON.parse(await readFile(join(packageDirectory, 'package.json'), 'utf8'))
+async function assertInstalledPackage(
+	definition: PackageDefinition,
+	packageDirectory: string,
+	expectedVersion: string,
+): Promise<void> {
+	const manifest = JSON.parse(
+		await readFile(join(packageDirectory, 'package.json'), 'utf8'),
+	) as PackageManifest
+	if (manifest.name !== definition.name)
+		throw new Error(`Expected installed package ${definition.name}, received ${manifest.name}`)
+	if (manifest.version !== expectedVersion)
+		throw new Error(`${manifest.name} version ${manifest.version} does not match ${expectedVersion}`)
 	if (manifest.type !== 'module')
 		throw new Error(`${manifest.name} is not marked as an ESM package`)
 	if (manifest.exports?.['.']?.require !== undefined)
 		throw new Error(`${manifest.name} still exposes a CommonJS require condition`)
+
+	for (const dependency of definition.workspaceDependencies) {
+		if (manifest.dependencies?.[dependency] !== expectedVersion) {
+			throw new Error(
+				`${manifest.name} dependency ${dependency} must be ${expectedVersion}, received ${String(manifest.dependencies?.[dependency])}`,
+			)
+		}
+	}
 
 	const distFiles = await listFiles(join(packageDirectory, 'dist'))
 	const forbidden = distFiles.filter(file => /(?:\.cjs(?:\.map)?|\.d\.cts(?:\.map)?)$/.test(file))
@@ -90,6 +124,12 @@ async function assertEsmOnlyPackage(packageDirectory: string): Promise<void> {
 		throw new Error(`${manifest.name} contains CommonJS artifacts: ${forbidden.join(', ')}`)
 }
 
+const rootManifest = JSON.parse(
+	await readFile(resolve(root, 'package.json'), 'utf8'),
+) as { version?: unknown }
+if (typeof rootManifest.version !== 'string' || rootManifest.version.length === 0)
+	throw new Error('Root package version must be a non-empty string')
+const expectedVersion = rootManifest.version
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'valchecker-package-smoke-'))
 
 try {
@@ -114,6 +154,9 @@ try {
 		private: true,
 		type: 'module',
 		dependencies,
+		pnpm: {
+			overrides: dependencies,
+		},
 	}, null, '\t')}\n`)
 
 	await run(pnpm, [
@@ -197,12 +240,16 @@ void allSteps
 	await run(pnpm, ['exec', 'tsc', '--project', join(consumerDirectory, 'tsconfig.nodenext.json')])
 	await run(pnpm, ['exec', 'tsc', '--project', join(consumerDirectory, 'tsconfig.bundler.json')])
 
-	for (const { name } of packages) {
-		const segments = name.split('/')
-		await assertEsmOnlyPackage(join(consumerDirectory, 'node_modules', ...segments))
+	for (const definition of packages) {
+		const segments = definition.name.split('/')
+		await assertInstalledPackage(
+			definition,
+			join(consumerDirectory, 'node_modules', ...segments),
+			expectedVersion,
+		)
 	}
 
-	console.log(`Package smoke tests passed in ${consumerDirectory}`)
+	console.log(`Package smoke tests passed for ${expectedVersion} in ${consumerDirectory}`)
 }
 finally {
 	if (process.env.KEEP_PACKAGE_SMOKE !== '1')

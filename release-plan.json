@@ -1,0 +1,16 @@
+{
+	"schemaVersion": 1,
+	"version": "1.0.0-rc.0",
+	"npmTag": "next",
+	"channel": "release-candidate",
+	"publish": false,
+	"packages": [
+		"@valchecker/internal",
+		"@valchecker/all-steps",
+		"valchecker"
+	],
+	"externalPrerequisites": [
+		"GitHub environment npm is protected and restricted to main",
+		"npm trusted publisher is configured for all three packages"
+	]
+}
