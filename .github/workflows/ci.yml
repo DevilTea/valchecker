@@ -117,6 +117,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Release Readiness
+        run: pnpm release:readiness
+
       - name: Build Packages
         run: pnpm build
 
