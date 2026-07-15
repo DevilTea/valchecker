@@ -20,12 +20,13 @@ Use these exact values:
 | Repository | `valchecker` |
 | Workflow filename | `release.yml` |
 | GitHub environment | `npm` |
+| Allowed actions | `npm publish` |
 
 The GitHub workflow is `.github/workflows/release.yml`. It runs only on a GitHub-hosted Ubuntu runner and requests `id-token: write` only for the publish job.
 
 Do not configure `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or another long-lived npm credential. `scripts/publish-release.ts` rejects token-based publishing.
 
-Trusted publishing currently requires npm 11.5.1 or newer. The workflow checks the installed npm version before publishing.
+Trusted publishing currently requires npm 11.5.1 or newer. The workflow installs and verifies that npm version before publishing.
 
 Official references:
 
