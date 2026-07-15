@@ -71,48 +71,42 @@ const templates = {
 		"url": "https://github.com/DevilTea/valchecker/issues"
 	},
 	"keywords": [],
+	"sideEffects": false,
 	"exports": {
 		".": {
-			"import": {
-				"types": "./dist/index.d.mts",
-				"default": "./dist/index.mjs"
-			},
-			"require": {
-				"types": "./dist/index.d.cts",
-				"default": "./dist/index.cjs"
-			}
+			"types": "./dist/index.d.mts",
+			"import": "./dist/index.mjs",
+			"default": "./dist/index.mjs"
 		}
 	},
-	"main": "dist/index.cjs",
-	"module": "dist/index.mjs",
-	"types": "dist/index.d.ts",
+	"main": "./dist/index.mjs",
+	"types": "./dist/index.d.mts",
 	"files": [
 		"dist"
 	],
 	"scripts": {
-		"build": "unbuild",
+		"build": "tsdown && pkg-size",
 		"build:pack": "pnpm build && pnpm pack",
-		"stub": "unbuild --stub",
+		"stub": "tsdown --watch",
 		"typecheck": "pnpm typecheck:package && pnpm typecheck:test",
 		"typecheck:package": "tsc --project ./tsconfig.package.json --noEmit",
 		"typecheck:test": "tsc --project ./tsconfig.tests.json --noEmit"
 	}
 }
 	`.trim(),
-	'build.config.ts': `
-import { defineBuildConfig } from 'unbuild'
+	'tsdown.config.ts': `
+import { defineConfig } from 'tsdown'
 
-export default defineBuildConfig({
-	entries: ['src/index.ts'],
-	declaration: true,
-	rollup: {
-		dts: {
-			tsconfig: './tsconfig.package.json',
-			compilerOptions: {
-				composite: false,
-			},
+export default defineConfig({
+	entry: 'src/index.ts',
+	format: ['esm'],
+	clean: true,
+	dts: {
+		resolve: true,
+		tsconfig: './tsconfig.package.json',
+		compilerOptions: {
+			composite: false,
 		},
-		emitCJS: true,
 	},
 })
 	`.trim(),
