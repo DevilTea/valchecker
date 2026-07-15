@@ -72,6 +72,9 @@ const templates = {
 	},
 	"keywords": [],
 	"sideEffects": false,
+	"engines": {
+		"node": ">=22"
+	},
 	"exports": {
 		".": {
 			"types": "./dist/index.d.mts",
