@@ -1,10 +1,11 @@
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { isAbsolute, relative, resolve } from 'node:path'
 import process from 'node:process'
-import { spawn } from 'node:child_process'
 
 const root = resolve(import.meta.dirname, '..')
+const releaseDirectory = resolve(root, 'artifacts/release')
 const minimumNpmVersion = [11, 5, 1] as const
 
 interface PreparedPackage {
@@ -23,8 +24,14 @@ interface ReleaseManifest {
 	packages: unknown
 }
 
+const expectedPackages = [
+	{ name: '@valchecker/internal', directory: 'packages/internal' },
+	{ name: '@valchecker/all-steps', directory: 'packages/all-steps' },
+	{ name: 'valchecker', directory: 'packages/valchecker' },
+] as const
+
 function parseArguments(argv: string[]): { manifest: string } {
-	let manifest = resolve(root, 'artifacts/release/release-manifest.json')
+	let manifest = resolve(releaseDirectory, 'release-manifest.json')
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
 		const value = argv[index + 1]
@@ -94,25 +101,37 @@ function isAtLeast(actual: number[], minimum: readonly number[]): boolean {
 }
 
 function assertPreparedPackages(value: unknown, version: string): PreparedPackage[] {
-	if (!Array.isArray(value) || value.length !== 3)
-		throw new Error('Release manifest must contain exactly three packages')
-	const expected = ['@valchecker/internal', '@valchecker/all-steps', 'valchecker']
+	if (!Array.isArray(value) || value.length !== expectedPackages.length)
+		throw new Error(`Release manifest must contain exactly ${expectedPackages.length} packages`)
 	return value.map((item, index) => {
 		if (!item || typeof item !== 'object')
 			throw new TypeError(`packages[${index}] must be an object`)
 		const packageItem = item as Record<string, unknown>
-		if (packageItem.name !== expected[index])
-			throw new Error(`packages[${index}].name must be ${expected[index]}`)
+		const expected = expectedPackages[index]!
+		if (packageItem.name !== expected.name)
+			throw new Error(`packages[${index}].name must be ${expected.name}`)
+		if (packageItem.directory !== expected.directory)
+			throw new Error(`${expected.name}.directory must be ${expected.directory}`)
 		if (packageItem.version !== version)
-			throw new Error(`${String(packageItem.name)} version does not match ${version}`)
-		for (const field of ['directory', 'tarball', 'sha256']) {
+			throw new Error(`${expected.name} version does not match ${version}`)
+		for (const field of ['tarball', 'sha256']) {
 			if (typeof packageItem[field] !== 'string' || packageItem[field].length === 0)
-				throw new Error(`${String(packageItem.name)}.${field} must be a non-empty string`)
+				throw new Error(`${expected.name}.${field} must be a non-empty string`)
 		}
 		if (!Number.isSafeInteger(packageItem.size) || Number(packageItem.size) <= 0)
-			throw new Error(`${String(packageItem.name)}.size must be a positive safe integer`)
+			throw new Error(`${expected.name}.size must be a positive safe integer`)
 		return packageItem as unknown as PreparedPackage
 	})
+}
+
+function resolvePreparedTarball(path: string): string {
+	const absolute = resolve(root, path)
+	const fromReleaseDirectory = relative(releaseDirectory, absolute)
+	if (fromReleaseDirectory === '' || fromReleaseDirectory.startsWith('..') || isAbsolute(fromReleaseDirectory))
+		throw new Error(`Tarball must be inside artifacts/release: ${path}`)
+	if (!absolute.endsWith('.tgz'))
+		throw new Error(`Prepared package is not a .tgz tarball: ${path}`)
+	return absolute
 }
 
 async function sha256(path: string): Promise<string> {
@@ -141,9 +160,8 @@ async function main(): Promise<void> {
 		throw new Error('Stable versions must use the latest npm tag')
 
 	const npmVersionText = await run('npm', ['--version'], { capture: true })
-	if (!isAtLeast(parseVersion(npmVersionText), minimumNpmVersion)) {
+	if (!isAtLeast(parseVersion(npmVersionText), minimumNpmVersion))
 		throw new Error(`npm ${npmVersionText} is too old for trusted publishing; require >=${minimumNpmVersion.join('.')}`)
-	}
 
 	const { manifest: manifestPath } = parseArguments(process.argv.slice(2))
 	const raw = JSON.parse(await readFile(manifestPath, 'utf8')) as ReleaseManifest
@@ -156,21 +174,26 @@ async function main(): Promise<void> {
 		throw new Error(`Prepared commit ${String(raw.commit)} does not match workflow commit ${expectedCommit}`)
 	const packages = assertPreparedPackages(raw.packages, requestedVersion)
 
+	const tarballs = new Map<string, string>()
 	for (const packageItem of packages) {
-		const tarballPath = resolve(root, packageItem.tarball)
+		const tarballPath = resolvePreparedTarball(packageItem.tarball)
 		const actualSize = (await stat(tarballPath)).size
 		if (actualSize !== packageItem.size)
 			throw new Error(`${packageItem.name} tarball size changed after preparation`)
 		if (await sha256(tarballPath) !== packageItem.sha256)
 			throw new Error(`${packageItem.name} tarball checksum changed after preparation`)
+		tarballs.set(packageItem.name, tarballPath)
 	}
 
 	console.log(`Publishing ${requestedVersion} to npm tag ${npmTag} with npm ${npmVersionText}.`)
 	for (const packageItem of packages) {
+		const tarballPath = tarballs.get(packageItem.name)
+		if (!tarballPath)
+			throw new Error(`Missing verified tarball for ${packageItem.name}`)
 		console.log(`Publishing ${packageItem.name} from ${packageItem.tarball}`)
 		await run('npm', [
 			'publish',
-			resolve(root, packageItem.tarball),
+			tarballPath,
 			'--access',
 			'public',
 			'--tag',
