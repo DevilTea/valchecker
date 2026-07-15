@@ -16,11 +16,11 @@ Zod 4 and Zod 4 jitless run in separate Node.js processes because the jitless co
 
 Use the repository’s **Benchmark** workflow to run a controlled comparison on `ubuntu-24.04` and Node.js 24. The workflow accepts:
 
-- `profile`: `standard` or `full`
+- `profile`: `smoke`, `standard`, or `full`
 - `adapters`: a comma-separated subset of `valchecker,zod3,zod4,zod4-jitless,valibot`
 - `seed`: an optional deterministic execution-order seed
 
-A blank seed is replaced with a value derived from the commit and workflow run. The job first verifies every full-tier scenario across every adapter, then runs the requested sample profile.
+A blank seed is replaced with a value derived from the commit and workflow run. The job first verifies every full-tier scenario across every adapter, then runs the requested sample profile. Use `smoke` to validate the workflow and report pipeline; use `standard` or `full` for published comparisons.
 
 Each completed run publishes:
 
@@ -80,7 +80,7 @@ The suite separates:
 
 Scenarios cover primitive pipelines, flat and nested objects, strict unknown-key rejection, arrays, ordered unions, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
 
-Each library runs in a dedicated Node.js process. Library order is shuffled from a recorded seed. Results include every sample, median and mean throughput, median nanoseconds per operation, relative margin of error, package versions, Node.js version, CPU, operating system, and commit metadata.
+Each library runs in a dedicated Node.js process. Library order is shuffled from a recorded seed. Results include every sample, median and mean throughput, median nanoseconds per operation, relative margin of error, package versions, Node.js version, CPU, operating system, runner image, and commit metadata.
 
 ## Interpretation
 
