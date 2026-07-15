@@ -30,8 +30,9 @@ const expectedPackages = [
 	{ name: 'valchecker', directory: 'packages/valchecker' },
 ] as const
 
-function parseArguments(argv: string[]): { manifest: string } {
+function parseArguments(argv: string[]): { manifest: string, verifyOnly: boolean } {
 	let manifest = resolve(releaseDirectory, 'release-manifest.json')
+	let verifyOnly = false
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
 		const value = argv[index + 1]
@@ -39,11 +40,14 @@ function parseArguments(argv: string[]): { manifest: string } {
 			manifest = resolve(root, value)
 			index++
 		}
+		else if (argument === '--verify-only') {
+			verifyOnly = true
+		}
 		else {
 			throw new Error(`Unknown or incomplete argument: ${argument}`)
 		}
 	}
-	return { manifest }
+	return { manifest, verifyOnly }
 }
 
 function run(
@@ -139,14 +143,17 @@ async function sha256(path: string): Promise<string> {
 }
 
 async function main(): Promise<void> {
-	if (process.env.GITHUB_ACTIONS !== 'true')
-		throw new Error('Publishing is restricted to GitHub Actions')
-	if (process.env.GITHUB_EVENT_NAME !== 'workflow_dispatch')
-		throw new Error('Publishing requires a manually dispatched workflow')
-	if (process.env.GITHUB_REF !== 'refs/heads/main')
-		throw new Error(`Publishing requires refs/heads/main, received ${String(process.env.GITHUB_REF)}`)
-	if (process.env.NODE_AUTH_TOKEN || process.env.NPM_TOKEN)
-		throw new Error('Long-lived npm tokens are not allowed; use npm trusted publishing through OIDC')
+	const { manifest: manifestPath, verifyOnly } = parseArguments(process.argv.slice(2))
+	if (!verifyOnly) {
+		if (process.env.GITHUB_ACTIONS !== 'true')
+			throw new Error('Publishing is restricted to GitHub Actions')
+		if (process.env.GITHUB_EVENT_NAME !== 'workflow_dispatch')
+			throw new Error('Publishing requires a manually dispatched workflow')
+		if (process.env.GITHUB_REF !== 'refs/heads/main')
+			throw new Error(`Publishing requires refs/heads/main, received ${String(process.env.GITHUB_REF)}`)
+		if (process.env.NODE_AUTH_TOKEN || process.env.NPM_TOKEN)
+			throw new Error('Long-lived npm tokens are not allowed; use npm trusted publishing through OIDC')
+	}
 
 	const requestedVersion = requireEnvironment('RELEASE_VERSION')
 	const npmTag = requireEnvironment('NPM_TAG')
@@ -163,15 +170,14 @@ async function main(): Promise<void> {
 	if (!isAtLeast(parseVersion(npmVersionText), minimumNpmVersion))
 		throw new Error(`npm ${npmVersionText} is too old for trusted publishing; require >=${minimumNpmVersion.join('.')}`)
 
-	const { manifest: manifestPath } = parseArguments(process.argv.slice(2))
 	const raw = JSON.parse(await readFile(manifestPath, 'utf8')) as ReleaseManifest
 	if (raw.schemaVersion !== 1)
 		throw new Error(`Unsupported release manifest schema: ${String(raw.schemaVersion)}`)
 	if (raw.version !== requestedVersion)
 		throw new Error(`Requested version ${requestedVersion} does not match prepared version ${String(raw.version)}`)
-	const expectedCommit = requireEnvironment('GITHUB_SHA')
+	const expectedCommit = process.env.GITHUB_SHA ?? null
 	if (raw.commit !== expectedCommit)
-		throw new Error(`Prepared commit ${String(raw.commit)} does not match workflow commit ${expectedCommit}`)
+		throw new Error(`Prepared commit ${String(raw.commit)} does not match current commit ${String(expectedCommit)}`)
 	const packages = assertPreparedPackages(raw.packages, requestedVersion)
 
 	const tarballs = new Map<string, string>()
@@ -183,6 +189,11 @@ async function main(): Promise<void> {
 		if (await sha256(tarballPath) !== packageItem.sha256)
 			throw new Error(`${packageItem.name} tarball checksum changed after preparation`)
 		tarballs.set(packageItem.name, tarballPath)
+	}
+
+	if (verifyOnly) {
+		console.log(`Verified ${packages.length} prepared tarballs for ${requestedVersion} with npm ${npmVersionText}; nothing was published.`)
+		return
 	}
 
 	console.log(`Publishing ${requestedVersion} to npm tag ${npmTag} with npm ${npmVersionText}.`)
