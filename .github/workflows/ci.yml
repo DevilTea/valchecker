@@ -111,6 +111,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Setup npm for Trusted Publishing
+        run: npm install --global npm@11.5.1
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
