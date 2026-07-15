@@ -1,8 +1,8 @@
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
 import process from 'node:process'
-import { spawn } from 'node:child_process'
 
 const root = resolve(import.meta.dirname, '..')
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
@@ -126,6 +126,21 @@ function assertStringArray(value: unknown, expected: string[], path: string): vo
 		throw new Error(`${path} must be ${JSON.stringify(expected)}, received ${JSON.stringify(value)}`)
 }
 
+function assertValidSemver(value: unknown, path: string): asserts value is string {
+	if (typeof value !== 'string')
+		throw new Error(`${path} must be a semver string`)
+	const match = semverPattern.exec(value)
+	if (!match)
+		throw new Error(`${path} is not valid semver: ${value}`)
+	const prerelease = match[4]
+	if (prerelease) {
+		for (const identifier of prerelease.split('.')) {
+			if (/^\d+$/.test(identifier) && identifier.length > 1 && identifier.startsWith('0'))
+				throw new Error(`${path} has a numeric prerelease identifier with a leading zero: ${identifier}`)
+		}
+	}
+}
+
 function assertPackageManifest(
 	definition: PackageDefinition,
 	manifest: PackageManifest,
@@ -159,6 +174,10 @@ function assertPackageManifest(
 
 	for (const dependency of definition.workspaceDependencies)
 		assertString(manifest.dependencies?.[dependency], 'workspace:*', `${prefix}.dependencies[${dependency}]`)
+	for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+		if (dependency.startsWith('@valchecker/') && !definition.workspaceDependencies.includes(dependency))
+			throw new Error(`${prefix} has an unexpected internal dependency: ${dependency}`)
+	}
 }
 
 async function sha256(path: string): Promise<string> {
@@ -214,7 +233,7 @@ async function inspectTarball(
 		assertString(packed.dependencies?.[dependency], version, `${definition.name} packed dependency ${dependency}`)
 
 	for (const [name, specifier] of Object.entries(packed.dependencies ?? {})) {
-		if (typeof specifier === 'string' && specifier.startsWith('workspace:'))
+		if (typeof specifier === 'string' && /^(?:workspace|catalog):/.test(specifier))
 			throw new Error(`${definition.name} packed dependency ${name} still uses ${specifier}`)
 	}
 }
@@ -224,15 +243,12 @@ async function main(): Promise<void> {
 	const rootManifest = await readJson<PackageManifest>(resolve(root, 'package.json'))
 	if (rootManifest.private !== true)
 		throw new Error('The workspace root must remain private')
-	if (typeof rootManifest.version !== 'string' || !semverPattern.test(rootManifest.version))
-		throw new Error(`Root version is not valid semver: ${String(rootManifest.version)}`)
+	assertValidSemver(rootManifest.version, 'root version')
 	const version = rootManifest.version
 
-	const manifests = new Map<string, PackageManifest>()
 	for (const definition of packages) {
 		const manifest = await readJson<PackageManifest>(resolve(root, definition.directory, 'package.json'))
 		assertPackageManifest(definition, manifest, version)
-		manifests.set(definition.name, manifest)
 	}
 
 	await rm(output, { recursive: true, force: true })
