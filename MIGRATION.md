@@ -93,20 +93,18 @@ Do not use `instanceof Promise` as a schema capability test. Valchecker supports
 
 Callbacks used by steps such as `check`, `transform`, `fallback`, and plugin utilities may return direct values or `PromiseLike` values according to their step contract.
 
-Before:
+A callback returning a native promise remains valid:
 
 ```ts
 const schema = v.string().transform(value => Promise.resolve(value.length))
 ```
 
-Still valid, with additional support for thenables:
+APIs typed as `PromiseLike` are also accepted, including custom thenable implementations that satisfy the complete `PromiseLike.then` contract:
 
 ```ts
-const schema = v.string().transform(value => ({
-	then(resolve: (length: number) => void) {
-		resolve(value.length)
-	},
-}))
+declare function computeLength(value: string): PromiseLike<number>
+
+const schema = v.string().transform(computeLength)
 ```
 
 Public asynchronous execution is normalized to a native promise.
