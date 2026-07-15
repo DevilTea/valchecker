@@ -34,7 +34,9 @@ yarn add valchecker
 bun add valchecker
 ```
 
-**Requirements:** Node.js 18+ (ESM and CommonJS supported)
+**Requirements:** Node.js 22+. Valchecker is published as ESM only.
+
+CommonJS applications can load Valchecker with dynamic `import('valchecker')`; synchronous `require('valchecker')` is not supported.
 
 ## Quick Start
 
