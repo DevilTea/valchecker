@@ -135,7 +135,7 @@ jobs:
           RELEASE_VERSION="$version" \
           NPM_TAG="$tag" \
           PUBLISH_CONFIRMATION="publish $version to $tag" \
-          pnpm release:publish -- --verify-only
+          pnpm release:publish --verify-only
 
       - name: Upload Release Tarballs
         if: always() && hashFiles('artifacts/release/**') != ''
