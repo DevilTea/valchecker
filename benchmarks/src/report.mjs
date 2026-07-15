@@ -35,6 +35,11 @@ function parseArguments(argv) {
   return options
 }
 
+function assertNonEmptyString(value, path) {
+  if (typeof value !== 'string' || value.length === 0)
+    throw new Error(`${path} must be a non-empty string`)
+}
+
 function assertFinitePositive(value, path) {
   if (!Number.isFinite(value) || value <= 0)
     throw new Error(`${path} must be a finite positive number`)
@@ -45,8 +50,21 @@ function validateResult(raw) {
     throw new TypeError('Benchmark result must be an object')
   if (raw.schemaVersion !== 1)
     throw new Error(`Unsupported benchmark schema version: ${raw.schemaVersion}`)
+  if (!['smoke', 'standard', 'full'].includes(raw.mode))
+    throw new Error(`Unknown benchmark mode: ${raw.mode}`)
+  assertNonEmptyString(raw.seed, 'seed')
+  assertNonEmptyString(raw.startedAt, 'startedAt')
+  assertNonEmptyString(raw.completedAt, 'completedAt')
+  if (!raw.environment || typeof raw.environment !== 'object')
+    throw new TypeError('environment must be an object')
+  for (const field of ['node', 'platform', 'arch', 'cpu'])
+    assertNonEmptyString(raw.environment[field], `environment.${field}`)
+  assertFinitePositive(raw.environment.logicalCpuCount, 'environment.logicalCpuCount')
+  assertFinitePositive(raw.environment.totalMemoryBytes, 'environment.totalMemoryBytes')
   if (!Array.isArray(raw.libraries) || raw.libraries.length === 0)
     throw new Error('Benchmark result must contain at least one library')
+  if (!Array.isArray(raw.order) || raw.order.length !== raw.libraries.length)
+    throw new Error('Execution order must contain every library exactly once')
 
   const expectedScenarios = new Map()
   const adapterNames = new Set()
@@ -54,8 +72,9 @@ function validateResult(raw) {
   for (const [libraryIndex, library] of raw.libraries.entries()) {
     if (!library || typeof library !== 'object')
       throw new TypeError(`libraries[${libraryIndex}] must be an object`)
-    if (typeof library.adapter !== 'string' || library.adapter.length === 0)
-      throw new Error(`libraries[${libraryIndex}].adapter must be a non-empty string`)
+    assertNonEmptyString(library.adapter, `libraries[${libraryIndex}].adapter`)
+    assertNonEmptyString(library.name, `${library.adapter}.name`)
+    assertNonEmptyString(library.version, `${library.adapter}.version`)
     if (adapterNames.has(library.adapter))
       throw new Error(`Duplicate adapter result: ${library.adapter}`)
     adapterNames.add(library.adapter)
@@ -68,8 +87,7 @@ function validateResult(raw) {
       const path = `${library.adapter}.results[${resultIndex}]`
       if (!result || typeof result !== 'object')
         throw new TypeError(`${path} must be an object`)
-      if (typeof result.scenario !== 'string' || result.scenario.length === 0)
-        throw new Error(`${path}.scenario must be a non-empty string`)
+      assertNonEmptyString(result.scenario, `${path}.scenario`)
       if (scenarios.has(result.scenario))
         throw new Error(`${library.adapter} contains duplicate scenario ${result.scenario}`)
       scenarios.add(result.scenario)
@@ -78,24 +96,42 @@ function validateResult(raw) {
         throw new Error(`${path}.category is invalid`)
       assertFinitePositive(result.medianOpsPerSecond, `${path}.medianOpsPerSecond`)
       assertFinitePositive(result.medianNanosecondsPerOperation, `${path}.medianNanosecondsPerOperation`)
+      assertFinitePositive(result.meanOpsPerSecond, `${path}.meanOpsPerSecond`)
       if (!Number.isFinite(result.relativeMarginOfError) || result.relativeMarginOfError < 0)
         throw new Error(`${path}.relativeMarginOfError must be a finite non-negative number`)
       if (!Array.isArray(result.samples) || result.samples.length === 0)
         throw new Error(`${path}.samples must be a non-empty array`)
+      for (const [sampleIndex, sample] of result.samples.entries()) {
+        const samplePath = `${path}.samples[${sampleIndex}]`
+        if (!sample || typeof sample !== 'object')
+          throw new TypeError(`${samplePath} must be an object`)
+        assertFinitePositive(sample.iterations, `${samplePath}.iterations`)
+        assertFinitePositive(sample.elapsedNs, `${samplePath}.elapsedNs`)
+        assertFinitePositive(sample.opsPerSecond, `${samplePath}.opsPerSecond`)
+        assertFinitePositive(sample.nanosecondsPerOperation, `${samplePath}.nanosecondsPerOperation`)
+      }
 
-      const expectedCategory = expectedScenarios.get(result.scenario)
-      if (expectedCategory !== undefined && expectedCategory !== result.category)
-        throw new Error(`Scenario category mismatch for ${result.scenario}`)
-      expectedScenarios.set(result.scenario, result.category)
+      if (libraryIndex === 0) {
+        expectedScenarios.set(result.scenario, result.category)
+      }
+      else {
+        const expectedCategory = expectedScenarios.get(result.scenario)
+        if (expectedCategory === undefined)
+          throw new Error(`${library.adapter} contains unexpected scenario ${result.scenario}`)
+        if (expectedCategory !== result.category)
+          throw new Error(`Scenario category mismatch for ${result.scenario}`)
+      }
     }
 
     if (libraryIndex > 0) {
       const missing = [...expectedScenarios.keys()].filter(scenario => !scenarios.has(scenario))
-      const extra = [...scenarios].filter(scenario => !expectedScenarios.has(scenario))
-      if (missing.length > 0 || extra.length > 0)
-        throw new Error(`${library.adapter} scenario set mismatch; missing=${missing.join(',')}; extra=${extra.join(',')}`)
+      if (missing.length > 0)
+        throw new Error(`${library.adapter} is missing scenarios: ${missing.join(',')}`)
     }
   }
+
+  if (new Set(raw.order).size !== raw.order.length || raw.order.some(adapter => !adapterNames.has(adapter)))
+    throw new Error('Execution order must contain every library exactly once')
 
   return raw
 }
