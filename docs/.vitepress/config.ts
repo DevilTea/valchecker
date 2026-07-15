@@ -11,6 +11,7 @@ export default defineConfig({
 		// https://vitepress.dev/reference/default-theme-config
 		nav: [
 			{ text: 'Guide', link: '/guide/quick-start' },
+			{ text: '1.0 Contract', link: '/guide/v1-contract' },
 			{ text: 'API Reference', link: '/api/overview' },
 			{ text: 'Examples', link: '/examples/basic-validation' },
 		],
@@ -20,6 +21,7 @@ export default defineConfig({
 				text: 'Guide',
 				items: [
 					{ text: 'Quick Start', link: '/guide/quick-start' },
+					{ text: '1.0 Contract', link: '/guide/v1-contract' },
 					{ text: 'Core Philosophy', link: '/guide/core-philosophy' },
 					{ text: 'Custom Steps', link: '/guide/custom-steps' },
 				],
