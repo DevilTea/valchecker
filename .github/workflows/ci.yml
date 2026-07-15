@@ -30,6 +30,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Publint
+        run: pnpm publint
+
+      - name: Package Smoke Test
+        run: pnpm test:package
+
       - name: Lint
         run: pnpm lint
 
