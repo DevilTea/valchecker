@@ -3,6 +3,9 @@
 	"private": true,
 	"type": "module",
 	"packageManager": "pnpm@10.34.4",
+	"engines": {
+		"node": ">=22"
+	},
 	"scripts": {
 		"bench": "node ./src/run.mjs",
 		"smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke.json",
