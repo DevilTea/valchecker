@@ -1,0 +1,15 @@
+{
+  "name": "valchecker-cross-library-benchmarks",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.4",
+  "scripts": {
+    "bench": "node ./src/run.mjs",
+    "smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke.json"
+  },
+  "dependencies": {
+    "valibot": "1.4.2",
+    "zod3": "npm:zod@3.25.76",
+    "zod4": "npm:zod@4.4.3"
+  }
+}
