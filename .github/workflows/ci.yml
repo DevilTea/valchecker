@@ -93,22 +93,22 @@ jobs:
         run: pnpm build
 
       - name: Install Benchmark Dependencies
-        run: pnpm --dir benchmarks install --ignore-workspace --lockfile=false
+        run: pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
 
       - name: Verify All Benchmark Scenarios
         run: pnpm --dir benchmarks verify
 
-      - name: Benchmark Correctness Smoke
+      - name: Benchmark and Report Smoke
         env:
           BENCHMARK_SEED: ci-smoke
         run: pnpm --dir benchmarks smoke
 
-      - name: Upload Benchmark Smoke Result
-        if: always()
+      - name: Upload Benchmark Smoke Reports
+        if: always() && hashFiles('artifacts/benchmark-smoke/**') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: benchmark-smoke
-          path: artifacts/benchmark-smoke.json
+          path: artifacts/benchmark-smoke
           if-no-files-found: error
           retention-days: 7
 
