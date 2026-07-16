@@ -197,7 +197,7 @@ await schema.execute('abc')
 ## Transformations and recovery
 
 ```ts
-const configSchema = v.unknown()
+const configSchema = v.string()
 	.toJSONValue('Invalid JSON')
 	.fallback(() => ({ port: 3000 }))
 	.use(v.object({
