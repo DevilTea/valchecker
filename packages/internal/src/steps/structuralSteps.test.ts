@@ -59,6 +59,9 @@ describe('structural schema steps', () => {
 		expect(variadic.execute(['a', 1, 2])).toEqual({ value: ['a', 1, 2] })
 		expect(variadic.execute([])).toMatchObject({ issues: [{ code: 'tuple:expected_length' }] })
 		expect(await v.tuple([v.string().toAsync()] as const).execute(['a'])).toEqual({ value: ['a'] })
+		expect(await v.tuple([v.string().toAsync(), v.number()] as const).execute(['a', 'x'])).toMatchObject({
+			issues: [{ path: [1] }],
+		})
 	})
 
 	it('models exhaustive finite records and broad index signatures', async () => {
@@ -73,7 +76,13 @@ describe('structural schema steps', () => {
 		expect(broad.execute({ a: 1, b: 2 })).toEqual({ value: { a: 1, b: 2 } })
 		expect(broad.execute({ a: 'x' })).toMatchObject({ issues: [{ code: 'number:expected_number', path: ['a'] }] })
 		expect(v.record(v.number(), v.string()).execute({ 1: 'one' })).toEqual({ value: { 1: 'one' } })
+		expect(v.record(v.number(), v.string()).execute({ invalid: 'value' })).toMatchObject({ issues: [{ path: ['invalid'] }] })
 		expect(v.record(v.string(), v.string()).execute([])).toMatchObject({ issues: [{ code: 'record:expected_record' }] })
+
+		const symbolKey = Symbol('record-key')
+		expect(v.record([symbolKey] as const, v.string()).execute({ [symbolKey]: 'value' })).toEqual({
+			value: { [symbolKey]: 'value' },
+		})
 
 		const collapsed = v.record(v.string().transform(() => 'same'), v.string())
 		expect(collapsed.execute({ a: 'x', b: 'y' })).toMatchObject({ issues: [{ code: 'record:duplicate_key' }] })
@@ -91,6 +100,17 @@ describe('structural schema steps', () => {
 		expect(await schema.execute(new Map([[1, 'x']]))).toMatchObject({
 			issues: [{ path: [0, 'key'] }, { path: [0, 'value'] }],
 		})
+
+		const synchronous = v.map(v.string(), v.number())
+		expect(synchronous.execute(new Map([['a', 1]]))).toEqual({ value: new Map([['a', 1]]) })
+		expect(synchronous.execute(new Map([[1, 'x']]))).toMatchObject({
+			issues: [{ path: [0, 'key'] }, { path: [0, 'value'] }],
+		})
+
+		const asyncKeys = v.map(v.string().toAsync(), v.number())
+		expect(await asyncKeys.execute(new Map([['a', 1], ['b', 2]]))).toEqual({
+			value: new Map([['a', 1], ['b', 2]]),
+		})
 		expect(v.map(v.string(), v.number(), 'Map required').execute({})).toMatchObject({ issues: [{ code: 'map:expected_map', message: 'Map required' }] })
 	})
 
@@ -99,6 +119,10 @@ describe('structural schema steps', () => {
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<Set<string>>()
 		expect(await schema.execute(new Set(['a', 'b']))).toEqual({ value: new Set(['A', 'B']) })
 		expect(await schema.execute(new Set(['a', 1]))).toMatchObject({ issues: [{ path: [1] }] })
+
+		const synchronous = v.set(v.string())
+		expect(synchronous.execute(new Set(['a', 'b']))).toEqual({ value: new Set(['a', 'b']) })
+		expect(synchronous.execute(new Set(['a', 1]))).toMatchObject({ issues: [{ path: [1] }] })
 		expect(v.set(v.string(), 'Set required').execute([])).toMatchObject({ issues: [{ code: 'set:expected_set', message: 'Set required' }] })
 	})
 
@@ -115,7 +139,20 @@ describe('structural schema steps', () => {
 		expect(schema.execute({ type: 'circle', radius: 2 })).toEqual({ value: { type: 'circle', radius: 2 } })
 		expect(other).not.toHaveBeenCalled()
 		expect(schema.execute({ type: 'triangle', size: 2 })).toMatchObject({ issues: [{ code: 'variant:invalid_discriminator', path: ['type'] }] })
+		expect(schema.execute({ size: 2 })).toMatchObject({ issues: [{ code: 'variant:invalid_discriminator', path: ['type'] }] })
+		expect(schema.execute({ type: true })).toMatchObject({ issues: [{ code: 'variant:invalid_discriminator', path: ['type'] }] })
 		expect(schema.execute(null)).toMatchObject({ issues: [{ code: 'variant:expected_object' }] })
+
+		const numeric = v.variant('type', {
+			1: v.object({ type: v.literal(1) }),
+		})
+		expect(numeric.execute({ type: 1 })).toEqual({ value: { type: 1 } })
+
+		const symbolType = Symbol('symbol-variant')
+		const symbolic = v.variant('type', {
+			[symbolType]: v.object({ type: v.literal(symbolType) }),
+		})
+		expect(symbolic.execute({ type: symbolType })).toEqual({ value: { type: symbolType } })
 
 		// @ts-expect-error Empty variants are not meaningful.
 		v.variant('type', {})
