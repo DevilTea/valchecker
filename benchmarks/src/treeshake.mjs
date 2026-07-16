@@ -155,6 +155,17 @@ export const result = schema.safeParse(' value ')
 `,
 	},
 	{
+		id: 'zod4-mini-string',
+		library: 'Zod 4 Mini',
+		mode: 'Functional checks',
+		group: 'Minimal string pipeline',
+		code: `
+import * as z from 'zod4/mini'
+export const schema = z.string().check(z.minLength(1), z.trim())
+export const result = schema.safeParse(' value ')
+`,
+	},
+	{
 		id: 'valibot-string',
 		library: 'Valibot',
 		mode: 'Functional pipe',
@@ -223,6 +234,20 @@ export const result = schema.safeParse({ name: ' Alice ', age: 25 })
 `,
 	},
 	{
+		id: 'zod4-mini-object',
+		library: 'Zod 4 Mini',
+		mode: 'Functional checks',
+		group: 'Object schema',
+		code: `
+import * as z from 'zod4/mini'
+export const schema = z.object({
+	name: z.string().check(z.trim()),
+	age: z.int().check(z.minimum(0)),
+})
+export const result = schema.safeParse({ name: ' Alice ', age: 25 })
+`,
+	},
+	{
 		id: 'valibot-object',
 		library: 'Valibot',
 		mode: 'Functional pipe',
@@ -240,6 +265,7 @@ export const result = v.safeParse(schema, { name: ' Alice ', age: 25 })
 		['valchecker-full', 'Valchecker', 'valchecker'],
 		['zod3-full', 'Zod 3', 'zod3'],
 		['zod4-full', 'Zod 4', 'zod4'],
+		['zod4-mini-full', 'Zod 4 Mini', 'zod4/mini'],
 		['valibot-full', 'Valibot', 'valibot'],
 	].map(([id, library, specifier]) => ({
 		id,
@@ -320,6 +346,15 @@ function getResult(results, id) {
 	return result
 }
 
+function compareBrotli(subjectLabel, subjectBytes, referenceLabel, referenceBytes, scenario) {
+	const difference = subjectBytes / referenceBytes - 1
+	const direction = difference <= 0 ? 'smaller' : 'larger'
+	return {
+		difference,
+		finding: `${subjectLabel} is ${formatPercent(Math.abs(difference))} ${direction} than ${referenceLabel} for the ${scenario}.`,
+	}
+}
+
 function analyze(results) {
 	const selectiveString = getResult(results, 'valchecker-selective-string')
 	const defaultString = getResult(results, 'valchecker-default-string')
@@ -328,17 +363,24 @@ function analyze(results) {
 	const full = getResult(results, 'valchecker-full')
 	const zod4String = getResult(results, 'zod4-string')
 	const zod4Object = getResult(results, 'zod4-object')
+	const zod4MiniString = getResult(results, 'zod4-mini-string')
+	const zod4MiniObject = getResult(results, 'zod4-mini-object')
 	const valibotString = getResult(results, 'valibot-string')
 	const valibotObject = getResult(results, 'valibot-object')
 
+	const comparisons = [
+		compareBrotli('Selective Valchecker', selectiveString.brotliBytes, 'Zod 4 classic', zod4String.brotliBytes, 'string pipeline'),
+		compareBrotli('Selective Valchecker', selectiveObject.brotliBytes, 'Zod 4 classic', zod4Object.brotliBytes, 'object schema'),
+		compareBrotli('Selective Valchecker', selectiveString.brotliBytes, 'Zod 4 Mini', zod4MiniString.brotliBytes, 'string pipeline'),
+		compareBrotli('Selective Valchecker', selectiveObject.brotliBytes, 'Zod 4 Mini', zod4MiniObject.brotliBytes, 'object schema'),
+		compareBrotli('Selective Valchecker', selectiveString.brotliBytes, 'Valibot', valibotString.brotliBytes, 'string pipeline'),
+		compareBrotli('Selective Valchecker', selectiveObject.brotliBytes, 'Valibot', valibotObject.brotliBytes, 'object schema'),
+	]
 	const metrics = {
 		stringReduction: 1 - selectiveString.brotliBytes / defaultString.brotliBytes,
 		objectReduction: 1 - selectiveObject.brotliBytes / defaultObject.brotliBytes,
 		selectiveRetained: selectiveString.brotliBytes / full.brotliBytes,
-		stringVsZod4Reduction: 1 - selectiveString.brotliBytes / zod4String.brotliBytes,
-		objectVsZod4Reduction: 1 - selectiveObject.brotliBytes / zod4Object.brotliBytes,
-		stringPremiumOverValibot: selectiveString.brotliBytes / valibotString.brotliBytes - 1,
-		objectPremiumOverValibot: selectiveObject.brotliBytes / valibotObject.brotliBytes - 1,
+		crossLibraryDifferences: comparisons.map(comparison => comparison.difference),
 	}
 	const unrelatedMarkersEliminated = selectiveString.retainedMarkers.length === 0
 	const checks = [
@@ -369,12 +411,7 @@ function analyze(results) {
 	return {
 		status: checks.every(check => check.passed) ? 'healthy' : 'needs-attention',
 		checks,
-		findings: [
-			`Selective Valchecker is ${formatPercent(metrics.stringVsZod4Reduction)} smaller than Zod 4 classic for the string pipeline.`,
-			`Selective Valchecker is ${formatPercent(metrics.objectVsZod4Reduction)} smaller than Zod 4 classic for the object schema.`,
-			`Selective Valchecker is ${formatPercent(metrics.stringPremiumOverValibot)} larger than Valibot for the string pipeline.`,
-			`Selective Valchecker is ${formatPercent(metrics.objectPremiumOverValibot)} larger than Valibot for the object schema.`,
-		],
+		findings: comparisons.map(comparison => comparison.finding),
 		metrics,
 	}
 }
