@@ -1,261 +1,120 @@
-# Helpers & Utilities
+# Helpers and Utilities
 
-Helper methods control validation flow, compose schemas, and provide utility functions for working with results.
+These steps provide generic validation, arbitrary transformation, recovery, delegation, recursion, type assertions, and execution-mode control.
 
-## Flow Control
+## `check(predicate, message?)`
 
-### `check(predicate, message?)`
+`check()` is the generic validation escape hatch. It intentionally keeps its direct name instead of adopting `isXxx`, because the callback defines the actual condition.
 
-Runs a custom validation predicate or type guard.
-
-**Issue Code**: `'check:failed'`
-
-#### Basic Validation
+**Issue code:** `check:failed`
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const positive = v.number()
-	.check(value => value > 0, 'Must be positive')
-
-positive.execute(5) // { value: 5 }
-positive.execute(-1) // { issues: [{ code: 'check:failed', message: 'Must be positive' }] }
+const positive = v.number().check(
+	value => value > 0,
+	'Must be positive',
+)
 ```
 
-#### Return Values
+A callback may return:
 
-The check function can return:
-- `true`: Validation passes
-- `false`: Validation fails with default/custom message
-- `string`: Validation fails with that string as the message
+- `true` to succeed,
+- `false` to fail with the configured message,
+- a string to fail with that message,
+- a supported asynchronous or `PromiseLike` equivalent.
+
+Type-guard overloads narrow the output type:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+const isString = (value: unknown): value is string =>
+	typeof value === 'string'
 
+const schema = v.unknown().check(isString)
+```
+
+Use built-in named validations when available:
+
+```ts
+v.string().isLengthAtLeast(3).isLengthAtMost(20)
+v.number().isFinite().isAtLeast(0)
+```
+
+## `transform(fn)`
+
+`transform()` is the generic arbitrary-output escape hatch. Concrete built-in transformations use `toXxx` names.
+
+```ts
 const schema = v.string()
-	.check((value) => {
-		if (value.length < 3)
-			return 'Too short'
-		if (value.length > 20)
-			return 'Too long'
-		return true
-	})
+	.toTrimmed()
+	.transform(value => ({ value }))
 ```
 
-#### Type Guards (Narrowing)
+The inferred output follows the callback's result.
+
+## `fallback(getValue)`
+
+`fallback()` recovers from any earlier failure in the current pipeline by supplying a replacement value.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const isString = (value: unknown): value is string => typeof value === 'string'
-
-const schema = v.unknown()
-	.check(isString)
-
-type T = InferOutput<typeof schema> // string
-```
-
-#### Cross-Property Validation
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const passwordConfirm = v.object({
-	password: v.string()
-		.min(8),
-	confirmPassword: v.string(),
-})
-	.check((obj) => {
-		return obj.password === obj.confirmPassword || 'Passwords must match'
-	})
-```
-
-#### Async Checks
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const uniqueEmail = v.string()
-	.check(async (value) => {
-		const exists = await db.users.exists({ email: value })
-		return !exists || 'Email already registered'
-	})
-
-const result = await uniqueEmail.execute('test@example.com')
-```
-
-### `fallback(getValue, message?)`
-
-Provides a fallback value when validation fails. The failure is caught and replaced with the fallback.
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
 const safeNumber = v.number()
-	.min(0)
+	.isAtLeast(0)
 	.fallback(() => 0)
 
-safeNumber.execute(42) // { value: 42 }
-safeNumber.execute(-5) // { value: 0 }  (min failed, used fallback)
-safeNumber.execute('invalid') // { value: 0 }  (number failed, used fallback)
+safeNumber.execute(-5) // { value: 0 }
+safeNumber.execute('invalid') // { value: 0 }
 ```
 
-#### Dynamic Fallbacks
+A fallback callback may return direct or asynchronous values according to its step contract.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.string()
-	.parseJSON()
+const config = v.string()
+	.toJSONValue()
 	.fallback(() => ({ items: [], count: 0 }))
-
-schema.execute('invalid json')
-// { value: { items: [], count: 0 } }
 ```
 
-#### Default Values for Optional Fields
+## `use(schema)`
+
+Delegates the current value to another Valchecker schema while preserving the delegated transformed output, issue types, paths, and execution mode.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const config = v.object({
-	port: [v.number()
-		.fallback(() => 3000)],
-	host: [v.string()
-		.fallback(() => 'localhost')],
-})
-
-config.execute({})
-// { value: { port: 3000, host: 'localhost' } }
-```
-
-### `transform(fn, message?)`
-
-Transforms the value to a new type or shape.
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.string()
-	.transform(value => value.split(','))
-
-schema.execute('a,b,c') // { value: ['a', 'b', 'c'] }
-
-type T = InferOutput<typeof schema> // string[]
-```
-
-See [Transforms](/api/transforms) for detailed documentation.
-
-## Schema Composition
-
-### `use(schema)`
-
-Delegates validation to another schema. Useful for reusing schemas and composing validations.
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-// Define reusable schemas
-const stringSchema = v.string()
+const normalizedName = v.string()
 	.toTrimmed()
+	.isNotEmpty()
 	.toLowercase()
 
-const userSchema = v.object({
-	name: v.unknown()
-		.use(stringSchema),
-	email: [v.unknown()
-		.use(stringSchema)], // Optional
-})
-
-userSchema.execute({
-	name: '  ALICE  ',
-})
-// { value: { name: 'alice', email: undefined } }
-```
-
-#### Composing Unknown Input
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const dataSchema = v.unknown()
-	.use(v.object({
-		type: v.literal('user'),
-		payload: v.object({
-			name: v.string(),
-		}),
-	}))
-```
-
-### `as<T>()`
-
-Type assertion step for converting types without runtime transformation. Use with caution.
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.unknown()
-	.as<string>()
-
-// This doesn't validate at runtime - it only changes the type
-type T = InferOutput<typeof schema> // string
-```
-
-## Message Handling
-
-### Global Message Handler
-
-Define a message resolver when creating the valchecker instance:
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const v = createValchecker({
-	steps: allSteps,
-	message: ({ code, payload, path }) => {
-		// Use your i18n library
-		return i18n.t(`validation.${code}`, { ...payload, path: path.join('.') })
-	},
+const user = v.object({
+	name: v.unknown().use(normalizedName),
 })
 ```
 
-### Message Resolution Priority
+JSON parsing plus structural validation is a common pattern:
 
-1. **Per-step message** (highest priority)
 ```ts
-import { InferOutput } from '@valchecker/internal'
+const port = v.number()
+	.isFinite()
+	.isInteger()
+	.isAtLeast(1)
+	.isAtMost(65535)
 
-v.number()
-	.min(1, 'Quantity must be at least 1')
+const config = v.string()
+	.toJSONValue('Invalid JSON')
+	.use(v.object({ port }))
 ```
 
-2. **Global handler**
-```ts
-import { InferOutput } from '@valchecker/internal'
+## `as<T>()`
 
-createValchecker({ steps, message: handler })
+Changes only the compile-time output type. It performs no runtime validation or transformation.
+
+```ts
+const schema = v.unknown().as<string>()
 ```
 
-3. **Built-in fallback** (lowest priority)
+Use it only when an external invariant already guarantees the asserted type.
 
-### Dynamic Messages
+## `generic<T>(factory)`
 
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.number()
-	.min(10, ({ payload }) =>
-		`Value must be at least 10, got ${payload.value}`)
-```
-
-## Recursive Schemas
-
-### `generic<T>(factory)`
-
-Creates recursive/self-referential schemas with proper typing.
+Builds lazy or recursive schemas.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 interface TreeNode {
 	value: number
 	children?: TreeNode[]
@@ -264,142 +123,99 @@ interface TreeNode {
 const treeSchema = v.object({
 	value: v.number(),
 	children: [v.array(
-		v.generic<{ output: TreeNode }>(() => treeSchema)
-	)], // Optional array of tree nodes
-})
-
-const result = treeSchema.execute({
-	value: 1,
-	children: [
-		{ value: 2 },
-		{
-			value: 3,
-			children: [{ value: 4 }],
-		},
-	],
+		v.generic<{ output: TreeNode }>(() => treeSchema),
+	)],
 })
 ```
 
-## Loose Variants
+## `toAsync()`
 
-### `looseNumber(message?)`
-
-Coerces strings to numbers before validation.
+Forces every invocation of the complete schema to return a native promise, including synchronous successes and early failures.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.looseNumber()
-
-schema.execute('42') // { value: 42 }
-schema.execute(42) // { value: 42 }
-schema.execute('3.14') // { value: 3.14 }
-schema.execute('abc') // { issues: [...] }
+const schema = v.string()
+	.check(async value => value.length > 0)
+	.toAsync()
 ```
 
-### `looseObject(shape, message?)`
+It changes execution mode, not the successful value.
 
-Alias for `object()` that explicitly allows unknown keys.
+## Loose primitives
+
+Loose primitives are initial schemas, not generic helper coercions:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+v.looseNumber() // number | `${number}` → number
+v.looseBoolean() // boolean | `${boolean}` → boolean
+v.looseBigint() // bigint | `${bigint}` → bigint
+```
 
+They accept only their documented TypeScript-compatible representations:
+
+```ts
+v.looseNumber().execute('42') // { value: 42 }
+v.looseNumber().execute('') // failure
+
+v.looseBoolean().execute('false') // { value: false }
+v.looseBoolean().execute(1) // failure
+
+v.looseBigint().execute('0x10') // { value: 16n }
+v.looseBigint().execute('1.0') // failure
+```
+
+## `looseObject(shape)`
+
+Validates declared own properties and preserves unknown own properties in the output.
+
+```ts
 const schema = v.looseObject({
 	name: v.string(),
 })
 
-schema.execute({ name: 'Alice', extra: 'allowed' })
-// { value: { name: 'Alice' } }
-// Note: unknown keys are stripped from output
+schema.execute({ name: 'Alice', extra: 'preserved' })
+// { value: { name: 'Alice', extra: 'preserved' } }
 ```
 
-## Working with Results
+This differs from `object()`, which omits unknown output properties, and `strictObject()`, which rejects them.
 
-### Result Type
+## Message handling
+
+A global message resolver may be supplied when creating an instance:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-type Result<T>
-	= | { value: T }
-		| { issues: Issue[] }
-
-interface Issue {
-	code: string
-	message: string
-	path: PropertyKey[]
-	payload: unknown
-}
+const v = createValchecker({
+	steps: allSteps,
+	message: ({ code, payload, path }) =>
+		i18n.t(`validation.${code}`, { payload, path }),
+})
 ```
 
-### Handling Results
+Message priority:
+
+1. per-step message,
+2. global resolver,
+3. built-in default,
+4. `"Invalid value."`.
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+v.number().isAtLeast(1, ({ payload }) =>
+	`Expected at least ${payload.minimum}, received ${payload.value}`,
+)
+```
 
-const result = schema.execute(input)
+## Working with results
 
-if ('value' in result) {
-	// Success: result.value is fully typed
+```ts
+const result = await schema.execute(input)
+
+if (v.isSuccess(result)) {
 	console.log(result.value)
 }
 else {
-	// Failure: result.issues contains all errors
 	for (const issue of result.issues) {
-		console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
+		console.log(issue.code, issue.path, issue.payload)
 	}
 }
 ```
 
-### Creating a Parse Function
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-function parse<T>(schema: Schema<T>, data: unknown): T {
-	const result = schema.execute(data)
-	if ('issues' in result) {
-		throw new ValidationError(result.issues)
-	}
-	return result.value
-}
-
-class ValidationError extends Error {
-	constructor(public issues: Issue[]) {
-		super(`Validation failed: ${issues.map(i => i.message)
-			.join(', ')}`)
-		this.name = 'ValidationError'
-	}
-}
-```
-
-### Safe Parse Pattern
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-function safeParse<T>(schema: Schema<T>, data: unknown): { success: true, data: T } | { success: false, error: Issue[] } {
-	const result = schema.execute(data)
-	if ('value' in result) {
-		return { success: true, data: result.value }
-	}
-	return { success: false, error: result.issues }
-}
-```
-
-## Standard Schema Compliance
-
-Valchecker implements Standard Schema V1, enabling interoperability:
-
-```ts
-import type { StandardSchema } from '@standard-schema/spec'
-import { InferOutput } from '@valchecker/internal'
-
-// All valchecker schemas are Standard Schema compatible
-const userSchema: StandardSchema<User> = v.object({
-	name: v.string(),
-	email: v.string(),
-})
-
-// Use with any Standard Schema compatible library
-```
+Validation failures are returned values. Applications that prefer exceptions may build a wrapper around `execute()` while retaining structured issues.
