@@ -38,7 +38,7 @@ import { v } from 'valchecker'
 const userSchema = v.object({
 	name: v.string().toTrimmed(),
 	email: v.string().toLowercase(),
-	age: v.number().integer().min(0),
+	age: v.number().isInteger().isAtLeast(0),
 	nickname: [v.string()],
 })
 
@@ -69,8 +69,8 @@ Build an instance from only the steps used by an application:
 ```ts
 import {
 	createValchecker,
-	integer,
-	min,
+	isAtLeast,
+	isInteger,
 	number,
 	object,
 	string,
@@ -78,11 +78,32 @@ import {
 } from 'valchecker'
 
 const v = createValchecker({
-	steps: [string, number, object, integer, min, toTrimmed],
+	steps: [string, number, object, isInteger, isAtLeast, toTrimmed],
 })
 ```
 
 `allSteps` is also exported for custom instances that need every built-in plugin.
+
+## Naming and type semantics
+
+Built-in steps follow a predictable fluent API:
+
+- initial steps use nouns, such as `string()`, `number()`, and `looseBoolean()`,
+- validation steps use `isXxx()`, such as `isFinite()` and `isLengthAtLeast()`,
+- concrete transformations use `toXxx()`, such as `toTrimmed()` and `toJSONValue()`,
+- generic escape hatches retain the direct names `check()` and `transform()`.
+
+Primitive initial steps align with TypeScript primitive types. In particular, `number()` accepts every JavaScript number, including `NaN`, `Infinity`, and `-Infinity`. Add `.isFinite()` when finite values are required.
+
+Loose primitive steps accept the primitive itself or its corresponding TypeScript template-literal representation, then normalize the output:
+
+```ts
+v.looseNumber().execute('1e3') // { value: 1000 }
+v.looseBoolean().execute('false') // { value: false }
+v.looseBigint().execute('0x10') // { value: 16n }
+```
+
+They do not perform general JavaScript truthiness or unrestricted coercion.
 
 ## Execution semantics
 
@@ -177,10 +198,10 @@ await schema.execute('abc')
 
 ```ts
 const configSchema = v.unknown()
-	.parseJSON('Invalid JSON')
+	.toJSONValue('Invalid JSON')
 	.fallback(() => ({ port: 3000 }))
 	.use(v.object({
-		port: v.number().integer().min(1).max(65535),
+		port: v.number().isInteger().isAtLeast(1).isAtMost(65535),
 	}))
 ```
 
