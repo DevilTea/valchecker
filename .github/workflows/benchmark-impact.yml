@@ -1,0 +1,95 @@
+name: Benchmark Impact
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'packages/internal/src/**'
+      - 'packages/valchecker/src/**'
+      - 'packages/all-steps/src/**'
+      - 'benchmarks/**'
+      - '.github/workflows/benchmark-impact.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-impact-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Install and build candidate
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
+
+      - name: Build base revision
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add ../valchecker-base "$BASE_SHA"
+          pnpm --dir ../valchecker-base install --frozen-lockfile
+          pnpm --dir ../valchecker-base build
+
+      - name: Run base and candidate benchmarks
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p artifacts/benchmark-impact
+          base_dist_url="$(node -e "console.log(require('node:url').pathToFileURL(require('node:path').resolve('../valchecker-base/packages/valchecker/dist/index.mjs')).href)")"
+          seed="pr-${{ github.event.pull_request.number }}-${GITHUB_RUN_ATTEMPT}"
+
+          VALCHECKER_DIST_URL="$base_dist_url" \
+          BENCHMARK_COMMIT="$BASE_SHA" \
+          pnpm --dir benchmarks bench \
+            --mode standard \
+            --adapters valchecker \
+            --seed "$seed-base" \
+            --output ../artifacts/benchmark-impact/baseline.json
+
+          BENCHMARK_COMMIT="$HEAD_SHA" \
+          pnpm --dir benchmarks bench \
+            --mode standard \
+            --adapters valchecker \
+            --seed "$seed-head" \
+            --output ../artifacts/benchmark-impact/candidate.json
+
+      - name: Compare benchmark impact
+        run: pnpm --dir benchmarks compare --baseline ../artifacts/benchmark-impact/baseline.json --candidate ../artifacts/benchmark-impact/candidate.json --markdown ../artifacts/benchmark-impact/impact.md --json ../artifacts/benchmark-impact/impact.json --html ../artifacts/benchmark-impact/impact.html --fail-on-regression
+
+      - name: Publish impact summary
+        if: always() && hashFiles('artifacts/benchmark-impact/impact.md') != ''
+        shell: bash
+        run: cat artifacts/benchmark-impact/impact.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark impact
+        if: always() && hashFiles('artifacts/benchmark-impact/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: benchmark-impact-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: artifacts/benchmark-impact
+          if-no-files-found: error
+          retention-days: 30
