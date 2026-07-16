@@ -14,6 +14,9 @@ import type {
 } from './types'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
+type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
+type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
+
 /* @__NO_SIDE_EFFECTS__ */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(stepImpl: StepPluginImpl<StepPluginDef>): StepPluginImpl<StepPluginDef> {
 	(stepImpl as any)[runtimeExecutionStepDefMarker] = true
@@ -44,12 +47,32 @@ export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['pa
 	}
 }
 
+function executeRuntimeSteps(runtimeSteps: RuntimeStep[], value: unknown): MaybePromise<ExecutionResult> {
+	const len = runtimeSteps.length
+	let result: MaybePromise<ExecutionResult> = { value }
+
+	for (let i = 0; i < len; i++) {
+		result = runtimeSteps[i]!(result as ExecutionResult)
+		if (isPromiseLike(result)) {
+			let chain = Promise.resolve(result)
+			for (let j = i + 1; j < len; j++)
+				chain = chain.then(runtimeSteps[j]!)
+			return chain
+		}
+	}
+	return result
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 export function createPipeExecutor({
 	runtimeSteps,
 }: {
-	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
-}): (value: unknown) => MaybePromise<ExecutionResult> {
+	runtimeSteps: RuntimeStep[]
+}): PipeExecutor {
+	return value => executeRuntimeSteps(runtimeSteps, value)
+}
+
+function createFinalizedPipeExecutor(runtimeSteps: RuntimeStep[]): PipeExecutor {
 	const len = runtimeSteps.length
 	if (len === 0)
 		return value => ({ value })
@@ -170,7 +193,7 @@ function createUnknownExceptionFailure(method: string, lastResult: ExecutionResu
 /* @__NO_SIDE_EFFECTS__ */
 function createExecutionStepMethodUtils(
 	method: string,
-	runtimeExecutions: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
+	runtimeExecutions: RuntimeStep[],
 	resolveMessage: ResolveMessageFn,
 ): StepMethodUtils<any, any, any> {
 	const wrapWithErrorHandling = (
@@ -230,7 +253,7 @@ function createProxyHandler({
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
-	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
+	runtimeSteps: RuntimeStep[]
 }) {
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
@@ -260,8 +283,8 @@ function createProxyHandler({
 
 /* @__NO_SIDE_EFFECTS__ */
 function createCoreProperties(
-	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
-	execute: (value: unknown) => MaybePromise<ExecutionResult>,
+	runtimeSteps: RuntimeStep[],
+	execute: PipeExecutor,
 ) {
 	return {
 		'~standard': {
@@ -291,9 +314,9 @@ function createInstance({
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
-	currentRuntimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
+	currentRuntimeSteps: RuntimeStep[]
 }): any {
-	const execute = createPipeExecutor({ runtimeSteps: currentRuntimeSteps })
+	const execute = createFinalizedPipeExecutor(currentRuntimeSteps)
 	const coreProperties = createCoreProperties(currentRuntimeSteps, execute)
 
 	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps }))
