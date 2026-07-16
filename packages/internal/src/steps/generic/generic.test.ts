@@ -53,7 +53,7 @@ describe('generic plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						message: 'Expected a number (NaN is not allowed).',
+						message: 'Expected a number.',
 						path: [],
 						payload: { value: 'not a number' },
 					}],
