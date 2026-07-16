@@ -25,6 +25,8 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - Installed-tarball consumer tests for ESM, CommonJS dynamic import, TypeScript `NodeNext`, and TypeScript `Bundler` resolution.
 - Coverage gates, documentation builds, cross-library benchmarks, generated benchmark reports, and immutable release-artifact validation in CI.
 - npm trusted publishing through a protected, manually dispatched GitHub Actions workflow using OIDC.
+- `isFinite()`, `isNaN()`, and `isNotEmpty()` built-in validation steps.
+- `looseBoolean()` and `looseBigint()` initial schemas.
 
 ### Changed
 
@@ -38,6 +40,26 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - `@valchecker/internal` is the semver-covered advanced root API for step-plugin authors; package-private source paths remain unsupported.
 - Lint checks are non-mutating; automatic formatting is available through `pnpm lint:fix`.
 - Version changes are reviewed pull requests. The release workflow no longer edits Git history or creates tags.
+- Built-in step names now expose their pipeline role: initial schemas use nouns, built-in validations use `isXxx`, and concrete transformations use `toXxx`. Generic `check()` and `transform()` retain their direct names.
+- `number()` now matches the TypeScript `number` primitive and accepts `NaN`, `Infinity`, and `-Infinity`; finite-number policy is explicit through `isFinite()`.
+- `looseNumber()` now accepts `number` or a TypeScript-compatible number string and normalizes output to `number`, rather than duplicating the old `number()` behavior.
+- Numeric bounds and length bounds are separate steps so their intent and payloads are explicit.
+
+### Renamed
+
+- `empty()` → `isEmpty()`
+- `integer()` → `isInteger()`
+- `startsWith()` → `isStartingWith()`
+- `endsWith()` → `isEndingWith()`
+- numeric `min()` → `isAtLeast()`
+- numeric `max()` → `isAtMost()`
+- length `min()` → `isLengthAtLeast()`
+- length `max()` → `isLengthAtMost()`
+- `parseJSON()` → `toJSONValue()`
+- `stringifyJSON()` → `toJSONString()`
+- `toSplitted()` → `toSplit()`
+
+Issue codes for renamed built-in steps now use the public step name, including `isAtLeast:expected_at_least`, `isLengthAtLeast:expected_length_at_least`, and `toJSONValue:invalid_json`.
 
 ### Removed
 
