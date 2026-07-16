@@ -1,26 +1,26 @@
 # Structures
 
-Structural validators compose nested schemas and prepend property keys or array indexes to child issue paths without mutating the child issue object.
+Structural validators compose nested schemas and prepend property keys or array indexes to child issue paths without mutating child issues.
 
 The normative edge-case behavior is defined in the [Valchecker 1.0 Contract](/guide/v1-contract#object-schemas).
 
 ## `object(shape, message?)`
 
-Validates declared fields from own properties. Unknown input properties do not cause failure, but they are omitted from the output.
+Validates declared own fields. Unknown input properties do not fail validation, but are omitted from output.
 
-**Issues**:
+**Issues:**
 
-- `object:expected_object` — the input is not a non-null, non-array object
-- issues produced by declared field schemas
+- `object:expected_object`
+- issues from declared field schemas
 
 ```ts
 const user = v.object({
 	id: v.string(),
-	name: v.string().toTrimmed(),
-	age: [v.number().min(0)],
+	name: v.string().toTrimmed().isNotEmpty(),
+	age: [v.number().isFinite().isAtLeast(0)],
 })
 
-await user.execute({
+user.execute({
 	id: '123',
 	name: '  Alice  ',
 	extra: 'ignored',
@@ -28,50 +28,30 @@ await user.execute({
 // { value: { id: '123', name: 'Alice', age: undefined } }
 ```
 
-A declared inherited value does not count as an input property:
-
-```ts
-const input = Object.create({ id: 'inherited' })
-await v.object({ id: v.string() }).execute(input)
-// Failure at path ['id']
-```
+Inherited values do not satisfy declared fields.
 
 ## `strictObject(shape, message?)`
 
-Validates declared own fields and rejects unknown enumerable own keys, including symbols.
+Validates declared own fields and rejects unknown enumerable own string and symbol keys.
 
-**Issues**:
+**Issues:**
 
-- `strictObject:expected_object` — the input is not a non-null, non-array object
-- `strictObject:unexpected_keys` — unknown keys were found; payload `keys` is `PropertyKey[]`
-- issues produced by declared field schemas
-
-```ts
-const strict = v.strictObject({
-	id: v.string(),
-})
-
-await strict.execute({ id: '123', extra: true })
-// { issues: [{ code: 'strictObject:unexpected_keys', ... }] }
-```
+- `strictObject:expected_object`
+- `strictObject:unexpected_keys`
+- issues from declared field schemas
 
 Unknown-key detection happens before declared field validation.
 
 ## `looseObject(shape, message?)`
 
-Validates declared own fields and preserves unknown own properties in the output. It is not an alias for `object()`.
-
-**Issues**:
-
-- `looseObject:expected_object` — the input is not a non-null, non-array object
-- issues produced by declared field schemas
+Validates declared own fields and preserves unknown own properties in output. It is not an alias for `object()`.
 
 ```ts
 const loose = v.looseObject({
 	name: v.string().toTrimmed(),
 })
 
-await loose.execute({
+loose.execute({
 	name: '  Alice  ',
 	metadata: { source: 'import' },
 })
@@ -83,7 +63,7 @@ await loose.execute({
 // }
 ```
 
-Descriptors of unknown properties are preserved. Declared validated properties are materialized as normal writable data properties so an input getter or read-only descriptor cannot retain a stale value.
+Descriptors of unknown properties are preserved. Declared transformed properties are materialized as ordinary writable data properties.
 
 ## Optional fields
 
@@ -100,30 +80,27 @@ The input property may be absent. The declared output property is `undefined` wh
 
 ## Safe `__proto__` fields
 
-When `__proto__` is declared in the shape, the validated output receives an own enumerable data property. Valchecker does not invoke the legacy prototype setter.
+A declared `__proto__` key is written as an own enumerable data property. Valchecker does not invoke the legacy prototype setter.
 
 ## `array(elementSchema, message?)`
 
-Validates each element in index order and returns an array of transformed element outputs.
+Validates elements in index order and returns their transformed outputs.
 
-**Issues**:
+**Issues:**
 
-- `array:expected_array` — the input is not an array
-- element issues with the numeric index prepended to their path
+- `array:expected_array`
+- element issues with numeric indices prepended to paths
 
 ```ts
 const tags = v.array(v.string().toLowercase())
-	.min(1)
-	.max(5)
+	.isLengthAtLeast(1)
+	.isLengthAtMost(5)
 
 await tags.execute(['JS', 'TS', 'NODE'])
 // { value: ['js', 'ts', 'node'] }
-
-await tags.execute(['valid', 123])
-// issues[0].path === [1]
 ```
 
-Common array-compatible steps include `min`, `max`, `toFiltered`, `toSorted`, `toSliced`, and `toLength`.
+Common array steps include `isEmpty`, `isNotEmpty`, `isLengthAtLeast`, `isLengthAtMost`, `toFiltered`, `toSorted`, `toSliced`, and `toLength`.
 
 ## `union(schemas)`
 
@@ -132,14 +109,14 @@ Evaluates branches in declaration order and returns the first successful branch'
 ```ts
 const identifier = v.union([
 	v.string().toTrimmed().transform(value => value.length),
-	v.number().integer().min(0),
+	v.number().isFinite().isInteger().isAtLeast(0),
 ])
 
-await identifier.execute(' abc ')
+identifier.execute(' abc ')
 // { value: 3 }
 ```
 
-If every branch fails, the failure contains collected branch issues. Branch order can affect the selected output and performance.
+If every branch fails, the result contains collected branch issues. Branch order can affect output and performance.
 
 ### Discriminated unions
 
@@ -157,7 +134,7 @@ const event = v.union([
 ])
 ```
 
-Valchecker does not require a separate discriminated-union primitive; ordered object branches and literal fields provide the behavior.
+Literal fields and ordered object branches provide discriminated-union behavior without a separate primitive.
 
 ## `intersection(schemas)`
 
@@ -177,34 +154,25 @@ const auditable = v.object({
 const entity = v.intersection([timestamped, auditable])
 ```
 
-Only plain objects are recursively composed. The merge supports enumerable string and symbol keys, compatible cycles, and shared-reference topology.
+Only plain objects are recursively composed. Enumerable string and symbol keys, compatible cycles, and shared-reference topology are supported.
 
-Equal primitive values and the same non-plain reference are preserved. Distinct `Date`, `Map`, class, or other non-plain instances conflict rather than being spread into `{}`.
+Equal primitives and the same non-plain reference are preserved. Distinct `Date`, `Map`, class, or other non-plain instances conflict.
 
-**Issue**:
+**Issue:** `intersection:conflicting_outputs`
 
-- `intersection:conflicting_outputs` — branch outputs cannot be composed; the payload contains the original outputs
-
-After the first asynchronous branch is encountered, remaining branches start together. A synchronous failure encountered before asynchronous work remains fail-fast.
-
-See [Intersection semantics](/guide/v1-contract#intersection-semantics) for the complete graph merge contract.
+After the first asynchronous branch is reached, remaining branches start together. A synchronous failure before asynchronous work remains fail-fast.
 
 ## `instance(constructor, message?)`
 
-Validates with `instanceof` against the provided constructor.
+Validates with `instanceof`.
 
-**Issue**:
-
-- `instance:expected_instance`
+**Issue:** `instance:expected_instance`
 
 ```ts
 const dateSchema = v.instance(Date)
 
-await dateSchema.execute(new Date())
-// { value: Date }
-
-await dateSchema.execute('2026-01-01')
-// { issues: [...] }
+dateSchema.execute(new Date()) // success
+dateSchema.execute('2026-01-01') // failure
 ```
 
 ## Nested issue paths
@@ -219,16 +187,6 @@ const schema = v.object({
 		}),
 	),
 })
-
-const result = await schema.execute({
-	users: [
-		{ profile: { name: 'Alice' } },
-		{ profile: { name: 123 } },
-	],
-})
-
-// On failure:
-// result.issues[0].path === ['users', 1, 'profile', 'name']
 ```
 
-Symbols remain symbol path segments. Frozen or reused child issue objects are supported because path prepending clones instead of mutating.
+A failure in the second user's name receives path `['users', 1, 'profile', 'name']`. Symbols remain symbol path segments. Frozen or reused child issues are supported because path prepending clones rather than mutates.
