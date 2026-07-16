@@ -134,7 +134,7 @@ const result = {
 		cpu: os.cpus()[0]?.model ?? 'unknown',
 		logicalCpuCount: os.cpus().length,
 		totalMemoryBytes: os.totalmem(),
-		commit: process.env.GITHUB_SHA ?? process.env.BENCHMARK_COMMIT ?? null,
+		commit: process.env.BENCHMARK_COMMIT ?? process.env.GITHUB_SHA ?? null,
 		runnerName: process.env.RUNNER_NAME ?? null,
 		runnerImageOS: process.env.ImageOS ?? null,
 		runnerImageVersion: process.env.ImageVersion ?? null,
