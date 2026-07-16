@@ -34,9 +34,9 @@ The concise Markdown report is written to the Actions job summary. The artifact 
 
 Pull requests that modify runtime source or benchmark code run the **Benchmark Impact** workflow. It builds the pull request base and candidate on the same runner and measures both with the candidate benchmark harness and standard profile.
 
-The workflow performs three independent process runs for each revision. Base and candidate runs are interleaved, and their order alternates to reduce systematic thermal, scheduler, and runner drift. Scenario throughput is the median of the three process medians. Stability is calculated from variation across those independent process medians; the within-process sample RME remains available in each raw JSON file.
+The workflow performs three paired independent process runs. Each candidate result is divided by the adjacent base result from the same repetition, and base/candidate order alternates to reduce thermal, scheduler, and runner drift. The reported change is the median of the three paired ratios. Paired RME uses a 95% Student’s t interval, which is intentionally conservative for the small sample; separate base/candidate medians, cross-run variation, and within-process sample RME remain in the JSON evidence.
 
-The impact report classifies a scenario only when both cross-run RME values are at or below 5%:
+The impact report classifies a scenario only when its paired-ratio RME is at or below 5%:
 
 - less than 3%: normally noise
 - 3–5%: requires corroboration from adjacent scenarios or independent workflow runs
@@ -87,7 +87,7 @@ pnpm --dir benchmarks summary \
   --html results/summary.html
 ```
 
-Compare repeated Valchecker benchmark results by passing each independent run separately:
+Compare repeated Valchecker benchmark results by passing each paired run in matching order:
 
 ```bash
 pnpm --dir benchmarks compare \
