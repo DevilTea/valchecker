@@ -23,6 +23,24 @@ describe('union plugin', () => {
 				.toEqual({ value: 'hello' })
 		})
 
+		it('should not execute later branches after a synchronous success', () => {
+			let laterBranchCalls = 0
+			const result = v.union([
+				v.string(),
+				v.string()
+					.transform((value) => {
+						laterBranchCalls++
+						return value
+					}),
+			])
+				.execute('hello')
+
+			expect(result)
+				.toEqual({ value: 'hello' })
+			expect(laterBranchCalls)
+				.toBe(0)
+		})
+
 		it('should pass when value matches second branch', () => {
 			const result = v.union([v.string(), v.number()])
 				.execute(42)
@@ -84,6 +102,23 @@ describe('union plugin', () => {
 							path: [],
 							payload: { value: null },
 						},
+					],
+				})
+		})
+
+		it('should preserve issue order when an async branch and all later branches fail', async () => {
+			const result = await v.union([
+				v.string()
+					.transform(async () => { throw new Error('fail') }),
+				v.number(),
+			])
+				.execute('hello')
+
+			expect(result)
+				.toMatchObject({
+					issues: [
+						{ code: 'core:unknown_exception' },
+						{ code: 'number:expected_number' },
 					],
 				})
 		})
