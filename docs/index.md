@@ -1,11 +1,10 @@
 ---
-# https://vitepress.dev/reference/default-theme-home-page
 layout: home
 
 hero:
   name: "valchecker"
   text: "Runtime-first validation with zero guesswork"
-  tagline: Modular TypeScript validation library with composable steps, full type inference, and deterministic issue reporting. Standard Schema V1 compliant.
+  tagline: Type-aligned initial schemas, state-aware fluent validation, tree-shakable plugins, and deterministic structured issues.
   actions:
     - theme: brand
       text: Get Started
@@ -19,48 +18,45 @@ hero:
 
 features:
   - icon: 🔗
-    title: Composable Step Pipeline
-    details: Chain built-in validation steps or create custom plugins. Each step can validate, transform, or handle failures—all with the same ergonomic API.
+    title: State-Aware Fluent API
+    details: Initial schemas use nouns, validations use `isXxx`, and concrete transforms use `toXxx`, so editor autocomplete exposes only meaningful next steps.
   - icon: 🎯
-    title: Full Type Inference
-    details: Schemas stay synchronized with TypeScript types through transforms, narrowing checks, and fallback chains. No manual type assertions needed.
+    title: TypeScript-Aligned Primitives
+    details: Primitive schemas mirror TypeScript identities. Runtime constraints such as finite numbers remain explicit, composable validation steps.
   - icon: 📋
     title: Deterministic Issue Reporting
-    details: Every validation failure produces structured issues with codes, payloads, and deep paths—perfect for form validation or API error responses.
+    details: Validation failures produce structured issues with codes, payloads, and deep paths rather than throwing validation exceptions.
   - icon: 🌳
     title: Tree-Shakable by Design
-    details: Import all steps with `allSteps` for rapid prototyping, or cherry-pick only what you need for production bundles that stay lean.
+    details: Use the default all-steps instance or build a custom instance from selected plugins while keeping the same fluent API.
   - icon: ⚡
-    title: Async-Safe Pipelines
-    details: Mix synchronous and asynchronous steps freely. Database checks, API calls, and pure validation all flow through the same deterministic pipeline.
+    title: Sync and Maybe-Async Pipelines
+    details: Direct values, promises, and thenables preserve execution order and the pipeline's actual completion mode.
   - icon: 🔧
-    title: Batteries-Included Transforms
-    details: Trim strings, parse JSON, filter arrays, and normalize data inline—no need to scatter preprocessing logic across your codebase.
+    title: Explicit Normalization
+    details: Loose primitives normalize TypeScript-compatible string representations without falling back to unrestricted JavaScript coercion.
 ---
 
 <script setup>
-import { ref } from 'vue'
+const codeExample = `import { v } from 'valchecker'
 
-const codeExample = `import { allSteps, createValchecker } from 'valchecker'
-
-// Create a valchecker instance
-const v = createValchecker({ steps: allSteps })
-
-// Define a user schema with composable steps
 const UserSchema = v.object({
-  name: v.string().toTrimmed().min(1),
-  email: v.string(),
-  age: [v.number().integer().min(0)],  // Optional
-  role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
+  name: v.string().toTrimmed().isNotEmpty(),
+  email: v.string().toLowercase(),
+  age: [v.looseNumber().isFinite().isInteger().isAtLeast(0)],
+  role: v.union([
+    v.literal('admin'),
+    v.literal('user'),
+    v.literal('guest'),
+  ]),
 })
 
-// Validate with detailed issue reporting
 const result = await UserSchema.execute(input)
 
-if ('value' in result) {
-  console.log(result.value) // Fully typed User
+if (v.isSuccess(result)) {
+  console.log(result.value)
 } else {
-  console.log(result.issues) // Structured issues with paths
+  console.log(result.issues)
 }`
 </script>
 
@@ -86,33 +82,6 @@ if ('value' in result) {
   text-align: center;
   color: var(--vp-c-text-2);
   margin-bottom: 1.5rem;
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-  margin: 3rem auto;
-  max-width: 1200px;
-  padding: 0 1.5rem;
-}
-
-.feature-card {
-  background: var(--vp-c-bg-soft);
-  border-radius: 12px;
-  padding: 1.5rem;
-  border: 1px solid var(--vp-c-divider);
-}
-
-.feature-card h3 {
-  margin: 0 0 0.5rem 0;
-  color: var(--vp-c-text-1);
-}
-
-.feature-card p {
-  margin: 0;
-  color: var(--vp-c-text-2);
-  font-size: 0.9rem;
 }
 
 .why-section {
@@ -155,34 +124,38 @@ if ('value' in result) {
 
 ## See It In Action
 
-Define schemas with intuitive, chainable methods. Get full TypeScript inference automatically.
+The method name identifies the step's role, while the available methods narrow as the pipeline output changes.
 
-```typescript
+```ts
+import type { InferOutput } from '@valchecker/internal'
 import { v } from 'valchecker'
 
-// Define a user schema with composable steps
 const UserSchema = v.object({
 	name: v.string()
 		.toTrimmed()
-		.min(1),
-	email: v.string(),
-	age: [v.number()
-		.integer()
-		.min(0)], // Optional
-	role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
+		.isNotEmpty(),
+	email: v.string()
+		.toLowercase(),
+	age: [v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0)],
+	role: v.union([
+		v.literal('admin'),
+		v.literal('user'),
+		v.literal('guest'),
+	]),
 })
 
-// Full type inference - no manual types needed
 type User = InferOutput<typeof UserSchema>
 
-// Validate with detailed issue reporting
 const result = await UserSchema.execute(input)
 
-if ('value' in result) {
-	console.log(result.value) // Fully typed User
+if (v.isSuccess(result)) {
+	console.log(result.value)
 }
 else {
-	console.log(result.issues) // Structured issues with paths
+	console.log(result.issues)
 }
 ```
 
@@ -192,7 +165,7 @@ else {
 
 ## Why Valchecker?
 
-Unlike validation libraries that treat runtime and compile-time as separate concerns, **Valchecker unifies them**. Every schema is both a runtime validator and a TypeScript type generator. Transforms update types automatically. Failures produce predictable, structured issues—not thrown exceptions. The result is validation code that's easier to write, test, and maintain.
+Valchecker treats runtime validation, output transformation, TypeScript inference, and bundle composition as one API design problem. Primitive initial steps mirror TypeScript types; additional runtime guarantees are explicit `isXxx` validations; concrete output changes are `toXxx` transformations. Generic `check()` and `transform()` remain available when a named step cannot express the requirement.
 
 </div>
 
