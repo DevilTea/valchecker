@@ -1,227 +1,191 @@
-# Type Inference Guide
+# Type Inference
 
-Valchecker automatically infers TypeScript types from your schemas for complete type safety.
+Valchecker tracks input, transformed output, issue, and execution-mode types through every pipeline step.
 
-## Basic Type Inference
+## Input and output helpers
 
-### Output Type
+```ts
+import type { InferInput, InferOutput } from '@valchecker/internal'
 
-Extract the validated output type from any schema:
-
-```typescript
-import { InferOutput } from 'valchecker'
-
-const userSchema = v.object({
-  name: v.string(),
-  age: v.number(),
-  email: v.string(),
-})
-
-type User = InferOutput<typeof userSchema>
-// { name: string; age: number; email: string }
-```
-
-### Input Type
-
-Get the input type that the schema expects:
-
-```typescript
-import { InferInput } from 'valchecker'
-
-type UserInput = InferInput<typeof userSchema>
-```
-
-## Optional Fields
-
-Fields wrapped in array brackets become optional:
-
-```typescript
 const schema = v.object({
-  name: v.string(),          // Required
-  nickname: [v.string()],    // Optional (?)
-  tags: [v.array(v.string())], // Optional
+	name: v.string().toTrimmed().isNotEmpty(),
+	count: v.looseNumber().isFinite().isInteger(),
 })
 
-type Result = InferOutput<typeof schema>
+type Input = InferInput<typeof schema>
+type Output = InferOutput<typeof schema>
+```
+
+Use the semver-covered `@valchecker/internal` root for advanced type helpers.
+
+## Primitive and loose primitive outputs
+
+```ts
+const strictNumber = v.number()
+const looseNumber = v.looseNumber()
+const looseBoolean = v.looseBoolean()
+const looseBigint = v.looseBigint()
+```
+
+Their outputs are respectively `number`, `number`, `boolean`, and `bigint`. Loose string representations are normalized and do not remain in the output union.
+
+## Optional object fields
+
+A one-element tuple marks a field optional:
+
+```ts
+const user = v.object({
+	name: v.string(),
+	nickname: [v.string()],
+	tags: [v.array(v.string())],
+})
+
+type User = InferOutput<typeof user>
 // {
 //   name: string
-//   nickname?: string
-//   tags?: string[]
+//   nickname: string | undefined
+//   tags: string[] | undefined
 // }
 ```
 
-## Transform Types
+The declared output property is present with `undefined` when the input property is absent.
 
-Transforms affect the output type:
+## Transformations change output types
 
-```typescript
-const schema = v.string()
-  .toUppercase()
-  .toLowercase()
+```ts
+const count = v.string()
+	.toSplit(',')
+	.toFiltered(value => value.length > 0)
+	.toLength()
 
-type Result = InferOutput<typeof schema>
-// string (always string after transforms)
+type CountInput = InferInput<typeof count> // string
+type CountOutput = InferOutput<typeof count> // number
 ```
 
-### Object Transforms
+Generic transformations also update inference:
 
-Transform step outputs affect nested types:
+```ts
+const record = v.string()
+	.transform(value => ({ raw: value }))
 
-```typescript
-const schema = v.object({
-  name: v.string().toTrimmed(),
-  data: v.string().parseJSON(),
-})
-
-type Result = InferOutput<typeof schema>
-// {
-//   name: string
-//   data: unknown
-// }
+type RecordOutput = InferOutput<typeof record>
+// { raw: string }
 ```
 
-## Complex Structures
+## JSON parsing
 
-### Arrays
-
-```typescript
-const schema = v.array(
-  v.object({
-    id: v.number(),
-    title: v.string(),
-  })
-)
-
-type Result = InferOutput<typeof schema>
-// Array<{ id: number; title: string }>
+```ts
+const asserted = v.string()
+	.toJSONValue<{ name: string }>()
 ```
 
-### Unions
+The generic parameter asserts an output type; it does not validate the parsed structure. Delegate to another schema for runtime validation:
 
-```typescript
-const schema = v.union([
-  v.object({ type: v.literal('user'), name: v.string() }),
-  v.object({ type: v.literal('admin'), permissions: v.array(v.string()) }),
+```ts
+const validated = v.string()
+	.toJSONValue()
+	.use(v.object({
+		name: v.string(),
+	}))
+```
+
+## Built-in validations preserve output types
+
+```ts
+const quantity = v.number()
+	.isFinite()
+	.isInteger()
+	.isAtLeast(1)
+```
+
+The output remains `number`. Runtime refinements such as finite, non-empty, email-like, or bounded values generally cannot be represented as distinct TypeScript primitives unless a custom type guard provides a branded subtype.
+
+## Type-guard checks
+
+```ts
+interface EmailBrand {
+	readonly __email: unique symbol
+}
+
+type Email = string & EmailBrand
+
+function isEmail(value: string): value is Email {
+	return value.includes('@')
+}
+
+const email = v.string().check(isEmail)
+type EmailOutput = InferOutput<typeof email> // Email
+```
+
+## Structural inference
+
+```ts
+const event = v.union([
+	v.object({
+		type: v.literal('click'),
+		x: v.number(),
+		y: v.number(),
+	}),
+	v.object({
+		type: v.literal('keypress'),
+		key: v.string(),
+	}),
 ])
 
-type Result = InferOutput<typeof schema>
-// { type: 'user'; name: string } | { type: 'admin'; permissions: string[] }
+type Event = InferOutput<typeof event>
 ```
 
-### Nested Objects
+Union output is the union of branch outputs. Intersection output follows the compatible composed branch outputs.
 
-```typescript
-const addressSchema = v.object({
-  street: v.string(),
-  city: v.string(),
-})
+## Delegation with `use()`
 
-const userSchema = v.object({
-  name: v.string(),
-  address: addressSchema,
-})
+`use()` accepts another Valchecker schema and preserves its transformed output and issue types:
 
-type User = InferOutput<typeof userSchema>
-// {
-//   name: string
-//   address: { street: string; city: string }
-// }
+```ts
+const normalizedName = v.string()
+	.toTrimmed()
+	.isNotEmpty()
+
+const delegated = v.unknown().use(normalizedName)
+type DelegatedOutput = InferOutput<typeof delegated> // string
 ```
 
-## Type Narrowing
+Use `transform()` rather than `use()` for an arbitrary callback transformation.
 
-Schemas perform type narrowing:
+## Async schemas
 
-```typescript
-const input: unknown = getUserInput()
+Async work changes execution mode, not successful output:
 
-const schema = v.string().min(1)
-const result = schema.execute(input)
+```ts
+const username = v.string().check(async (value) => {
+	const exists = await checkExists(value)
+	return exists ? 'Already exists' : true
+})
 
-if ('value' in result) {
-  // result.value is now typed as string
-  console.log(result.value.toUpperCase())
-} else {
-  // result.issues contains validation errors
-  console.log(result.issues)
+type UsernameOutput = InferOutput<typeof username> // string
+```
+
+An earlier synchronous failure may bypass the asynchronous callback. Append `.toAsync()` when the schema must always return a native promise.
+
+## Result narrowing
+
+```ts
+const result = await schema.execute(input)
+
+if (v.isSuccess(result)) {
+	const output: Output = result.value
+}
+else {
+	for (const issue of result.issues)
+		console.log(issue.code, issue.path, issue.payload)
 }
 ```
 
-## Discriminated Unions
+Prefer the exported result guards over ad hoc casts.
 
-Result is a discriminated union based on validation success:
+## Guidance
 
-```typescript
-const result = schema.execute(data)
-
-if ('value' in result) {
-  // Success branch
-  type SuccessResult = typeof result
-  // { value: T; issues?: never }
-} else {
-  // Failure branch
-  type FailureResult = typeof result
-  // { issues: Issue[]; value?: never }
-}
-```
-
-## Custom Type Guards
-
-Create reusable schemas with predictable types:
-
-```typescript
-const emailSchema = v.string()
-  .toTrimmed()
-  .toLowercase()
-  .check(s => s.includes('@'))
-
-type Email = InferOutput<typeof emailSchema>
-
-const userSchema = v.object({
-  email: emailSchema,
-  backup: [emailSchema],
-})
-
-type User = InferOutput<typeof userSchema>
-// { email: string; backup?: string }
-```
-
-## Async Schemas
-
-Async steps don't affect the output type:
-
-```typescript
-const schema = v.string()
-  .check(async (val) => {
-    const exists = await checkExists(val)
-    return exists
-  })
-
-type Result = InferOutput<typeof schema>
-// string (not Promise<string>)
-
-// But execution must be awaited
-const result = await schema.execute(data)
-```
-
-## Function Schemas
-
-Use `use()` step for complex transformations:
-
-```typescript
-const schema = v.string().use((val) => ({
-  original: val,
-  upper: val.toUpperCase(),
-}))
-
-type Result = InferOutput<typeof schema>
-// { original: string; upper: string }
-```
-
-## Tips for Type Inference
-
-1. **Keep types explicit** - Use `InferOutput<typeof schema>` for clarity
-2. **Compose schemas** - Build small schemas and combine them
-3. **Use optional arrays** - `[v.string()]` for optional fields
-4. **Trust the inference** - Valchecker maintains type safety through the pipeline
-5. **Check discriminated unions** - Always use `'value' in result` pattern for type guards
+- Infer from reusable schemas instead of duplicating interface declarations.
+- Treat `toJSONValue<T>()` and `as<T>()` as assertions, not runtime proof.
+- Use `check()` type-guard overloads when a runtime predicate genuinely establishes a narrower type.
+- Keep transformations explicit so input and output types remain understandable at each chain position.
