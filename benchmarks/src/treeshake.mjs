@@ -1,28 +1,37 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { cpus, platform, release } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { rollup, VERSION as rollupVersion } from 'rollup'
 import { minify } from 'terser'
 
 const require = createRequire(import.meta.url)
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, '../..')
+const packageAliases = new Map([
+	['valchecker', resolve(repoRoot, 'packages/valchecker/dist/index.mjs')],
+	['@valchecker/all-steps', resolve(repoRoot, 'packages/all-steps/dist/index.mjs')],
+	['@valchecker/internal', resolve(repoRoot, 'packages/internal/dist/index.mjs')],
+])
+const unrelatedValcheckerMarkers = [
+	'strictObject',
+	'intersection',
+	'toUppercase',
+	'parseJSON',
+	'toSorted',
+]
 
-function parseArgs(argv) {
-	const args = { output: resolve(repoRoot, 'artifacts/tree-shaking') }
-	for (let i = 0; i < argv.length; i++) {
-		if (argv[i] === '--output' && argv[i + 1])
-			args.output = resolve(process.cwd(), argv[++i])
+function parseArguments(argv) {
+	const options = { output: resolve(repoRoot, 'artifacts/tree-shaking') }
+	for (let index = 0; index < argv.length; index++) {
+		if (argv[index] === '--output' && argv[index + 1])
+			options.output = resolve(process.cwd(), argv[++index])
 	}
-	return args
-}
-
-async function readJson(path) {
-	return JSON.parse(await readFile(path, 'utf8'))
+	return options
 }
 
 function packageVersion(name) {
@@ -34,34 +43,17 @@ function packageVersion(name) {
 				return JSON.parse(readFileSync(packagePath, 'utf8')).version ?? 'unknown'
 			const parent = dirname(current)
 			if (parent === current)
-				break
+				return 'unknown'
 			current = parent
 		}
 	}
-	catch {}
-	return 'unknown'
-}
-
-function bytes(value) {
-	return Buffer.byteLength(value)
-}
-
-function compressedSizes(code) {
-	return {
-		rawBytes: bytes(code),
-		gzipBytes: gzipSync(code, { level: 9 }).byteLength,
-		brotliBytes: brotliCompressSync(code, {
-			params: {
-				[zlibConstants.BROTLI_PARAM_QUALITY]: 11,
-			},
-		}).byteLength,
+	catch {
+		return 'unknown'
 	}
 }
 
 function formatBytes(value) {
-	if (value < 1024)
-		return `${value} B`
-	return `${(value / 1024).toFixed(2)} KiB`
+	return value < 1024 ? `${value} B` : `${(value / 1024).toFixed(2)} KiB`
 }
 
 function formatPercent(value) {
@@ -77,44 +69,38 @@ function escapeHtml(value) {
 		.replaceAll("'", '&#039;')
 }
 
-const aliases = new Map([
-	['valchecker', resolve(repoRoot, 'packages/valchecker/dist/index.mjs')],
-	['@valchecker/all-steps', resolve(repoRoot, 'packages/all-steps/dist/index.mjs')],
-	['@valchecker/internal', resolve(repoRoot, 'packages/internal/dist/index.mjs')],
-])
+function compressedSizes(code) {
+	return {
+		rawBytes: Buffer.byteLength(code),
+		gzipBytes: gzipSync(code, { level: 9 }).byteLength,
+		brotliBytes: brotliCompressSync(code, {
+			params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11 },
+		}).byteLength,
+	}
+}
 
-const unrelatedValcheckerMarkers = [
-	'strictObject',
-	'intersection',
-	'toUppercase',
-	'parseJSON',
-	'toSorted',
-]
-
-function packageResolver(entryCode) {
+function resolver(entryCode) {
 	return {
 		name: 'tree-shaking-benchmark-resolver',
 		resolveId(source) {
 			if (source === 'virtual:entry')
 				return '\0virtual:entry'
-			if (aliases.has(source))
-				return { id: aliases.get(source), moduleSideEffects: false }
+			if (packageAliases.has(source))
+				return { id: packageAliases.get(source), moduleSideEffects: false }
 			if (source.startsWith('.') || source.startsWith('/') || source.startsWith('\0'))
 				return null
 			try {
 				const url = import.meta.resolve(source)
-				if (url.startsWith('file:'))
-					return { id: fileURLToPath(url), moduleSideEffects: false }
+				return url.startsWith('file:')
+					? { id: fileURLToPath(url), moduleSideEffects: false }
+					: null
 			}
 			catch {
 				return null
 			}
-			return null
 		},
 		load(id) {
-			if (id === '\0virtual:entry')
-				return entryCode
-			return null
+			return id === '\0virtual:entry' ? entryCode : null
 		},
 	}
 }
@@ -265,11 +251,11 @@ export { library }
 	})),
 ]
 
-async function bundleScenario(scenario, outputDir) {
+async function bundleScenario(scenario, outputDirectory) {
 	const warnings = []
 	const bundle = await rollup({
 		input: 'virtual:entry',
-		plugins: [packageResolver(scenario.code)],
+		plugins: [resolver(scenario.code)],
 		treeshake: {
 			annotations: true,
 			moduleSideEffects: false,
@@ -290,21 +276,17 @@ async function bundleScenario(scenario, outputDir) {
 	const chunk = generated.output.find(output => output.type === 'chunk')
 	if (!chunk)
 		throw new Error(`No JavaScript chunk generated for ${scenario.id}`)
+
 	const minified = await minify(chunk.code, {
 		module: true,
-		compress: {
-			passes: 2,
-			pure_getters: true,
-		},
+		compress: { passes: 2, pure_getters: true },
 		mangle: true,
-		format: {
-			comments: false,
-		},
+		format: { comments: false },
 	})
 	if (!minified.code)
 		throw new Error(`Terser produced no code for ${scenario.id}`)
 
-	const bundlePath = join(outputDir, 'bundles', `${scenario.id}.mjs`)
+	const bundlePath = join(outputDirectory, 'bundles', `${scenario.id}.mjs`)
 	await writeFile(bundlePath, `${minified.code}\n`)
 	if (scenario.group !== 'Full-library reference') {
 		const module = await import(`${pathToFileURL(bundlePath).href}?run=${Date.now()}`)
@@ -328,7 +310,7 @@ async function bundleScenario(scenario, outputDir) {
 	}
 }
 
-function resultById(results, id) {
+function getResult(results, id) {
 	const result = results.find(item => item.id === id)
 	if (!result)
 		throw new Error(`Missing scenario result: ${id}`)
@@ -336,70 +318,61 @@ function resultById(results, id) {
 }
 
 function analyze(results) {
-	const selectiveString = resultById(results, 'valchecker-selective-string')
-	const defaultString = resultById(results, 'valchecker-default-string')
-	const selectiveObject = resultById(results, 'valchecker-selective-object')
-	const defaultObject = resultById(results, 'valchecker-default-object')
-	const full = resultById(results, 'valchecker-full')
-	const zod4String = resultById(results, 'zod4-string')
-	const zod4Object = resultById(results, 'zod4-object')
-	const valibotString = resultById(results, 'valibot-string')
-	const valibotObject = resultById(results, 'valibot-object')
+	const selectiveString = getResult(results, 'valchecker-selective-string')
+	const defaultString = getResult(results, 'valchecker-default-string')
+	const selectiveObject = getResult(results, 'valchecker-selective-object')
+	const defaultObject = getResult(results, 'valchecker-default-object')
+	const full = getResult(results, 'valchecker-full')
+	const zod4String = getResult(results, 'zod4-string')
+	const zod4Object = getResult(results, 'zod4-object')
+	const valibotString = getResult(results, 'valibot-string')
+	const valibotObject = getResult(results, 'valibot-object')
 
-	const stringReduction = 1 - selectiveString.brotliBytes / defaultString.brotliBytes
-	const objectReduction = 1 - selectiveObject.brotliBytes / defaultObject.brotliBytes
-	const selectiveRetained = selectiveString.brotliBytes / full.brotliBytes
-	const stringVsZod4Reduction = 1 - selectiveString.brotliBytes / zod4String.brotliBytes
-	const objectVsZod4Reduction = 1 - selectiveObject.brotliBytes / zod4Object.brotliBytes
-	const stringPremiumOverValibot = selectiveString.brotliBytes / valibotString.brotliBytes - 1
-	const objectPremiumOverValibot = selectiveObject.brotliBytes / valibotObject.brotliBytes - 1
+	const metrics = {
+		stringReduction: 1 - selectiveString.brotliBytes / defaultString.brotliBytes,
+		objectReduction: 1 - selectiveObject.brotliBytes / defaultObject.brotliBytes,
+		selectiveRetained: selectiveString.brotliBytes / full.brotliBytes,
+		stringVsZod4Reduction: 1 - selectiveString.brotliBytes / zod4String.brotliBytes,
+		objectVsZod4Reduction: 1 - selectiveObject.brotliBytes / zod4Object.brotliBytes,
+		stringPremiumOverValibot: selectiveString.brotliBytes / valibotString.brotliBytes - 1,
+		objectPremiumOverValibot: selectiveObject.brotliBytes / valibotObject.brotliBytes - 1,
+	}
 	const unrelatedMarkersEliminated = selectiveString.retainedMarkers.length === 0
-	const healthy = stringReduction >= 0.2
-		&& objectReduction >= 0.2
-		&& selectiveRetained <= 0.75
-		&& unrelatedMarkersEliminated
+	const checks = [
+		{
+			name: 'Selective minimal chain is materially smaller than default v',
+			passed: metrics.stringReduction >= 0.2,
+			value: formatPercent(metrics.stringReduction),
+		},
+		{
+			name: 'Selective object schema is materially smaller than default v',
+			passed: metrics.objectReduction >= 0.2,
+			value: formatPercent(metrics.objectReduction),
+		},
+		{
+			name: 'Selective minimal chain retains at most 75% of forced full library',
+			passed: metrics.selectiveRetained <= 0.75,
+			value: formatPercent(metrics.selectiveRetained),
+		},
+		{
+			name: 'Unselected Valchecker step markers are absent from the minimal selective bundle',
+			passed: unrelatedMarkersEliminated,
+			value: unrelatedMarkersEliminated
+				? 'none retained'
+				: selectiveString.retainedMarkers.join(', '),
+		},
+	]
 
 	return {
-		status: healthy ? 'healthy' : 'needs-attention',
-		checks: [
-			{
-				name: 'Selective minimal chain is materially smaller than default v',
-				passed: stringReduction >= 0.2,
-				value: formatPercent(stringReduction),
-			},
-			{
-				name: 'Selective object schema is materially smaller than default v',
-				passed: objectReduction >= 0.2,
-				value: formatPercent(objectReduction),
-			},
-			{
-				name: 'Selective minimal chain retains at most 75% of forced full library',
-				passed: selectiveRetained <= 0.75,
-				value: formatPercent(selectiveRetained),
-			},
-			{
-				name: 'Unselected Valchecker step markers are absent from the minimal selective bundle',
-				passed: unrelatedMarkersEliminated,
-				value: unrelatedMarkersEliminated
-					? 'none retained'
-					: selectiveString.retainedMarkers.join(', '),
-			},
-		],
+		status: checks.every(check => check.passed) ? 'healthy' : 'needs-attention',
+		checks,
 		findings: [
-			`Selective Valchecker is ${formatPercent(stringVsZod4Reduction)} smaller than Zod 4 classic for the string pipeline.`,
-			`Selective Valchecker is ${formatPercent(objectVsZod4Reduction)} smaller than Zod 4 classic for the object schema.`,
-			`Valibot remains ${formatPercent(stringPremiumOverValibot)} smaller than selective Valchecker for the string pipeline.`,
-			`Valibot remains ${formatPercent(objectPremiumOverValibot)} smaller than selective Valchecker for the object schema.`,
+			`Selective Valchecker is ${formatPercent(metrics.stringVsZod4Reduction)} smaller than Zod 4 classic for the string pipeline.`,
+			`Selective Valchecker is ${formatPercent(metrics.objectVsZod4Reduction)} smaller than Zod 4 classic for the object schema.`,
+			`Selective Valchecker is ${formatPercent(metrics.stringPremiumOverValibot)} larger than Valibot for the string pipeline.`,
+			`Selective Valchecker is ${formatPercent(metrics.objectPremiumOverValibot)} larger than Valibot for the object schema.`,
 		],
-		metrics: {
-			stringReduction,
-			objectReduction,
-			selectiveRetained,
-			stringVsZod4Reduction,
-			objectVsZod4Reduction,
-			stringPremiumOverValibot,
-			objectPremiumOverValibot,
-		},
+		metrics,
 	}
 }
 
@@ -412,16 +385,14 @@ function markdownTable(results) {
 
 function generateMarkdown(report, concise = false) {
 	const groups = ['Minimal string pipeline', 'Object schema', 'Full-library reference']
-	const sections = groups.map(group => {
+	const sections = groups.map((group) => {
 		const rows = report.results.filter(result => result.group === group)
 		return `## ${group}\n\n${markdownTable(rows)}`
 	}).join('\n\n')
 	const checks = report.analysis.checks
 		.map(check => `- ${check.passed ? 'PASS' : 'WARN'} — ${check.name}: **${check.value}**`)
 		.join('\n')
-	const findings = report.analysis.findings
-		.map(finding => `- ${finding}`)
-		.join('\n')
+	const findings = report.analysis.findings.map(finding => `- ${finding}`).join('\n')
 	const headline = report.analysis.status === 'healthy'
 		? 'Selective Valchecker builds show a material tree-shaking benefit.'
 		: 'The current selective-build signal is weaker than the report thresholds and needs investigation.'
@@ -434,8 +405,9 @@ function generateMarkdown(report, concise = false) {
 
 function generateHtml(report) {
 	const groupHtml = ['Minimal string pipeline', 'Object schema', 'Full-library reference']
-		.map(group => {
-			const rows = report.results.filter(result => result.group === group)
+		.map((group) => {
+			const rows = report.results
+				.filter(result => result.group === group)
 				.map(result => `<tr><td>${escapeHtml(result.library)}</td><td>${escapeHtml(result.mode)}</td><td>${formatBytes(result.rawBytes)}</td><td>${formatBytes(result.gzipBytes)}</td><td>${formatBytes(result.brotliBytes)}</td></tr>`)
 				.join('')
 			return `<h2>${escapeHtml(group)}</h2><table><thead><tr><th>Library</th><th>API mode</th><th>Minified</th><th>Gzip</th><th>Brotli</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -443,19 +415,20 @@ function generateHtml(report) {
 	const checks = report.analysis.checks
 		.map(check => `<li><strong>${check.passed ? 'PASS' : 'WARN'}</strong> — ${escapeHtml(check.name)}: ${escapeHtml(check.value)}</li>`)
 		.join('')
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Valchecker tree-shaking report</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;color:#17202a}table{border-collapse:collapse;width:100%;margin:12px 0 32px}th,td{border:1px solid #d5d8dc;padding:8px 10px;text-align:left}th{background:#f4f6f7}td:nth-child(n+3),th:nth-child(n+3){text-align:right}code{background:#f4f6f7;padding:2px 4px;border-radius:4px}</style></head><body><h1>Tree-shaking report</h1><p>Status: <strong>${escapeHtml(report.analysis.status)}</strong></p><ul>${checks}</ul>${groupHtml}<h2>Methodology</h2><p>All scenarios use the same Rollup and Terser configuration. Realistic scenarios construct a schema and retain one successful validation call. Valchecker is measured with both the default all-steps <code>v</code> instance and a selective <code>createValchecker({ steps })</code> instance.</p></body></html>`
+	const findings = report.analysis.findings.map(finding => `<li>${escapeHtml(finding)}</li>`).join('')
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Valchecker tree-shaking report</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;color:#17202a}table{border-collapse:collapse;width:100%;margin:12px 0 32px}th,td{border:1px solid #d5d8dc;padding:8px 10px;text-align:left}th{background:#f4f6f7}td:nth-child(n+3),th:nth-child(n+3){text-align:right}code{background:#f4f6f7;padding:2px 4px;border-radius:4px}</style></head><body><h1>Tree-shaking report</h1><p>Status: <strong>${escapeHtml(report.analysis.status)}</strong></p><ul>${checks}</ul><h2>Key comparisons</h2><ul>${findings}</ul>${groupHtml}<h2>Methodology</h2><p>All scenarios use the same Rollup and Terser configuration. Realistic scenarios construct a schema and retain one successful validation call. Valchecker is measured with both the default all-steps <code>v</code> instance and a selective <code>createValchecker({ steps })</code> instance.</p></body></html>`
 }
 
 async function main() {
-	const args = parseArgs(process.argv.slice(2))
-	await rm(args.output, { recursive: true, force: true })
-	await mkdir(join(args.output, 'bundles'), { recursive: true })
+	const options = parseArguments(process.argv.slice(2))
+	await rm(options.output, { recursive: true, force: true })
+	await mkdir(join(options.output, 'bundles'), { recursive: true })
 
 	const results = []
 	for (const scenario of scenarios)
-		results.push(await bundleScenario(scenario, args.output))
+		results.push(await bundleScenario(scenario, options.output))
 
-	const valcheckerPackage = await readJson(resolve(repoRoot, 'packages/valchecker/package.json'))
+	const valcheckerPackage = JSON.parse(await readFile(resolve(repoRoot, 'packages/valchecker/package.json'), 'utf8'))
 	const report = {
 		generatedAt: new Date().toISOString(),
 		commit: process.env.REPORT_COMMIT ?? process.env.GITHUB_SHA ?? null,
@@ -477,10 +450,10 @@ async function main() {
 	}
 
 	await Promise.all([
-		writeFile(join(args.output, 'raw.json'), `${JSON.stringify(report, null, 2)}\n`),
-		writeFile(join(args.output, 'summary.md'), generateMarkdown(report, true)),
-		writeFile(join(args.output, 'report.md'), generateMarkdown(report)),
-		writeFile(join(args.output, 'report.html'), generateHtml(report)),
+		writeFile(join(options.output, 'raw.json'), `${JSON.stringify(report, null, 2)}\n`),
+		writeFile(join(options.output, 'summary.md'), generateMarkdown(report, true)),
+		writeFile(join(options.output, 'report.md'), generateMarkdown(report)),
+		writeFile(join(options.output, 'report.html'), generateHtml(report)),
 	])
 
 	console.log(generateMarkdown(report, true))
