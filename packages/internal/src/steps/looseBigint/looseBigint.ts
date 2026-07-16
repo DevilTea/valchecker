@@ -51,16 +51,11 @@ function parseLooseBigint(value: unknown): bigint | undefined {
 	if (typeof value !== 'string' || !BIGINT_STRING_RE.test(value)) {
 		return undefined
 	}
-	try {
-		return value.startsWith('-0x') || value.startsWith('-0X')
-			|| value.startsWith('-0b') || value.startsWith('-0B')
-			|| value.startsWith('-0o') || value.startsWith('-0O')
-			? -BigInt(value.slice(1))
-			: BigInt(value)
-	}
-	catch {
-		return undefined
-	}
+	return value.startsWith('-0x') || value.startsWith('-0X')
+		|| value.startsWith('-0b') || value.startsWith('-0B')
+		|| value.startsWith('-0o') || value.startsWith('-0O')
+		? -BigInt(value.slice(1))
+		: BigInt(value)
 }
 
 /* @__NO_SIDE_EFFECTS__ */
