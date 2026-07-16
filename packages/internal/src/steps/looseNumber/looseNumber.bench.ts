@@ -1,32 +1,19 @@
-/**
- * Benchmark plan for looseNumber:
- * - Operations benchmarked: looseNumber validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
 import { bench, describe } from 'vitest'
 import { createValchecker, looseNumber } from '../..'
 
 const v = createValchecker({ steps: [looseNumber] })
+const schema = v.looseNumber()
 
 describe('looseNumber benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.looseNumber()
-				.execute(undefined)
-		})
-
-		bench('valid input - large', () => {
-			v.looseNumber()
-				.execute(undefined)
-		})
+	bench('number input', () => {
+		schema.execute(42)
 	})
 
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.looseNumber()
-				.execute(undefined)
-		})
+	bench('number string input', () => {
+		schema.execute('42')
+	})
+
+	bench('invalid input', () => {
+		schema.execute('not-a-number')
 	})
 })
