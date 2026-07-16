@@ -30,6 +30,25 @@ Each completed run publishes:
 
 The concise Markdown report is written to the Actions job summary. The artifact retains both concise and detailed reports for 90 days. Record the commit, seed, Node.js version, runner image, and CPU model when comparing separate runs.
 
+## Tree-shaking report
+
+The **Tree Shaking** workflow runs on relevant pull requests and can also be started manually. It bundles equivalent Valchecker, Zod 3, Zod 4, and Valibot schemas with one Rollup and Terser configuration, then reports minified, gzip, and Brotli sizes.
+
+Valchecker is measured in two modes:
+
+- default `v`, which intentionally registers every built-in method for immediate use
+- selective `createValchecker({ steps })`, which retains the same chain API while allowing unused step implementations to be removed
+
+The report executes every realistic generated bundle, scans the minimal selective Valchecker bundle for unrelated step markers, and fails when the selective mode no longer shows a material reduction. Artifacts contain concise and detailed Markdown, HTML, JSON evidence, and every generated bundle for inspection.
+
+Run the same report locally after building the workspace and installing the isolated benchmark dependencies:
+
+```bash
+pnpm --dir benchmarks treeshake --output ../artifacts/tree-shaking
+```
+
+Brotli is the primary automated comparison metric. Cross-library numbers describe bundle cost for the tested schema, not runtime throughput; use the performance suite separately for execution behavior.
+
 ## Pull request benchmark impact
 
 Pull requests that modify runtime source or benchmark code run the **Benchmark Impact** workflow. It builds the pull request base and candidate on the same runner and measures both with the candidate benchmark harness and standard profile.
