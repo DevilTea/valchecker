@@ -69,28 +69,26 @@ export const toJSONString = implStepPlugin<PluginDef>({
 		params: [message],
 	}) => {
 		addSuccessStep((value) => {
+			const createFailure = () => failure(
+				createIssue({
+					code: 'toJSONString:unserializable',
+					payload: { value },
+					customMessage: message,
+					defaultMessage: 'Value cannot be serialized to JSON.',
+				}),
+			)
+
 			if (hasUnserializable(value)) {
-				return failure(
-					createIssue({
-						code: 'toJSONString:unserializable',
-						payload: { value },
-						customMessage: message,
-						defaultMessage: 'Value cannot be serialized to JSON.',
-					}),
-				)
+				return createFailure()
 			}
 			try {
-				return success(JSON.stringify(value))
+				const json = JSON.stringify(value)
+				return typeof json === 'string'
+					? success(json)
+					: createFailure()
 			}
 			catch {
-				return failure(
-					createIssue({
-						code: 'toJSONString:unserializable',
-						payload: { value },
-						customMessage: message,
-						defaultMessage: 'Value cannot be serialized to JSON.',
-					}),
-				)
+				return createFailure()
 			}
 		})
 	},
