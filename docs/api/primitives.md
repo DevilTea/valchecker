@@ -125,12 +125,13 @@ Output: `number`
 v.looseNumber().execute(42) // { value: 42 }
 v.looseNumber().execute('1e3') // { value: 1000 }
 v.looseNumber().execute('0x10') // { value: 16 }
+v.looseNumber().execute('   ') // { value: 0 }
 v.looseNumber().execute('NaN') // failure
 v.looseNumber().execute('Infinity') // failure
 v.looseNumber().execute('') // failure
 ```
 
-Numeric inputs still include `NaN` and infinity because they belong to `number`. String inputs must represent finite values compatible with TypeScript's `\`${number}\`` type.
+Numeric inputs still include `NaN` and infinity because they belong to `number`. String inputs must represent finite values compatible with TypeScript's `\`${number}\`` type. TypeScript accepts non-empty whitespace-only number strings, so Valchecker normalizes them to `0`; the truly empty string remains invalid.
 
 ## `looseBoolean(message?)`
 
