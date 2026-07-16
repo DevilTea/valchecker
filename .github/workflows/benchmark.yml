@@ -79,12 +79,15 @@ jobs:
             --seed "$seed" \
             --output ../artifacts/benchmark/raw.json
 
-      - name: Generate Reports
+      - name: Generate Detailed Reports
         run: pnpm --dir benchmarks report --input ../artifacts/benchmark/raw.json --markdown ../artifacts/benchmark/report.md --html ../artifacts/benchmark/report.html
+
+      - name: Generate Concise Reports
+        run: pnpm --dir benchmarks summary --input ../artifacts/benchmark/raw.json --markdown ../artifacts/benchmark/summary.md --html ../artifacts/benchmark/summary.html
 
       - name: Publish Job Summary
         shell: bash
-        run: cat artifacts/benchmark/report.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat artifacts/benchmark/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Benchmark Reports
         if: always() && hashFiles('artifacts/benchmark/**') != ''
