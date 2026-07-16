@@ -34,13 +34,16 @@ function parseArguments(argv) {
 	return options
 }
 
-function packageVersion(name) {
+function packageVersion(specifier, packageName = specifier) {
 	try {
-		let current = dirname(require.resolve(name))
+		let current = dirname(require.resolve(specifier))
 		while (true) {
 			const packagePath = join(current, 'package.json')
-			if (existsSync(packagePath))
-				return JSON.parse(readFileSync(packagePath, 'utf8')).version ?? 'unknown'
+			if (existsSync(packagePath)) {
+				const packageData = JSON.parse(readFileSync(packagePath, 'utf8'))
+				if (packageData.name === packageName)
+					return packageData.version ?? 'unknown'
+			}
 			const parent = dirname(current)
 			if (parent === current)
 				return 'unknown'
@@ -440,8 +443,8 @@ async function main() {
 			terser: packageVersion('terser'),
 			versions: {
 				valchecker: valcheckerPackage.version,
-				zod3: packageVersion('zod3'),
-				zod4: packageVersion('zod4'),
+				zod3: packageVersion('zod3', 'zod'),
+				zod4: packageVersion('zod4', 'zod'),
 				valibot: packageVersion('valibot'),
 			},
 		},
