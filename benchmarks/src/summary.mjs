@@ -40,9 +40,9 @@ function assertResult(raw) {
 }
 
 function geometricMean(values) {
-	if (values.length === 0)
-		return null
-	return Math.exp(values.reduce((sum, value) => sum + Math.log(value), 0) / values.length)
+	return values.length === 0
+		? null
+		: Math.exp(values.reduce((sum, value) => sum + Math.log(value), 0) / values.length)
 }
 
 function percent(value) {
@@ -91,12 +91,12 @@ function buildSummary(raw) {
 			categoryMap.set(category, categoryData)
 		}
 		categoryData.scenarios++
-		if (valchecker && fastest.adapter === 'valchecker')
-			categoryData.valcheckerWins++
 		if (valchecker && stable) {
 			const ratio = valchecker.medianOpsPerSecond / fastest.medianOpsPerSecond
 			categoryData.ratios.push(ratio)
 			categoryData.stableScenarios++
+			if (fastest.adapter === 'valchecker')
+				categoryData.valcheckerWins++
 			stableHighlights.push({ scenario, category, ratio, fastest: fastest.name })
 		}
 	}
@@ -126,7 +126,7 @@ function renderMarkdown(raw, summary) {
 		'',
 		'## Category snapshot',
 		'',
-		'| Category | Scenarios | Stable scenarios | Valchecker wins | Valchecker geometric mean vs fastest |',
+		'| Category | Scenarios | Stable scenarios | Stable Valchecker wins | Valchecker geometric mean vs fastest |',
 		'| --- | ---: | ---: | ---: | ---: |',
 	]
 	for (const row of summary.categoryRows)
@@ -147,8 +147,9 @@ function renderMarkdown(raw, summary) {
 		'## Reliability',
 		'',
 		`- ${summary.unstableMeasurements} of ${summary.totalMeasurements} measurements have RME above 5% and should be rerun before interpretation.`,
-		'- Generated-code validators such as Zod 4 JIT can be very slow during schema creation or first execution but exceptionally fast after the schema is warmed.',
+		'- Generated-code validators such as Zod 4 JIT can be slow during schema creation or first execution but exceptionally fast after the schema is warmed.',
 		'- Fixed-input warm scenarios represent steady-state throughput, not cold-start latency or whole-application performance.',
+		'- Rotating-input scenarios are stronger evidence for real-world same-shape request objects.',
 		'- Use the full Markdown/HTML report and raw JSON artifact for scenario-level evidence.',
 		'',
 	)
@@ -158,21 +159,19 @@ function renderMarkdown(raw, summary) {
 function renderHtml(raw, summary) {
 	const categoryRows = summary.categoryRows.map(row => `<tr><td>${htmlEscape(row.category)}</td><td>${row.scenarios}</td><td>${row.stableScenarios}</td><td>${row.valcheckerWins}</td><td>${row.geometricMeanVsFastest == null ? 'n/a' : percent(row.geometricMeanVsFastest)}</td></tr>`).join('')
 	const highlightTable = rows => rows.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.category)}</td><td>${percent(row.ratio)}</td><td>${htmlEscape(row.fastest)}</td></tr>`).join('') || '<tr><td colspan="4">n/a</td></tr>'
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:960px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, fresh-schema execution, and warmed validation are separate costs; do not combine them into one overall winner.</p><h2>Category snapshot</h2><table><thead><tr><th>Category</th><th>Scenarios</th><th>Stable</th><th>Valchecker wins</th><th>Valchecker vs fastest</th></tr></thead><tbody>${categoryRows}</tbody></table><h2>Strongest stable Valchecker scenarios</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.strongest)}</tbody></table><h2>Largest stable Valchecker gaps</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.weakest)}</tbody></table><h2>Reliability</h2><ul><li>${summary.unstableMeasurements} of ${summary.totalMeasurements} measurements have RME above 5%.</li><li>Zod 4 JIT can trade schema/first-run cost for exceptional warmed object throughput.</li><li>Fixed-input warm scenarios are steady-state microbenchmarks, not whole-application performance.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:960px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, fresh-schema execution, and warmed validation are separate costs; do not combine them into one overall winner.</p><h2>Category snapshot</h2><table><thead><tr><th>Category</th><th>Scenarios</th><th>Stable</th><th>Stable Valchecker wins</th><th>Valchecker vs fastest</th></tr></thead><tbody>${categoryRows}</tbody></table><h2>Strongest stable Valchecker scenarios</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.strongest)}</tbody></table><h2>Largest stable Valchecker gaps</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.weakest)}</tbody></table><h2>Reliability</h2><ul><li>${summary.unstableMeasurements} of ${summary.totalMeasurements} measurements have RME above 5%.</li><li>Zod 4 JIT can trade schema/first-run cost for exceptional warmed object throughput.</li><li>Fixed-input warm scenarios are steady-state microbenchmarks, not whole-application performance.</li><li>Rotating inputs provide stronger real-world evidence.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))
 const raw = assertResult(JSON.parse(await readFile(options.input, 'utf8')))
 const summary = buildSummary(raw)
-const markdown = renderMarkdown(raw, summary)
-const html = renderHtml(raw, summary)
 await Promise.all([
 	mkdir(dirname(options.markdown), { recursive: true }),
 	mkdir(dirname(options.html), { recursive: true }),
 ])
 await Promise.all([
-	writeFile(options.markdown, markdown),
-	writeFile(options.html, html),
+	writeFile(options.markdown, renderMarkdown(raw, summary)),
+	writeFile(options.html, renderHtml(raw, summary)),
 ])
 console.error(`[benchmark] wrote ${options.markdown}`)
 console.error(`[benchmark] wrote ${options.html}`)
