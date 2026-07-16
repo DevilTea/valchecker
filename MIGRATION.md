@@ -206,7 +206,7 @@ Callback steps may assimilate complete `PromiseLike` values, including custom th
 
 ### Intersection
 
-Only compatible plain-object outputs are recursively composed. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference. Compatible cycles, aliases, and enumerable symbol keys are supported.
+Only compatible plain-object outputs are recursively composed. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference. Compatible cycles, aliases, and enumerable symbol keys are supported. Incompatible outputs fail with `intersection:conflicting_outputs`.
 
 ### Objects
 
