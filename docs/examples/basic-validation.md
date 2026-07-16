@@ -1,416 +1,273 @@
 # Basic Validation
 
-This example demonstrates fundamental validation patterns with Valchecker, covering primitives, objects, arrays, and common constraints.
+This example covers primitives, explicit constraints, objects, arrays, unions, transformations, and inferred outputs.
 
 ## Setup
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-import { allSteps, createValchecker } from 'valchecker'
-
-const v = createValchecker({ steps: allSteps })
+import type { InferOutput } from '@valchecker/internal'
+import { v } from 'valchecker'
 ```
 
-## Primitive Validation
-
-### Strings
+## Primitive identity
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-// Basic string validation
-const nameSchema = v.string()
+v.string().execute('Alice') // success
+v.boolean().execute(true) // success
+v.bigint().execute(42n) // success
+v.number().execute(Number.NaN) // success
+v.number().execute(Infinity) // success
+```
 
-nameSchema.execute('Alice') // { value: 'Alice' }
-nameSchema.execute(123) // { issues: [...] }
+Primitive initial schemas align with TypeScript identities. Add explicit validations for narrower runtime domains.
 
-// With constraints
-const usernameSchema = v.string()
+## String validation and normalization
+
+```ts
+const username = v.string()
 	.toTrimmed()
 	.toLowercase()
-	.min(3)
-	.max(20)
+	.isNotEmpty()
+	.isLengthAtLeast(3)
+	.isLengthAtMost(20)
 
-usernameSchema.execute('  Alice_123  ')
+username.execute('  Alice_123  ')
 // { value: 'alice_123' }
 ```
 
-### Numbers
+Prefix and suffix constraints are also explicit:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-// Basic number validation
-const ageSchema = v.number()
-	.integer()
-	.min(0)
-	.max(150)
-
-ageSchema.execute(25) // { value: 25 }
-ageSchema.execute(-5) // { issues: [...] }
-ageSchema.execute(3.14) // { issues: [...] }
-
-// Positive numbers only
-const priceSchema = v.number()
-	.min(0)
-
-priceSchema.execute(99.99) // { value: 99.99 }
-priceSchema.execute(Number.POSITIVE_INFINITY) // { issues: [...] }
+const configFile = v.string()
+	.isStartingWith('config')
+	.isEndingWith('.json')
 ```
 
-### Booleans
+## Number validation
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+const age = v.number()
+	.isFinite()
+	.isInteger()
+	.isAtLeast(0)
+	.isAtMost(150)
 
-const activeSchema = v.boolean()
-
-activeSchema.execute(true) // { value: true }
-activeSchema.execute(false) // { value: false }
-activeSchema.execute('yes') // { issues: [...] }
+age.execute(25) // success
+age.execute(-5) // failure
+age.execute(3.14) // failure
+age.execute(Infinity) // failure
 ```
 
-### Literals
+Each constraint checks only its named condition:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-// Single literal
-const statusSchema = v.literal('active')
-
-statusSchema.execute('active') // { value: 'active' }
-statusSchema.execute('inactive') // { issues: [...] }
-
-// Null and undefined
-const nullSchema = v.literal(null)
-const undefinedSchema = v.literal(undefined)
+v.number().isAtLeast(0).execute(Infinity) // success
+v.number().isFinite().isAtLeast(0).execute(Infinity) // failure
 ```
 
-## Object Validation
-
-### Basic Objects
+## Loose primitive input
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const userSchema = v.object({
-	id: v.string(),
-	name: v.string()
-		.min(1),
-	email: v.string(),
-	age: v.number()
-		.integer()
-		.min(0),
+const query = v.object({
+	page: v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(1),
+	includeArchived: v.looseBoolean(),
+	cursor: [v.looseBigint()],
 })
 
-const result = userSchema.execute({
-	id: '123e4567-e89b-12d3-a456-426614174000',
-	name: 'Alice',
-	email: 'alice@example.com',
-	age: 30,
+query.execute({
+	page: '2',
+	includeArchived: 'false',
+	cursor: '0x10',
 })
-
-// { value: { id: '...', name: 'Alice', email: '...', age: 30 } }
+// {
+//   value: {
+//     page: 2,
+//     includeArchived: false,
+//     cursor: 16n,
+//   },
+// }
 ```
 
-### Optional Fields
+Loose primitives accept TypeScript-compatible string representations, not unrestricted JavaScript coercion.
+
+## Object validation
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const profileSchema = v.object({
-	name: v.string(),
-	bio: [v.string()], // string | undefined
-	website: [v.string()], // string | undefined
+const user = v.object({
+	id: v.string().isNotEmpty(),
+	name: v.string().toTrimmed().isNotEmpty(),
+	email: v.string().toLowercase(),
+	age: [v.number().isFinite().isInteger().isAtLeast(0)],
 })
 
-// Both valid:
-profileSchema.execute({ name: 'Alice' })
-profileSchema.execute({ name: 'Alice', bio: 'Developer', website: 'https://alice.dev' })
-```
-
-### Nullable Fields
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const settingsSchema = v.object({
-	theme: v.string(),
-	customColor: v.union([v.string(), v.literal(null)]), // string | null
-})
-
-settingsSchema.execute({ theme: 'dark', customColor: null }) // Valid
-settingsSchema.execute({ theme: 'dark', customColor: '#fff' }) // Valid
-```
-
-### Nested Objects
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const addressSchema = v.object({
-	street: v.string(),
-	city: v.string(),
-	country: v.string(),
-	zip: v.string(),
-})
-
-const customerSchema = v.object({
-	name: v.string(),
-	email: v.string(),
-	shippingAddress: addressSchema,
-	billingAddress: [addressSchema],
+const result = user.execute({
+	id: 'user-1',
+	name: '  Alice  ',
+	email: 'ALICE@EXAMPLE.COM',
 })
 ```
 
-## Array Validation
+A one-element tuple marks a field optional. The output includes the declared property with `undefined` when absent.
 
-### Basic Arrays
+## Object variants
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+const shape = {
+	name: v.string().toTrimmed(),
+}
 
-const numbersSchema = v.array(v.number())
-
-numbersSchema.execute([1, 2, 3]) // { value: [1, 2, 3] }
-numbersSchema.execute([1, 'two', 3]) // { issues: [...] }
-numbersSchema.execute('not array') // { issues: [...] }
+v.object(shape) // unknown properties omitted from output
+v.strictObject(shape) // unknown own enumerable keys rejected
+v.looseObject(shape) // unknown own properties preserved
 ```
 
-### Array Constraints
+Declared properties are read from own properties only.
+
+## Array validation
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+const tags = v.array(v.string().toLowercase())
+	.isNotEmpty()
+	.isLengthAtMost(10)
 
-const tagsSchema = v.array(v.string())
-	.min(1) // At least one tag
-	.max(10) // Maximum 10 tags
-
-tagsSchema.execute(['javascript', 'typescript']) // Valid
-tagsSchema.execute([]) // { issues: [...] }
+const coordinates = v.array(v.number().isFinite())
+	.isLengthAtLeast(2)
+	.isLengthAtMost(2)
 ```
 
-### Array of Objects
+Array transformations remain available after validation:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+const positiveSorted = v.array(v.number().isFinite())
+	.toFiltered(value => value > 0)
+	.toSorted((a, b) => a - b)
 
-const orderItemSchema = v.object({
-	productId: v.string(),
+positiveSorted.execute([3, -1, 2])
+// { value: [2, 3] }
+```
+
+## Nested structures
+
+```ts
+const orderItem = v.object({
+	productId: v.string().isNotEmpty(),
 	quantity: v.number()
-		.integer()
-		.min(1),
+		.isFinite()
+		.isInteger()
+		.isAtLeast(1),
 	price: v.number()
-		.min(0),
+		.isFinite()
+		.isAtLeast(0),
 })
 
-const orderSchema = v.object({
-	id: v.string(),
-	items: v.array(orderItemSchema)
-		.min(1),
-	total: v.number()
-		.min(0),
+const order = v.object({
+	id: v.string().isNotEmpty(),
+	items: v.array(orderItem).isNotEmpty(),
+	total: v.number().isFinite().isAtLeast(0),
 })
 ```
 
-### Filtering Arrays
+Nested failures prepend object keys and array indices to issue paths.
+
+## Union validation
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const positiveNumbersSchema = v.array(v.number())
-	.toFiltered(n => n > 0)
-
-positiveNumbersSchema.execute([1, -2, 3, -4, 5])
-// { value: [1, 3, 5] }
-```
-
-## Union Types
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-// String or number
-const idSchema = v.union([
-	v.string(),
-	v.number()
-		.integer()
-		.min(1),
+const identifier = v.union([
+	v.string().isNotEmpty(),
+	v.number().isFinite().isInteger().isAtLeast(1),
 ])
 
-idSchema.execute('123e4567-e89b-12d3-a456-426614174000') // Valid
-idSchema.execute(42) // Valid
-
-// Discriminated union (recommended for objects)
-const eventSchema = v.union([
+const event = v.union([
 	v.object({
 		type: v.literal('click'),
-		x: v.number(),
-		y: v.number(),
+		x: v.number().isFinite(),
+		y: v.number().isFinite(),
 	}),
 	v.object({
 		type: v.literal('keypress'),
-		key: v.string(),
+		key: v.string().isNotEmpty(),
 	}),
 ])
-
-eventSchema.execute({ type: 'click', x: 100, y: 200 }) // Valid
-eventSchema.execute({ type: 'keypress', key: 'Enter' }) // Valid
 ```
 
-## Enum Validation
+Branches run in declaration order. The first successful branch's transformed output is returned.
+
+## Literal unions
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
-const statusSchema = v.union([
+const status = v.union([
 	v.literal('pending'),
 	v.literal('active'),
 	v.literal('completed'),
 	v.literal('cancelled'),
 ])
 
-statusSchema.execute('active') // { value: 'active' }
-statusSchema.execute('unknown') // { issues: [...] }
-
-// Type inference
-type Status = InferOutput<typeof statusSchema>
+type Status = InferOutput<typeof status>
 // 'pending' | 'active' | 'completed' | 'cancelled'
 ```
 
-## Array Type Validation
+## JSON input
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-// Specific array patterns can be validated using array with constraints
-const coordinateSchema = v.array(v.number())
-	.min(2)
-	.max(2)
-
-coordinateSchema.execute([10, 20]) // { value: [10, 20] }
-coordinateSchema.execute([10]) // { issues: [...] }
-coordinateSchema.execute([10, 20, 30]) // { issues: [...] }
+const config = v.string()
+	.toJSONValue()
+	.use(v.object({
+		port: v.number()
+			.isFinite()
+			.isInteger()
+			.isAtLeast(1)
+			.isAtMost(65535),
+	}))
 ```
 
-## Type Inference
+`toJSONValue<T>()` can assert an output type, but `use()` performs actual structural validation.
 
-Valchecker automatically infers TypeScript types:
+## Generic validation and transformation
+
+Use named steps when they precisely describe the operation. Use the generic escape hatches otherwise:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+const passwordConfirmation = v.object({
+	password: v.string().isLengthAtLeast(8),
+	confirmation: v.string(),
+}).check(value =>
+	value.password === value.confirmation
+		|| 'Passwords must match',
+)
 
-const userSchema = v.object({
-	id: v.number()
-		.integer(),
-	name: v.string(),
-	email: v.string(),
-	role: v.union([v.literal('admin'), v.literal('user'), v.literal('guest')]),
-	tags: [v.array(v.string())],
-	metadata: [v.object({})],
-})
-
-// Automatically inferred type
-type User = InferOutput<typeof userSchema>
-// {
-//   id: number
-//   name: string
-//   email: string
-//   role: 'admin' | 'user' | 'guest'
-//   tags?: string[] | undefined
-//   metadata?: Record<string, unknown> | undefined
-// }
+const record = v.string()
+	.transform(value => ({ raw: value }))
 ```
 
-## Working with Results
+## Results and inference
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
-
 const schema = v.object({
-	name: v.string()
-		.min(1),
-	age: v.number()
-		.integer()
-		.min(0),
+	id: v.looseBigint(),
+	name: v.string().toTrimmed().isNotEmpty(),
+	tags: [v.array(v.string()).isLengthAtMost(10)],
 })
 
-const result = schema.execute({ name: '', age: -5 })
+type Output = InferOutput<typeof schema>
 
-if ('value' in result) {
-	// TypeScript knows result.value is the validated type
-	console.log(result.value.name, result.value.age)
+const result = await schema.execute(input)
+
+if (v.isSuccess(result)) {
+	const value: Output = result.value
 }
 else {
-	// Handle validation errors
 	for (const issue of result.issues) {
-		console.log(`[${issue.code}] ${issue.path.join('.')}: ${issue.message}`)
+		console.log(issue.code, issue.path, issue.payload)
 	}
-	// [min:expected_min] name: Expected minimum value of 1
-	// [min:expected_min] age: Expected minimum value of 0
 }
 ```
 
-## Complete Example: API Request Validation
+## Next steps
 
-```ts
-import { InferOutput } from '@valchecker/internal'
-// Define schemas
-const paginationSchema = v.object({
-	page: v.union([
-		v.number()
-			.integer()
-			.min(1),
-		v.literal(undefined),
-	])
-		.fallback(() => 1),
-	limit: v.union([
-		v.number()
-			.integer()
-			.min(1)
-			.max(100),
-		v.literal(undefined),
-	])
-		.fallback(() => 20),
-})
-
-const sortSchema = v.object({
-	field: v.string(),
-	order: v.union([
-		v.literal('asc'),
-		v.literal('desc'),
-		v.literal(undefined),
-	])
-		.fallback(() => 'asc' as const),
-})
-
-const filterSchema = v.object({
-	status: [v.union([v.literal('active'), v.literal('inactive'), v.literal('all')])],
-	search: [v.string()
-		.toTrimmed()],
-	createdAfter: [v.string()],
-})
-
-const listUsersRequestSchema = v.object({
-	pagination: [paginationSchema],
-	sort: [sortSchema],
-	filters: [filterSchema],
-})
-
-// Usage in API handler
-function handleListUsers(rawQuery: unknown) {
-	const result = listUsersRequestSchema.execute(rawQuery)
-
-	if ('issues' in result) {
-		return { error: 'Invalid request', issues: result.issues }
-	}
-
-	const { pagination, sort, filters } = result.value
-	// pagination is guaranteed to have page and limit
-	// sort and filters are optional but typed when present
-
-	return fetchUsers({ pagination, sort, filters })
-}
-```
-
-## Next Steps
-
-- [Async Validation](/examples/async-validation) - Database checks and API calls
-- [Custom Messages](/examples/custom-messages) - Internationalization and custom errors
-- [Fallback Chains](/examples/fallback-chains) - Resilient validation pipelines
-- [Issue Paths](/examples/issue-paths) - Error location tracking
+- [Async Validation](/examples/async-validation)
+- [Custom Messages](/examples/custom-messages)
+- [Fallback Chains](/examples/fallback-chains)
+- [Issue Paths](/examples/issue-paths)
