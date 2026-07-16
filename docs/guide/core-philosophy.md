@@ -1,417 +1,227 @@
 # Core Philosophy
 
-Valchecker is built around modular "steps" that execute in a deterministic pipeline. Each step validates, transforms, or short-circuits data while preserving TypeScript inference. This guide explains the mental model so you can design reliable validation flows and extend the library confidently.
+Valchecker is built from immutable step plugins executed in a deterministic pipeline. Runtime behavior, TypeScript inference, editor discoverability, and tree-shaking are treated as one design problem.
 
-## The Mental Model
+## Pipeline model
 
-```
-Input → [Step 1] → [Step 2] → [Step 3] → ... → Output
-               ↓          ↓          ↓
-            Issues     Issues     Issues
-```
-
-Data flows through a pipeline of steps. Each step can:
-- **Pass**: Forward the value (possibly transformed) to the next step
-- **Fail**: Emit one or more issues and halt the current branch
-- **Recover**: Catch failures and provide fallback values
-
-## Everything is a Step
-
-A **step** is a small plugin function that receives the current execution state and returns either a success result or validation issues. Steps are the atomic unit of validation in Valchecker.
-
-```ts
-// Using built-in steps
-const schema = v.string() // Step 1: Validate string type
-	.toTrimmed() // Step 2: Transform by trimming
-	.min(3) // Step 3: Validate minimum length
-
-// Steps chain together to form a pipeline
+```text
+Input → initial step → validation → transformation → validation → Output
+                         ↓               ↓
+                       issues          issues
 ```
 
-### Step Categories
+A reached step can:
 
-Valchecker organizes steps into logical categories:
+- succeed and forward a value,
+- succeed with a transformed value,
+- fail with structured issues,
+- recover from an earlier failure,
+- delegate to another schema.
 
-| Category | Purpose | Examples |
-|----------|---------|----------|
-| **Primitives** | Type validation | `string()`, `number()`, `boolean()`, `bigint()`, `symbol()` |
-| **Structures** | Compound types | `object()`, `array()`, `union()`, `intersection()`, `instance()` |
-| **Constraints** | Value restrictions | `min()`, `max()`, `empty()`, `integer()`, `startsWith()`, `endsWith()` |
-| **Transforms** | Value modification | `toTrimmed()`, `toLowercase()`, `transform()`, `parseJSON()` |
-| **Flow Control** | Pipeline behavior | `check()`, `fallback()`, `use()`, `as()`, `generic()` |
-| **Helpers** | Utility operations | `json()`, `toAsync()` |
+## Names expose behavior
 
-## The Pipeline Contract
+Built-in names deliberately identify a step's role:
 
-### 1. Schema Creation
+| Role | Convention | Examples |
+| --- | --- | --- |
+| Initial schema | noun or noun phrase | `string()`, `number()`, `object()`, `looseBoolean()` |
+| Built-in validation | `isXxx()` | `isFinite()`, `isInteger()`, `isLengthAtLeast()` |
+| Concrete transformation | `toXxx()` | `toTrimmed()`, `toSplit()`, `toJSONValue()` |
+| Generic operation | direct verb | `check()`, `transform()`, `fallback()`, `use()` |
 
-Chain steps together. Complex structures like `object`, `array`, `union`, and `intersection` orchestrate nested pipelines internally.
-
-```ts
-const userSchema = v.object({
-	name: v.string()
-		.toTrimmed()
-		.min(1),
-	email: v.string(),
-	age: [v.number()
-		.integer()
-		.min(0)], // Optional with [] wrapper
-})
-```
-
-### 2. Execution
-
-Calling `schema.execute(value)` returns a discriminated union:
-
-```ts
-type Result<T>
-	= | { value: T } // Success
-		| { issues: Issue[] } // Failure
-```
-
-### 3. Issue Structure
-
-Each issue includes comprehensive debugging information:
-
-```ts
-interface Issue {
-	code: string // Identifier like 'string:expected_string'
-	message: string // Human-readable error description
-	path: PropertyKey[] // Location in nested data: ['user', 'email']
-	payload: unknown // Raw metadata about the failure
-}
-```
-
-### 4. Async Detection
-
-Pipelines automatically switch to async mode when any step returns a `Promise`. Mix sync and async steps freely:
-
-```ts
-const pipeline = v.string()
-	.toTrimmed()
-	.check(async (value) => {
-		const exists = await db.users.exists(value)
-		return !exists || 'Username already taken'
-	})
-
-// Async steps make the entire pipeline async
-const result = await pipeline.execute('alice')
-```
-
-## Pipeline Execution Flow
-
-### Success Path
-
-When all steps pass, the final transformed value is returned:
+This convention is not cosmetic. After a schema narrows to a particular output type, editor autocomplete can group the meaningful next operations under `is` and `to`.
 
 ```ts
 const schema = v.string()
 	.toTrimmed()
-	.transform(s => s.toUpperCase())
-
-const result = await schema.execute('  hello  ')
-// => { value: 'HELLO' }
+	.isNotEmpty()
+	.isLengthAtMost(100)
+	.toLowercase()
 ```
 
-### Failure Path
+`check()` and `transform()` remain explicit generic escape hatches because names such as `isValid()` or `toTransformed()` would conceal their callback-defined behavior.
 
-When a step fails, execution stops and issues are returned:
+## Initial schemas identify runtime domains
+
+Primitive initial steps align with TypeScript primitive identities:
 
 ```ts
-const schema = v.number()
-	.min(0)
-	.max(100)
-
-const result = await schema.execute(-5)
-// => { issues: [{ code: 'min:expected_min', ... }] }
+v.string() // typeof value === 'string'
+v.number() // typeof value === 'number'
+v.boolean() // typeof value === 'boolean'
+v.bigint() // typeof value === 'bigint'
 ```
 
-### Recovery Path
+The important consequence is that `number()` accepts `NaN`, `Infinity`, and `-Infinity`. They are JavaScript numbers and belong to TypeScript's `number` type.
 
-`fallback()` catches failures and provides alternative values:
+Finite-number policy is a validation constraint, not hidden type identity:
 
 ```ts
-const schema = v.number()
-	.min(0)
-	.fallback(() => 0)
-
-const result1 = await schema.execute(-5) // => { value: 0 }
-const result2 = await schema.execute(50) // => { value: 50 }
+v.number().isFinite()
 ```
 
-## Message Resolution Priority
+Each named validation checks only the condition it states:
 
-Error messages are resolved in the following order:
+```ts
+v.number().isAtLeast(0) // Infinity succeeds
+v.number().isFinite().isAtLeast(0) // Infinity fails
+```
 
-### 1. Per-step Override
+This keeps steps orthogonal and composition predictable.
 
-Pass a custom message directly to the step:
+## Loose primitives normalize typed representations
+
+Loose primitives accept a canonical primitive or its matching TypeScript template-literal string representation, then output the canonical primitive:
+
+```ts
+v.looseNumber() // number | `${number}` → number
+v.looseBoolean() // boolean | `${boolean}` → boolean
+v.looseBigint() // bigint | `${bigint}` → bigint
+```
+
+They do not mirror JavaScript constructors or truthiness:
+
+```ts
+v.looseBoolean().execute('false') // { value: false }
+v.looseBoolean().execute(1) // failure
+v.looseNumber().execute('') // failure, not 0
+```
+
+## Validation and transformation stay distinct
+
+A validation preserves a successful value:
 
 ```ts
 v.number()
-	.min(1, 'Quantity must be at least 1')
+	.isFinite()
+	.isInteger()
+	.isAtLeast(0)
 ```
 
-### 2. Global Handler
-
-Define a message resolver when creating the valchecker instance:
+A transformation changes the output value or representation:
 
 ```ts
-const v = createValchecker({
-	steps: allSteps,
-	message: ({ code, payload }) => {
-		// Use your i18n library
-		return i18n.t(`validation.${code}`, payload)
-	},
-})
+v.string()
+	.toTrimmed()
+	.toSplit(',')
+	.toLength()
 ```
 
-### 3. Built-in Fallback
+The inferred output follows each transformation automatically.
 
-Default message from the step implementation.
+## Immutable schemas
 
-This allows you to centralize translations while still overriding specific cases.
-
-## Paths and Traceability
-
-Each issue carries a `path` array showing how to reach the failing value:
+Every chained method returns a new schema:
 
 ```ts
-const schema = v.object({
-	user: v.object({
-		contacts: v.array(
-			v.object({
-				email: v.string(),
-			})
-		),
-	}),
-})
-
-const result = schema.execute({
-	user: {
-		contacts: [
-			{ email: 'valid@test.com' },
-			{ email: 123 }, // ← This fails
-		],
-	},
-})
-
-// result.issues[0].path === ['user', 'contacts', 1, 'email']
+const rawName = v.string()
+const trimmedName = rawName.toTrimmed()
+const requiredName = trimmedName.isNotEmpty()
 ```
 
-This makes it trivial to highlight the exact field in forms or map errors to UI components.
+No schema is mutated. Reusing an earlier pipeline is safe and deterministic.
 
-## Type Inference Deep Dive
+## Structured issues
 
-Valchecker maintains full type inference through every step:
-
-### Basic Inference
+Validation failures are returned as data:
 
 ```ts
-import { InferOutput } from '@valchecker/internal'
+type Result<T, Issue>
+	= | { value: T }
+		| { issues: Issue[] }
 
-const schema = v.object({
-	name: v.string(),
-	age: v.number(),
-})
-
-type T = InferOutput<typeof schema>
-// { name: string; age: number }
-```
-
-### Transform Inference
-
-Transforms update the inferred type:
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.string()
-	.transform(s => s.split(',')) // string → string[]
-	.transform(arr => arr.length) // string[] → number
-
-type T = InferOutput<typeof schema> // number
-```
-
-### Optional and Nullable
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.object({
-	required: v.string(),
-	optional: [v.string()], // Optional with [] wrapper
-	both: [v.string()], // Optional (nullable not supported as separate step)
-})
-
-type T = InferOutput<typeof schema>
-// {
-//   required: string
-//   optional: string | undefined
-//   both: string | undefined
-// }
-```
-
-### Input vs Output Types
-
-```ts
-import { InferInput, InferOutput } from '@valchecker/internal'
-
-const schema = v.object({
-	name: v.string()
-		.toTrimmed(), // Input: string, Output: string (trimmed)
-	tags: v.string()
-		.transform(s => s.split(',')), // Input: string, Output: string[]
-})
-
-type Input = InferInput<typeof schema>
-// { name: string; tags: string }
-
-type Output = InferOutput<typeof schema>
-// { name: string; tags: string[] }
-```
-
-## Structural Steps
-
-### Object
-
-Validates object shape and runs nested schemas for each property:
-
-```ts
-const schema = v.object({
-	name: v.string(),
-	address: v.object({
-		city: v.string(),
-		zip: v.string(),
-	}),
-})
-```
-
-### Array
-
-Validates array type and runs a schema for each element:
-
-```ts
-const schema = v.array(v.number()
-	.min(0))
-```
-
-### Tuple
-
-Validates fixed-length arrays with specific types at each position:
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.tuple([
-	v.string(), // Position 0
-	v.number(), // Position 1
-	v.boolean(), // Position 2
-])
-
-type T = InferOutput<typeof schema> // [string, number, boolean]
-```
-
-### Union
-
-Tries schemas in order, returns first success:
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const schema = v.union([
-	v.string(),
-	v.number(),
-	v.literal(null),
-])
-
-type T = InferOutput<typeof schema> // string | number | null
-```
-
-### Intersection
-
-Merges multiple object schemas:
-
-```ts
-import { InferOutput } from '@valchecker/internal'
-
-const base = v.object({ id: v.string() })
-const timestamped = v.object({ createdAt: v.number() })
-
-const schema = v.intersection([base, timestamped])
-
-type T = InferOutput<typeof schema>
-// { id: string; createdAt: number }
-```
-
-## Design Principles
-
-1. **Deterministic**: Same input always produces the same result—no hidden state
-2. **Composable**: Steps combine without special handling or configuration
-3. **Type-safe**: Full TypeScript inference through transforms, checks, and branches
-4. **Extensible**: Add custom steps without modifying core library
-5. **Debuggable**: Structured issues with paths enable precise error reporting
-6. **Tree-shakable**: Import only what you need for minimal bundle size
-
-## Production Best Practices
-
-### Selective Imports
-
-Use tree-shaking in production to exclude unused steps:
-
-```ts
-// Development: convenient
-import { allSteps, createValchecker } from 'valchecker'
-
-const v = createValchecker({ steps: allSteps })
-```
-
-```ts
-// Production: optimized
-import { createValchecker, number, object, string } from 'valchecker'
-
-const v = createValchecker({ steps: [string, number, object] })
-```
-
-### Schema Reuse
-
-Define schemas once and reuse them—avoid recreating inside hot paths:
-
-```ts
-// ✓ Good: Define once, reuse
-const userSchema = v.object({ /* ... */ })
-
-function validateUser(input: unknown) {
-	return userSchema.execute(input)
-}
-
-// ✗ Bad: Creates new schema on every call
-function validateUser(input: unknown) {
-	const schema = v.object({ /* ... */ }) // Wasteful
-	return schema.execute(input)
+interface Issue {
+	code: string
+	message: string
+	path: PropertyKey[]
+	payload: unknown
 }
 ```
 
-### Observability
-
-Capture `issues` in monitoring tools—they contain structured codes for dashboards:
+Codes identify the failing contract, while payloads preserve machine-readable context:
 
 ```ts
-const result = await schema.execute(input)
-
-if ('issues' in result) {
-	// Log structured data for monitoring
-	logger.warn('Validation failed', {
-		issues: result.issues.map(i => ({
-			code: i.code,
-			path: i.path.join('.'),
-		})),
-	})
-}
+v.number().isAtLeast(10).execute(5)
+// issue code: isAtLeast:expected_at_least
+// payload: { target: 'number', value: 5, minimum: 10 }
 ```
 
-## Next Steps
+Nested schemas prepend paths by creating new issue objects rather than mutating child issues.
 
-- **[Custom Steps](/guide/custom-steps)** - Create your own validation steps
-- **[API Reference](/api/overview)** - Explore all available validation steps
-- **[Examples](/examples/basic-validation)** - See real-world validation patterns
+## Sync and maybe-async execution
+
+Execution mode is determined by reached work, not merely by schema declaration:
+
+```ts
+const schema = v.string().check(async value => value.length > 0)
+
+schema.execute('value') // Promise<ExecutionResult<string>>
+schema.execute(42) // synchronous type failure; callback not reached
+```
+
+Use `.toAsync()` when an API boundary requires every invocation to return a native promise.
+
+## Structural composition
+
+Structural steps orchestrate nested pipelines:
+
+```ts
+const user = v.object({
+	name: v.string().toTrimmed().isNotEmpty(),
+	age: v.looseNumber().isFinite().isInteger(),
+	tags: [v.array(v.string())],
+})
+```
+
+- `object()` validates declared own properties and omits unknown output properties.
+- `strictObject()` rejects unknown enumerable own string and symbol keys.
+- `looseObject()` preserves unknown own properties.
+- `array()` validates and transforms every element.
+- `union()` returns the first successful branch's transformed output.
+- `intersection()` composes compatible branch outputs.
+
+A one-element tuple marks an object field optional.
+
+## Tree-shakable fluent API
+
+The default `v` instance provides every built-in step:
+
+```ts
+import { v } from 'valchecker'
+```
+
+A selective instance registers only imported plugins:
+
+```ts
+import {
+	createValchecker,
+	isFinite,
+	number,
+} from 'valchecker'
+
+const v = createValchecker({ steps: [number, isFinite] })
+```
+
+Both modes expose the same state-aware fluent model. Selective registration gives bundlers explicit control over runtime step inclusion.
+
+## Design principles
+
+1. **Type-aligned** — primitive schemas match TypeScript identities.
+2. **Explicit** — runtime policy is expressed through named constraints.
+3. **Composable** — a step enforces only its own contract.
+4. **Discoverable** — method names and type state guide editor autocomplete.
+5. **Immutable** — schemas can be safely reused.
+6. **Deterministic** — failures are structured results, not validation exceptions.
+7. **Extensible** — custom plugins use the same core protocol.
+8. **Tree-shakable** — fluent DX does not require bundling every implementation.
+
+## Production guidance
+
+Define reusable schemas outside hot paths, select only the step plugins needed by bundle-sensitive applications, and log structured issue codes and paths instead of parsing human-readable messages.
+
+## Next steps
+
+- **[Valchecker 1.0 Contract](/guide/v1-contract)** — normative runtime semantics
+- **[Custom Steps](/guide/custom-steps)** — plugin-author API
+- **[API Reference](/api/overview)** — built-in steps
+- **[Examples](/examples/basic-validation)** — applied patterns
