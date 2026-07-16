@@ -51,17 +51,56 @@ interface PluginDef extends TStepPluginDef {
 						},
 						this['CurrentValchecker']
 					>
-				:	never
-			:	never
+				: never
+			: never
 	>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export const array = implStepPlugin<PluginDef>({
 	array: ({
-		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
+		utils: { addSuccessStep, success, createIssue, failure, prependIssuePath },
 		params: [item, message],
 	}) => {
+		const execute = item['~execute']
+
+		const appendItemIssues = (
+			issues: ExecutionIssue[] | undefined,
+			itemIssues: ExecutionIssue[],
+			index: number,
+		): ExecutionIssue[] => {
+			const target = issues ?? []
+			const path = [index]
+			for (const issue of itemIssues)
+				target.push(prependIssuePath(issue, path))
+			return target
+		}
+
+		const continueAsync = async (
+			firstResult: PromiseLike<ExecutionResult>,
+			firstIndex: number,
+			remainingValues: unknown[],
+			output: unknown[],
+			initialIssues: ExecutionIssue[] | undefined,
+		): Promise<ExecutionResult> => {
+			let result = await firstResult
+			let issues = initialIssues
+			let index = firstIndex
+
+			while (true) {
+				if ('issues' in result)
+					issues = appendItemIssues(issues, result.issues, index)
+				else
+					output[index] = result.value
+
+				index++
+				if (index >= output.length)
+					return issues == null ? success(output) : failure(issues)
+
+				result = await execute(remainingValues[index - firstIndex - 1])
+			}
+		}
+
 		addSuccessStep((value) => {
 			if (Array.isArray(value) === false) {
 				return failure(
@@ -74,53 +113,33 @@ export const array = implStepPlugin<PluginDef>({
 				)
 			}
 
-			// Optimized: Direct processing without Pipe overhead
-			const issues: ExecutionIssue[] = []
 			const len = value.length
 			// eslint-disable-next-line unicorn/no-new-array
 			const output = new Array(len)
-			const execute = item['~execute']
+			let issues: ExecutionIssue[] | undefined
 
-			const processItemResult = (result: ExecutionResult, i: number) => {
-				if (isFailure(result)) {
-					// Optimize: Avoid spread and map by using direct loop
-					for (const issue of result.issues!) {
-						issues.push(prependIssuePath(issue, [i]))
-					}
-				}
-				else {
-					output[i] = result.value!
-				}
-			}
-
-			// Process items synchronously until we hit async
-			let isAsync = false
 			for (let i = 0; i < len; i++) {
-				if (isAsync) {
-					// Already in async mode, skip
-					continue
-				}
-				const itemValue = value[i]!
-				const itemResult = execute(itemValue)
+				const itemResult = execute(value[i])
 
 				if (isPromiseLike(itemResult)) {
-					isAsync = true
-					// Hit async, chain remaining items
-					let chain = Promise.resolve(itemResult)
-						.then(r => processItemResult(r, i))
-					for (let j = i + 1; j < len; j++) {
-						const jValue = value[j]!
-						const jIndex = j
-						chain = chain.then(() => Promise.resolve(execute(jValue))
-							.then(r => processItemResult(r, jIndex)))
-					}
-					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
+					const remainingLen = len - i - 1
+					// Preserve the existing contract: remaining item values are read
+					// immediately when the first asynchronous result is encountered.
+					// eslint-disable-next-line unicorn/no-new-array
+					const remainingValues = new Array(remainingLen)
+					for (let j = 0; j < remainingLen; j++)
+						remainingValues[j] = value[i + j + 1]
+
+					return continueAsync(itemResult, i, remainingValues, output, issues)
 				}
 
-				processItemResult(itemResult, i)
+				if ('issues' in itemResult)
+					issues = appendItemIssues(issues, itemResult.issues, i)
+				else
+					output[i] = itemResult.value
 			}
 
-			return issues.length > 0 ? failure(issues) : success(output)
+			return issues == null ? success(output) : failure(issues)
 		})
 	},
 })
