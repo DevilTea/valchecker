@@ -117,7 +117,7 @@ describe('union plugin', () => {
 			expect(result)
 				.toMatchObject({
 					issues: [
-						{ code: 'core:unknown_exception' },
+						{ code: 'transform:failed' },
 						{ code: 'number:expected_number' },
 					],
 				})
