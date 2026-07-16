@@ -2,9 +2,9 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
-	Name: 'integer'
+	Name: 'isInteger'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
-	SelfIssue: ExecutionIssue<'integer:expected_integer', { value: number }>
+	SelfIssue: ExecutionIssue<'isInteger:expected_integer', { value: number }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -16,25 +16,23 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * ### Example:
 	 * ```ts
-	 * import { createValchecker, number, integer } from 'valchecker'
+	 * import { createValchecker, isInteger, number } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [number, integer] })
-	 * const schema = v.number().integer()
+	 * const v = createValchecker({ steps: [number, isInteger] })
+	 * const schema = v.number().isInteger()
 	 * const result = schema.execute(42)
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'integer:expected_integer'`: The value is not an integer.
+	 * - `'isInteger:expected_integer'`: The value is not an integer.
 	 */
-	integer: DefineStepMethod<
+	isInteger: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
-					{
-						issue: Meta['SelfIssue']
-					},
+					{ issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
 			: never
@@ -42,17 +40,17 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const integer = implStepPlugin<PluginDef>({
-	integer: ({
+export const isInteger = implStepPlugin<PluginDef>({
+	isInteger: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => Number.isInteger(value)
-				?	success(value)
-				:	failure(
+				? success(value)
+				: failure(
 						createIssue({
-							code: 'integer:expected_integer',
+							code: 'isInteger:expected_integer',
 							payload: { value },
 							customMessage: message,
 							defaultMessage: 'Expected an integer.',
