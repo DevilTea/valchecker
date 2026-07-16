@@ -1,92 +1,53 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-declare namespace Internal {
-	export type Input = number | bigint | { length: number }
-
-	export type NumberIssue = ExecutionIssue<'max:expected_max', { target: 'number', value: number, max: number }>
-	export type BigIntIssue = ExecutionIssue<'max:expected_max', { target: 'bigint', value: bigint, max: bigint }>
-	export type LengthIssue = ExecutionIssue<'max:expected_max', { target: 'length', value: { length: number }, max: number }>
-
-	export type Issue<T extends Input> = [
-		number extends T ? NumberIssue : never,
-		bigint extends T ? BigIntIssue : never,
-		{ length: number } extends T ? LengthIssue : never,
-	][number]
+declare namespace AtMostInternal {
+	export type NumberIssue = ExecutionIssue<'isAtMost:expected_at_most', { target: 'number', value: number, maximum: number }>
+	export type BigIntIssue = ExecutionIssue<'isAtMost:expected_at_most', { target: 'bigint', value: bigint, maximum: bigint }>
 }
 
-type Meta<T extends Internal.Input> = T extends Internal.Input
-	? DefineStepMethodMeta<{
-		Name: 'max'
-		ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: T }>
-		SelfIssue: Internal.Issue<T>
-	}>
-	: never
+type AtMostMeta<T extends number | bigint> = DefineStepMethodMeta<{
+	Name: 'isAtMost'
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: T }>
+	SelfIssue: T extends number ? AtMostInternal.NumberIssue : AtMostInternal.BigIntIssue
+}>
 
-interface PluginDef extends TStepPluginDef {
+interface AtMostPluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value is less than or equal to the specified maximum.
+	 * Checks that a number or bigint is less than or equal to the specified maximum.
 	 *
 	 * ---
 	 *
 	 * ### Example:
-	 * #### Usage with numbers
 	 * ```ts
-	 * import { createValchecker, number, max } from 'valchecker'
+	 * import { createValchecker, isAtMost, number } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [number, max] })
-	 * const schema = v.number().max(100)
+	 * const v = createValchecker({ steps: [number, isAtMost] })
+	 * const schema = v.number().isAtMost(100)
 	 * const result = schema.execute(50)
-	 * ```
-	 *
-	 * #### Usage with bigints
-	 * ```ts
-	 * import { createValchecker, bigint, max } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [bigint, max] })
-	 * const schema = v.bigint().max(100n)
-	 * const result = schema.execute(50n)
-	 * ```
-	 *
-	 * #### Usage with lengths
-	 * ```ts
-	 * import { createValchecker, string, max } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [string, max] })
-	 * const schema = v.string().max(10)
-	 * const result = schema.execute('hello')
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'max:expected_max'`: The value exceeds the maximum.
+	 * - `'isAtMost:expected_at_most'`: The numeric value exceeds the maximum.
 	 */
-	max:
+	isAtMost:
 		| DefineStepMethod<
-			Meta<number>,
-			this['CurrentValchecker'] extends Meta<number>['ExpectedCurrentValchecker']
-				? (max: number, message?: MessageHandler<Internal.NumberIssue>) => Next<
-						{ issue: Internal.NumberIssue },
+			AtMostMeta<number>,
+			this['CurrentValchecker'] extends AtMostMeta<number>['ExpectedCurrentValchecker']
+				? (maximum: number, message?: MessageHandler<AtMostInternal.NumberIssue>) => Next<
+						{ issue: AtMostInternal.NumberIssue },
 						this['CurrentValchecker']
 					>
 				: never
 		>
 		| DefineStepMethod<
-			Meta<bigint>,
-			this['CurrentValchecker'] extends Meta<bigint>['ExpectedCurrentValchecker']
-				? (max: bigint, message?: MessageHandler<Internal.BigIntIssue>) => Next<
-						{ issue: Internal.BigIntIssue },
-						this['CurrentValchecker']
-					>
-				: never
-		>
-		| DefineStepMethod<
-			Meta<{ length: number }>,
-			this['CurrentValchecker'] extends Meta<{ length: number }>['ExpectedCurrentValchecker']
-				? (max: number, message?: MessageHandler<Internal.LengthIssue>) => Next<
-						{ issue: Internal.LengthIssue },
+			AtMostMeta<bigint>,
+			this['CurrentValchecker'] extends AtMostMeta<bigint>['ExpectedCurrentValchecker']
+				? (maximum: bigint, message?: MessageHandler<AtMostInternal.BigIntIssue>) => Next<
+						{ issue: AtMostInternal.BigIntIssue },
 						this['CurrentValchecker']
 					>
 				: never
@@ -94,35 +55,90 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const max = implStepPlugin<PluginDef>({
-	max: ({
+export const isAtMost = implStepPlugin<AtMostPluginDef>({
+	isAtMost: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [max, message],
+		params: [maximum, message],
 	}) => {
 		addSuccessStep((value) => {
-			const v = (typeof value === 'bigint' || typeof value === 'number') ? value : value.length
-			if (v <= max) {
+			if (value <= maximum) {
 				return success(value)
 			}
-			const target = ((typeof value === 'bigint')
-				?	'bigint'
-				:	(typeof value === 'number')
-						? 'number'
-						: 'length') as any
+			const target = (typeof value === 'bigint' ? 'bigint' : 'number') as any
 			return failure(
 				createIssue({
-					code: 'max:expected_max',
-					payload: {
-						target,
-						value: value as any,
-						max: max as any,
-					},
+					code: 'isAtMost:expected_at_most',
+					payload: { target, value: value as any, maximum: maximum as any },
 					customMessage: message,
-					defaultMessage: (typeof value === 'bigint' || typeof value === 'number')
-						? `Expected a maximum value of ${max}.`
-						: `Expected a maximum length of ${max}.`,
+					defaultMessage: `Expected a value of at most ${maximum}.`,
 				}),
 			)
 		})
+	},
+})
+
+declare namespace LengthAtMostInternal {
+	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<
+		'isLengthAtMost:expected_length_at_most',
+		{ value: T, maximum: number }
+	>
+}
+
+type LengthAtMostMeta = DefineStepMethodMeta<{
+	Name: 'isLengthAtMost'
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: { length: number } }>
+	SelfIssue: LengthAtMostInternal.Issue
+}>
+
+interface LengthAtMostPluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the value's length is less than or equal to the specified maximum.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isLengthAtMost, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isLengthAtMost] })
+	 * const schema = v.string().isLengthAtMost(10)
+	 * const result = schema.execute('hello')
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isLengthAtMost:expected_length_at_most'`: The value is longer than the maximum length.
+	 */
+	isLengthAtMost: DefineStepMethod<
+		LengthAtMostMeta,
+		this['CurrentValchecker'] extends LengthAtMostMeta['ExpectedCurrentValchecker']
+			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
+				? (maximum: number, message?: MessageHandler<LengthAtMostInternal.Issue<CurrentOutput>>) => Next<
+						{ issue: LengthAtMostInternal.Issue<CurrentOutput> },
+						this['CurrentValchecker']
+					>
+				: never
+			: never
+	>
+}
+
+/* @__NO_SIDE_EFFECTS__ */
+export const isLengthAtMost = implStepPlugin<LengthAtMostPluginDef>({
+	isLengthAtMost: ({
+		utils: { addSuccessStep, success, createIssue, failure },
+		params: [maximum, message],
+	}) => {
+		addSuccessStep(value => value.length <= maximum
+			? success(value)
+			: failure(
+					createIssue({
+						code: 'isLengthAtMost:expected_length_at_most',
+						payload: { value, maximum },
+						customMessage: message,
+						defaultMessage: `Expected a length of at most ${maximum}.`,
+					}),
+				))
 	},
 })
