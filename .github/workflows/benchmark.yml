@@ -73,14 +73,14 @@ jobs:
             seed="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           fi
           mkdir -p artifacts/benchmark
-          pnpm --dir benchmarks bench -- \
+          pnpm --dir benchmarks bench \
             --mode "$BENCHMARK_MODE" \
             --adapters "$BENCHMARK_ADAPTERS" \
             --seed "$seed" \
             --output ../artifacts/benchmark/raw.json
 
       - name: Generate Reports
-        run: pnpm --dir benchmarks report -- --input ../artifacts/benchmark/raw.json --markdown ../artifacts/benchmark/report.md --html ../artifacts/benchmark/report.html
+        run: pnpm --dir benchmarks report --input ../artifacts/benchmark/raw.json --markdown ../artifacts/benchmark/report.md --html ../artifacts/benchmark/report.html
 
       - name: Publish Job Summary
         shell: bash
