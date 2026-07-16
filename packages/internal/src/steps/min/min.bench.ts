@@ -1,35 +1,20 @@
-/**
- * Benchmark plan for min:
- * - Operations benchmarked: min validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
 import { bench, describe } from 'vitest'
-import { createValchecker, min, number } from '../..'
+import { createValchecker, isAtLeast, isLengthAtLeast, number, string } from '../..'
 
-const v = createValchecker({ steps: [min, number] })
+const v = createValchecker({ steps: [number, string, isAtLeast, isLengthAtLeast] })
+const numberSchema = v.number().isAtLeast(0)
+const stringSchema = v.string().isLengthAtLeast(3)
 
-describe('min benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.number()
-				.min(0)
-				.execute(5)
-		})
-
-		bench('valid input - large', () => {
-			v.number()
-				.min(0)
-				.execute(1000000)
-		})
+describe('minimum validation benchmarks', () => {
+	bench('numeric success', () => {
+		numberSchema.execute(5)
 	})
 
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.number()
-				.min(0)
-				.execute(-1)
-		})
+	bench('numeric failure', () => {
+		numberSchema.execute(-1)
+	})
+
+	bench('length success', () => {
+		stringSchema.execute('value')
 	})
 })
