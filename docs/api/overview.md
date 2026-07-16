@@ -58,11 +58,11 @@ Use `number().isFinite()` when the application requires finite numbers.
 
 Loose primitives accept the primitive or its corresponding TypeScript template-literal string representation, then produce the canonical primitive:
 
-- `looseNumber()` — `number | `${number}`` to `number`
-- `looseBoolean()` — `boolean | `${boolean}`` to `boolean`
-- `looseBigint()` — `bigint | `${bigint}`` to `bigint`
+- `looseNumber()` — ``number | `${number}``` to `number`
+- `looseBoolean()` — ``boolean | `${boolean}``` to `boolean`
+- `looseBigint()` — ``bigint | `${bigint}``` to `bigint`
 
-They do not perform unrestricted JavaScript coercion.
+They do not perform unrestricted JavaScript coercion. In accordance with TypeScript's ```${number}``` behavior, a non-empty whitespace-only string is accepted by `looseNumber()` and normalized to `0`; the empty string is rejected.
 
 ## Structure validators
 
