@@ -18,8 +18,21 @@ describe('toJSONString step plugin', () => {
 		[() => undefined],
 		[{ value: () => undefined }],
 		[1n],
-		[{ toJSON: () => undefined }],
 	])('rejects unserializable value %p', (value) => {
+		expect(v.toJSONString().execute(value)).toEqual({
+			issues: [{
+				code: 'toJSONString:unserializable',
+				message: 'Value cannot be serialized to JSON.',
+				path: [],
+				payload: { value },
+			}],
+		})
+	})
+
+	it('rejects a JSON.stringify result of undefined', () => {
+		const value = Object.defineProperty({}, 'toJSON', {
+			value: () => undefined,
+		})
 		expect(v.toJSONString().execute(value)).toEqual({
 			issues: [{
 				code: 'toJSONString:unserializable',
