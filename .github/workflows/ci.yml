@@ -176,10 +176,17 @@ jobs:
       - name: Verify All Benchmark Scenarios
         run: pnpm --dir benchmarks verify
 
-      - name: Benchmark and Report Smoke
-        env:
-          BENCHMARK_SEED: ci-smoke
-        run: pnpm --dir benchmarks smoke
+      - name: Run Benchmark CLI Smoke
+        run: |
+          mkdir -p artifacts/benchmark-smoke
+          pnpm --dir benchmarks bench \
+            --mode smoke \
+            --adapters valchecker,zod3,zod4,zod4-jitless,valibot \
+            --seed ci-smoke \
+            --output ../artifacts/benchmark-smoke/raw.json
+
+      - name: Generate Benchmark CLI Smoke Reports
+        run: pnpm --dir benchmarks report --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/report.md --html ../artifacts/benchmark-smoke/report.html
 
       - name: Upload Benchmark Smoke Reports
         if: always() && hashFiles('artifacts/benchmark-smoke/**') != ''
