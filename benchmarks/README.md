@@ -8,6 +8,7 @@ This suite compares Valchecker with pinned releases of Zod 3, Zod 4, Zod 4 with 
 - Zod 3: `3.25.76`
 - Zod 4: `4.4.3`
 - Zod 4 jitless: `4.4.3` with `z.config({ jitless: true })`
+- Zod 4 Mini: `4.4.3` in the tree-shaking report
 - Valibot: `1.4.2`
 
 Zod 4 and Zod 4 jitless run in separate Node.js processes because the jitless configuration is global.
@@ -32,12 +33,14 @@ The concise Markdown report is written to the Actions job summary. The artifact 
 
 ## Tree-shaking report
 
-The **Tree Shaking** workflow runs on relevant pull requests and can also be started manually. It bundles equivalent Valchecker, Zod 3, Zod 4, and Valibot schemas with one Rollup and Terser configuration, then reports minified, gzip, and Brotli sizes.
+The **Tree Shaking** workflow runs on relevant pull requests and can also be started manually. It bundles equivalent Valchecker, Zod 3, Zod 4 classic, Zod 4 Mini, and Valibot schemas with one Rollup and Terser configuration, then reports minified, gzip, and Brotli sizes.
 
 Valchecker is measured in two modes:
 
 - default `v`, which intentionally registers every built-in method for immediate use
 - selective `createValchecker({ steps })`, which retains the same chain API while allowing unused step implementations to be removed
+
+Zod 4 Mini is included as the functional, tree-shakable Zod variant. This keeps the comparison explicit between classic chain DX, functional tree-shaking, and Valchecker’s selective chain design.
 
 The report executes every realistic generated bundle, scans the minimal selective Valchecker bundle for unrelated step markers, and fails when the selective mode no longer shows a material reduction. Artifacts contain concise and detailed Markdown, HTML, JSON evidence, and every generated bundle for inspection.
 
