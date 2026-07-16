@@ -32,12 +32,14 @@ The concise Markdown report is written to the Actions job summary. The artifact 
 
 ## Pull request benchmark impact
 
-Pull requests that modify runtime source or benchmark code run the **Benchmark Impact** workflow. It builds the pull request base and candidate on the same runner, then measures both with the candidate benchmark harness and the same standard profile.
+Pull requests that modify runtime source or benchmark code run the **Benchmark Impact** workflow. It builds the pull request base and candidate on the same runner and measures both with the candidate benchmark harness and standard profile.
 
-The impact report classifies a scenario only when both measurements have RME at or below 5%:
+The workflow performs three independent process runs for each revision. Base and candidate runs are interleaved, and their order alternates to reduce systematic thermal, scheduler, and runner drift. Scenario throughput is the median of the three process medians. Stability is calculated from variation across those independent process medians; the within-process sample RME remains available in each raw JSON file.
+
+The impact report classifies a scenario only when both cross-run RME values are at or below 5%:
 
 - less than 3%: normally noise
-- 3–5%: requires corroboration from adjacent scenarios or repeated runs
+- 3–5%: requires corroboration from adjacent scenarios or independent workflow runs
 - at least 5%: meaningful scenario-level change
 - at least 10% regression: severe scenario regression
 - at least 5% geometric-mean regression across two or more stable scenarios in a category: severe category regression
@@ -48,7 +50,7 @@ Severe regressions fail the workflow. Mixed improvements and regressions remain 
 - added implementation complexity or package size should normally buy at least 10% in a representative hot path or broad gains across multiple scenarios
 - semantic correctness, API stability, coverage, and package integrity remain hard constraints
 
-The workflow uploads baseline/candidate raw JSON plus Markdown, HTML, and JSON impact reports.
+The workflow uploads all six raw results plus Markdown, HTML, and JSON impact reports.
 
 ## Local run
 
@@ -85,12 +87,16 @@ pnpm --dir benchmarks summary \
   --html results/summary.html
 ```
 
-Compare two Valchecker benchmark results:
+Compare repeated Valchecker benchmark results by passing each independent run separately:
 
 ```bash
 pnpm --dir benchmarks compare \
-  --baseline results/baseline.json \
-  --candidate results/candidate.json \
+  --baseline results/base-1.json \
+  --baseline results/base-2.json \
+  --baseline results/base-3.json \
+  --candidate results/head-1.json \
+  --candidate results/head-2.json \
+  --candidate results/head-3.json \
   --markdown results/impact.md \
   --json results/impact.json \
   --html results/impact.html
@@ -115,6 +121,8 @@ The suite separates:
 3. validation using an already-created and warmed schema.
 
 Scenarios cover primitive pipelines, flat and nested objects, strict unknown-key rejection, arrays, ordered unions, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
+
+In addition to fixed-input ceilings, representative warm scenarios rotate through pools of same-shape objects with different identities and values. These rotating-input cases reduce the risk of keeping an optimization that only benefits one frozen object instance.
 
 Each library runs in a dedicated Node.js process. Library order is shuffled from a recorded seed. Results include every sample, median and mean throughput, median nanoseconds per operation, relative margin of error, package versions, Node.js version, CPU, operating system, runner image, and commit metadata.
 
