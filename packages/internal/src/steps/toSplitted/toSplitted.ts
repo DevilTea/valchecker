@@ -3,7 +3,7 @@ import type { OverloadParametersAndReturnType } from '../../shared'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
-	Name: 'toSplitted'
+	Name: 'toSplit'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string & { split: (...params: any[]) => string[] } }>
 }>
 
@@ -16,10 +16,10 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * ### Example:
 	 * ```ts
-	 * import { createValchecker, string, toSplitted } from 'valchecker'
+	 * import { createValchecker, string, toSplit } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [string, toSplitted] })
-	 * const schema = v.string().toSplitted(',')
+	 * const v = createValchecker({ steps: [string, toSplit] })
+	 * const schema = v.string().toSplit(',')
 	 * const result = schema.execute('a,b,c')
 	 * // result.value: ['a', 'b', 'c']
 	 * ```
@@ -29,26 +29,24 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Issues:
 	 * None.
 	 */
-	toSplitted: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-		?	OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['split']> extends infer Tuple
-			?	Tuple extends [params: any[], ret: any]
-				?	DefineStepMethod<
+	toSplit: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+		? OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['split']> extends infer Tuple
+			? Tuple extends [params: any[], ret: any]
+				? DefineStepMethod<
 					Meta,
 					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['CurrentValchecker']>
 				>
-				:	never
-			:	never
-		:	never
+				: never
+			: never
+		: never
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const toSplitted = implStepPlugin<PluginDef>({
-	toSplitted: ({
+export const toSplit = implStepPlugin<PluginDef>({
+	toSplit: ({
 		utils: { addSuccessStep, success },
 		params,
 	}) => {
-		addSuccessStep((value) => {
-			return success(value.split(...params))
-		})
+		addSuccessStep(value => success(value.split(...params)))
 	},
 })
