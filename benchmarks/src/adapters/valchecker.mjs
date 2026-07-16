@@ -7,14 +7,14 @@ const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const createFields = () => ({
 	id: v.string(),
 	name: v.string(),
-	age: v.number().integer().min(0),
+	age: v.number().isInteger().isAtLeast(0),
 	active: v.boolean(),
 	role: v.literal('admin'),
 	email: v.string().check(value => emailPattern.test(value)),
 	score: v.number(),
 	verified: v.boolean(),
 	nickname: [v.string()],
-	attempts: v.number().integer().min(0),
+	attempts: v.number().isInteger().isAtLeast(0),
 })
 
 const createOptionalFields = () => ({
@@ -22,7 +22,7 @@ const createOptionalFields = () => ({
 	enabled: v.boolean(),
 	name: [v.string()],
 	region: [v.string()],
-	retries: [v.number().integer()],
+	retries: [v.number().isInteger()],
 	timeout: [v.number()],
 	endpoint: [v.string()],
 	cache: [v.boolean()],
@@ -41,8 +41,8 @@ export default {
 	version: 'workspace',
 	build: {
 		primitive: () => v.string()
-			.min(3)
-			.max(32)
+			.isLengthAtLeast(3)
+			.isLengthAtMost(32)
 			.check(value => /^[a-z0-9-]+$/.test(value)),
 		flatObject: () => v.object(createFields()),
 		strictFlatObject: () => v.strictObject(createFields()),
