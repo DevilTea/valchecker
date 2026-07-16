@@ -18,6 +18,7 @@ describe('toJSONString step plugin', () => {
 		[() => undefined],
 		[{ value: () => undefined }],
 		[1n],
+		[{ toJSON: () => undefined }],
 	])('rejects unserializable value %p', (value) => {
 		expect(v.toJSONString().execute(value)).toEqual({
 			issues: [{
