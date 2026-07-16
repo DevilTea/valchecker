@@ -79,11 +79,8 @@ jobs:
             --seed "$seed" \
             --output ../artifacts/benchmark/raw.json
 
-      - name: Generate Detailed Reports
+      - name: Generate Reports
         run: pnpm --dir benchmarks report --input ../artifacts/benchmark/raw.json --markdown ../artifacts/benchmark/report.md --html ../artifacts/benchmark/report.html
-
-      - name: Generate Concise Reports
-        run: pnpm --dir benchmarks summary --input ../artifacts/benchmark/raw.json --markdown ../artifacts/benchmark/summary.md --html ../artifacts/benchmark/summary.html
 
       - name: Publish Job Summary
         shell: bash
