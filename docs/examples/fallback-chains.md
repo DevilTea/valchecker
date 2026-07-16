@@ -1,258 +1,138 @@
 # Fallback Chains
 
-Use `fallback()` to build resilient validation pipelines that gracefully handle malformed data without throwing errors.
+Use `fallback()` to recover from earlier pipeline failures with an explicit replacement value.
 
-## Scenario: Parsing JSON Payloads
-
-Handle invalid JSON gracefully by falling back to a default structure.
+## JSON payload recovery
 
 ```ts
-import { allSteps, createValchecker } from 'valchecker'
-
-const v = createValchecker({ steps: allSteps })
+import { v } from 'valchecker'
 
 const payloadSchema = v.string()
-	.parseJSON('Invalid JSON format')
+	.toJSONValue('Invalid JSON format')
 	.fallback(() => ({ items: [] }))
-	.check(value => Array.isArray(value.items), 'items must be an array')
-	.use(
-		v.object({
-			items: v.array(
-				v.object({
-					id: v.string()
-						.toTrimmed(),
-					quantity: v.number()
-						.integer()
-						.min(1),
-				}),
-			),
-		}),
-	)
+	.use(v.object({
+		items: v.array(
+			v.object({
+				id: v.string().toTrimmed().isNotEmpty(),
+				quantity: v.number()
+					.isFinite()
+					.isInteger()
+					.isAtLeast(1),
+			}),
+		),
+	}))
 ```
 
-### Usage
+Invalid JSON is replaced before structural validation. Valid JSON with an invalid `items` shape still fails at the delegated object schema unless another later fallback is added.
 
-```ts
-// Valid JSON
-const result1 = await payloadSchema.execute(
-	'{"items":[{"id":"123","quantity":5}]}',
-)
-// { value: { items: [{ id: '123', quantity: 5 }] } }
+## Configuration defaults
 
-// Invalid JSON → fallback to default
-const result2 = await payloadSchema.execute('not valid json')
-// { value: { items: [] } }
-
-// Valid JSON but missing items → fallback
-const result3 = await payloadSchema.execute('{"other":"data"}')
-// { value: { items: [] } }
-```
-
-## Scenario: Missing Configuration Values
-
-Provide sensible defaults for optional configuration.
+Use loose primitives when configuration values may arrive as strings:
 
 ```ts
 const configSchema = v.object({
-	port: v.number()
-		.integer()
-		.min(1)
-		.max(65535)
+	port: v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(1)
+		.isAtMost(65535)
 		.fallback(() => 3000),
 	host: v.string()
+		.toTrimmed()
+		.isNotEmpty()
 		.fallback(() => 'localhost'),
-	timeout: v.number()
-		.integer()
-		.min(0)
+	timeout: v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0)
 		.fallback(() => 30000),
 })
-
-const result = configSchema.execute({
-	port: 'invalid', // Falls back to 3000
-	// host is missing → falls back to 'localhost'
-	timeout: 5000, // Valid, no fallback needed
-})
-
-// result.value === { port: 3000, host: 'localhost', timeout: 5000 }
 ```
 
-## Scenario: Form Input Sanitization
+Any earlier failure in a field pipeline triggers its fallback, including initial type failure and later constraint failure.
 
-Normalize user input with fallback chains for robust form handling.
+## Form normalization
 
 ```ts
-const phoneSchema = v.string()
+const phone = v.string()
 	.toTrimmed()
-	.transform(value => value.replace(/\D/g, '')) // Remove non-digits
-	.check(value => value.length >= 10, 'Phone number too short')
-	.fallback(() => '') // Fall back to empty string if invalid
+	.transform(value => value.replace(/\D/g, ''))
+	.isLengthAtLeast(10, 'Phone number too short')
+	.fallback(() => '')
 
-const emailSchema = v.string()
+const email = v.string()
 	.toTrimmed()
 	.toLowercase()
 	.check(value => value.includes('@'), 'Invalid email format')
-	.fallback(() => null) // Fall back to null if invalid
+	.fallback(() => null)
 
-const formSchema = v.object({
+const form = v.object({
 	name: v.string()
 		.toTrimmed()
+		.isNotEmpty()
 		.fallback(() => 'Anonymous'),
-	phone: phoneSchema,
-	email: [emailSchema], // Optional field
+	phone,
+	email: [email],
 })
 ```
 
-## Scenario: Multi-Stage Parsing
+Fallback output becomes the current successful value and may change the inferred output type.
 
-Chain multiple fallbacks for complex data transformation.
+## Dynamic fallback values
 
-```ts
-const dateSchema = v.unknown()
-	// Try parsing as ISO string
-	.transform((value) => {
-		if (typeof value === 'string') {
-			const date = new Date(value)
-			if (!Number.isNaN(date.getTime()))
-				return date
-		}
-		throw new Error('Not a valid date string')
-	})
-	.fallback(() => {
-		// Try parsing as timestamp
-		return (value) => {
-			if (typeof value === 'number') {
-				return new Date(value)
-			}
-			throw new Error('Not a timestamp')
-		}
-	})
-	.fallback(() => new Date()) // Finally, use current date
-
-const result1 = dateSchema.execute('2024-01-15')
-// { value: Date object for 2024-01-15 }
-
-const result2 = dateSchema.execute(1705276800000)
-// { value: Date object from timestamp }
-
-const result3 = dateSchema.execute('invalid')
-// { value: Date object for current time }
-```
-
-## Scenario: External API Fallbacks
-
-Fall back to cached or default data when API calls fail.
+Fallback callbacks receive the issues produced so far:
 
 ```ts
-const enrichUserSchema = v.object({
-	id: v.string(),
-	name: v.string(),
-})
-	.transform(async (user) => {
-		try {
-			const details = await api.getUserDetails(user.id)
-			return { ...user, ...details }
-		}
-		catch (error) {
-			throw new Error('API call failed')
-		}
-	})
-	.fallback(() => {
-		// Fallback to cached or default data when API fails
-		return {
-			avatar: '/default-avatar.png',
-			role: 'user',
-		}
-	})
-```
-
-## Dynamic Fallback Values
-
-Access the validation issues in fallback functions to make informed decisions.
-
-```ts
-const schema = v.number()
-	.min(0)
+const nonNegative = v.number()
+	.isAtLeast(0)
 	.fallback((issues) => {
-		console.log('Fallback triggered, issues:', issues.length)
+		logger.warn('Using numeric fallback', { issues })
 		return 0
 	})
-
-const result = schema.execute(-5)
-// Logs: "Fallback triggered, issues: 1"
-// result.value === 0
 ```
 
-## Multiple Fallbacks
+## Multiple recovery boundaries
 
-Chain multiple fallbacks for progressive error recovery.
+A later validation may fail after an earlier fallback has recovered:
 
 ```ts
 const schema = v.string()
-	.parseJSON('Step 1: Invalid JSON')
-	.fallback(() => {
-		console.log('Fallback 1: Returning empty object')
-		return {}
-	})
-	.check(value => value.items !== undefined, 'Step 2: Missing items')
-	.fallback(() => {
-		console.log('Fallback 2: Adding empty items array')
-		return { items: [] }
-	})
-
-const result = schema.execute('not json')
-// Logs: "Fallback 1: Returning empty object"
-// Logs: "Fallback 2: Adding empty items array"
-// result.value === { items: [] }
+	.toJSONValue('Step 1: Invalid JSON')
+	.fallback(() => ({}))
+	.check(
+		(value): value is { items: unknown } =>
+			typeof value === 'object'
+			&& value !== null
+			&& 'items' in value,
+		'Step 2: Missing items',
+	)
+	.fallback(() => ({ items: [] }))
 ```
 
-## Best Practices
+Each fallback handles failures accumulated before its own position. It does not guard steps appended later.
 
-### Use Fallbacks Sparingly
+## Async fallback
 
-Fallbacks are powerful but can hide data quality issues. Use them for:
-- User input sanitization
-- Optional configuration values
-- External API failures
-- Avoid masking critical validation errors
-
-### Log Fallback Triggers
-
-Monitor when fallbacks are used to detect upstream data quality problems:
+A fallback may return a direct value or supported `PromiseLike` value:
 
 ```ts
-const schema = v.number()
-	.fallback((issues) => {
-		logger.warn('Number validation failed, using fallback', { issues })
-		return 0
+const profile = v.string()
+	.toJSONValue()
+	.fallback(async () => {
+		return await cache.getDefaultProfile()
 	})
 ```
 
-### Document Fallback Behavior
+The invocation becomes asynchronous only when that callback is reached. Append `.toAsync()` when every invocation must return a native promise.
 
-Make fallback values explicit and predictable:
+## Guidance
 
-```ts
-// Clear intent
-const timeout = v.number()
-	.integer()
-	.min(1000)
-	.fallback(() => 30000) // Default: 30 second timeout
+Fallbacks are appropriate for documented defaults, optional configuration, cache recovery, and intentionally lossy input normalization. They can also conceal upstream data defects.
 
-// Unclear
-const timeout = v.number()
-	.fallback(() => 30000)
-```
+Prefer these practices:
 
-### Combine with Monitoring
-
-Track fallback usage in production:
-
-```ts
-const schema = v.number()
-	.fallback((issues) => {
-		metrics.increment('validation.fallback.number', {
-			issues_count: issues.length,
-		})
-		return 0
-	})
-```
+- keep fallback values explicit and type-correct,
+- log or measure unexpected recovery paths,
+- place fallbacks immediately after the failures they are intended to recover,
+- validate fallback output with subsequent named steps or `use()` when necessary,
+- do not use fallback as a replacement for critical integrity checks.
