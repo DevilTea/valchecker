@@ -97,8 +97,8 @@ interface PluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
-						? <Output extends CurrentOutput>(
+				?	[InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
+						?	<Output extends CurrentOutput>(
 								run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue>) => value is Output,
 								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 							) => Next<
@@ -109,8 +109,8 @@ interface PluginDef extends TStepPluginDef {
 								},
 								This
 							>
-						: never
-				: never
+						:	never
+				:	never
 		>
 		| DefineStepMethod<
 			Meta,
@@ -188,10 +188,10 @@ export const check = implStepPlugin<PluginDef>({
 						: success(value)
 				}
 				return isPromiseLike(checkResult)
-					? Promise.resolve(checkResult)
+					?	Promise.resolve(checkResult)
 							.then(processCheckResult)
 							.catch(err => handleError(err))
-					: processCheckResult(checkResult)
+					:	processCheckResult(checkResult)
 			}
 			catch (error) {
 				return handleError(error)
