@@ -24,11 +24,31 @@ A blank seed is replaced with a value derived from the commit and workflow run. 
 
 Each completed run publishes:
 
-- `raw.json`: all samples and environment metadata; the source of truth
-- `report.md`: a scenario-by-scenario report also written to the Actions job summary
-- `report.html`: a standalone human-readable report
+- `raw.json`: every sample and environment field; the source of truth
+- `summary.md` and `summary.html`: concise category-level interpretation and reliability warnings
+- `report.md` and `report.html`: the complete scenario-by-scenario report
 
-The artifact is retained for 90 days. Record the commit, seed, Node.js version, runner image, and CPU model when comparing separate runs.
+The concise Markdown report is written to the Actions job summary. The artifact retains both concise and detailed reports for 90 days. Record the commit, seed, Node.js version, runner image, and CPU model when comparing separate runs.
+
+## Pull request benchmark impact
+
+Pull requests that modify runtime source or benchmark code run the **Benchmark Impact** workflow. It builds the pull request base and candidate on the same runner, then measures both with the candidate benchmark harness and the same standard profile.
+
+The impact report classifies a scenario only when both measurements have RME at or below 5%:
+
+- less than 3%: normally noise
+- 3–5%: requires corroboration from adjacent scenarios or repeated runs
+- at least 5%: meaningful scenario-level change
+- at least 10% regression: severe scenario regression
+- at least 5% geometric-mean regression across two or more stable scenarios in a category: severe category regression
+
+Severe regressions fail the workflow. Mixed improvements and regressions remain a reviewer decision. A performance change is valuable only when the target workload and tradeoff are explicit:
+
+- construction or fresh-schema cost may increase only when warmed gains are larger and the amortization point is documented
+- added implementation complexity or package size should normally buy at least 10% in a representative hot path or broad gains across multiple scenarios
+- semantic correctness, API stability, coverage, and package integrity remain hard constraints
+
+The workflow uploads baseline/candidate raw JSON plus Markdown, HTML, and JSON impact reports.
 
 ## Local run
 
@@ -48,16 +68,32 @@ pnpm --dir benchmarks verify
 Run a benchmark profile:
 
 ```bash
-pnpm --dir benchmarks bench -- --mode standard
+pnpm --dir benchmarks bench --mode standard
 ```
 
-Generate reports from the raw result:
+Generate the full and concise reports from the raw result:
 
 ```bash
-pnpm --dir benchmarks report -- \
+pnpm --dir benchmarks report \
   --input results/raw.json \
   --markdown results/report.md \
   --html results/report.html
+
+pnpm --dir benchmarks summary \
+  --input results/raw.json \
+  --markdown results/summary.md \
+  --html results/summary.html
+```
+
+Compare two Valchecker benchmark results:
+
+```bash
+pnpm --dir benchmarks compare \
+  --baseline results/baseline.json \
+  --candidate results/candidate.json \
+  --markdown results/impact.md \
+  --json results/impact.json \
+  --html results/impact.html
 ```
 
 Profiles:
@@ -87,5 +123,7 @@ Each library runs in a dedicated Node.js process. Library order is shuffled from
 Do not combine construction, cold, and warm results into one ranking. They measure different costs. Compare libraries only within the same scenario and category.
 
 Results with relative margin of error above 5% are marked unstable in generated reports and should be rerun before drawing conclusions. Failure results include each library’s issue construction and traversal behavior.
+
+Zod 4’s generated object fast path can exchange expensive schema creation or first execution for exceptional warmed throughput. Fixed-input warmed scenarios therefore represent a steady-state ceiling, not cold-start latency or whole-application performance.
 
 The benchmark suite intentionally avoids asynchronous validation and intersection comparisons in the primary set: Promise scheduling would dominate the former, while intersection output semantics are not equivalent across libraries.
