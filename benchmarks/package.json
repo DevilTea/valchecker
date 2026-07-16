@@ -8,8 +8,10 @@
 	},
 	"scripts": {
 		"bench": "node ./src/run.mjs",
+		"compare": "node ./src/compare.mjs",
 		"report": "node ./src/report.mjs",
-		"smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke/raw.json && node ./src/report.mjs --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/report.md --html ../artifacts/benchmark-smoke/report.html",
+		"summary": "node ./src/summary.mjs",
+		"smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke/raw.json && node ./src/report.mjs --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/report.md --html ../artifacts/benchmark-smoke/report.html && node ./src/summary.mjs --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/summary.md --html ../artifacts/benchmark-smoke/summary.html",
 		"verify": "node ./src/verify.mjs"
 	},
 	"dependencies": {
