@@ -84,7 +84,7 @@ jobs:
 
       - name: Publish Job Summary
         shell: bash
-        run: cat artifacts/benchmark/report.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat artifacts/benchmark/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Benchmark Reports
         if: always() && hashFiles('artifacts/benchmark/**') != ''
