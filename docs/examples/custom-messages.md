@@ -1,44 +1,46 @@
 # Custom Messages
 
-Adapt validation error messages to your product voice, support internationalization, or provide context-specific feedback.
+Every issue-producing step accepts a static message or message handler. Messages should remain presentation text; applications should use issue codes and payloads for programmatic behavior.
 
-## Per-Step Messages
-
-Pass custom messages directly to individual validation steps.
-
-### Static Messages
+## Per-step messages
 
 ```ts
-const paymentSchema = v.object({
-	currency: v.string()
-		.check(
-			value => SUPPORTED_CURRENCIES.includes(value),
-			'We only accept USD, EUR, and GBP',
-		),
+const payment = v.object({
+	currency: v.string().check(
+		value => SUPPORTED_CURRENCIES.includes(value),
+		'We only accept USD, EUR, and GBP',
+	),
 	amount: v.number()
-		.min(1, 'Amount must be at least $1.00'),
+		.isFinite()
+		.isAtLeast(1, 'Amount must be at least $1.00'),
 })
 ```
 
-### Dynamic Messages
-
-Use a function to access issue payload:
+A handler receives the fully typed issue:
 
 ```ts
-const productSchema = v.object({
-	sku: v.string((info) => {
-		return `Invalid SKU: expected string, received ${typeof info.payload.value}`
-	}),
+const product = v.object({
+	sku: v.string(({ payload }) =>
+		`Expected a string, received ${typeof payload.value}`,
+	),
 	price: v.number()
-		.min(0, ({ payload }) => {
-			return `Price ${payload.value} is below minimum of ${payload.expected}`
-		}),
+		.isAtLeast(0, ({ payload }) =>
+			`Price ${payload.value} is below ${payload.minimum}`,
+		),
 })
 ```
 
-## Global Message Handler
+Length constraints expose their own explicit payload:
 
-Define a centralized translator for all validation errors.
+```ts
+const username = v.string().isLengthAtLeast(
+	3,
+	({ payload }) =>
+		`Expected at least ${payload.minimum} characters; received ${payload.value.length}`,
+)
+```
+
+## Global message resolver
 
 ```ts
 import { allSteps, createValchecker } from 'valchecker'
@@ -46,16 +48,17 @@ import { allSteps, createValchecker } from 'valchecker'
 const v = createValchecker({
 	steps: allSteps,
 	message: ({ code, payload }) => {
-		// Map error codes to user-friendly messages
 		switch (code) {
 			case 'string:expected_string':
 				return 'This field must be text'
 			case 'number:expected_number':
 				return 'This field must be a number'
-			case 'min:expected_min':
-				return `Minimum value is ${payload.expected}`
-			case 'max:expected_max':
-				return `Maximum value is ${payload.expected}`
+			case 'isFinite:expected_finite':
+				return 'This field must be a finite number'
+			case 'isAtLeast:expected_at_least':
+				return `Minimum value is ${payload.minimum}`
+			case 'isAtMost:expected_at_most':
+				return `Maximum value is ${payload.maximum}`
 			default:
 				return 'Validation failed'
 		}
@@ -65,192 +68,100 @@ const v = createValchecker({
 
 ## Internationalization
 
-Implement multi-language support with a translation function.
-
-### Translation Helper
+Use issue codes as stable translation keys and payload values as interpolation data:
 
 ```ts
 const translations = {
 	en: {
 		'string:expected_string': 'This field must be text',
-		'min:expected_min': 'Minimum value is {expected}',
+		'isLengthAtLeast:expected_length_at_least': 'Enter at least {minimum} characters',
 		'check:failed': 'Validation failed',
 	},
 	fr: {
 		'string:expected_string': 'Ce champ doit être du texte',
-		'min:expected_min': 'La valeur minimale est {expected}',
+		'isLengthAtLeast:expected_length_at_least': 'Saisissez au moins {minimum} caractères',
 		'check:failed': 'La validation a échoué',
 	},
 }
 
-function translate(code: string, payload: any, locale: string) {
-	const template = translations[locale]?.[code] ?? translations.en[code]
-	if (!template)
-		return 'Validation failed'
-
-	// Replace {key} placeholders with payload values
-	return template.replace(/\{(\w+)\}/g, (_, key) => payload[key] ?? '')
+function translate(code: string, payload: Record<string, unknown>, locale: 'en' | 'fr') {
+	const template = translations[locale][code] ?? translations.en[code]
+	return template?.replace(/\{(\w+)\}/g, (_, key) => String(payload[key] ?? ''))
+		?? 'Validation failed'
 }
 ```
 
-### Global Handler with Locale
-
 ```ts
-function createLocalizedValchecker(locale: string) {
-	return createValchecker({
-		steps: allSteps,
-		message: ({ code, payload }) => translate(code, payload, locale),
-	})
-}
-
-const vFr = createLocalizedValchecker('fr')
-const schema = vFr.string()
-	.min(3)
-
-const result = schema.execute('ab')
-// result.issues[0].message === 'La valeur minimale est 3'
-```
-
-## API Error Responses
-
-Format validation issues for HTTP API responses.
-
-### Simple Format
-
-```ts
-const result = await userSchema.execute(req.body)
-
-if (v.isFailure(result)) {
-	return res.status(422)
-		.json({
-			error: 'Validation failed',
-			details: result.issues.map(issue => ({
-				field: issue.path.join('.'),
-				message: issue.message,
-			})),
-		})
-}
-```
-
-### Detailed Format with Codes
-
-```ts
-if (v.isFailure(result)) {
-	return res.status(422)
-		.json({
-			error: 'Validation failed',
-			details: result.issues.map(issue => ({
-				field: issue.path.join('.'),
-				code: issue.code,
-				message: issue.message,
-				payload: issue.payload,
-			})),
-		})
-}
-```
-
-Clients can use the `code` field for their own localization:
-
-```ts
-// Client-side
-const errorMessage = translateError(
-	issue.code,
-	issue.payload,
-	userSettings.locale,
-)
-```
-
-## Form Validation
-
-Map issue paths to form field names for UI highlighting.
-
-```ts
-const formSchema = v.object({
-	email: v.string()
-		.check(v => v.includes('@'), 'Please enter a valid email'),
-	password: v.string()
-		.min(8, 'Password must be at least 8 characters'),
-	confirmPassword: v.string(),
+const localized = createValchecker({
+	steps: allSteps,
+	message: ({ code, payload }) => translate(code, payload, 'fr'),
 })
-	.check(
-		data => data.password === data.confirmPassword,
-		'Passwords must match',
-	)
-
-const result = await formSchema.execute(formData)
-
-if (v.isFailure(result)) {
-	// Create field -> error message map
-	const fieldErrors = new Map<string, string>()
-
-	for (const issue of result.issues) {
-		const fieldName = issue.path.join('.')
-		// Take first error for each field
-		if (!fieldErrors.has(fieldName)) {
-			fieldErrors.set(fieldName, issue.message)
-		}
-	}
-
-	// Highlight fields in UI
-	for (const [field, message] of fieldErrors) {
-		highlightField(field, message)
-	}
-}
 ```
 
-## Message Priority
+## Message priority
 
-Messages are resolved in this order (highest to lowest priority):
+Messages resolve in this order:
 
-1. **Per-step message** (inline with step call)
-2. **Global message handler**
-3. **Built-in default message**
+1. per-step message,
+2. global resolver,
+3. built-in default,
+4. `"Invalid value."`.
 
 ```ts
 const v = createValchecker({
 	steps: allSteps,
-	message: () => 'Global handler message',
+	message: () => 'Global message',
 })
 
 const schema = v.string()
-	.min(3, 'Per-step message') // This takes precedence
-
-const result = schema.execute('ab')
-// result.issues[0].message === 'Per-step message'
+	.isLengthAtLeast(3, 'Per-step message')
 ```
 
-## Best Practices
+The per-step message takes precedence.
 
-### Keep Messages User-Friendly
+## HTTP responses
+
+Expose structured fields rather than only a concatenated message:
 
 ```ts
-// Technical jargon
-'Value failed regex /^[A-Z]{3}$/ validation'
+const result = await userSchema.execute(requestBody)
 
-// Clear explanation
-'Currency code must be 3 uppercase letters (e.g., USD, EUR)'
+if (v.isFailure(result)) {
+	return Response.json({
+		error: 'Validation failed',
+		details: result.issues.map(issue => ({
+			path: issue.path,
+			code: issue.code,
+			message: issue.message,
+			payload: issue.payload,
+		})),
+	}, { status: 422 })
+}
 ```
 
-### Include Contextual Information
+Clients may localize `code` independently while logs retain the original structured payload.
+
+## Form errors
 
 ```ts
-// Vague
-'Invalid value'
-
-// Specific
-const message = `Price ${payload.value} is below minimum of ${payload.expected}`
+const form = v.object({
+	email: v.string()
+		.check(value => value.includes('@'), 'Please enter a valid email'),
+	password: v.string()
+		.isLengthAtLeast(8, 'Password must be at least 8 characters'),
+	confirmation: v.string(),
+}).check(
+	value => value.password === value.confirmation,
+	'Passwords must match',
+)
 ```
 
-### Use Consistent Tone
+Use `issue.path` to map nested failures to fields. A root-level cross-field `check()` issue has an empty path unless a custom step supplies a different path.
 
-Match your product's voice throughout all error messages.
+## Guidance
 
-### Provide Actionable Guidance
-
-```ts
-// Just states the problem
-'Username already taken'
-
-// Suggests solution
-'Username already taken. Try adding numbers or underscores.'
-```
+- Keep user-facing messages actionable and product-specific.
+- Keep issue codes stable and machine-readable.
+- Do not parse numbers or field names back out of message strings.
+- Include sensitive input values in messages or logs only when appropriate.
+- Test both default and custom message paths when adding a step.

@@ -1,407 +1,199 @@
 # Common Patterns
 
-Practical examples for common validation scenarios.
+## Form validation
 
-## Form Validation
+```ts
+const form = v.object({
+	email: v.string()
+		.toTrimmed()
+		.toLowercase()
+		.isNotEmpty()
+		.check(value => value.includes('@'), 'Invalid email'),
+	password: v.string()
+		.isLengthAtLeast(8)
+		.check(value => /[A-Z]/.test(value), 'Must contain uppercase'),
+	confirmation: v.string(),
+}).check(
+	value => value.password === value.confirmation,
+	'Passwords must match',
+)
+```
 
-### Basic Form
+Map issue paths to form fields rather than parsing messages:
 
-```typescript
-const formSchema = v.object({
-  email: v.string()
-    .toTrimmed()
-    .toLowercase()
-    .min(5),
-  password: v.string()
-    .min(8)
-    .check((pwd) => /[A-Z]/.test(pwd), 'Must contain uppercase'),
-  confirmPassword: v.string(),
+```ts
+const errors: Record<string, string> = {}
+
+for (const issue of result.issues) {
+	const field = issue.path[0]
+	if (typeof field === 'string')
+		errors[field] ??= issue.message
+}
+```
+
+## Query parameters
+
+Query values often arrive as strings, so use loose primitives:
+
+```ts
+const query = v.object({
+	page: v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(1)
+		.fallback(() => 1),
+	limit: v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(1)
+		.isAtMost(100)
+		.fallback(() => 20),
+	includeArchived: [v.looseBoolean()],
+	search: [v.string().toTrimmed()],
 })
-  .check((data) => data.password === data.confirmPassword, 'Passwords must match')
-
-const result = formSchema.execute(formData)
-
-if ('value' in result) {
-  // Form is valid
-  await submitForm(result.value)
-} else {
-  // Show errors to user
-  displayFormErrors(result.issues)
-}
 ```
 
-### React Form Integration
+Loose primitives accept only their TypeScript-compatible representations, not arbitrary coercion.
 
-```typescript
-import { useState } from 'react'
+## Request bodies
 
-function LoginForm() {
-  const [errors, setErrors] = useState<Record<string, string>>({})
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    
-    const result = loginSchema.execute({
-      email: formData.get('email'),
-      password: formData.get('password'),
-    })
-
-    if ('value' in result) {
-      // Success
-      login(result.value)
-    } else {
-      // Map errors by field
-      const fieldErrors: Record<string, string> = {}
-      for (const issue of result.issues) {
-        const field = issue.path?.[0] as string
-        if (field) fieldErrors[field] = issue.message
-      }
-      setErrors(fieldErrors)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input name="email" />
-      {errors.email && <span>{errors.email}</span>}
-      {/* ... */}
-    </form>
-  )
-}
-```
-
-## API Request Validation
-
-### Query Parameters
-
-```typescript
-const querySchema = v.object({
-  page: v.number()
-    .integer()
-    .min(1)
-    .fallback(() => 1),
-  limit: v.number()
-    .integer()
-    .min(1)
-    .max(100)
-    .fallback(() => 20),
-  sort: [v.string()],
-  search: [v.string()],
+```ts
+const createUser = v.object({
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty()
+		.isLengthAtMost(255),
+	email: v.string()
+		.toTrimmed()
+		.toLowercase()
+		.check(value => value.includes('@')),
+	age: [v.number()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0)],
 })
-
-export const apiHandler = (req: Request) => {
-  const result = querySchema.execute(req.query)
-  
-  if ('value' in result) {
-    // Safe to use with defaults applied
-    const { page, limit, sort, search } = result.value
-    return fetchResults(page, limit, sort, search)
-  }
-  
-  return res.status(400).json({ errors: result.issues })
-}
 ```
 
-### Request Body
+Use `strictObject()` when unknown properties should be rejected, or `looseObject()` when they must be preserved.
 
-```typescript
-const createUserSchema = v.object({
-  name: v.string().toTrimmed().min(1),
-  email: v.string().toTrimmed().toLowercase(),
-  age: [v.number().integer().min(0)],
+## Configuration
+
+```ts
+const config = v.object({
+	server: v.object({
+		host: v.string().isNotEmpty(),
+		port: v.looseNumber()
+			.isFinite()
+			.isInteger()
+			.isAtLeast(1)
+			.isAtMost(65535),
+	}),
+	pool: v.object({
+		minimum: v.looseNumber().isFinite().isInteger().isAtLeast(1),
+		maximum: v.looseNumber().isFinite().isInteger().isAtLeast(1),
+	}),
 })
-
-export const POST = async (req: Request) => {
-  const body = await req.json()
-  const result = createUserSchema.execute(body)
-  
-  if ('value' in result) {
-    // Save to database
-    const user = await db.users.create(result.value)
-    return Response.json(user, { status: 201 })
-  }
-  
-  return Response.json({ errors: result.issues }, { status: 400 })
-}
 ```
 
-## Database Validation
+Add a cross-property `check()` when maximum must be greater than minimum.
 
-### Before Insert
+## JSON parsing and validation
 
-```typescript
-const insertUserSchema = v.object({
-  name: v.string().toTrimmed().min(1).max(255),
-  email: v.string().toTrimmed().toLowercase(),
-  phone: [v.string().toTrimmed()],
-  created_at: v.literal(new Date().toISOString()),
+```ts
+const configFromJSON = v.string()
+	.toJSONValue('Invalid JSON')
+	.use(config)
+```
+
+`toJSONValue<T>()` can assert a parsed output type, but `use()` performs actual runtime structural validation.
+
+## CSV-like input
+
+```ts
+const tags = v.string()
+	.toSplit(',')
+	.toFiltered(value => value.trim().length > 0)
+	.transform(values => values.map(value => value.trim()))
+	.isLengthAtMost(20)
+```
+
+After `toSplit()`, the output is already a string array; do not append another initial `array()` step.
+
+## Collections
+
+```ts
+const orderItem = v.object({
+	id: v.string().isNotEmpty(),
+	quantity: v.number().isFinite().isInteger().isAtLeast(1),
+	price: v.number().isFinite().isAtLeast(0),
 })
 
-async function insertUser(data: unknown) {
-  const result = insertUserSchema.execute(data)
-  
-  if ('value' in result) {
-    return db.users.insert(result.value)
-  }
-  
-  throw new ValidationError(result.issues)
-}
-```
-
-### Before Update
-
-```typescript
-const updateUserSchema = v.object({
-  name: [v.string().toTrimmed().min(1)],
-  email: [v.string().toLowercase()],
-  age: [v.number().integer().min(0)],
+const order = v.object({
+	items: v.array(orderItem).isNotEmpty(),
+	total: v.number().isFinite().isAtLeast(0),
 })
-
-async function updateUser(id: number, updates: unknown) {
-  const result = updateUserSchema.execute(updates)
-  
-  if ('value' in result) {
-    return db.users.update(id, result.value)
-  }
-  
-  throw new ValidationError(result.issues)
-}
 ```
 
-## Enum Validation
+Array transforms operate on transformed element outputs:
 
-### Literal Unions
+```ts
+const sortedPositive = v.array(v.number().isFinite())
+	.toFiltered(value => value > 0)
+	.toSorted((a, b) => a - b)
+```
 
-```typescript
-const statusSchema = v.union([
-  v.literal('draft'),
-  v.literal('published'),
-  v.literal('archived'),
+## Literal unions
+
+```ts
+const status = v.union([
+	v.literal('draft'),
+	v.literal('published'),
+	v.literal('archived'),
 ])
+```
 
-type Status = InferOutput<typeof statusSchema>
+For object variants, combine `object()` branches with literal discriminator fields.
 
-const articleSchema = v.object({
-  title: v.string(),
-  status: statusSchema,
-  tags: v.array(v.string()),
+## Reusable schemas
+
+```ts
+const email = v.string()
+	.toTrimmed()
+	.toLowercase()
+	.check(value => value.includes('@'))
+
+const contact = v.object({
+	email,
+	phone: [v.string()
+		.toTrimmed()
+		.check(value => /^\d{10,15}$/.test(value))],
 })
 ```
 
-### Dynamic Enums
+Schemas are immutable and safe to reuse.
 
-```typescript
-const ROLES = ['admin', 'user', 'guest'] as const
+## Fallbacks
 
-const roleSchema = v.union(
-  ROLES.map((role) => v.literal(role))
-)
-
-type Role = InferOutput<typeof roleSchema>
+```ts
+const theme = v.union([
+	v.literal('light'),
+	v.literal('dark'),
+]).fallback(() => 'light' as const)
 ```
 
-## Nested Validation
+A fallback catches all earlier failures in its pipeline. Place it directly after the failures it is intended to recover and validate replacement output with subsequent steps when needed.
 
-### Configuration Objects
+## Async checks
 
-```typescript
-const configSchema = v.object({
-  server: v.object({
-    host: v.string(),
-    port: v.number().integer().min(1).max(65535),
-  }),
-  database: v.object({
-    url: v.string(),
-    pool: v.object({
-      min: v.number().integer().min(1),
-      max: v.number().integer().min(1),
-    }),
-  }),
-})
-
-const config = configSchema.execute(process.env)
-```
-
-### Array of Objects
-
-```typescript
-const itemsSchema = v.array(
-  v.object({
-    id: v.number(),
-    quantity: v.number().integer().min(1),
-    price: v.number().min(0),
-  })
-)
-
-const orderSchema = v.object({
-  orderId: v.string(),
-  items: itemsSchema,
-  total: v.number().min(0),
+```ts
+const uniqueEmail = email.check(async (value) => {
+	const exists = await db.users.exists({ email: value })
+	return exists ? 'Email already exists' : true
 })
 ```
 
-## Type Conversions
+The schema may complete synchronously on an earlier failure. Add `.toAsync()` when callers require a stable promise return type.
 
-### String to Number
+## Performance
 
-```typescript
-const schema = v.string()
-  .use((val) => parseInt(val, 10))
-  .number()
-  .integer()
-  .min(0)
-
-const result = schema.execute('42')
-// { value: 42 }
-```
-
-### JSON Parsing
-
-```typescript
-const configSchema = v.string()
-  .parseJSON()
-  .object({
-    name: v.string(),
-    enabled: v.boolean(),
-  })
-
-const result = configSchema.execute('{"name":"app","enabled":true}')
-// { value: { name: 'app', enabled: true } }
-```
-
-### CSV Parsing
-
-```typescript
-const csvSchema = v.string()
-  .toSplitted(',')
-  .toFiltered((s) => s.trim().length > 0)
-  .toFiltered((s) => !s.startsWith('#'))
-  .array(v.string().toTrimmed())
-
-const result = csvSchema.execute('apple,banana,cherry')
-// { value: ['apple', 'banana', 'cherry'] }
-```
-
-## Composition
-
-### Reusable Schemas
-
-```typescript
-// Define base schemas
-const emailSchema = v.string()
-  .toTrimmed()
-  .toLowercase()
-  .check((s) => s.includes('@'))
-
-const phoneSchema = v.string()
-  .toTrimmed()
-  .check((s) => /^\d{10,15}$/.test(s))
-
-// Compose them
-const contactSchema = v.object({
-  email: emailSchema,
-  phone: [phoneSchema],
-})
-
-const userSchema = v.object({
-  name: v.string().toTrimmed(),
-  contact: contactSchema,
-})
-
-type User = InferOutput<typeof userSchema>
-```
-
-### Schema Mixins
-
-```typescript
-// Metadata fields
-const withTimestamps = {
-  created_at: v.string(),
-  updated_at: v.string(),
-}
-
-const userSchema = v.object({
-  id: v.number(),
-  name: v.string(),
-  ...withTimestamps,
-})
-
-// But better with composition:
-const baseSchema = v.object({
-  id: v.number(),
-  name: v.string(),
-})
-
-const withMetadataSchema = v.object({
-  ...baseSchema,
-  created_at: v.string(),
-  updated_at: v.string(),
-})
-```
-
-## Error Recovery
-
-### Fallback Values
-
-```typescript
-const schema = v.object({
-  theme: v.union([v.literal('light'), v.literal('dark')])
-    .fallback(() => 'light'),
-  language: v.string()
-    .fallback(() => 'en'),
-})
-
-// Always succeeds
-const result = schema.execute({})
-// { value: { theme: 'light', language: 'en' } }
-```
-
-### Partial Validation
-
-```typescript
-const result = schema.execute(data)
-
-if ('value' in result) {
-  console.log('All valid')
-} else {
-  // Check specific errors
-  const emailErrors = result.issues.filter((i) => i.path?.[0] === 'email')
-  
-  if (emailErrors.length > 0) {
-    // Handle email errors specially
-  } else {
-    // All other errors
-  }
-}
-```
-
-## Performance Patterns
-
-### Lazy Validation
-
-```typescript
-// Create schema once
-const userSchema = v.object({ /* ... */ })
-
-// Reuse for many validations
-for (const item of largeArray) {
-  const result = userSchema.execute(item)
-  // Process result
-}
-```
-
-### Stream Validation
-
-```typescript
-async function* validateStream(stream: AsyncIterable<unknown>) {
-  for await (const item of stream) {
-    const result = userSchema.execute(item)
-    if ('value' in result) {
-      yield result.value
-    } else {
-      console.error('Invalid item:', result.issues)
-    }
-  }
-}
-```
+Construct reusable schemas once, use selective step registration in bundle-sensitive applications, and inspect the generated tree-shaking report when adding built-in plugins.

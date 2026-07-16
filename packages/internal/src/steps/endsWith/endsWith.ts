@@ -2,9 +2,9 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
-	Name: 'endsWith'
+	Name: 'isEndingWith'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
-	SelfIssue: ExecutionIssue<'endsWith:expected_ends_with', { value: string, suffix: string }>
+	SelfIssue: ExecutionIssue<'isEndingWith:expected_ending_with', { value: string, suffix: string }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -16,19 +16,19 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * ### Example:
 	 * ```ts
-	 * import { createValchecker, string, endsWith } from 'valchecker'
+	 * import { createValchecker, isEndingWith, string } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [string, endsWith] })
-	 * const schema = v.string().endsWith('.txt')
+	 * const v = createValchecker({ steps: [string, isEndingWith] })
+	 * const schema = v.string().isEndingWith('.txt')
 	 * const result = schema.execute('file.txt')
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'endsWith:expected_ends_with'`: The string does not end with the specified suffix.
+	 * - `'isEndingWith:expected_ending_with'`: The string does not end with the specified suffix.
 	 */
-	endsWith: DefineStepMethod<
+	isEndingWith: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (suffix: string, message?: MessageHandler<Meta['SelfIssue']>) => Next<
@@ -40,22 +40,20 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const endsWith = implStepPlugin<PluginDef>({
-	endsWith: ({
+export const isEndingWith = implStepPlugin<PluginDef>({
+	isEndingWith: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [suffix, message],
 	}) => {
-		addSuccessStep((value) => {
-			return value.endsWith(suffix)
-				? success(value)
-				: failure(
-						createIssue({
-							code: 'endsWith:expected_ends_with',
-							payload: { value, suffix },
-							customMessage: message,
-							defaultMessage: `Expected the string to end with "${suffix}".`,
-						}),
-					)
-		})
+		addSuccessStep(value => value.endsWith(suffix)
+			? success(value)
+			: failure(
+					createIssue({
+						code: 'isEndingWith:expected_ending_with',
+						payload: { value, suffix },
+						customMessage: message,
+						defaultMessage: `Expected the string to end with "${suffix}".`,
+					}),
+				))
 	},
 })

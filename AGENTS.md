@@ -1,158 +1,151 @@
 # AGENTS.md
 
-## Project Overview
+## Project overview
 
-Valchecker is a modular TypeScript validation library with composable steps, full type inference, and deterministic issue reporting. It follows Standard Schema V1 specification.
+Valchecker is a modular TypeScript validation library with state-aware fluent steps, transformed-output inference, structured issues, Standard Schema V1 support, and selective tree-shakable plugin registration.
 
-**Repository structure:**
+```text
+packages/internal/      core and built-in step plugins
+packages/all-steps/     dynamic allSteps collection
+packages/valchecker/    public package and default v instance
+docs/                   VitePress documentation
+benchmarks/              runtime and tree-shaking reports
 ```
-packages/
-├── internal/         # @valchecker/internal - Core types, functions, and 46+ step plugins
-├── all-steps/        # @valchecker/all-steps - Convenience export of all steps
-└── valchecker/       # valchecker - Main package re-exporting both
-docs/                 # VitePress documentation site
-```
 
-## Setup Commands
+## Verification
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Build all packages
 pnpm build
-
-# Start docs dev server
-pnpm docs:dev
-
-# Run tests
-pnpm test
-
-# Run tests with coverage
-pnpm test --coverage
-
-# Run benchmarks
-pnpm bench
-
-# Lint and fix
 pnpm lint
-
-# Type check
 pnpm typecheck
+pnpm test --coverage
+pnpm docs:build
 ```
 
-## Code Style
+Run relevant benchmarks for performance or bundle-sensitive changes.
 
-- TypeScript strict mode enabled
-- Single quotes, no semicolons
-- Tabs for indentation
-- Functional patterns preferred
-- Use `/* @__NO_SIDE_EFFECTS__ */` annotation for tree-shakable exports
-- Follow existing patterns in `packages/internal/src/steps/`
+## Code style
 
-## File Structure for Steps
+- TypeScript strict mode
+- single quotes and no semicolons
+- tabs for indentation
+- functional and immutable patterns
+- `/* @__NO_SIDE_EFFECTS__ */` on tree-shakable plugin exports
+- follow existing core and step patterns
 
-Every validation step must follow this structure:
-```
-packages/internal/src/steps/[step-name]/
-├── [step-name].ts       # Implementation (required)
-├── [step-name].test.ts  # Tests with 100% coverage (required)
-├── [step-name].bench.ts # Benchmarks (required)
-└── index.ts             # Re-export (required)
-```
+## Step naming contract
 
-## Step Implementation Pattern
+### Initial schemas
 
-Steps follow a three-layer pattern:
+Use nouns or noun phrases: `string`, `number`, `object`, `looseNumber`, `looseBoolean`, `looseBigint`.
 
-1. **Meta** - Define step metadata (name, expected context, issues)
-2. **PluginDef** - Define TypeScript interface with JSDoc
-3. **Implementation** - Runtime logic using `implStepPlugin()`
+Primitive initial schemas align with TypeScript primitive identities. `number()` accepts every JavaScript number, including `NaN` and positive or negative infinity.
 
-```typescript
-// Example: See packages/internal/src/steps/string/string.ts
-type Meta = DefineStepMethodMeta<{
-	Name: 'stepName'
-	ExpectedCurrentValchecker: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'stepName:issue_code', { value: unknown }>
-}>
+Loose primitives accept the primitive or its corresponding TypeScript template-literal string representation and normalize to the primitive. Do not implement them with unrestricted JavaScript coercion.
 
-interface PluginDef extends TStepPluginDef {
-	/** JSDoc with Description, Example, and Issues sections */
-	stepName: DefineStepMethod<Meta, /* method signature */>
-}
+### Built-in validations
 
-export const stepName = implStepPlugin<PluginDef>({
-	stepName: ({ utils, params }) => {
-		utils.addSuccessStep((value) => {
-			// validation logic
-		})
-	},
-})
+Use natural `isXxx` names and preserve the successful value:
+
+```text
+isEmpty, isNotEmpty, isInteger, isFinite, isNaN,
+isAtLeast, isAtMost, isLengthAtLeast, isLengthAtMost,
+isStartingWith, isEndingWith
 ```
 
-## Testing Requirements
+Each validation must enforce only the condition named by the method. Do not add hidden finite-number, integer, or non-empty policies.
 
-- **100% code coverage required** for all step implementations
-- Tests use Vitest
-- Cover: valid inputs, invalid inputs, custom messages, chaining, async behavior
-- Run `pnpm test --coverage` to verify
+### Concrete transformations
 
-Test file template:
-```typescript
-/**
- * Test plan for [step] step:
- * - Functions tested: ...
- * - Valid inputs: ...
- * - Invalid inputs: ...
- * - Edge cases: ...
- * - Coverage goals: 100%
- */
-describe('stepName plugin', () => {
-	describe('valid inputs', () => { /* ... */ })
-	describe('invalid inputs', () => { /* ... */ })
-	describe('custom messages', () => { /* ... */ })
-	describe('chaining', () => { /* ... */ })
-})
+Use `toXxx` and describe the resulting representation:
+
+```text
+toTrimmed, toLowercase, toSplit, toJSONValue,
+toJSONString, toSorted, toFiltered
 ```
 
-## Issue Code Convention
+### Generic and flow-control operations
 
-Format: `[step-name]:[snake_case_description]`
+Keep the direct semantic name: `check`, `transform`, `fallback`, `use`, `generic`, `as`, `toAsync`.
+
+`check()` and `transform()` are generic escape hatches and intentionally do not use artificial `isValid` or `toTransformed` names.
+
+## Step structure
+
+A normal built-in step module contains:
+
+```text
+packages/internal/src/steps/<module>/
+├── <module>.ts
+├── <module>.test.ts
+├── <module>.bench.ts
+└── index.ts
+```
+
+Historical module directory names may differ from the current public method name. Public exports, `Meta.Name`, and the plugin object define API identity.
+
+Steps use three layers:
+
+1. `Meta` for method name, expected current schema, and self issue.
+2. `PluginDef` for state-aware TypeScript signatures and JSDoc.
+3. `implStepPlugin()` for runtime behavior.
+
+## Testing requirements
+
+Modified step implementations require 100% coverage. Cover:
+
+- valid and invalid inputs,
+- exact boundary behavior,
+- default and custom messages,
+- issue code and payload shape,
+- chaining availability and output inference,
+- asynchronous and early-failure behavior where relevant.
+
+For TypeScript-aligned loose primitives, keep compile-time template-literal expectations and runtime fixtures synchronized.
+
+## Issue codes
+
+Format:
+
+```text
+<public-step-name>:<snake_case_description>
+```
 
 Examples:
-- `string:expected_string`
-- `number:expected_number`
-- `check:failed`
-- `min:expected_min`
 
-## PR Instructions
+```text
+string:expected_string
+isFinite:expected_finite
+isAtLeast:expected_at_least
+toJSONValue:invalid_json
+check:failed
+```
 
-1. Run full verification before committing:
-   ```bash
-   pnpm lint && pnpm typecheck && pnpm test
-   ```
+Type declarations, runtime creation, tests, docs, and migration notes must agree.
 
-2. Commit message format (conventional commits):
-   - `feat(step): add new step`
-   - `fix(core): fix issue in core`
-   - `docs: update documentation`
-   - `test: add tests`
-   - `refactor: refactor code`
+## Public API changes
 
-3. Ensure all tests pass and coverage remains at 100% for modified steps
+Intentional additions, removals, renames, or semantic changes must update:
 
-## Key Files Reference
+- implementation exports and `packages/internal/src/steps/index.ts`,
+- `api-surface.json`,
+- default and selective instance tests,
+- benchmark adapters and tree-shaking scenarios,
+- root and package README files,
+- all VitePress references and examples,
+- agent skills and contributor guidance,
+- changelog and migration material when applicable.
 
-| File | Purpose |
-|------|---------|
-| `packages/internal/src/core/types.ts` | All TypeScript type definitions |
-| `packages/internal/src/core/core.ts` | Core implementation (createValchecker, implStepPlugin) |
-| `packages/internal/src/steps/index.ts` | All steps exports |
-| `packages/all-steps/src/allSteps/allSteps.ts` | Dynamic step collection |
+Search the full repository for removed method names and issue codes before merging.
 
-## Agent Skills
+`allSteps` discovers exported plugin objects through the runtime marker; do not manually maintain a duplicate static list.
 
-For more detailed guidance:
-- **valchecker-dev**: `.github/skills/valchecker-dev/` - For developing valchecker itself
-- **valchecker-expert**: `.github/skills/valchecker-expert/` - For using valchecker in projects
+## Pull requests
+
+Use conventional commit intent, run full verification, inspect the complete diff, resolve review feedback, and confirm CI plus relevant benchmark workflows before merge.
+
+## Detailed skills
+
+- `.github/skills/valchecker-dev/`
+- `.github/skills/valchecker-expert/`

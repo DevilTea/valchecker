@@ -1,268 +1,194 @@
 # Testing Guide
 
-All step implementations require 100% code coverage. This guide covers testing best practices.
+Built-in step implementations require 100% coverage and exact contract assertions.
 
-## Coverage Requirement
+## Required coverage
 
-**100% code coverage is mandatory** for all step implementations. This includes:
-- All code paths
-- Error conditions
-- Custom message handling
-- Async behavior (if applicable)
+Test:
 
-## Test File Template
+- successful and failed execution,
+- every runtime branch and boundary,
+- exact issue code, payload, path, and default message,
+- static and callback custom messages,
+- state-aware chaining availability,
+- transformed output inference,
+- synchronous, asynchronous, thenable, and early-failure behavior where relevant,
+- tree-shaking-sensitive export behavior,
+- documented TypeScript-compatible loose primitive grammar.
 
-```typescript
+## Validation-step template
+
+```ts
 import { describe, expect, it } from 'vitest'
-import { createValchecker, /* required steps */ } from 'valchecker'
-import { stepName } from './step-name'
+import { createValchecker, isAtLeast, number } from '../..'
 
-/**
- * Test plan for [step] step:
- * - Functions tested: stepName()
- * - Valid inputs: [list expected valid inputs]
- * - Invalid inputs: [list expected invalid inputs]
- * - Edge cases: [list edge cases]
- * - Coverage goals: 100%
- */
+const v = createValchecker({ steps: [number, isAtLeast] })
 
-const v = createValchecker({ steps: [/* steps */] })
+describe('isAtLeast step plugin', () => {
+	it('accepts the boundary', () => {
+		expect(v.number().isAtLeast(0).execute(0))
+			.toEqual({ value: 0 })
+	})
 
-describe('stepName plugin', () => {
-  describe('valid inputs', () => {
-    it('should pass for [condition]', () => {
-      const schema = v./* chain */
-      expect(schema.execute(validInput)).toEqual({ value: expectedValue })
-    })
-  })
+	it('accepts values above the boundary', () => {
+		expect(v.number().isAtLeast(0).execute(5))
+			.toEqual({ value: 5 })
+	})
 
-  describe('invalid inputs', () => {
-    it('should fail for [condition]', () => {
-      const schema = v./* chain */
-      const result = schema.execute(invalidInput)
-      expect('issues' in result).toBe(false)
-      if ('issues' in result) {
-        expect(result.issues[0].code).toBe('stepName:issue_code')
-      }
-    })
-  })
+	it('returns the exact issue', () => {
+		expect(v.number().isAtLeast(0).execute(-1))
+			.toEqual({
+				issues: [{
+					code: 'isAtLeast:expected_at_least',
+					message: 'Expected a value of at least 0.',
+					path: [],
+					payload: {
+						target: 'number',
+						value: -1,
+						minimum: 0,
+					},
+				}],
+			})
+	})
 
-  describe('custom messages', () => {
-    it('should use string message', () => {
-      const schema = v./* chain */.stepName('Custom message')
-      const result = schema.execute(invalidInput)
-      if ('issues' in result) {
-        expect(result.issues[0].message).toBe('Custom message')
-      }
-    })
+	it('uses a custom message', () => {
+		expect(v.number().isAtLeast(0, 'Must be non-negative').execute(-1))
+			.toMatchObject({
+				issues: [{ message: 'Must be non-negative' }],
+			})
+	})
 
-    it('should use message function', () => {
-      const schema = v./* chain */.stepName(({ payload }) => `Value: ${payload.value}`)
-      // ...
-    })
-  })
+	it('passes the typed payload to message handlers', () => {
+		const schema = v.number().isAtLeast(
+			0,
+			({ payload }) =>
+				`Expected ${payload.minimum}; received ${payload.value}`,
+		)
 
-  describe('chaining', () => {
-    it('should work with other steps', () => {
-      // Test step works correctly in a chain
-    })
-  })
-
-  describe('async behavior', () => {
-    it('should handle async validation', async () => {
-      // If step supports async
-    })
-  })
+		expect(schema.execute(-1)).toMatchObject({
+			issues: [{ message: 'Expected 0; received -1' }],
+		})
+	})
 })
 ```
 
-## Test Organization
+## Primitive identity tests
 
-Organize tests into logical describe blocks:
+Primitive tests must match TypeScript and JavaScript identity exactly:
 
-1. **Valid Inputs** - Test all valid input scenarios
-2. **Invalid Inputs** - Test error conditions
-3. **Custom Messages** - Test string and function message handlers
-4. **Chaining** - Test interaction with other steps
-5. **Async Behavior** - Test async functionality (if applicable)
-
-## Writing Effective Tests
-
-### Valid Inputs
-
-Test all scenarios where validation should pass:
-
-```typescript
-describe('valid inputs', () => {
-  it('should pass for positive numbers', () => {
-    const schema = v.number().min(0)
-    expect(schema.execute(5)).toEqual({ value: 5 })
-  })
-
-  it('should pass for zero', () => {
-    const schema = v.number().min(0)
-    expect(schema.execute(0)).toEqual({ value: 0 })
-  })
-
-  it('should pass for large numbers', () => {
-    const schema = v.number().min(0)
-    expect(schema.execute(Number.MAX_SAFE_INTEGER)).toEqual({ value: Number.MAX_SAFE_INTEGER })
-  })
-})
+```ts
+it.each([0, -0, 1.5, Number.NaN, Infinity, -Infinity])(
+	'accepts JavaScript number %s',
+	(value) => {
+		expect(v.number().execute(value)).toEqual({ value })
+	},
+)
 ```
 
-### Invalid Inputs
+Do not accidentally reintroduce finite-number policy into `number()`.
 
-Test all scenarios where validation should fail:
+## Loose primitive grammar
 
-```typescript
-describe('invalid inputs', () => {
-  it('should fail for negative numbers', () => {
-    const schema = v.number().min(0)
-    const result = schema.execute(-5)
-    expect('issues' in result).toBe(false)
-    if ('issues' in result) {
-      expect(result.issues[0].code).toBe('min:expected_min')
-    }
-  })
+Runtime fixtures must stay aligned with TypeScript template-literal expectations.
 
-  it('should fail for wrong type', () => {
-    const schema = v.number().min(0)
-    const result = schema.execute('not a number')
-    expect('issues' in result).toBe(false)
-  })
+```ts
+it.each([
+	['1e3', 1000],
+	['0x10', 16],
+	[' 1 ', 1],
+])('normalizes %p', (input, output) => {
+	expect(v.looseNumber().execute(input)).toEqual({ value: output })
 })
+
+it.each(['', 'NaN', 'Infinity', 'invalid'])(
+	'rejects unsupported number string %p',
+	(value) => {
+		expect(v.looseNumber().execute(value)).toMatchObject({
+			issues: [{ code: 'looseNumber:expected_number' }],
+		})
+	},
+)
 ```
 
-### Custom Messages
+Also test primitive pass-through, such as numeric `NaN` and infinity for `looseNumber()`.
 
-Test both string and function message handlers:
+## Chaining tests
 
-```typescript
-describe('custom messages', () => {
-  it('should use custom string message', () => {
-    const schema = v.number().min(0, 'Must be positive')
-    const result = schema.execute(-5)
-    if ('issues' in result) {
-      expect(result.issues[0].message).toBe('Must be positive')
-    }
-  })
+Test the method in realistic chains and prove that each named validation enforces only its own condition:
 
-  it('should use message function with payload', () => {
-    const schema = v.number().min(0, ({ payload }) => 
-      `Value ${payload.value} must be at least ${payload.minimum}`
-    )
-    const result = schema.execute(-5)
-    if ('issues' in result) {
-      expect(result.issues[0].message).toContain('Value -5')
-    }
-  })
+```ts
+expect(v.number().isAtLeast(0).execute(Infinity))
+	.toEqual({ value: Infinity })
 
-  it('should use default message when not provided', () => {
-    const schema = v.number().min(0)
-    const result = schema.execute(-5)
-    if ('issues' in result) {
-      expect(result.issues[0].message).toBeTruthy()
-    }
-  })
-})
+expect(v.number().isFinite().isAtLeast(0).execute(Infinity))
+	.toMatchObject({
+		issues: [{ code: 'isFinite:expected_finite' }],
+	})
 ```
 
-### Chaining
+Length and numeric bounds are separate plugins and require separate state-availability tests.
 
-Test that the step works correctly in chains:
+## Transformation tests
 
-```typescript
-describe('chaining', () => {
-  it('should work with other constraints', () => {
-    const schema = v.number().min(0).max(100)
-    expect(schema.execute(50)).toEqual({ value: 50 })
-    expect('issues' in schema.execute(101)).toBe(true)
-  })
+Assert both runtime output and inferred next-step availability:
 
-  it('should work with transforms', () => {
-    const schema = v.string().toTrimmed().min(1)
-    expect(schema.execute('  hello  ')).toEqual({ value: 'hello' })
-  })
-})
+```ts
+const schema = v.string().toSplit(',').toLength()
+
+expect(schema.execute('a,b,c')).toEqual({ value: 3 })
 ```
 
-### Async Behavior
+JSON transformations must test success, syntax failure, unsupported values, circular structures, and custom messages.
 
-If your step handles async operations:
+## Async tests
 
-```typescript
-describe('async behavior', () => {
-  it('should handle async validation', async () => {
-    const schema = v.string().toAsync()
-    const result = await schema.runAsync('hello')
-    expect(result).toEqual({ value: 'hello' })
-  })
+A callback-driven schema can be maybe-async:
+
+```ts
+const schema = v.string().check(async value => value.length > 0)
+
+expect(schema.execute(42)).toMatchObject({
+	issues: [{ code: 'string:expected_string' }],
 })
+
+await expect(schema.execute('value')).resolves.toEqual({ value: 'value' })
 ```
 
-## Running Tests
+For `.toAsync()`, assert that synchronous success and early failure both return native promises:
+
+```ts
+const schema = v.string().toAsync()
+const result = schema.execute(42)
+
+expect(result).toBeInstanceOf(Promise)
+await expect(result).resolves.toMatchObject({ issues: expect.any(Array) })
+```
+
+Use `execute()`; there is no `runAsync()` method.
+
+## Result assertions
+
+Prefer complete `toEqual()` assertions for stable public contracts. Use `toMatchObject()` only when a payload contains intentionally unstable objects such as a caught `SyntaxError`.
+
+Avoid inverted checks such as asserting `'issues' in result` is false in a failure test.
+
+## Running tests
 
 ```bash
-# Run all tests
 pnpm test
-
-# Run tests for specific step
-pnpm test packages/internal/src/steps/step-name
-
-# Run with coverage
 pnpm test --coverage
-
-# Watch mode
-pnpm test --watch
-
-# Check specific coverage
-pnpm test --coverage -- --reporter=text-summary
+pnpm test packages/internal/src/steps/isFinite
+pnpm typecheck
 ```
 
-## Coverage Tips
+Before merging a public API change, also run build, lint, installed-consumer tests, docs build, API surface check, and relevant benchmarks.
 
-- Test both success and failure paths
-- Cover all branches in conditional logic
-- Test edge cases (empty, null, undefined, etc.)
-- Use `it.skip` for temporarily disabling tests (must be removed before commit)
-- Run `pnpm test --coverage` to identify uncovered lines
+## Review checklist
 
-## Common Pitfalls
-
-1. **Not checking `value` or `issues` before accessing `value`/`issues`**
-   ```typescript
-   // ✗ Bad - might crash if result has issues
-   expect(result.value).toBe(5)
-   
-   // ✓ Good
-   expect('issues' in result).toBe(true)
-   if ('value' in result) {
-     expect(result.value).toBe(5)
-   }
-   ```
-
-2. **Not testing error conditions**
-   ```typescript
-   // ✗ Bad - only tests success
-   it('should work', () => {
-     expect(schema.execute(5)).toEqual({ value: 5 })
-   })
-   
-   // ✓ Good - tests both
-   it('should pass for valid input', () => {
-     expect(schema.execute(5)).toEqual({ value: 5 })
-   })
-   it('should fail for invalid input', () => {
-     const result = schema.execute(-5)
-     expect('issues' in result).toBe(false)
-   })
-   ```
-
-3. **Forgetting custom message tests**
-   - Always test both string and function message handlers
-   - Test that default message is used when not provided
-
-4. **Not testing in chains**
-   - Test the step works with other steps
-   - Test order matters in some cases
+- No skipped tests.
+- New implementation files are fully covered.
+- Old public names and issue codes are absent except in explicit migration examples.
+- Default and selective instances both expose the intended methods.
+- `api-surface.json` matches generated output.
+- Tests do not depend on implementation-only source paths.
+- Benchmark fixtures compile against the same public API.

@@ -80,7 +80,7 @@ describe('union plugin', () => {
 						},
 						{
 							code: 'number:expected_number',
-							message: 'Expected a number (NaN is not allowed).',
+							message: 'Expected a number.',
 							path: [],
 							payload: { value: null },
 						},

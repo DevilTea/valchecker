@@ -1,35 +1,22 @@
-/**
- * Benchmark plan for intersection:
- * - Operations benchmarked: intersection validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
 import { bench, describe } from 'vitest'
-import { createValchecker, intersection, min, string } from '../..'
+import { createValchecker, intersection, isLengthAtLeast, string } from '../..'
 
-const v = createValchecker({ steps: [intersection, string, min] })
+const v = createValchecker({ steps: [intersection, string, isLengthAtLeast] })
+const schema = v.intersection([
+	v.string(),
+	v.string().isLengthAtLeast(5),
+])
 
 describe('intersection benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.intersection([v.string(), v.string()
-				.min(5)])
-				.execute('hello')
-		})
-
-		bench('valid input - large', () => {
-			v.intersection([v.string(), v.string()
-				.min(5)])
-				.execute('a'.repeat(1000))
-		})
+	bench('valid input - small', () => {
+		schema.execute('hello')
 	})
 
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.intersection([v.string(), v.string()
-				.min(5)])
-				.execute('hi')
-		})
+	bench('valid input - large', () => {
+		schema.execute('a'.repeat(1000))
+	})
+
+	bench('invalid input', () => {
+		schema.execute('hi')
 	})
 })

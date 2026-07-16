@@ -70,20 +70,19 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * #### adding issues manually (advanced)
 	 * ```ts
-	 * import { createValchecker, check, object, number, string, min, max } from 'valchecker'
+	 * import { check, createValchecker, object, string } from 'valchecker'
 	 *
 	 * const v = createValchecker({ steps: [check, object, string] })
 	 * const schema = v.object({
 	 *   prop1: v.string(),
 	 * })
 	 *   .check((obj, { addIssue }) => {
-	 *     // Custom cross-property validation, custom path for issues
 	 *     if (obj.prop1.length < 5) {
 	 *       addIssue({
 	 *         code: 'custom:prop1_too_short',
 	 *         path: ['prop1'],
 	 *         payload: { value: obj.prop1 },
-	 *         message: `prop1 must be at least 5 characters long.`,
+	 *         message: 'prop1 must be at least 5 characters long.',
 	 *       })
 	 *     }
 	 *   })

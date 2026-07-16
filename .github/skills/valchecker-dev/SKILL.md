@@ -1,222 +1,177 @@
 ---
 name: valchecker-dev
-description: Comprehensive guide for developing and contributing to the Valchecker validation library. Use this skill when working on the valchecker codebase itself - adding new steps, fixing bugs, or improving core functionality.
+description: Guide for developing and contributing to Valchecker, including step plugins, tests, benchmarks, public API changes, and documentation.
 ---
 
 # Valchecker Development Guide
 
-This skill provides guidance for contributing to the Valchecker validation library. Use this when developing new features, fixing bugs, or improving existing functionality within the valchecker repository.
+Use this guide when changing the Valchecker repository itself.
 
-## Quick Start
+## Required verification
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Build all packages
 pnpm build
-
-# Run tests
-pnpm test
-
-# Run tests with coverage
-pnpm test --coverage
-
-# Type check
-pnpm typecheck
-
-# Lint
 pnpm lint
+pnpm typecheck
+pnpm test --coverage
+pnpm docs:build
 ```
 
-## Project Structure
+Run relevant benchmarks for runtime or bundle-sensitive changes.
 
-Valchecker is a pnpm monorepo with three packages:
+## Project structure
 
-```
-valchecker/
-├── packages/
-│   ├── internal/         # @valchecker/internal - Core implementation
-│   │   ├── src/
-│   │   │   ├── core/     # Core types and functions
-│   │   │   ├── steps/    # 47+ validation step plugins
-│   │   │   └── shared/   # Shared utilities
-│   ├── all-steps/        # @valchecker/all-steps - Convenience export
-│   └── valchecker/       # valchecker - Main package
-├── docs/                 # VitePress documentation site
-└── AGENTS.md             # Quick reference for AI agents
+```text
+packages/internal/     core implementation and built-in step plugins
+packages/all-steps/    automatic allSteps collection
+packages/valchecker/   public package and default v instance
+docs/                  VitePress documentation
+benchmarks/             cross-library and tree-shaking reports
+api-surface.json        recorded public exports
 ```
 
-## Documentation
+## Step implementation pattern
 
-This skill is organized into modular guides:
+Every built-in step uses:
 
-### Core Development
-- [**Architecture**](./references/architecture.md) - The three-layer step pattern
-- [**Utils API**](./references/utils-api.md) - Available utility functions
-- [**Conventions**](./references/conventions.md) - Code style and naming
+1. `Meta` — method name, expected current schema, and self issue type.
+2. `PluginDef` — state-aware public method type and JSDoc.
+3. `implStepPlugin` — runtime implementation.
 
-### Quality Assurance
-- [**Testing**](./references/testing.md) - 100% coverage requirements and patterns
-- [**Benchmarking**](./references/benchmarking.md) - Performance tracking
-- [**PR Checklist**](./references/checklist.md) - Before submitting
+A normal step directory contains:
 
-### Learning
-- [**Implementation Examples**](./references/examples.md) - Reference implementations of common patterns
+```text
+packages/internal/src/steps/<module>/
+├── <module>.ts
+├── <module>.test.ts
+├── <module>.bench.ts
+└── index.ts
+```
 
-## Key Concepts
+Some historical module directory names may differ from the current public method name. Public exports and `Meta.Name` define the API; avoid file moves that add noise without architectural value.
 
-### Three-Layer Pattern
+## Built-in naming contract
 
-Every validation step follows this pattern:
+### Initial schemas
 
-1. **Meta** - Type metadata definition
-2. **PluginDef** - TypeScript interface with JSDoc
-3. **Implementation** - Runtime validation logic
+Use nouns or noun phrases:
 
-See [Architecture Guide](./references/architecture.md) for details.
+```text
+string, number, boolean, bigint, object, strictObject,
+looseNumber, looseBoolean, looseBigint
+```
 
-### Step Categories
+Primitive initial schemas align with TypeScript primitive identities. `number()` therefore accepts `NaN` and positive or negative infinity.
 
-- **Primitives**: `string`, `number`, `boolean`, `bigint`, `symbol`
-- **Types**: `literal`, `unknown`, `any`, `never`, `null_`, `undefined_`
-- **Structures**: `object`, `strictObject`, `looseObject`, `array`, `union`, `intersection`, `instance`
-- **Constraints**: `min`, `max`, `empty`, `integer`, `startsWith`, `endsWith`
-- **Transforms**: `transform`, `toTrimmed`, `toLowercase`, `toUppercase`, `toFiltered`, `toSorted`, `toSliced`, `toLength`, `toSplitted`, `toString`, `parseJSON`, `stringifyJSON`, `toAsync`
-- **Flow Control**: `check`, `fallback`, `use`, `as`, `generic`
-- **Loose Variants**: `looseNumber`
-- **Other**: `json`
+Loose primitive schemas accept the primitive or its matching TypeScript template-literal string representation and normalize to the primitive. They must not use unrestricted JavaScript coercion.
 
-### Issue Code Format
+### Built-in validations
 
-`[step-name]:[snake_case_description]`
+Use natural `isXxx` boolean propositions and preserve the successful value:
+
+```text
+isEmpty, isNotEmpty, isInteger, isFinite, isNaN,
+isAtLeast, isAtMost, isLengthAtLeast, isLengthAtMost,
+isStartingWith, isEndingWith
+```
+
+Do not mechanically create grammatically invalid names such as `isStartsWith`. A validation must enforce only the condition named by the method; do not add hidden finite-number or non-empty requirements.
+
+### Concrete transformations
+
+Use `toXxx` and name the resulting representation:
+
+```text
+toTrimmed, toLowercase, toSplit, toJSONValue,
+toJSONString, toSorted, toFiltered
+```
+
+### Generic and flow-control steps
+
+Keep the most direct semantic verb:
+
+```text
+check, transform, fallback, use, generic, as, toAsync
+```
+
+`check()` and `transform()` are generic escape hatches and intentionally do not use synthetic `isValid` or `toTransformed` names.
+
+## Issue codes
+
+Use:
+
+```text
+<public-step-name>:<snake_case_description>
+```
 
 Examples:
-- `string:expected_string`
-- `number:expected_number`
-- `min:expected_min`
-- `check:failed`
 
-## Common Tasks
-
-### Adding a New Step
-
-1. Create directory: `packages/internal/src/steps/[step-name]/`
-2. Implement three files:
-   - `[step-name].ts` - Step implementation
-   - `[step-name].test.ts` - Tests (100% coverage required)
-   - `[step-name].bench.ts` - Benchmarks
-   - `index.ts` - Re-export
-3. Add to `packages/internal/src/steps/index.ts`
-4. Add to `packages/all-steps/src/allSteps/allSteps.ts` if applicable
-5. See [Examples](./references/examples.md) for reference implementations
-
-### Testing
-
-```bash
-# Run all tests
-pnpm test
-
-# Run with coverage (must be 100%)
-pnpm test --coverage
-
-# Run specific test file
-pnpm test packages/internal/src/steps/step-name
+```text
+string:expected_string
+isFinite:expected_finite
+isAtLeast:expected_at_least
+toJSONValue:invalid_json
+check:failed
 ```
 
-Coverage must be 100% for all step implementations. See [Testing Guide](./references/testing.md).
+The type-level `SelfIssue`, runtime `createIssue()` call, tests, docs, and migration notes must agree.
 
-### Linting and Type Checking
+## Adding or changing a step
 
-```bash
-# Check types (strict mode)
-pnpm typecheck
+1. Define the runtime and type-level contract.
+2. Confirm where the method is available in the state-aware chain.
+3. Implement the step and tree-shaking annotation.
+4. Add success, failure, message, async, and edge-case tests as applicable.
+5. Add a benchmark file.
+6. Export it from `packages/internal/src/steps/index.ts`.
+7. Update `api-surface.json` for intentional public export changes.
+8. Update README files, VitePress pages, examples, agent skills, and migration/changelog material.
+9. Run full repository verification.
 
-# Run linter
-pnpm lint
+`allSteps` discovers exported plugin objects through the runtime marker; do not manually maintain a second static list unless its implementation changes.
 
-# Both together
-pnpm lint && pnpm typecheck
-```
+## Testing requirements
 
-### Benchmarking
+Step implementations require 100% coverage. Test:
 
-```bash
-# Run all benchmarks
-pnpm bench
+- successful and failed execution,
+- default and custom messages,
+- payload and issue code shape,
+- state-aware type availability,
+- transformed output inference,
+- synchronous, asynchronous, and early-failure paths when relevant,
+- exact boundary behavior for TypeScript-aligned loose primitives.
 
-# Track performance of steps
-pnpm bench -- --reporter=verbose
-```
+For loose primitives, keep compile-time template-literal expectations and runtime grammar fixtures aligned.
 
-See [Benchmarking Guide](./references/benchmarking.md).
+## Public API review
 
-### Before Submitting PR
+A public rename or semantic change must update:
 
-```bash
-# Full verification
-pnpm lint && pnpm typecheck && pnpm test --coverage && pnpm bench
-```
+- implementation exports,
+- `api-surface.json`,
+- default and selective instance tests,
+- benchmark adapters and tree-shaking scenarios,
+- package README and root README,
+- all VitePress references and examples,
+- agent skills and contributor guidance,
+- changelog and migration documentation when applicable.
 
-All commands must pass. See [PR Checklist](./references/checklist.md) for details.
+Search the entire repository for removed method names and issue codes before merging.
 
-## File Structure for Steps
+## Performance and tree-shaking
 
-Every step MUST follow this structure:
+Keep runtime checks direct and allocation-conscious. Preserve `/* @__NO_SIDE_EFFECTS__ */` annotations. For selective-import changes, run the tree-shaking report and verify unselected method markers are absent from the minimal bundle.
 
-```
-packages/internal/src/steps/[step-name]/
-├── [step-name].ts       # Implementation (required)
-├── [step-name].test.ts  # Tests with 100% coverage (required)
-├── [step-name].bench.ts # Benchmarks (required)
-└── index.ts             # Re-export (required)
-```
-
-## Code Style
-
-- **TypeScript strict mode** enabled
-- **Single quotes**, no semicolons
-- **Tabs** for indentation
-- **Functional patterns** preferred
-- Use `/* @__NO_SIDE_EFFECTS__ */` annotation for tree-shaking
-- Follow existing patterns in `packages/internal/src/steps/`
-
-See [Conventions Guide](./references/conventions.md) for details.
-
-## Troubleshooting
-
-### Type Errors
-- Check `ExpectedCurrentValchecker` matches required input
-- Verify `SelfIssue` code matches `createIssue` code
-- Ensure `Next<>` generics are correct
-
-### Coverage Issues
-- Run `pnpm test --coverage` to identify uncovered lines
-- Add tests for all code paths
-- Test both success and failure conditions
-
-### Performance Concerns
-- Profile slow steps with benchmarks
-- Check for unnecessary operations
-- Consider caching if applicable
+Do not trade semantic correctness for microbenchmark wins. Keep only changes with measured value and documented trade-offs.
 
 ## References
 
-- **Key Files**:
-  - `packages/internal/src/core/types.ts` - All TypeScript type definitions
-  - `packages/internal/src/core/core.ts` - Core implementation
-  - `packages/internal/src/steps/index.ts` - All steps exports
-  - `packages/all-steps/src/allSteps/allSteps.ts` - Dynamic step collection
-
-- **External**:
-  - [Valchecker Docs](https://valchecker.dev) - User documentation
-  - [GitHub Repository](https://github.com/anomalyco/valchecker) - Source code
-
-## Getting Help
-
-- Check [Architecture Guide](./references/architecture.md) for pattern questions
-- See [Implementation Examples](./references/examples.md) for reference code
-- Review [Testing Guide](./references/testing.md) for test structure
-- Check [PR Checklist](./references/checklist.md) before submitting
-
-For more help, refer to existing step implementations in `packages/internal/src/steps/`.
+- [Architecture](./references/architecture.md)
+- [Conventions](./references/conventions.md)
+- [Testing](./references/testing.md)
+- [Benchmarking](./references/benchmarking.md)
+- [PR Checklist](./references/checklist.md)
+- [Implementation Examples](./references/examples.md)
+- [Repository documentation](../../../docs/index.md)

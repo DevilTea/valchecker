@@ -1,320 +1,159 @@
-# Performance Guide
+# Performance
 
-Tips and strategies for optimizing Valchecker schemas.
+## Reuse schemas
 
-## Schema Reuse
+Construct reusable schemas once rather than rebuilding them in hot loops:
 
-### Create Once, Use Many
-
-```typescript
-// ✅ Good: Create schema once
+```ts
 const userSchema = v.object({
-  name: v.string().min(1),
-  email: v.string(),
+	name: v.string().toTrimmed().isNotEmpty(),
+	email: v.string().toLowercase(),
 })
 
-// Reuse for many validations
-for (const item of largeArray) {
-  const result = userSchema.execute(item)
-}
+for (const input of inputs)
+	userSchema.execute(input)
 ```
 
-```typescript
-// ❌ Bad: Creating new schema each time
-for (const item of largeArray) {
-  const result = v.object({
-    name: v.string().min(1),
-    email: v.string(),
-  }).execute(item)
-}
+Schemas are immutable and safe to share.
+
+## Order cheap constraints before expensive work
+
+```ts
+const username = v.string()
+	.toTrimmed()
+	.isNotEmpty()
+	.isLengthAtLeast(3)
+	.isLengthAtMost(32)
+	.check(value => USERNAME_RE.test(value))
+	.check(async value => !(await usernameExists(value)))
 ```
 
-### Compose Reusable Schemas
+Earlier synchronous failures can avoid later callbacks and asynchronous work.
 
-```typescript
-// Shared schemas
-const emailSchema = v.string().min(5).check((s) => s.includes('@'))
-const phoneSchema = v.string().check((s) => /^\d+$/.test(s))
-const nameSchema = v.string().toTrimmed().min(1).max(100)
+## Use named constraints
 
-// Compose
-const userSchema = v.object({
-  name: nameSchema,
-  email: emailSchema,
-  phone: [phoneSchema],
-})
-
-const contactSchema = v.object({
-  email: emailSchema,
-  phone: phoneSchema,
-})
+```ts
+const percentage = v.number()
+	.isFinite()
+	.isAtLeast(0)
+	.isAtMost(100)
 ```
 
-## Validation Order
+Named constraints are easier to audit and benchmark than repeatedly embedding compound predicates in `check()`.
 
-### Check Early Exits
+## Avoid redundant transformations
 
-```typescript
-// ✅ Good: Type check first, then constraints
-const schema = v.string()   // First: type check
-  .min(3)                    // Then: quick constraint
-  .check(isValidEmail)       // Last: expensive async
-
-// ✅ Good: Fail fast
-const schema = v.string()
-  .check((s) => s.length > 0) // Quick check first
-  .check(isValidEmail)        // Expensive check second
+```ts
+const normalized = v.string()
+	.toTrimmed()
+	.toLowercase()
 ```
 
-### Short-Circuit Unions
+Do not repeat equivalent `transform()` calls after a concrete built-in transformation.
 
-```typescript
-// Put most common types first
-const schema = v.union([
-  v.literal('admin'),     // Most common
-  v.literal('user'),      // Second most common
-  v.literal('guest'),     // Least common
+For arrays, filter before sorting when discarded elements do not need ordering:
+
+```ts
+const values = v.array(v.number().isFinite())
+	.toFiltered(value => value > 0)
+	.toSorted((a, b) => a - b)
+```
+
+## Use loose primitives deliberately
+
+Loose primitives normalize supported string representations without unrestricted coercion:
+
+```ts
+const page = v.looseNumber()
+	.isFinite()
+	.isInteger()
+	.isAtLeast(1)
+```
+
+Do not pre-coerce with `Number()`, `Boolean()`, or `BigInt()` unless the broader coercion semantics are intentionally part of the application boundary.
+
+## Optimize unions through branch order
+
+`union()` returns the first successful branch's transformed output. Put common, cheap, and discriminating branches before expensive fallback branches when semantics permit it.
+
+```ts
+const role = v.union([
+	v.literal('user'),
+	v.literal('admin'),
+	v.string().check(async value => await lookupLegacyRole(value)),
 ])
 ```
 
-## Lazy Validation
+## Async work
 
-### Defer Expensive Checks
+Parallelize independent checks inside a callback or across independently validated object fields only when external systems can safely handle the concurrency.
 
-```typescript
-// ✅ Only validate when needed
-async function processUser(data: unknown) {
-  // Fast check first
-  if (typeof data !== 'object' || !data) return
-  
-  // Expensive validation second
-  const result = await fullUserSchema.execute(data)
-  if ('value' in result) {
-    return processValid(result.value)
-  }
-}
-```
+Cache external lookup results only with an explicit expiry and invalidation policy. Validation does not replace transactional uniqueness constraints.
 
-### Batch Validation
+A maybe-async schema may still fail synchronously before asynchronous work is reached. `.toAsync()` adds a stable promise boundary but also forces promise allocation on every invocation, so use it at API boundaries rather than indiscriminately.
 
-```typescript
-// ✅ Good: Validate once, process multiple times
-const { value: users } = usersSchema.execute(data)
+## Selective registration and bundle size
 
-for (const user of users) {
-  await processUser(user)
-  await saveUser(user)
-  await notifyUser(user)
-}
-```
+```ts
+import {
+	createValchecker,
+	isAtLeast,
+	isFinite,
+	number,
+} from 'valchecker'
 
-## Transform Efficiency
-
-### Chain Transforms Efficiently
-
-```typescript
-// ✅ Good: Combine related transforms
-const schema = v.string()
-  .toTrimmed()
-  .toLowercase()  // One pass over string
-
-// Better for arrays: filter then sort
-const schema = v.array(v.string())
-  .toFiltered((s) => s.length > 0)
-  .toSorted()
-```
-
-### Avoid Redundant Transforms
-
-```typescript
-// ❌ Bad: Multiple trims
-const schema = v.string()
-  .toTrimmed()
-  .use((s) => s.trim())  // Redundant
-
-// ✅ Good: Once is enough
-const schema = v.string()
-  .toTrimmed()
-```
-
-## Constraint Selection
-
-### Use Tight Constraints
-
-```typescript
-// ✅ More efficient: Specific constraint
-const schema = v.number()
-  .integer()
-  .min(0)
-  .max(100)
-
-// Less efficient: Generic check
-const schema = v.number()
-  .check((n) => Number.isInteger(n) && n >= 0 && n <= 100)
-```
-
-### Cache Regex Results
-
-```typescript
-// ✅ Create regex once
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const schema = v.string()
-  .check((s) => EMAIL_REGEX.test(s))
-
-// Reuse schema many times
-for (const email of emails) {
-  schema.execute(email)
-}
-```
-
-## Async Optimization
-
-### Parallelize Checks
-
-```typescript
-// ✅ Good: Parallel async checks
-const schema = v.object({
-  email: v.string()
-    .check(async (e) => !(await emailExists(e))),
-  username: v.string()
-    .check(async (u) => !(await usernameExists(u))),
+const v = createValchecker({
+	steps: [number, isFinite, isAtLeast],
 })
-
-// Both checks run in parallel during validation
-const result = await schema.execute(data)
 ```
 
-### Cache Async Results
+The default `v` registers every built-in step. Selective instances make runtime inclusion explicit and are preferred for bundle-sensitive front-end code.
 
-```typescript
-// ✅ Cache expensive lookups
-const emailCache = new Set<string>()
+Use the repository tree-shaking report to verify that unselected plugin markers are absent from minimal bundles. Do not infer tree-shaking quality solely from source-module layout.
 
-const schema = v.string()
-  .check(async (email) => {
-    if (emailCache.has(email)) return true
-    
-    const exists = await checkEmailExists(email)
-    if (exists) emailCache.add(email)
-    return !exists
-  })
-```
+## Benchmarking
 
-## Bundle Size
+Measure schema construction separately from cold and warmed execution. Keep fixtures semantically equivalent across libraries and inspect relative margin of error.
 
-### Selective Imports
-
-```typescript
-// ✅ Small bundle: Only needed steps
-import { createValchecker, string, number, object, min } from 'valchecker'
-
-const v = createValchecker({ steps: [string, number, object, min] })
-```
-
-```typescript
-// ⚠️ Larger bundle: All steps
-import { allSteps, createValchecker } from 'valchecker'
-
-const v = createValchecker({ steps: allSteps })
-```
-
-### Tree-Shaking
-
-```typescript
-// Unused steps will be tree-shaken in production
-import { string, number } from 'valchecker'
-
-// Only string and number are included in bundle
-const schema = v.string().number() // ❌ Type error, but illustrative
-```
-
-## Monitoring
-
-### Track Validation Time
-
-```typescript
-function timeValidation<T>(schema: any, data: unknown): {
-  value?: T
-  issues?: any[]
-  duration: number
-} {
-  const start = performance.now()
-  const result = schema.execute(data)
-  const duration = performance.now() - start
-  
-  return { ...result, duration }
-}
-
-// Monitor slow validations
-const result = timeValidation(schema, data)
-if (result.duration > 100) {
-  console.warn('Slow validation:', result.duration)
-}
-```
-
-### Count Issues
-
-```typescript
-// Track error patterns
-function countErrors(result: ValidationResult) {
-  if ('issues' in result) {
-    const counts: Record<string, number> = {}
-    for (const issue of result.issues) {
-      counts[issue.code] = (counts[issue.code] ?? 0) + 1
-    }
-    return counts
-  }
-}
-```
-
-## Testing Performance
-
-### Benchmark Common Schemas
-
-```typescript
+```ts
 import { bench } from 'vitest'
 
-bench('simple validation', () => {
-  simpleSchema.execute(testData)
-})
+const schema = v.number().isFinite().isAtLeast(0)
 
-bench('complex validation', () => {
-  complexSchema.execute(testData)
+bench('number validation', () => {
+	schema.execute(42)
 })
 ```
 
-### Profile Hot Paths
+For changes to a built-in step:
 
-```typescript
-// Identify slow validations in production
-const timings = new Map<string, number[]>()
+1. run focused microbenchmarks,
+2. run the cross-library benchmark suite,
+3. run the tree-shaking report,
+4. compare generated artifacts rather than only console summaries,
+5. keep only changes with measured value and acceptable semantic trade-offs.
 
-function trackValidation(name: string, fn: () => any) {
-  const start = performance.now()
-  const result = fn()
-  const duration = performance.now() - start
-  
-  if (!timings.has(name)) timings.set(name, [])
-  timings.get(name)!.push(duration)
-  
-  return result
-}
+## Production monitoring
 
-// Analyze
-for (const [name, durations] of timings) {
-  const avg = durations.reduce((a, b) => a + b) / durations.length
-  console.log(`${name}: avg ${avg.toFixed(2)}ms`)
-}
+Record duration, outcome, issue code distribution, and schema identity without logging sensitive payload values.
+
+```ts
+const startedAt = performance.now()
+const result = await schema.execute(input)
+const durationMs = performance.now() - startedAt
+
+metrics.observe('validation_duration_ms', durationMs, {
+	schema: 'create-user',
+	success: v.isSuccess(result),
+})
 ```
 
-## Best Practices
+## Guidance
 
-1. **Create schemas once** - Reuse for many validations
-2. **Validate in order** - Fast checks first, expensive last
-3. **Use constraints** - More efficient than custom checks
-4. **Cache results** - Avoid redundant lookups
-5. **Profile realistically** - Test with actual data volumes
-6. **Monitor in production** - Track slow validations
-7. **Optimize async** - Parallel checks where possible
-8. **Keep schemas focused** - Smaller schemas validate faster
+- Construct once and reuse.
+- Put cheap deterministic checks before expensive callbacks.
+- Use named constraints and concrete transformations.
+- Apply `.toAsync()` only when the promise contract is required.
+- Prefer selective plugin registration for bundle-sensitive builds.
+- Benchmark realistic inputs and inspect uncertainty.
+- Never trade semantic correctness for an isolated microbenchmark improvement.

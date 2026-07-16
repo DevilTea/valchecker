@@ -227,7 +227,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						message: 'Expected a number (NaN is not allowed).',
+						message: 'Expected a number.',
 						path: ['age'],
 						payload: { value: 'thirty' },
 					}],
@@ -244,7 +244,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
-						message: 'Expected a number (NaN is not allowed).',
+						message: 'Expected a number.',
 						path: ['age'],
 						payload: { value: 'thirty' },
 					}],

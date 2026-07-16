@@ -1,35 +1,14 @@
-/**
- * Benchmark plan for parseJSON:
- * - Operations benchmarked: parseJSON validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
 import { bench, describe } from 'vitest'
-import { createValchecker, parseJSON, string } from '../..'
+import { createValchecker, string, toJSONValue } from '../..'
 
-const v = createValchecker({ steps: [parseJSON, string] })
+const schema = createValchecker({ steps: [string, toJSONValue] }).string().toJSONValue()
 
-describe('parseJSON benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.string()
-				.parseJSON()
-				.execute('{}')
-		})
-
-		bench('valid input - large', () => {
-			v.string()
-				.parseJSON()
-				.execute(JSON.stringify({ large: 'a'.repeat(1000) }))
-		})
+describe('toJSONValue benchmarks', () => {
+	bench('valid JSON', () => {
+		schema.execute('{"value":42}')
 	})
 
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.string()
-				.parseJSON()
-				.execute('invalid json')
-		})
+	bench('invalid JSON', () => {
+		schema.execute('{')
 	})
 })

@@ -1,226 +1,176 @@
 # Core Concepts
 
-Understanding the fundamental concepts in Valchecker.
+## Schemas are immutable pipelines
 
-## Schemas and Pipelines
-
-A schema is a pipeline of validation steps that process data:
-
-```typescript
-const userSchema = v.object({
-  name: v.string()        // Step 1: Validate string
-    .toTrimmed()          // Step 2: Trim whitespace
-    .min(1),              // Step 3: Validate min length
-  email: v.string(),
-  age: v.number()
-    .integer()            // Constraint
-    .min(0)               // Constraint
-    .max(150),            // Constraint
+```ts
+const user = v.object({
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty(),
+	age: v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0),
 })
 ```
 
-Each step processes the value and can either:
-- **Pass** the value to the next step
-- **Transform** the value before passing it
-- **Fail** and stop the pipeline
+Each fluent method returns a new schema. A reached step may preserve the value, transform it, produce structured issues, recover from a prior failure, or delegate to another schema.
 
-## Execution: execute()
+## Method names identify roles
 
-Valchecker schemas are executed using the `execute()` method, which always returns a Promise:
+| Role | Convention | Examples |
+| --- | --- | --- |
+| Initial schema | noun | `string()`, `number()`, `looseBigint()` |
+| Built-in validation | `isXxx()` | `isFinite()`, `isNotEmpty()`, `isLengthAtMost()` |
+| Concrete transformation | `toXxx()` | `toTrimmed()`, `toSplit()`, `toJSONValue()` |
+| Generic operation | direct verb | `check()`, `transform()`, `fallback()`, `use()` |
 
-| Method | Returns | When to Use |
-|--------|---------|-------------|
-| `execute(value)` | Promise<Result> | Always - for consistent async handling |
+`check()` and `transform()` remain generic escape hatches because their callbacks define the actual condition or output.
 
-### Example
+## Primitive identity versus policy
 
-```typescript
-const schema = v.string().toTrimmed()
-const result = await schema.execute('  hello  ')
-// result: { value: 'hello' }
+Primitive schemas match TypeScript identities:
+
+```ts
+v.number().execute(Number.NaN) // success
+v.number().execute(Infinity) // success
 ```
 
-### With Async Steps
+Add runtime policy explicitly:
 
-```typescript
-const schema = v.string().check(async (value) => {
-  return await checkDatabase(value)
-})
-const result = await schema.execute('hello')
-// result is returned from Promise
+```ts
+v.number().isFinite()
+v.number().isInteger()
+v.number().isFinite().isAtLeast(0)
 ```
 
-## Result Handling
+A named validation enforces only the condition it states. `isAtLeast(0)` accepts positive infinity.
 
-Results are discriminated unions with `value` or `issues` discriminator:
+## Loose primitive normalization
 
-```typescript
-const result = schema.execute(data)
+Loose primitives accept a canonical primitive or a TypeScript-compatible string representation, then output the primitive:
 
-if ('value' in result) {
-  // Success branch
-  console.log(result.value)  // Your validated data
-  console.log(result.issues) // undefined
-} else {
-  // Failure branch
-  console.log(result.value)  // undefined
-  console.log(result.issues) // Array<Issue>
-}
+```ts
+v.looseNumber().execute('1e3') // { value: 1000 }
+v.looseBoolean().execute('false') // { value: false }
+v.looseBigint().execute('-0x10') // { value: -16n }
 ```
 
-## Issue Structure
+They do not use unrestricted JavaScript coercion.
 
-Each validation error has this structure:
+## Execution mode
 
-```typescript
+`execute()` preserves the completion mode of reached work:
+
+```ts
+const synchronous = v.string().toTrimmed()
+synchronous.execute(' value ') // direct result
+
+const maybeAsync = v.string().check(async value => value.length > 0)
+maybeAsync.execute('value') // Promise<ExecutionResult<string>>
+maybeAsync.execute(42) // direct early failure
+```
+
+Awaiting either mode is safe. Append `.toAsync()` when every invocation must return a native promise.
+
+## Results
+
+```ts
+type ExecutionResult<T, Issue>
+	= | { value: T }
+		| { issues: Issue[] }
+```
+
+Use `v.isSuccess()` and `v.isFailure()` to narrow the result.
+
+Each issue contains:
+
+```ts
 interface Issue {
-  code: string           // e.g., 'string:expected_string'
-  message: string        // Human-readable message
-  path: PropertyKey[]    // Location: ['user', 'address', 0, 'zipcode']
-  payload: unknown       // Issue-specific data for custom messages
+	code: string
+	message: string
+	path: PropertyKey[]
+	payload: unknown
 }
 ```
 
-### Issue Codes
+Examples include:
 
-Format: `[step-name]:[description]`
+```text
+string:expected_string
+isFinite:expected_finite
+isAtLeast:expected_at_least
+isLengthAtMost:expected_length_at_most
+toJSONValue:invalid_json
+```
 
-Examples:
-- `string:expected_string` - Expected a string value
-- `number:expected_number` - Expected a number value
-- `min:expected_min` - Value below minimum
-- `max:expected_max` - Value above maximum
-- `object:unexpected_keys` - Object has unexpected properties
+Issue paths identify nested object fields and array indices. Parent schemas prepend paths by cloning issues rather than mutating child issue objects.
 
-### Issue Paths
+## Optional object fields
 
-Paths indicate where in nested structures the error occurred:
+A one-element tuple marks a field optional:
 
-```typescript
-const schema = v.object({
-  users: v.array(v.object({
-    email: v.string(),
-  })),
+```ts
+const user = v.object({
+	name: v.string(),
+	nickname: [v.string()],
+	tags: [v.array(v.string())],
 })
-
-const result = schema.execute({
-  users: [
-    { email: 'alice@example.com' },
-    { email: 123 },  // Error here!
-  ],
-})
-
-if ('issues' in result) {
-  result.issues[0].path
-  // ['users', 1, 'email']
-  //  object  array string
-  //          index  field
-}
 ```
 
-## Optional Fields
+Declared object fields are read from own properties only.
 
-Use array syntax `[schema]` for optional fields:
+## Object variants
 
-```typescript
-const userSchema = v.object({
-  name: v.string(),           // Required
-  nickname: [v.string()],     // Optional - string | undefined
-  tags: [v.array(v.string())], // Optional - string[] | undefined
-})
+- `object(shape)` omits unknown output properties.
+- `strictObject(shape)` rejects unknown enumerable own string and symbol keys.
+- `looseObject(shape)` preserves unknown own properties.
 
-// Both valid:
-userSchema.execute({ name: 'Alice' })
-userSchema.execute({ name: 'Alice', nickname: 'Ali' })
-```
+## Transformation and output inference
 
-## Custom Error Messages
-
-Provide custom messages for better UX:
-
-```typescript
+```ts
 const schema = v.string()
-  .min(5, 'Username must be at least 5 characters')
-
-const result = schema.execute('ab')
-if ('issues' in result) {
-  console.log(result.issues[0].message)
-  // 'Username must be at least 5 characters'
-}
+	.toSplit(',')
+	.toFiltered(value => value.length > 0)
+	.toLength()
 ```
 
-### Message Functions
+The input is `string`; the output is `number`.
 
-Use functions for dynamic messages:
+```ts
+import type { InferInput, InferOutput } from '@valchecker/internal'
 
-```typescript
-const schema = v.number()
-  .min(0, ({ payload }) => `Expected positive, got ${payload.value}`)
-
-const result = schema.execute(-5)
-if ('issues' in result) {
-  console.log(result.issues[0].message)
-  // 'Expected positive, got -5'
-}
-```
-
-## Step Chaining
-
-Steps chain together, each passing to the next:
-
-```typescript
-v.string()
-  .toTrimmed()        // Transforms: '  hello  ' → 'hello'
-  .toLowercase()      // Transforms: 'Hello' → 'hello'
-  .min(1)             // Constraint: validates length
-  .check(v => v !== 'admin')  // Custom: validates value
-```
-
-## Input vs Output
-
-Transforms change what data type leaves the schema:
-
-```typescript
-import { InferInput, InferOutput } from 'valchecker'
-
-const schema = v.string()
-  .toFiltered(c => c !== 'a')  // string → string (filtered)
-
-type Input = InferInput<typeof schema>   // string
-type Output = InferOutput<typeof schema> // string
-```
-
-### More Complex Example
-
-```typescript
-import { InferInput, InferOutput } from 'valchecker'
-
-const schema = v.string()
-  .toSplitted(',')            // string → string[]
-  .transform(arr => arr.length) // string[] → number
-
-type Input = InferInput<typeof schema>    // string
-type Output = InferOutput<typeof schema>  // number
+type Input = InferInput<typeof schema>
+type Output = InferOutput<typeof schema>
 ```
 
 ## Composition
 
-Schemas can be composed into larger schemas:
-
-```typescript
-const addressSchema = v.object({
-  street: v.string(),
-  city: v.string(),
+```ts
+const address = v.object({
+	street: v.string(),
+	city: v.string(),
 })
 
-const userSchema = v.object({
-  name: v.string(),
-  address: addressSchema,  // Reuse schema
+const user = v.object({
+	name: v.string(),
+	address,
 })
 ```
 
-## Next Steps
+- `array()` validates and transforms elements.
+- `union()` returns the first successful branch's transformed output.
+- `intersection()` composes compatible outputs.
+- `use()` delegates the current value to another schema.
+- `generic()` supports lazy and recursive schemas.
 
-- Learn [type inference](./type-inference.md) details
-- See [common patterns](./patterns.md)
-- Understand [error handling](./error-handling.md) techniques
+## Messages
+
+```ts
+const quantity = v.number().isAtLeast(
+	1,
+	({ payload }) => `Expected at least ${payload.minimum}, received ${payload.value}`,
+)
+```
+
+Message priority is per-step, global resolver, built-in default, then `"Invalid value."`.

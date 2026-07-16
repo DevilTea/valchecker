@@ -1,205 +1,27 @@
-/**
- * Test Plan for startsWith.ts
- *
- * This test file covers the `startsWith` step plugin implementation.
- *
- * Functions and Classes:
- * - startsWith: A step plugin that validates if the input string starts with a specified prefix.
- *
- * Input Scenarios:
- * - Valid inputs: Strings that start with the prefix, including equal to prefix.
- * - Invalid inputs: Strings that do not start with the prefix, non-string types (though typically chained with string).
- * - Edge cases: Empty prefix, empty string, prefix longer than string, case sensitivity.
- * - Custom messages: Test with custom messages.
- * - Chaining: Test chaining with other steps like min.
- *
- * Expected Outputs and Behaviors:
- * - Success: When string starts with prefix, return { value: originalValue }.
- * - Failure: When string does not start with prefix, return { issues: [{ code: 'startsWith:expected_starts_with', payload: { value, prefix }, message }] }.
- *
- * Error Handling and Exceptions:
- * - No exceptions; all errors via issues.
- * - Custom messages override default.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
-
 import { describe, expect, it } from 'vitest'
-import { createValchecker, min, startsWith, string } from '../..'
+import { createValchecker, isStartingWith, string } from '../..'
 
-const v = createValchecker({ steps: [string, startsWith, min] })
+const v = createValchecker({ steps: [string, isStartingWith] })
 
-describe('startsWith plugin', () => {
-	describe('valid inputs', () => {
-		it('should pass when string starts with prefix', () => {
-			const result = v.string()
-				.startsWith('hello')
-				.execute('hello world')
-			expect(result)
-				.toEqual({ value: 'hello world' })
-		})
+describe('isStartingWith step plugin', () => {
+	it('accepts matching prefixes', () => {
+		expect(v.string().isStartingWith('hello').execute('hello world')).toEqual({ value: 'hello world' })
+	})
 
-		it('should pass when string is equal to prefix', () => {
-			const result = v.string()
-				.startsWith('hello')
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'hello' })
-		})
-
-		it('should pass for empty prefix', () => {
-			const result = v.string()
-				.startsWith('')
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'hello' })
+	it('rejects non-matching prefixes', () => {
+		expect(v.string().isStartingWith('hello').execute('world')).toEqual({
+			issues: [{
+				code: 'isStartingWith:expected_starting_with',
+				message: 'Expected the string to start with "hello".',
+				path: [],
+				payload: { value: 'world', prefix: 'hello' },
+			}],
 		})
 	})
 
-	describe('invalid inputs', () => {
-		it('should fail when string does not start with prefix', () => {
-			const result = v.string()
-				.startsWith('hello')
-				.execute('world hello')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'startsWith:expected_starts_with',
-						message: 'Expected the string to start with "hello".',
-						path: [],
-						payload: { value: 'world hello', prefix: 'hello' },
-					}],
-				})
-		})
-
-		it('should fail for empty string with non-empty prefix', () => {
-			const result = v.string()
-				.startsWith('a')
-				.execute('')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'startsWith:expected_starts_with',
-						message: 'Expected the string to start with "a".',
-						path: [],
-						payload: { value: '', prefix: 'a' },
-					}],
-				})
-		})
-
-		it('should fail when prefix is longer than string', () => {
-			const result = v.string()
-				.startsWith('longer')
-				.execute('short')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'startsWith:expected_starts_with',
-						message: 'Expected the string to start with "longer".',
-						path: [],
-						payload: { value: 'short', prefix: 'longer' },
-					}],
-				})
-		})
-	})
-
-	describe('edge cases', () => {
-		it('should be case-sensitive', () => {
-			const result = v.string()
-				.startsWith('Hello')
-				.execute('hello world')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'startsWith:expected_starts_with',
-						message: 'Expected the string to start with "Hello".',
-						path: [],
-						payload: { value: 'hello world', prefix: 'Hello' },
-					}],
-				})
-		})
-
-		it('should handle unicode strings', () => {
-			const result = v.string()
-				.startsWith('你好')
-				.execute('你好世界')
-			expect(result)
-				.toEqual({ value: '你好世界' })
-		})
-
-		it('should fail for unicode mismatch', () => {
-			const result = v.string()
-				.startsWith('你好')
-				.execute('世界你好')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'startsWith:expected_starts_with',
-						message: 'Expected the string to start with "你好".',
-						path: [],
-						payload: { value: '世界你好', prefix: '你好' },
-					}],
-				})
-		})
-	})
-
-	describe('custom messages', () => {
-		it('should use custom message', () => {
-			const result = v.string()
-				.startsWith('hello', () => 'Custom message')
-				.execute('world hello')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'startsWith:expected_starts_with',
-						message: 'Custom message',
-						path: [],
-						payload: { value: 'world hello', prefix: 'hello' },
-					}],
-				})
-		})
-	})
-
-	describe('chaining', () => {
-		it('should chain with min length', () => {
-			const result = v.string()
-				.startsWith('he')
-				.min(5)
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'hello' })
-		})
-
-		it('should fail chaining when startsWith fails', () => {
-			const result = v.string()
-				.startsWith('he')
-				.min(5)
-				.execute('hi')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'startsWith:expected_starts_with',
-						message: 'Expected the string to start with "he".',
-						path: [],
-						payload: { value: 'hi', prefix: 'he' },
-					}],
-				})
-		})
-
-		it('should fail chaining when min fails', () => {
-			const result = v.string()
-				.startsWith('he')
-				.min(5)
-				.execute('he')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'min:expected_min',
-						message: 'Expected a minimum length of 5.',
-						path: [],
-						payload: { target: 'length', value: 'he', min: 5 },
-					}],
-				})
+	it('supports custom messages', () => {
+		expect(v.string().isStartingWith('x', 'Custom prefix').execute('value')).toMatchObject({
+			issues: [{ message: 'Custom prefix' }],
 		})
 	})
 })

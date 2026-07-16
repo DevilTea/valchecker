@@ -2,9 +2,9 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
-	Name: 'startsWith'
+	Name: 'isStartingWith'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
-	SelfIssue: ExecutionIssue<'startsWith:expected_starts_with', { value: string, prefix: string }>
+	SelfIssue: ExecutionIssue<'isStartingWith:expected_starting_with', { value: string, prefix: string }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -16,19 +16,19 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * ### Example:
 	 * ```ts
-	 * import { createValchecker, string, startsWith } from 'valchecker'
+	 * import { createValchecker, isStartingWith, string } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [string, startsWith] })
-	 * const schema = v.string().startsWith('hello')
+	 * const v = createValchecker({ steps: [string, isStartingWith] })
+	 * const schema = v.string().isStartingWith('hello')
 	 * const result = schema.execute('hello world')
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'startsWith:expected_starts_with'`: The string does not start with the specified prefix.
+	 * - `'isStartingWith:expected_starting_with'`: The string does not start with the specified prefix.
 	 */
-	startsWith: DefineStepMethod<
+	isStartingWith: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (prefix: string, message?: MessageHandler<Meta['SelfIssue']>) => Next<
@@ -40,22 +40,20 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const startsWith = implStepPlugin<PluginDef>({
-	startsWith: ({
+export const isStartingWith = implStepPlugin<PluginDef>({
+	isStartingWith: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [prefix, message],
 	}) => {
-		addSuccessStep((value) => {
-			return value.startsWith(prefix)
-				? success(value)
-				: failure(
-						createIssue({
-							code: 'startsWith:expected_starts_with',
-							payload: { value, prefix },
-							customMessage: message,
-							defaultMessage: `Expected the string to start with "${prefix}".`,
-						}),
-					)
-		})
+		addSuccessStep(value => value.startsWith(prefix)
+			? success(value)
+			: failure(
+					createIssue({
+						code: 'isStartingWith:expected_starting_with',
+						payload: { value, prefix },
+						customMessage: message,
+						defaultMessage: `Expected the string to start with "${prefix}".`,
+					}),
+				))
 	},
 })

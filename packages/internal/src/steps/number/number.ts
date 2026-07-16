@@ -11,7 +11,7 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value is a number (`NaN` is not allowed).
+	 * Checks that the value is a JavaScript number. This matches the TypeScript `number` type and therefore accepts `NaN`, `Infinity`, and `-Infinity`.
 	 *
 	 * ---
 	 *
@@ -32,16 +32,16 @@ interface PluginDef extends TStepPluginDef {
 	number: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
-				?	(message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
+				? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
 						{
 							output: number
 							issue: Meta['SelfIssue']
 						},
 						this['CurrentValchecker']
 					>
-				:	never
-			:	never
+				: never
+			: never
 	>
 }
 
@@ -52,8 +52,7 @@ export const number = implStepPlugin<PluginDef>({
 		params: [message],
 	}) => {
 		addSuccessStep((value) => {
-			// Inline type check and NaN check for better performance
-			if (typeof value === 'number' && !Number.isNaN(value)) {
+			if (typeof value === 'number') {
 				return success(value)
 			}
 			return failure(
@@ -61,7 +60,7 @@ export const number = implStepPlugin<PluginDef>({
 					code: 'number:expected_number',
 					payload: { value },
 					customMessage: message,
-					defaultMessage: 'Expected a number (NaN is not allowed).',
+					defaultMessage: 'Expected a number.',
 				}),
 			)
 		})

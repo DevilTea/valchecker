@@ -211,7 +211,7 @@ describe('object plugin', () => {
 						code: 'number:expected_number',
 						path: ['age'],
 						payload: { value: undefined },
-						message: 'Expected a number (NaN is not allowed).',
+						message: 'Expected a number.',
 					}],
 				})
 		})
@@ -231,7 +231,7 @@ describe('object plugin', () => {
 						code: 'number:expected_number',
 						path: ['age'],
 						payload: { value: 'thirty' },
-						message: 'Expected a number (NaN is not allowed).',
+						message: 'Expected a number.',
 					}],
 				})
 		})
@@ -251,7 +251,7 @@ describe('object plugin', () => {
 						code: 'number:expected_number',
 						path: ['age'],
 						payload: { value: 'thirty' },
-						message: 'Expected a number (NaN is not allowed).',
+						message: 'Expected a number.',
 					}],
 				})
 		})
@@ -278,7 +278,7 @@ describe('object plugin', () => {
 							code: 'number:expected_number',
 							path: ['age'],
 							payload: { value: 'thirty' },
-							message: 'Expected a number (NaN is not allowed).',
+							message: 'Expected a number.',
 						},
 					],
 				})

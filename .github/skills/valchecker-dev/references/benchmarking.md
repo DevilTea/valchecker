@@ -1,202 +1,130 @@
 # Benchmarking Guide
 
-Every step implementation requires a benchmark file to track performance.
+Every built-in step implementation requires a benchmark file. Benchmark semantic behavior, not only the fastest success path.
 
-## Benchmark File Template
+## File template
 
-```typescript
-// step-name.bench.ts
+```ts
 import { bench, describe } from 'vitest'
-import { createValchecker, /* required steps */ } from '../../../index'
-import { stepName } from './step-name'
+import { createValchecker, isAtLeast, number } from '../..'
 
-const v = createValchecker({ steps: [/* steps */] })
+const v = createValchecker({ steps: [number, isAtLeast] })
+const schema = v.number().isAtLeast(0)
 
-describe('stepName', () => {
-  const schema = v./* chain */
+describe('isAtLeast benchmarks', () => {
+	bench('success above boundary', () => {
+		schema.execute(42)
+	})
 
-  bench('valid input', () => {
-    schema.execute(validInput)
-  })
+	bench('success at boundary', () => {
+		schema.execute(0)
+	})
 
-  bench('invalid input', () => {
-    schema.execute(invalidInput)
-  })
+	bench('failure below boundary', () => {
+		schema.execute(-1)
+	})
 })
 ```
 
-## Example Benchmarks
+Construct schemas outside benchmark callbacks unless schema construction itself is the scenario being measured.
 
-### Constraint Step
+## Loose primitive benchmark
 
-```typescript
+```ts
 import { bench, describe } from 'vitest'
-import { createValchecker, min, number } from '../../../index'
+import { createValchecker, looseNumber } from '../..'
 
-const v = createValchecker({ steps: [number, min] })
+const schema = createValchecker({ steps: [looseNumber] })
+	.looseNumber()
 
-describe('min', () => {
-  const schema = v.number().min(0)
+describe('looseNumber benchmarks', () => {
+	bench('number pass-through', () => {
+		schema.execute(42)
+	})
 
-  bench('valid input (positive)', () => {
-    schema.execute(100)
-  })
+	bench('decimal string normalization', () => {
+		schema.execute('42')
+	})
 
-  bench('invalid input (negative)', () => {
-    schema.execute(-100)
-  })
+	bench('prefixed string normalization', () => {
+		schema.execute('0x10')
+	})
 
-  bench('boundary value (zero)', () => {
-    schema.execute(0)
-  })
+	bench('invalid string', () => {
+		schema.execute('invalid')
+	})
 })
 ```
 
-### Transform Step
+Include representative paths rather than only the cheapest grammar branch.
 
-```typescript
-import { bench, describe } from 'vitest'
-import { createValchecker, string, toTrimmed } from '../../../index'
+## Transformation benchmark
 
-const v = createValchecker({ steps: [string, toTrimmed] })
+```ts
+const schema = v.string().toSplit(',')
 
-describe('toTrimmed', () => {
-  const schema = v.string().toTrimmed()
-
-  bench('already trimmed', () => {
-    schema.execute('hello')
-  })
-
-  bench('leading whitespace', () => {
-    schema.execute('  hello')
-  })
-
-  bench('trailing whitespace', () => {
-    schema.execute('hello  ')
-  })
-
-  bench('both sides whitespace', () => {
-    schema.execute('  hello  ')
-  })
+bench('split three fields', () => {
+	schema.execute('a,b,c')
 })
 ```
 
-### Complex Schema
+For JSON transformations, benchmark valid input and issue-producing invalid input separately.
 
-```typescript
-import { bench, describe } from 'vitest'
-import { createValchecker, object, string, number } from '../../../index'
-
-const v = createValchecker({ steps: [object, string, number] })
-
-describe('complex object', () => {
-  const schema = v.object({
-    name: v.string(),
-    age: v.number(),
-  })
-
-  const validData = { name: 'Alice', age: 30 }
-  const invalidData = { name: 'Alice', age: 'thirty' }
-
-  bench('valid nested object', () => {
-    schema.execute(validData)
-  })
-
-  bench('invalid nested object', () => {
-    schema.execute(invalidData)
-  })
-})
-```
-
-## Running Benchmarks
+## Running benchmarks
 
 ```bash
-# Run all benchmarks
 pnpm bench
-
-# Run benchmarks with detailed output
 pnpm bench -- --reporter=verbose
-
-# Bench specific step
-pnpm bench packages/internal/src/steps/step-name
+pnpm bench packages/internal/src/steps/isFinite
 ```
 
-## Benchmark Best Practices
+Repository-level workflows also generate cross-library and tree-shaking reports. Use those reports for release and PR decisions rather than extrapolating from one microbenchmark.
 
-1. **Test realistic scenarios**
-   - Include both valid and invalid inputs
-   - Use typical data sizes
-   - Test edge cases
+## Comparison rules
 
-2. **Multiple iterations**
-   - Vitest automatically runs multiple iterations
-   - More iterations = better accuracy
-   - Don't worry about exact numbers
+- Compare equivalent validation and transformation semantics.
+- Pin competitor versions.
+- Keep fixture size and success or failure outcome equivalent.
+- Separate schema construction, cold execution, and warmed execution.
+- Treat relative margin of error above 5% as unstable.
+- Compare multiple runs before keeping a small optimization.
+- Record runtime and bundle-size trade-offs separately.
 
-3. **Meaningful names**
-   ```typescript
-   // ✓ Good - describes what's being tested
-   bench('valid input (large string)', () => { ... })
-   bench('invalid input (wrong type)', () => { ... })
-   
-   // ✗ Bad - too vague
-   bench('test 1', () => { ... })
-   bench('case 2', () => { ... })
-   ```
+## Tree-shaking scenarios
 
-4. **Consistent setup**
-   - Reuse schema definitions
-   - Don't include schema creation in benchmark
-   - Focus on the `run()` call
+Selective Valchecker scenarios must use the public plugin exports and the current method names:
 
-5. **Compare similar scenarios**
-   ```typescript
-   // Good - compare related operations
-   bench('valid number', () => {
-     schema.execute(42)
-   })
-   bench('valid number (boundary)', () => {
-     schema.execute(0)
-   })
-   
-   // Less useful - too different
-   bench('valid number', () => {
-     schema.execute(42)
-   })
-   bench('valid string', () => {
-     schema.execute('hello')
-   })
-   ```
+```ts
+import {
+	createValchecker,
+	isFinite,
+	number,
+} from 'valchecker'
 
-## Interpreting Results
-
-Benchmark output shows:
-- **ops/sec**: Operations per second (higher is better)
-- **margin**: Confidence interval
-- **samples**: Number of iterations run
-
-Example output:
-```
-✓ min (2 samples)
-  ├─ valid input          x 2,345,678 ops/sec ±0.24%
-  └─ invalid input        x 1,987,654 ops/sec ±0.31%
+const v = createValchecker({ steps: [number, isFinite] })
+export const schema = v.number().isFinite()
 ```
 
-## Common Issues
+The generated minimal bundle is scanned for unrelated plugin markers. A selective size reduction without marker elimination is not sufficient evidence.
 
-### Benchmark too fast
-If benchmark runs extremely quickly (> 10M ops/sec), the operation might be:
-- Optimized away by the compiler
-- Very trivial
-- Not representative
+## Reviewing results
 
-Try adding more complex operations or larger inputs.
+A performance change is valuable only when:
 
-### Inconsistent results
-If results vary significantly between runs:
-- Close other applications
-- Increase sample size (Vitest does this automatically)
-- Check for external factors (CPU load, memory pressure)
+1. the semantics remain unchanged,
+2. relevant tests and coverage remain complete,
+3. the measured improvement is larger than noise,
+4. regressions in failure paths or bundle size are understood,
+5. the implementation remains maintainable.
 
-### Benchmark file not found
-Ensure file is named correctly: `step-name.bench.ts` and located in the step directory.
+Do not retain opaque code solely for a tiny benchmark gain.
+
+## Common mistakes
+
+- Benchmarking a schema that no longer compiles against the public API.
+- Measuring construction inside an execution benchmark.
+- Comparing Valchecker finite-number validation with a competitor's unrestricted number type.
+- Ignoring issue construction in failure benchmarks.
+- Using only a single run or machine state.
+- Reporting ops/sec without uncertainty or environment metadata.
+- Rewriting the benchmark harness while evaluating a runtime optimization unless the harness change is independently validated.

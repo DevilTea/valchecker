@@ -77,7 +77,7 @@ describe('fallback plugin', () => {
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
-								message: 'Expected a number (NaN is not allowed).',
+								message: 'Expected a number.',
 								path: [],
 								payload: { value: 'not a number' },
 							}],
@@ -102,7 +102,7 @@ describe('fallback plugin', () => {
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
-								message: 'Expected a number (NaN is not allowed).',
+								message: 'Expected a number.',
 								path: [],
 								payload: { value: 'not a number' },
 							}],
@@ -127,7 +127,7 @@ describe('fallback plugin', () => {
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
-								message: 'Expected a number (NaN is not allowed).',
+								message: 'Expected a number.',
 								path: [],
 								payload: { value: 'not a number' },
 							}],

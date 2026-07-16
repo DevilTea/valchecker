@@ -2,69 +2,63 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
-	Name: 'parseJSON'
+	Name: 'toJSONValue'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
-	SelfIssue: ExecutionIssue<'parseJSON:invalid_json', { value: unknown, error: unknown }>
+	SelfIssue: ExecutionIssue<'toJSONValue:invalid_json', { value: unknown, error: unknown }>
 }>
 
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Parses a JSON string into a JavaScript value. The type parameter specifies the expected output type (defaults to unknown).
+	 * Parses a JSON string into a JavaScript value. The type parameter specifies the expected output type and defaults to `unknown`.
 	 *
 	 * ---
 	 *
 	 * ### Example:
 	 * ```ts
-	 * import { createValchecker, parseJSON, string } from 'valchecker'
+	 * import { createValchecker, string, toJSONValue } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [string, parseJSON] })
-	 * const schema = v.string().parseJSON<{ name: string; age: number }>()
-	 * const result = schema.execute('{"name": "John", "age": 30}')
+	 * const v = createValchecker({ steps: [string, toJSONValue] })
+	 * const schema = v.string().toJSONValue<{ name: string }>()
+	 * const result = schema.execute('{"name":"John"}')
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'parseJSON:invalid_json'`: The value is not a valid JSON string.
+	 * - `'toJSONValue:invalid_json'`: The value is not a valid JSON string.
 	 */
-	parseJSON: DefineStepMethod<
+	toJSONValue: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			?	<T = unknown>(message?: MessageHandler<Meta['SelfIssue']>) => Next<
-					{
-						output: T
-						issue: Meta['SelfIssue']
-					},
+			? <T = unknown>(message?: MessageHandler<Meta['SelfIssue']>) => Next<
+					{ output: T, issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
-			:	never
+			: never
 	>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const parseJSON = implStepPlugin<PluginDef>({
-	parseJSON: ({
+export const toJSONValue = implStepPlugin<PluginDef>({
+	toJSONValue: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
-		addSuccessStep(
-			(value) => {
-				try {
-					const parsed = JSON.parse(value)
-					return success(parsed)
-				}
-				catch (error) {
-					return failure(
-						createIssue({
-							code: 'parseJSON:invalid_json',
-							payload: { value, error },
-							customMessage: message,
-							defaultMessage: 'Expected a valid JSON string.',
-						}),
-					)
-				}
-			},
-		)
+		addSuccessStep((value) => {
+			try {
+				return success(JSON.parse(value))
+			}
+			catch (error) {
+				return failure(
+					createIssue({
+						code: 'toJSONValue:invalid_json',
+						payload: { value, error },
+						customMessage: message,
+						defaultMessage: 'Expected a valid JSON string.',
+					}),
+				)
+			}
+		})
 	},
 })

@@ -23,19 +23,25 @@ const v = createValchecker({ steps: allSteps })
 ### Selective imports
 
 ```ts
-import { createValchecker, number, object, string } from 'valchecker'
+import { createValchecker, isFinite, number } from 'valchecker'
 
 const v = createValchecker({
-	steps: [string, number, object],
+	steps: [number, isFinite],
 })
 ```
 
-Use selective plugins when the importing application needs explicit control over its runtime step set.
+## Naming convention
+
+- Initial steps use nouns: `string()`, `number()`, `object()`, `looseBoolean()`.
+- Built-in validation steps use `isXxx()`: `isInteger()`, `isStartingWith()`, `isLengthAtLeast()`.
+- Concrete transformation steps use `toXxx()`: `toTrimmed()`, `toSplit()`, `toJSONValue()`.
+- Generic high-level steps retain `check()` and `transform()`.
+- Flow-control and type-level utilities use their most direct names.
 
 ## Primitive validators
 
 - `string()` — string values
-- `number()` — finite number values
+- `number()` — all JavaScript number values, including `NaN` and positive or negative infinity
 - `boolean()` — boolean values
 - `bigint()` — bigint values
 - `symbol()` — symbol values
@@ -45,6 +51,18 @@ Use selective plugins when the importing application needs explicit control over
 - `unknown()` — passthrough typed as `unknown`
 - `any()` — passthrough typed as `any`
 - `never()` — always fails
+
+Use `number().isFinite()` when the application requires finite numbers.
+
+## Loose primitives
+
+Loose primitives accept the primitive or its corresponding TypeScript template-literal string representation, then produce the canonical primitive:
+
+- `looseNumber()` — ``number | `${number}``` to `number`
+- `looseBoolean()` — ``boolean | `${boolean}``` to `boolean`
+- `looseBigint()` — ``bigint | `${bigint}``` to `bigint`
+
+They do not perform unrestricted JavaScript coercion. In accordance with TypeScript's ```${number}``` behavior, a non-empty whitespace-only string is accepted by `looseNumber()` and normalized to `0`; the empty string is rejected.
 
 ## Structure validators
 
@@ -65,20 +83,26 @@ const schema = v.object({
 })
 ```
 
-See [Object schemas](/guide/v1-contract#object-schemas), [Union semantics](/guide/v1-contract#union-semantics), and [Intersection semantics](/guide/v1-contract#intersection-semantics) for exact behavior.
+## Validation steps
 
-## Constraints
+- `isAtLeast(value)` — minimum number or bigint value
+- `isAtMost(value)` — maximum number or bigint value
+- `isLengthAtLeast(length)` — minimum length
+- `isLengthAtMost(length)` — maximum length
+- `isInteger()` — integer numbers
+- `isFinite()` — finite numbers
+- `isNaN()` — `NaN`
+- `isEmpty()` — length equals zero
+- `isNotEmpty()` — length is greater than zero
+- `isStartingWith(prefix)` — string prefix
+- `isEndingWith(suffix)` — string suffix
+- `check(predicate)` — generic custom validation escape hatch
 
-- `min(value)` — minimum numeric value or minimum length
-- `max(value)` — maximum numeric value or maximum length
-- `integer()` — integer numbers
-- `empty()` — values whose supported length is zero
-- `startsWith(prefix)` — string prefix
-- `endsWith(suffix)` — string suffix
+Each validation step checks only the condition expressed by its name. For example, `isAtLeast(0)` accepts positive infinity; use `isFinite().isAtLeast(0)` when both constraints are required.
 
 ## Transformations
 
-- `transform(fn)` — custom output transformation
+- `transform(fn)` — generic custom output transformation escape hatch
 - `toTrimmed()` — trim both ends
 - `toTrimmedStart()` — trim the start
 - `toTrimmedEnd()` — trim the end
@@ -88,26 +112,22 @@ See [Object schemas](/guide/v1-contract#object-schemas), [Union semantics](/guid
 - `toSorted(compare?)` — sorted array output
 - `toFiltered(predicate)` — filtered array output
 - `toSliced(start, end?)` — sliced output
-- `toSplitted(separator)` — split string output
+- `toSplit(separator, limit?)` — split string output
 - `toLength()` — length output
-- `parseJSON()` — parse a JSON string
-- `stringifyJSON()` — stringify a supported value
-- `json()` — JSON-compatible value validation
+- `toJSONValue()` — parse a JSON string
+- `toJSONString()` — stringify a supported value
 - `toAsync()` — force the complete schema to return a native promise
 
-## Flow control
+`json()` is an initial validator for JSON-compatible values, not a transformation.
 
-- `check(predicate)` — custom validation
+## Flow control and type utilities
+
 - `fallback(getValue)` — recover from an earlier failure
 - `use(schema)` — delegate to another schema
 - `as<T>()` — compile-time assertion with no runtime validation
-- `generic<T>(factory)` — lazy/recursive schema construction
+- `generic<T>(factory)` — lazy or recursive schema construction
 
 Callback-driven steps may return direct or `PromiseLike` values according to their individual contract.
-
-## Loose primitives
-
-- `looseNumber()` — accepts supported number-like inputs and produces a number
 
 ## Execution result
 
@@ -124,8 +144,6 @@ interface ExecutionIssue {
 }
 ```
 
-Use the exported helpers or discriminate by `value`/`issues`:
-
 ```ts
 const result = await schema.execute(input)
 
@@ -139,21 +157,17 @@ else {
 
 ## Execution modes
 
-`execute()` does not have one universal return shape:
+`execute()` preserves synchronous and maybe-asynchronous completion:
 
 ```ts
 const synchronousResult = v.string().execute('value')
-// ExecutionResult<string>
 
 const maybeAsyncSchema = v.string().check(async value => value.length > 0)
 const reachedAsyncWork = maybeAsyncSchema.execute('value')
-// Promise<ExecutionResult<string>>
-
 const earlyFailure = maybeAsyncSchema.execute(42)
-// Synchronous failure because the async callback is not reached.
 ```
 
-`await schema.execute(input)` is safe for either mode, but `await` does not change the schema's return type. Append `.toAsync()` when every invocation must return a native promise.
+Append `.toAsync()` when every invocation must return a native promise.
 
 ## Method chaining
 
@@ -162,18 +176,14 @@ Every step returns a new immutable schema:
 ```ts
 const schema = v.string()
 	.toTrimmed()
-	.check(value => value.length > 0, 'Required')
+	.isNotEmpty('Required')
 	.toLowercase()
 ```
-
-## Standard Schema V1
-
-Every schema exposes `~standard` for Standard Schema V1 integrations. It preserves synchronous or asynchronous completion and returns transformed output on success.
 
 ## Detailed references
 
 - **[Valchecker 1.0 Contract](/guide/v1-contract)** — normative behavior and compatibility
-- **[Primitives](/api/primitives)** — primitive validators
+- **[Primitives](/api/primitives)** — primitive and loose primitive validators
 - **[Structures](/api/structures)** — object, array, union and intersection
 - **[Transforms](/api/transforms)** — output transformations
 - **[Helpers](/api/helpers)** — flow control and utilities
