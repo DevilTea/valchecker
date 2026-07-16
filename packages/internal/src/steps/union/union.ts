@@ -1,5 +1,5 @@
 import type { IsEqual } from 'type-fest'
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
@@ -72,55 +72,71 @@ interface PluginDef extends TStepPluginDef {
 					},
 					this['CurrentValchecker']
 				>
-			:	never
+			: never
 	>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export const union = implStepPlugin<PluginDef>({
 	union: ({
-		utils: { addSuccessStep, failure, isFailure },
+		utils: { addSuccessStep, failure },
 		params: [branches],
 	}) => {
 		const branchExecutors = branches.map(branch => branch['~execute'])
 		const len = branchExecutors.length
 
-		addSuccessStep((value) => {
-			const issues: ExecutionIssue[] = []
+		const continueAsync = async (
+			value: unknown,
+			firstResult: PromiseLike<ExecutionResult>,
+			nextIndex: number,
+			initialIssues: ExecutionIssue[] | undefined,
+		): Promise<ExecutionResult> => {
+			let result = await firstResult
+			let issues = initialIssues
 
-			const processBranchResult = (result: ExecutionResult): ExecutionSuccessResult<unknown> | null => {
-				if (isFailure(result)) {
-					for (const issue of result.issues)
-						issues.push(issue)
-					return null
+			while (true) {
+				if ('issues' in result) {
+					if (issues == null) {
+						issues = [...result.issues]
+					}
+					else {
+						for (const issue of result.issues)
+							issues.push(issue)
+					}
 				}
-				return result
+				else {
+					return result
+				}
+
+				if (nextIndex >= len)
+					return failure(issues)
+
+				result = await branchExecutors[nextIndex++]!(value)
 			}
+		}
+
+		addSuccessStep((value) => {
+			let issues: ExecutionIssue[] | undefined
 
 			for (let i = 0; i < len; i++) {
 				const branchResult = branchExecutors[i]!(value)
 
-				if (isPromiseLike(branchResult)) {
-					let chain = Promise.resolve(branchResult)
-						.then(processBranchResult)
-					for (let j = i + 1; j < len; j++) {
-						const execute = branchExecutors[j]!
-						chain = chain.then((successResult) => {
-							if (successResult != null)
-								return successResult
-							return Promise.resolve(execute(value))
-								.then(processBranchResult)
-						})
-					}
-					return chain.then(successResult => successResult ?? failure(issues))
-				}
+				if (isPromiseLike(branchResult))
+					return continueAsync(value, branchResult, i + 1, issues)
 
-				const successResult = processBranchResult(branchResult)
-				if (successResult != null)
-					return successResult
+				if ('value' in branchResult)
+					return branchResult
+
+				if (issues == null) {
+					issues = [...branchResult.issues]
+				}
+				else {
+					for (const issue of branchResult.issues)
+						issues.push(issue)
+				}
 			}
 
-			return failure(issues)
+			return failure(issues!)
 		})
 	},
 })
