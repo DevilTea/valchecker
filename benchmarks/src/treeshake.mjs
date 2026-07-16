@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { cpus, platform, release } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -26,11 +27,19 @@ async function readJson(path) {
 
 function packageVersion(name) {
 	try {
-		return require(`${name}/package.json`).version
+		let current = dirname(require.resolve(name))
+		while (true) {
+			const packagePath = join(current, 'package.json')
+			if (existsSync(packagePath))
+				return JSON.parse(readFileSync(packagePath, 'utf8')).version ?? 'unknown'
+			const parent = dirname(current)
+			if (parent === current)
+				break
+			current = parent
+		}
 	}
-	catch {
-		return 'unknown'
-	}
+	catch {}
+	return 'unknown'
 }
 
 function bytes(value) {
@@ -73,6 +82,14 @@ const aliases = new Map([
 	['@valchecker/all-steps', resolve(repoRoot, 'packages/all-steps/dist/index.mjs')],
 	['@valchecker/internal', resolve(repoRoot, 'packages/internal/dist/index.mjs')],
 ])
+
+const unrelatedValcheckerMarkers = [
+	'strictObject',
+	'intersection',
+	'toUppercase',
+	'parseJSON',
+	'toSorted',
+]
 
 function packageResolver(entryCode) {
 	return {
@@ -304,6 +321,9 @@ async function bundleScenario(scenario, outputDir) {
 		group: scenario.group,
 		...compressedSizes(minified.code),
 		warnings,
+		retainedMarkers: scenario.library === 'Valchecker'
+			? unrelatedValcheckerMarkers.filter(marker => minified.code.includes(marker))
+			: [],
 		bundlePath: relative(repoRoot, bundlePath),
 	}
 }
@@ -321,11 +341,23 @@ function analyze(results) {
 	const selectiveObject = resultById(results, 'valchecker-selective-object')
 	const defaultObject = resultById(results, 'valchecker-default-object')
 	const full = resultById(results, 'valchecker-full')
+	const zod4String = resultById(results, 'zod4-string')
+	const zod4Object = resultById(results, 'zod4-object')
+	const valibotString = resultById(results, 'valibot-string')
+	const valibotObject = resultById(results, 'valibot-object')
 
 	const stringReduction = 1 - selectiveString.brotliBytes / defaultString.brotliBytes
 	const objectReduction = 1 - selectiveObject.brotliBytes / defaultObject.brotliBytes
 	const selectiveRetained = selectiveString.brotliBytes / full.brotliBytes
-	const healthy = stringReduction >= 0.2 && objectReduction >= 0.2 && selectiveRetained <= 0.75
+	const stringVsZod4Reduction = 1 - selectiveString.brotliBytes / zod4String.brotliBytes
+	const objectVsZod4Reduction = 1 - selectiveObject.brotliBytes / zod4Object.brotliBytes
+	const stringPremiumOverValibot = selectiveString.brotliBytes / valibotString.brotliBytes - 1
+	const objectPremiumOverValibot = selectiveObject.brotliBytes / valibotObject.brotliBytes - 1
+	const unrelatedMarkersEliminated = selectiveString.retainedMarkers.length === 0
+	const healthy = stringReduction >= 0.2
+		&& objectReduction >= 0.2
+		&& selectiveRetained <= 0.75
+		&& unrelatedMarkersEliminated
 
 	return {
 		status: healthy ? 'healthy' : 'needs-attention',
@@ -345,11 +377,28 @@ function analyze(results) {
 				passed: selectiveRetained <= 0.75,
 				value: formatPercent(selectiveRetained),
 			},
+			{
+				name: 'Unselected Valchecker step markers are absent from the minimal selective bundle',
+				passed: unrelatedMarkersEliminated,
+				value: unrelatedMarkersEliminated
+					? 'none retained'
+					: selectiveString.retainedMarkers.join(', '),
+			},
+		],
+		findings: [
+			`Selective Valchecker is ${formatPercent(stringVsZod4Reduction)} smaller than Zod 4 classic for the string pipeline.`,
+			`Selective Valchecker is ${formatPercent(objectVsZod4Reduction)} smaller than Zod 4 classic for the object schema.`,
+			`Valibot remains ${formatPercent(stringPremiumOverValibot)} smaller than selective Valchecker for the string pipeline.`,
+			`Valibot remains ${formatPercent(objectPremiumOverValibot)} smaller than selective Valchecker for the object schema.`,
 		],
 		metrics: {
 			stringReduction,
 			objectReduction,
 			selectiveRetained,
+			stringVsZod4Reduction,
+			objectVsZod4Reduction,
+			stringPremiumOverValibot,
+			objectPremiumOverValibot,
 		},
 	}
 }
@@ -370,14 +419,17 @@ function generateMarkdown(report, concise = false) {
 	const checks = report.analysis.checks
 		.map(check => `- ${check.passed ? 'PASS' : 'WARN'} — ${check.name}: **${check.value}**`)
 		.join('\n')
+	const findings = report.analysis.findings
+		.map(finding => `- ${finding}`)
+		.join('\n')
 	const headline = report.analysis.status === 'healthy'
 		? 'Selective Valchecker builds show a material tree-shaking benefit.'
 		: 'The current selective-build signal is weaker than the report thresholds and needs investigation.'
 	const context = `Generated with Rollup ${report.environment.rollup}, Terser ${report.environment.terser}, Node.js ${report.environment.node}. Sizes include schema construction and one successful validation call; Brotli is the primary comparison metric.`
 	if (concise) {
-		return `# Tree-shaking summary\n\n**${headline}**\n\n${checks}\n\n${markdownTable(report.results.filter(result => result.group === 'Minimal string pipeline'))}\n\n${context}\n`
+		return `# Tree-shaking summary\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${markdownTable(report.results.filter(result => result.group === 'Minimal string pipeline'))}\n\n${context}\n`
 	}
-	return `# Tree-shaking report\n\n**${headline}**\n\n${checks}\n\n${sections}\n\n## Methodology\n\n- The same Rollup and Terser configuration bundles every scenario.\n- Package modules are treated as side-effect-free, matching their published package metadata.\n- Each realistic scenario constructs an equivalent schema and performs one successful validation so execution code remains in the bundle.\n- Valchecker is measured in both default \`v\` mode and selective \`createValchecker({ steps })\` mode. The default instance intentionally registers every built-in step and is not expected to shrink to only the methods used in a chain.\n- Raw, gzip, and Brotli sizes are reported; Brotli is used for automated health checks.\n\n${context}\n`
+	return `# Tree-shaking report\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${sections}\n\n## Methodology\n\n- The same Rollup and Terser configuration bundles every scenario.\n- Package modules are treated as side-effect-free, matching their published package metadata.\n- Each realistic scenario constructs an equivalent schema and performs one successful validation so execution code remains in the bundle.\n- Valchecker is measured in both default \`v\` mode and selective \`createValchecker({ steps })\` mode. The default instance intentionally registers every built-in step and is not expected to shrink to only the methods used in a chain.\n- The selective minimal bundle is scanned for unrelated built-in method markers to prove that size reduction corresponds to actual step elimination.\n- Raw, gzip, and Brotli sizes are reported; Brotli is used for automated health checks.\n\n${context}\n`
 }
 
 function generateHtml(report) {
@@ -406,7 +458,7 @@ async function main() {
 	const valcheckerPackage = await readJson(resolve(repoRoot, 'packages/valchecker/package.json'))
 	const report = {
 		generatedAt: new Date().toISOString(),
-		commit: process.env.GITHUB_SHA ?? null,
+		commit: process.env.REPORT_COMMIT ?? process.env.GITHUB_SHA ?? null,
 		environment: {
 			node: process.version,
 			platform: `${platform()} ${release()}`,
