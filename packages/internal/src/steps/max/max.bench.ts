@@ -1,35 +1,20 @@
-/**
- * Benchmark plan for max:
- * - Operations benchmarked: max validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
 import { bench, describe } from 'vitest'
-import { createValchecker, max, number } from '../..'
+import { createValchecker, isAtMost, isLengthAtMost, number, string } from '../..'
 
-const v = createValchecker({ steps: [max, number] })
+const v = createValchecker({ steps: [number, string, isAtMost, isLengthAtMost] })
+const numberSchema = v.number().isAtMost(100)
+const stringSchema = v.string().isLengthAtMost(10)
 
-describe('max benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.number()
-				.max(10)
-				.execute(5)
-		})
-
-		bench('valid input - large', () => {
-			v.number()
-				.max(1000000)
-				.execute(1000000)
-		})
+describe('maximum validation benchmarks', () => {
+	bench('numeric success', () => {
+		numberSchema.execute(5)
 	})
 
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.number()
-				.max(10)
-				.execute(15)
-		})
+	bench('numeric failure', () => {
+		numberSchema.execute(101)
+	})
+
+	bench('length success', () => {
+		stringSchema.execute('value')
 	})
 })
