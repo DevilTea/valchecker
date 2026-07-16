@@ -56,6 +56,19 @@ export const flatObject = {
 	}),
 }
 
+export const flatObjectPool = Array.from({ length: 64 }, (_, index) => ({
+	id: `user-${index}`,
+	name: `User ${index}`,
+	age: 20 + index % 50,
+	active: index % 2 === 0,
+	role: 'admin',
+	email: `user-${index}@example.com`,
+	score: index + 0.5,
+	verified: index % 3 === 0,
+	nickname: `user${index}`,
+	attempts: index % 5,
+}))
+
 export const nestedObject = {
 	valid: Object.freeze({
 		id: 'request-1',
@@ -89,11 +102,11 @@ export const nestedObject = {
 	}),
 }
 
-export function createRecords(length) {
+export function createRecords(length, offset = 0) {
 	return Array.from({ length }, (_, index) => ({
-		id: `item-${index}`,
-		value: index,
-		enabled: index % 2 === 0,
+		id: `item-${offset + index}`,
+		value: offset + index,
+		enabled: (offset + index) % 2 === 0,
 	}))
 }
 
@@ -107,12 +120,19 @@ export function createInvalidRecords(length, invalidIndex) {
 	return records
 }
 
+export const recordArrayPool = Array.from({ length: 32 }, (_, index) => createRecords(10, index * 10))
+
 export const unionInputs = {
 	first: Object.freeze({ type: 'text', value: 'hello' }),
 	middle: Object.freeze({ type: 'point', x: 10, y: 20 }),
 	last: Object.freeze({ type: 'user', id: 'user-1', active: true }),
 	invalid: Object.freeze({ type: 'unknown', value: null }),
 }
+
+export const unionFirstPool = Array.from({ length: 64 }, (_, index) => ({
+	type: 'text',
+	value: `value-${index}`,
+}))
 
 export const transformInputs = {
 	valid: '  Alice  ',
@@ -142,3 +162,8 @@ export const optionalHeavy = {
 	}),
 	invalid: Object.freeze({ id: 'config-1', enabled: true, retries: 'three' }),
 }
+
+export const optionalSparsePool = Array.from({ length: 64 }, (_, index) => ({
+	id: `config-${index}`,
+	enabled: index % 2 === 0,
+}))
