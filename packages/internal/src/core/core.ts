@@ -50,12 +50,35 @@ export function createPipeExecutor({
 }: {
 	runtimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
 }): (value: unknown) => MaybePromise<ExecutionResult> {
-	return (value: unknown) => {
-		const len = runtimeSteps.length
-		let result: MaybePromise<ExecutionResult> = { value }
+	const len = runtimeSteps.length
+	if (len === 0)
+		return value => ({ value })
 
-		for (let i = 0; i < len; i++) {
-			result = runtimeSteps[i]!(result as ExecutionResult)
+	const first = runtimeSteps[0]!
+	if (len === 1)
+		return value => first({ value })
+
+	if (len === 2) {
+		const second = runtimeSteps[1]!
+		return (value) => {
+			const result = first({ value })
+			return isPromiseLike(result)
+				? Promise.resolve(result).then(second)
+				: second(result)
+		}
+	}
+
+	return (value) => {
+		let result = first({ value })
+		if (isPromiseLike(result)) {
+			let chain = Promise.resolve(result)
+			for (let i = 1; i < len; i++)
+				chain = chain.then(runtimeSteps[i]!)
+			return chain
+		}
+
+		for (let i = 1; i < len; i++) {
+			result = runtimeSteps[i]!(result)
 			if (isPromiseLike(result)) {
 				let chain = Promise.resolve(result)
 				for (let j = i + 1; j < len; j++)
@@ -133,6 +156,18 @@ function createResolveMessageFunction(
 }
 
 /* @__NO_SIDE_EFFECTS__ */
+function createUnknownExceptionFailure(method: string, lastResult: ExecutionResult, error: unknown): ExecutionFailureResult<any> {
+	return {
+		issues: [{
+			code: 'core:unknown_exception',
+			payload: { method, value: lastResult, error },
+			message: 'An unexpected error occurred during step execution',
+			path: [],
+		}],
+	}
+}
+
+/* @__NO_SIDE_EFFECTS__ */
 function createExecutionStepMethodUtils(
 	method: string,
 	runtimeExecutions: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[],
@@ -141,35 +176,26 @@ function createExecutionStepMethodUtils(
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
 	) => (lastResult: ExecutionResult) => {
-		const failure = (error: unknown) => ({
-			issues: [{
-				code: 'core:unknown_exception',
-				payload: { method, value: lastResult, error },
-				message: 'An unexpected error occurred during step execution',
-				path: [],
-			}],
-		})
 		try {
-			const r = fn(lastResult)
-			return isPromiseLike(r)
-				? Promise.resolve(r)
-						.catch(error => failure(error))
-				: r
+			const result = fn(lastResult)
+			return isPromiseLike(result)
+				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error))
+				: result
 		}
 		catch (error) {
-			return failure(error)
+			return createUnknownExceptionFailure(method, lastResult, error)
 		}
 	}
 
 	return {
 		addStep: fn => runtimeExecutions.push(wrapWithErrorHandling(fn)),
-		addSuccessStep: fn => runtimeExecutions.push(wrapWithErrorHandling(result => isSuccess(result) ? fn(result.value) : result)),
-		addFailureStep: fn => runtimeExecutions.push(wrapWithErrorHandling(result => isFailure(result) ? fn(result.issues) : result)),
+		addSuccessStep: fn => runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result)),
+		addFailureStep: fn => runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result)),
 		isSuccess,
 		isFailure,
 		prependIssuePath,
 		success: value => ({ value }),
-		failure: issueOrIssues => ({ issues: [issueOrIssues].flat() }),
+		failure: issueOrIssues => ({ issues: Array.isArray(issueOrIssues) ? issueOrIssues : [issueOrIssues] }),
 		createIssue: ({
 			code,
 			payload,
@@ -213,20 +239,20 @@ function createProxyHandler({
 
 			const stepMethod = stepMethods[p] as AnyFn
 			return (...params: any[]) => {
-				const newInstance = createInstance({
-					stepMethods,
-					resolveMessage,
-					currentRuntimeSteps: runtimeSteps,
-				})
+				const nextRuntimeSteps = [...runtimeSteps]
 				stepMethod({
 					utils: createExecutionStepMethodUtils(
 						p as string,
-						newInstance['~core'].runtimeSteps,
+						nextRuntimeSteps,
 						resolveMessage,
 					),
 					params,
 				})
-				return newInstance
+				return createInstance({
+					stepMethods,
+					resolveMessage,
+					currentRuntimeSteps: nextRuntimeSteps,
+				})
 			}
 		},
 	}
@@ -267,11 +293,10 @@ function createInstance({
 	resolveMessage: ResolveMessageFn
 	currentRuntimeSteps: ((lastResult: ExecutionResult) => MaybePromise<ExecutionResult>)[]
 }): any {
-	const runtimeSteps = [...currentRuntimeSteps]
-	const execute = createPipeExecutor({ runtimeSteps })
-	const coreProperties = createCoreProperties(runtimeSteps, execute)
+	const execute = createPipeExecutor({ runtimeSteps: currentRuntimeSteps })
+	const coreProperties = createCoreProperties(currentRuntimeSteps, execute)
 
-	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps }))
+	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps }))
 }
 
 const reservedStepMethodNames = new Set<PropertyKey>([
