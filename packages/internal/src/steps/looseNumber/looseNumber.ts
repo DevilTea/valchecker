@@ -13,7 +13,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Checks that the value is a number or a string compatible with TypeScript's `${number}` template literal type, then normalizes the output to a number.
 	 *
-	 * This is not general JavaScript coercion. Empty strings, `"NaN"`, and infinite string values are rejected.
+	 * This is not general JavaScript coercion. The empty string, `"NaN"`, and infinite string values are rejected. TypeScript-compatible whitespace-only strings normalize to `0`.
 	 *
 	 * ---
 	 *
@@ -52,7 +52,7 @@ function parseLooseNumber(value: unknown): number | undefined {
 	if (typeof value === 'number') {
 		return value
 	}
-	if (typeof value !== 'string' || value.trim() === '') {
+	if (typeof value !== 'string' || value === '') {
 		return undefined
 	}
 	const parsed = Number(value)
