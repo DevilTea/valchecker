@@ -21,7 +21,7 @@ concurrency:
 jobs:
   compare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout candidate
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -52,33 +52,61 @@ jobs:
           pnpm --dir ../valchecker-base install --frozen-lockfile
           pnpm --dir ../valchecker-base build
 
-      - name: Run base and candidate benchmarks
+      - name: Run interleaved base and candidate benchmarks
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           mkdir -p artifacts/benchmark-impact
           base_dist_url="$(node -e "console.log(require('node:url').pathToFileURL(require('node:path').resolve('../valchecker-base/packages/valchecker/dist/index.mjs')).href)")"
-          seed="pr-${{ github.event.pull_request.number }}-${GITHUB_RUN_ATTEMPT}"
+          seed="pr-${PR_NUMBER}-${GITHUB_RUN_ATTEMPT}"
 
-          VALCHECKER_DIST_URL="$base_dist_url" \
-          BENCHMARK_COMMIT="$BASE_SHA" \
-          pnpm --dir benchmarks bench \
-            --mode standard \
-            --adapters valchecker \
-            --seed "$seed-base" \
-            --output ../artifacts/benchmark-impact/baseline.json
+          run_base() {
+            local repetition="$1"
+            VALCHECKER_DIST_URL="$base_dist_url" \
+            BENCHMARK_COMMIT="$BASE_SHA" \
+            pnpm --dir benchmarks bench \
+              --mode standard \
+              --adapters valchecker \
+              --seed "$seed-$repetition-base" \
+              --output "../artifacts/benchmark-impact/baseline-$repetition.json"
+          }
 
-          BENCHMARK_COMMIT="$HEAD_SHA" \
-          pnpm --dir benchmarks bench \
-            --mode standard \
-            --adapters valchecker \
-            --seed "$seed-head" \
-            --output ../artifacts/benchmark-impact/candidate.json
+          run_candidate() {
+            local repetition="$1"
+            BENCHMARK_COMMIT="$HEAD_SHA" \
+            pnpm --dir benchmarks bench \
+              --mode standard \
+              --adapters valchecker \
+              --seed "$seed-$repetition-candidate" \
+              --output "../artifacts/benchmark-impact/candidate-$repetition.json"
+          }
+
+          for repetition in 1 2 3; do
+            if (( (repetition + PR_NUMBER) % 2 == 0 )); then
+              run_base "$repetition"
+              run_candidate "$repetition"
+            else
+              run_candidate "$repetition"
+              run_base "$repetition"
+            fi
+          done
 
       - name: Compare benchmark impact
-        run: pnpm --dir benchmarks compare --baseline ../artifacts/benchmark-impact/baseline.json --candidate ../artifacts/benchmark-impact/candidate.json --markdown ../artifacts/benchmark-impact/impact.md --json ../artifacts/benchmark-impact/impact.json --html ../artifacts/benchmark-impact/impact.html --fail-on-regression
+        run: |
+          pnpm --dir benchmarks compare \
+            --baseline ../artifacts/benchmark-impact/baseline-1.json \
+            --baseline ../artifacts/benchmark-impact/baseline-2.json \
+            --baseline ../artifacts/benchmark-impact/baseline-3.json \
+            --candidate ../artifacts/benchmark-impact/candidate-1.json \
+            --candidate ../artifacts/benchmark-impact/candidate-2.json \
+            --candidate ../artifacts/benchmark-impact/candidate-3.json \
+            --markdown ../artifacts/benchmark-impact/impact.md \
+            --json ../artifacts/benchmark-impact/impact.json \
+            --html ../artifacts/benchmark-impact/impact.html \
+            --fail-on-regression
 
       - name: Publish impact summary
         if: always() && hashFiles('artifacts/benchmark-impact/impact.md') != ''
