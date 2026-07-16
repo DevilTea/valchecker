@@ -11,8 +11,8 @@ const severeCategoryRegression = -5
 
 function parseArguments(argv) {
 	const options = {
-		baseline: null,
-		candidate: null,
+		baseline: [],
+		candidate: [],
 		markdown: resolve(benchmarkRoot, 'results/impact.md'),
 		json: resolve(benchmarkRoot, 'results/impact.json'),
 		html: resolve(benchmarkRoot, 'results/impact.html'),
@@ -22,11 +22,11 @@ function parseArguments(argv) {
 		const argument = argv[index]
 		const value = argv[index + 1]
 		if (argument === '--baseline' && value) {
-			options.baseline = resolve(benchmarkRoot, value)
+			options.baseline.push(resolve(benchmarkRoot, value))
 			index++
 		}
 		else if (argument === '--candidate' && value) {
-			options.candidate = resolve(benchmarkRoot, value)
+			options.candidate.push(resolve(benchmarkRoot, value))
 			index++
 		}
 		else if (argument === '--markdown' && value) {
@@ -48,9 +48,31 @@ function parseArguments(argv) {
 			throw new Error(`Unknown or incomplete argument: ${argument}`)
 		}
 	}
-	if (!options.baseline || !options.candidate)
-		throw new Error('--baseline and --candidate are required')
+	if (options.baseline.length === 0 || options.candidate.length === 0)
+		throw new Error('At least one --baseline and --candidate are required')
 	return options
+}
+
+function median(values) {
+	const sorted = [...values].sort((left, right) => left - right)
+	const middle = Math.floor(sorted.length / 2)
+	return sorted.length % 2 === 0
+		? (sorted[middle - 1] + sorted[middle]) / 2
+		: sorted[middle]
+}
+
+function mean(values) {
+	return values.reduce((total, value) => total + value, 0) / values.length
+}
+
+function relativeMarginOfError(values, fallback) {
+	if (values.length < 2)
+		return fallback
+	const average = mean(values)
+	const variance = values.reduce((total, value) => total + (value - average) ** 2, 0) / (values.length - 1)
+	return average === 0
+		? 0
+		: 1.96 * Math.sqrt(variance) / Math.sqrt(values.length) / average * 100
 }
 
 function getValchecker(raw, label) {
@@ -60,6 +82,43 @@ function getValchecker(raw, label) {
 	if (!library)
 		throw new Error(`${label} result does not contain valchecker`)
 	return library
+}
+
+function aggregateRuns(raws, label) {
+	const mode = raws[0].mode
+	const first = getValchecker(raws[0], label)
+	const resultMaps = raws.map((raw, index) => {
+		if (raw.mode !== mode)
+			throw new Error(`${label} run ${index + 1} mode differs`)
+		return new Map(getValchecker(raw, `${label} run ${index + 1}`).results.map(result => [result.scenario, result]))
+	})
+
+	const results = first.results.map((template) => {
+		const runResults = resultMaps.map((resultMap) => {
+			const result = resultMap.get(template.scenario)
+			if (!result)
+				throw new Error(`${label} run is missing ${template.scenario}`)
+			if (result.category !== template.category)
+				throw new Error(`${label} category mismatch for ${template.scenario}`)
+			return result
+		})
+		const runMedians = runResults.map(result => result.medianOpsPerSecond)
+		return {
+			scenario: template.scenario,
+			category: template.category,
+			medianOpsPerSecond: median(runMedians),
+			relativeMarginOfError: relativeMarginOfError(runMedians, runResults[0].relativeMarginOfError),
+			runMedians,
+			withinRunRme: runResults.map(result => result.relativeMarginOfError),
+		}
+	})
+
+	return {
+		mode,
+		runCount: raws.length,
+		commits: [...new Set(raws.map(raw => raw.environment?.commit ?? null))],
+		results,
+	}
 }
 
 function geometricMean(values) {
@@ -86,11 +145,9 @@ function htmlEscape(value) {
 		.replaceAll("'", '&#39;')
 }
 
-function compareResults(baselineRaw, candidateRaw) {
-	if (baselineRaw.mode !== candidateRaw.mode)
-		throw new Error(`Benchmark modes differ: ${baselineRaw.mode} vs ${candidateRaw.mode}`)
-	const baseline = getValchecker(baselineRaw, 'baseline')
-	const candidate = getValchecker(candidateRaw, 'candidate')
+function compareResults(baseline, candidate) {
+	if (baseline.mode !== candidate.mode)
+		throw new Error(`Benchmark modes differ: ${baseline.mode} vs ${candidate.mode}`)
 	const candidateByScenario = new Map(candidate.results.map(result => [result.scenario, result]))
 	const rows = baseline.results.map((base) => {
 		const head = candidateByScenario.get(base.scenario)
@@ -119,10 +176,10 @@ function compareResults(baselineRaw, candidateRaw) {
 			delta,
 			stable,
 			classification,
+			baselineRunMedians: base.runMedians,
+			candidateRunMedians: head.runMedians,
 		}
 	})
-	if (candidateByScenario.size !== rows.length)
-		throw new Error('Candidate contains scenarios absent from the baseline')
 
 	const categories = [...new Set(rows.map(row => row.category))].map((category) => {
 		const categoryRows = rows.filter(row => row.category === category)
@@ -153,16 +210,16 @@ function compareResults(baselineRaw, candidateRaw) {
 					: 'neutral'
 
 	return {
-		schemaVersion: 1,
-		mode: baselineRaw.mode,
+		schemaVersion: 2,
+		mode: baseline.mode,
+		runCounts: { baseline: baseline.runCount, candidate: candidate.runCount },
+		commits: { baseline: baseline.commits, candidate: candidate.commits },
 		thresholds: {
 			stabilityRmePercent: stabilityThreshold,
 			meaningfulChangePercent: meaningfulThreshold,
 			severeScenarioRegressionPercent: Math.abs(severeScenarioRegression),
 			severeCategoryRegressionPercent: Math.abs(severeCategoryRegression),
 		},
-		baseline: { commit: baselineRaw.environment?.commit ?? null, seed: baselineRaw.seed },
-		candidate: { commit: candidateRaw.environment?.commit ?? null, seed: candidateRaw.seed },
 		verdict,
 		counts: {
 			improvements: improvements.length,
@@ -181,9 +238,9 @@ function renderMarkdown(result) {
 	const lines = [
 		'# Valchecker benchmark impact',
 		'',
-		`Verdict: **${result.verdict}**`,
+		`Verdict: **${result.verdict}** · Independent runs: **${result.runCounts.baseline} base / ${result.runCounts.candidate} candidate**`,
 		'',
-		`Meaningful change requires at least **${meaningfulThreshold}%** with baseline and candidate RME at or below **${stabilityThreshold}%**.`,
+		`Meaningful change requires at least **${meaningfulThreshold}%** with cross-run RME at or below **${stabilityThreshold}%**.`,
 		'',
 		'## Category tradeoffs',
 		'',
@@ -197,24 +254,23 @@ function renderMarkdown(result) {
 		'',
 		'## Scenario changes',
 		'',
-		'| Scenario | Category | Baseline ops/s | Candidate ops/s | Change | Base RME | Head RME | Classification |',
+		'| Scenario | Category | Baseline ops/s | Candidate ops/s | Change | Base cross-run RME | Head cross-run RME | Classification |',
 		'| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
 	)
-	const sorted = [...result.rows].sort((left, right) => left.delta - right.delta)
-	for (const row of sorted)
+	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta))
 		lines.push(`| ${markdownCell(row.scenario)} | ${row.category} | ${Math.round(row.baselineOps).toLocaleString('en-US')} | ${Math.round(row.candidateOps).toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.baselineRme.toFixed(2)}% | ${row.candidateRme.toFixed(2)}% | ${row.classification} |`)
 
 	lines.push(
 		'',
 		'## Decision rubric',
 		'',
-		'- Below 3% is normally noise unless reproduced across independent runs.',
+		'- Cross-run RME is calculated from independent process medians; within-process sample RME remains available in raw JSON.',
+		'- Below 3% is normally noise unless reproduced across independent workflow runs.',
 		'- 3–5% needs corroboration from adjacent scenarios or repeated runs.',
-		'- At least 5% with RME ≤5% is a meaningful scenario-level change.',
-		'- Construction or fresh-schema regressions may be acceptable only when warmed gains are larger and the amortization point is documented.',
-		'- Added code complexity or bundle size should normally buy at least 10% in a representative hot path or broad gains across multiple scenarios.',
-		'- Performance never overrides semantic correctness, API stability, coverage, or package-size constraints.',
-		'- A mixed result is a reviewer decision, not an automatic win: document the target workload and why the tradeoff is valuable.',
+		'- At least 5% with cross-run RME ≤5% is a meaningful scenario-level change.',
+		'- Construction or fresh-schema regressions may be accepted only when warmed gains are larger and the amortization point is documented.',
+		'- Added code complexity or bundle size should normally buy at least 10% in a representative hot path or broad gains.',
+		'- Correctness, API stability, coverage, and package integrity remain hard constraints.',
 		'',
 	)
 	return `${lines.join('\n')}\n`
@@ -223,26 +279,25 @@ function renderMarkdown(result) {
 function renderHtml(result) {
 	const categories = result.categories.map(row => `<tr><td>${htmlEscape(row.category)}</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`).join('')
 	const rows = [...result.rows].sort((left, right) => left.delta - right.delta).map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.category)}</td><td>${Math.round(row.baselineOps).toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps).toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.baselineRme.toFixed(2)}%</td><td>${row.candidateRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`).join('')
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1180px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong></p><p>Meaningful change requires at least ${meaningfulThreshold}% with RME at or below ${stabilityThreshold}%.</p><h2>Category tradeoffs</h2><table><thead><tr><th>Category</th><th>Stable scenarios</th><th>Geometric mean change</th></tr></thead><tbody>${categories}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Base RME</th><th>Head RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table><h2>Decision rubric</h2><ul><li>Below 3% is normally noise; 3–5% needs corroboration.</li><li>At least 5% with RME ≤5% is meaningful.</li><li>Construction regressions need documented warm-path amortization.</li><li>Complexity or size growth should buy at least 10% in a representative path or broad gains.</li><li>Correctness, API stability, coverage, and package size remain hard constraints.</li></ul></body></html>\n`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1180px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Independent runs: ${result.runCounts.baseline} base / ${result.runCounts.candidate} candidate</p><h2>Category tradeoffs</h2><table><thead><tr><th>Category</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${categories}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Base RME</th><th>Head RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))
-const [baselineRaw, candidateRaw] = await Promise.all([
-	readFile(options.baseline, 'utf8').then(JSON.parse),
-	readFile(options.candidate, 'utf8').then(JSON.parse),
-])
-const result = compareResults(baselineRaw, candidateRaw)
-const markdown = renderMarkdown(result)
-const html = renderHtml(result)
+const baselineRaw = await Promise.all(options.baseline.map(path => readFile(path, 'utf8').then(JSON.parse)))
+const candidateRaw = await Promise.all(options.candidate.map(path => readFile(path, 'utf8').then(JSON.parse)))
+const result = compareResults(
+	aggregateRuns(baselineRaw, 'baseline'),
+	aggregateRuns(candidateRaw, 'candidate'),
+)
 await Promise.all([
 	mkdir(dirname(options.markdown), { recursive: true }),
 	mkdir(dirname(options.json), { recursive: true }),
 	mkdir(dirname(options.html), { recursive: true }),
 ])
 await Promise.all([
-	writeFile(options.markdown, markdown),
+	writeFile(options.markdown, renderMarkdown(result)),
 	writeFile(options.json, `${JSON.stringify(result, null, 2)}\n`),
-	writeFile(options.html, html),
+	writeFile(options.html, renderHtml(result)),
 ])
 console.error(`[benchmark] verdict ${result.verdict}`)
 if (options.failOnRegression && result.verdict === 'regression')
