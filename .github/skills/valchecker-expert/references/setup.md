@@ -1,164 +1,175 @@
 # Setup and Installation
 
-Getting started with Valchecker in your project.
+## Requirements
+
+- Node.js 22 or newer
+- ESM
+
+CommonJS applications may load Valchecker through dynamic `import('valchecker')`; synchronous `require()` is unsupported.
 
 ## Installation
 
-### Using pnpm (Recommended)
 ```bash
 pnpm add valchecker
-```
-
-### Using npm
-```bash
+# or
 npm install valchecker
 ```
 
-### Using yarn
-```bash
-yarn add valchecker
-```
+## Default instance
 
-## Initial Setup
-
-### For Development (All Steps)
-
-Use this when you're developing and want convenience:
-
-```typescript
-import { allSteps, createValchecker } from 'valchecker'
-
-const v = createValchecker({ steps: allSteps })
-
-const schema = v.string()
-const result = schema.execute('hello')
-```
-
-### For Production (Selective Imports)
-
-Use this to reduce bundle size by only importing what you need:
-
-```typescript
-import { createValchecker, string, number, object, array, min, max } from 'valchecker'
-
-const v = createValchecker({ steps: [string, number, object, array, min, max] })
+```ts
+import { v } from 'valchecker'
 
 const schema = v.object({
-  name: v.string().min(1),
-  age: v.number().min(0).max(150),
+	name: v.string().toTrimmed().isNotEmpty(),
+	age: v.number().isFinite().isInteger().isAtLeast(0),
 })
 ```
 
-## Available Imports
+The default `v` instance contains every built-in step.
 
-### Core Functions
-```typescript
-import { createValchecker, InferInput, InferOutput } from 'valchecker'
+## Selective instance
+
+```ts
+import {
+	createValchecker,
+	isAtLeast,
+	isFinite,
+	isInteger,
+	number,
+	object,
+	string,
+	toTrimmed,
+} from 'valchecker'
+
+const v = createValchecker({
+	steps: [
+		string,
+		number,
+		object,
+		isFinite,
+		isInteger,
+		isAtLeast,
+		toTrimmed,
+	],
+})
 ```
 
-### All Steps (Convenience)
-```typescript
-import { allSteps } from 'valchecker'
+Use selective registration for bundle-sensitive applications. `allSteps` remains available when a custom instance needs every built-in plugin.
+
+## Import groups
+
+```ts
+// Initial primitive schemas
+import {
+	any,
+	bigint,
+	boolean,
+	literal,
+	never,
+	null_,
+	number,
+	string,
+	symbol,
+	undefined_,
+	unknown,
+} from 'valchecker'
+
+// Loose primitive schemas
+import { looseBigint, looseBoolean, looseNumber } from 'valchecker'
+
+// Structural schemas
+import {
+	array,
+	instance,
+	intersection,
+	looseObject,
+	object,
+	strictObject,
+	union,
+} from 'valchecker'
+
+// Built-in validations
+import {
+	isAtLeast,
+	isAtMost,
+	isEmpty,
+	isEndingWith,
+	isFinite,
+	isInteger,
+	isLengthAtLeast,
+	isLengthAtMost,
+	isNaN,
+	isNotEmpty,
+	isStartingWith,
+} from 'valchecker'
+
+// Concrete transformations
+import {
+	toAsync,
+	toFiltered,
+	toJSONString,
+	toJSONValue,
+	toLength,
+	toLowercase,
+	toSliced,
+	toSorted,
+	toSplit,
+	toString,
+	toTrimmed,
+	toTrimmedEnd,
+	toTrimmedStart,
+	toUppercase,
+} from 'valchecker'
+
+// Generic and flow-control operations
+import { as, check, fallback, generic, transform, use } from 'valchecker'
 ```
 
-### Individual Steps (Production)
-```typescript
-// Primitives
-import { string, number, boolean, bigint, symbol, literal, unknown, any, never, null_, undefined_ } from 'valchecker'
+## First execution
 
-// Structures
-import { object, strictObject, looseObject, array, union, intersection, instance } from 'valchecker'
-
-// Constraints
-import { min, max, empty, integer, startsWith, endsWith } from 'valchecker'
-
-// Transforms
-import { transform, toTrimmed, toLowercase, toUppercase, toFiltered, toSorted, toAsync } from 'valchecker'
-
-// Flow Control
-import { check, fallback, use, as, generic } from 'valchecker'
-
-// Other
-import { json, looseNumber, parseJSON, stringifyJSON } from 'valchecker'
-```
-
-## First Schema
-
-Here's your first schema:
-
-```typescript
-import { allSteps, createValchecker } from 'valchecker'
-
-const v = createValchecker({ steps: allSteps })
-
-// Define a schema
-const userSchema = v.object({
-  name: v.string()
-    .toTrimmed()
-    .min(1),
-  email: v.string(),
-  age: v.number()
-    .integer()
-    .min(0),
+```ts
+const result = schema.execute({
+	name: '  Alice  ',
+	age: 30,
 })
 
-// Validate data
-const result = userSchema.execute({
-  name: '  Alice  ',
-  email: 'alice@example.com',
-  age: 30,
-})
-
-if ('value' in result) {
-  console.log('Valid:', result.value)
-  // { name: 'Alice', email: 'alice@example.com', age: 30 }
-} else {
-  console.log('Invalid:', result.issues)
-  // Array of validation errors
+if (v.isSuccess(result)) {
+	console.log(result.value)
+}
+else {
+	console.error(result.issues)
 }
 ```
 
-## TypeScript Setup
+Use `await schema.execute(input)` when either synchronous or asynchronous completion is acceptable. Append `.toAsync()` when every invocation must return a native promise.
 
-Valchecker works great with TypeScript:
+## Type inference
 
-```typescript
-import { InferOutput } from 'valchecker'
+Advanced type helpers come from the semver-covered `@valchecker/internal` root:
 
-const userSchema = v.object({
-  name: v.string(),
-  age: v.number(),
-})
+```ts
+import type { InferInput, InferOutput } from '@valchecker/internal'
 
-// Automatically inferred type
-type User = InferOutput<typeof userSchema>
-// { name: string; age: number }
-
-const result = userSchema.execute(data)
-
-if ('value' in result) {
-  // TypeScript knows result.value is User
-  const user: User = result.value
-}
+type Input = InferInput<typeof schema>
+type Output = InferOutput<typeof schema>
 ```
 
-## TypeScript Configuration
+Transforms update output inference, and one-element tuples mark object properties optional.
 
-Enable strict mode for better type safety:
+## TypeScript configuration
+
+Use strict mode and a modern module resolution mode:
 
 ```json
 {
-  "compilerOptions": {
-    "strict": true,
-    "target": "ES2020",
-    "module": "ESNext"
-  }
+	"compilerOptions": {
+		"strict": true,
+		"target": "ES2022",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext"
+	}
 }
 ```
 
-## Next Steps
-
-- Learn [core concepts](./core-concepts.md)
-- See [common patterns](./patterns.md)
-- Explore [error handling](./error-handling.md)
-- Understand [type inference](./type-inference.md)
+`Bundler` resolution is also supported for bundler-based applications.
