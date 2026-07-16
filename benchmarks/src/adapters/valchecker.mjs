@@ -1,4 +1,6 @@
-import { v } from '../../../packages/valchecker/dist/index.mjs'
+const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
+const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
+const { v } = await import(valcheckerUrl)
 
 const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
