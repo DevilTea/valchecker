@@ -1,247 +1,173 @@
 ---
 name: valchecker-expert
-description: Comprehensive guide for using Valchecker in your projects. Use this skill when implementing validation with valchecker - defining schemas, handling errors, type inference, async validation, and integration patterns.
+description: Guide for using Valchecker schemas, state-aware steps, type inference, structured issues, async validation, and integrations.
 ---
 
 # Valchecker Expert Guide
 
-This skill provides guidance for using Valchecker to add validation to your projects. Use this when defining schemas, handling validation results, working with type inference, or integrating Valchecker with your application.
+Use this skill when implementing application validation with Valchecker.
 
-## Quick Start
+## Quick start
 
-### Installation
-
-```bash
-pnpm add valchecker
-# or: npm install valchecker, yarn add valchecker
-```
-
-### First Schema
-
-```typescript
-import { allSteps, createValchecker } from 'valchecker'
-
-const v = createValchecker({ steps: allSteps })
+```ts
+import { v } from 'valchecker'
 
 const userSchema = v.object({
-  name: v.string().toTrimmed().min(1),
-  email: v.string(),
-  age: v.number().integer().min(0),
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty(),
+	email: v.string()
+		.toLowercase(),
+	age: v.looseNumber()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0),
 })
 
-const result = userSchema.execute({
-  name: '  Alice  ',
-  email: 'alice@example.com',
-  age: 30,
-})
+const result = await userSchema.execute(input)
 
-if ('value' in result) {
-  console.log('Valid:', result.value)
-} else {
-  console.log('Errors:', result.issues)
+if (v.isSuccess(result)) {
+	console.log(result.value)
+}
+else {
+	console.error(result.issues)
 }
 ```
 
-## Documentation
+## Mental model
 
-This skill is organized into modular guides:
+Method names identify their role:
 
-### Core Learning
-- [**Setup & Installation**](./references/setup.md) - Getting started
-- [**Core Concepts**](./references/core-concepts.md) - Schemas, pipelines, results
-- [**Type Inference**](./references/type-inference.md) - Advanced typing
+- initial schemas use nouns: `string()`, `number()`, `object()`, `looseBoolean()`,
+- built-in validations use `isXxx()`: `isFinite()`, `isNotEmpty()`, `isLengthAtMost()`,
+- concrete transformations use `toXxx()`: `toTrimmed()`, `toSplit()`, `toJSONValue()`,
+- generic escape hatches remain `check()` and `transform()`.
 
-### Usage Patterns
-- [**Common Patterns**](./references/patterns.md) - Forms, APIs, databases
-- [**Error Handling**](./references/error-handling.md) - Validation errors, recovery
-- [**Performance**](./references/performance.md) - Optimization tips
+Editor autocomplete narrows available methods as the current output type changes.
 
-### Reference
-- [**Step Reference**](./references/step-reference.md) - Complete step documentation
+## Primitive semantics
 
-## Key Concepts
+`number()` accepts every JavaScript number because it matches TypeScript `number`, including `NaN` and positive or negative infinity.
 
-### Schemas
-
-A schema validates data through a pipeline of steps:
-
-```typescript
-const schema = v.string()
-  .toTrimmed()
-  .toLowercase()
-  .min(3)
-  .check(v => v !== 'admin')
+```ts
+v.number().isFinite()
+v.number().isNaN()
+v.number().isInteger()
 ```
 
-### Results
+A named validation enforces only its stated condition. Combine constraints explicitly.
 
-Validation returns a discriminated union:
+Loose primitives accept a primitive or its TypeScript template-literal string representation and normalize the output:
 
-```typescript
-const result = schema.execute(data)
-
-if ('value' in result) {
-  // Success: result.value is validated and typed
-  const value: string = result.value
-} else {
-  // Failure: result.issues contains errors
-  for (const issue of result.issues) {
-    console.log(`${issue.code}: ${issue.message}`)
-  }
-}
+```ts
+v.looseNumber() // number | `${number}` → number
+v.looseBoolean() // boolean | `${boolean}` → boolean
+v.looseBigint() // bigint | `${bigint}` → bigint
 ```
 
-### Type Inference
+They do not use unrestricted JavaScript coercion.
 
-Automatically inferred types:
+## Common schemas
 
-```typescript
-import { InferOutput, InferInput } from 'valchecker'
-const schema = v.object({
-  name: v.string(),
-  age: v.number(),
+### Strings
+
+```ts
+const username = v.string()
+	.toTrimmed()
+	.toLowercase()
+	.isNotEmpty()
+	.isLengthAtLeast(3)
+	.isLengthAtMost(32)
+	.check(value => /^[a-z0-9_-]+$/.test(value))
+```
+
+### Numbers
+
+```ts
+const port = v.looseNumber()
+	.isFinite()
+	.isInteger()
+	.isAtLeast(1)
+	.isAtMost(65535)
+```
+
+### Arrays
+
+```ts
+const tags = v.array(v.string().toLowercase())
+	.isNotEmpty()
+	.isLengthAtMost(10)
+	.toSorted()
+```
+
+### JSON input
+
+```ts
+const config = v.string()
+	.toJSONValue()
+	.use(v.object({ port }))
+```
+
+### Async validation
+
+```ts
+const email = v.string()
+	.toLowercase()
+	.check(async (value) => {
+		const exists = await checkEmailExists(value)
+		return exists ? 'Email already exists' : true
+	})
+```
+
+A callback-driven schema can be maybe-async. Append `.toAsync()` when every invocation must return a native promise.
+
+## Results
+
+```ts
+type Result<T, Issue>
+	= | { value: T }
+		| { issues: Issue[] }
+```
+
+Each issue contains `code`, `message`, `path`, and `payload`. Prefer `v.isSuccess()` and `v.isFailure()` over parsing messages.
+
+## Type inference
+
+Advanced type helpers are exported from `@valchecker/internal`:
+
+```ts
+import type { InferInput, InferOutput } from '@valchecker/internal'
+
+type Input = InferInput<typeof userSchema>
+type Output = InferOutput<typeof userSchema>
+```
+
+Transforms update output inference. One-element tuples mark object fields optional.
+
+## Selective imports
+
+```ts
+import {
+	createValchecker,
+	isAtLeast,
+	isFinite,
+	number,
+} from 'valchecker'
+
+const v = createValchecker({
+	steps: [number, isFinite, isAtLeast],
 })
-
-type User = InferOutput<typeof schema>
-// { name: string; age: number }
 ```
 
-## Available Steps
+Use selective instances for bundle-sensitive applications. The default `v` contains every built-in step.
 
-### Primitives
-`string`, `number`, `boolean`, `bigint`, `symbol`
+## References
 
-### Types
-`literal`, `unknown`, `any`, `never`, `null_`, `undefined_`
-
-### Structures
-`object`, `strictObject`, `looseObject`, `array`, `union`, `intersection`, `instance`
-
-### Constraints
-`min`, `max`, `empty`, `integer`, `startsWith`, `endsWith`
-
-### Transforms
-`transform`, `toTrimmed`, `toLowercase`, `toUppercase`, `toFiltered`, `toSorted`, `toSliced`, `toSplitted`, `toLength`, `parseJSON`, `stringifyJSON`, `toAsync`, `json`
-
-### Flow Control
-`check`, `fallback`, `use`, `as`, `generic`
-
-See [Step Reference](./references/step-reference.md) for complete documentation.
-
-## Common Tasks
-
-### Form Validation
-
-```typescript
-const formSchema = v.object({
-  email: v.string().toTrimmed().toLowercase(),
-  password: v.string().min(8),
-})
-
-const result = formSchema.execute(formData)
-if ('issues' in result) {
-  displayErrors(result.issues)
-}
-```
-
-### API Validation
-
-```typescript
-const requestSchema = v.object({
-  page: v.number().integer().min(1).fallback(() => 1),
-  limit: v.number().integer().min(1).max(100).fallback(() => 20),
-})
-
-const validated = requestSchema.execute(req.query)
-```
-
-### Async Validation
-
-```typescript
-const schema = v.string()
-  .check(async (email) => {
-    const exists = await checkEmailExists(email)
-    return !exists  // Return boolean
-  })
-
-const result = await schema.execute(email)  // Await when async
-```
-
-## Type Inference
-
-### Basic Types
-
-```typescript
-import { InferOutput, InferInput } from 'valchecker'
-type User = InferOutput<typeof userSchema>
-```
-
-### Input Types
-
-```typescript
-import { InferOutput, InferInput } from 'valchecker'
-type UserInput = InferInput<typeof userSchema>
-```
-
-### Optional Fields
-
-```typescript
-import { InferOutput, InferInput } from 'valchecker'
-const schema = v.object({
-  name: v.string(),           // Required
-  nickname: [v.string()],     // Optional
-})
-
-type T = InferOutput<typeof schema>
-// { name: string; nickname?: string }
-```
-
-See [Type Inference Guide](./references/core-concepts.md#type-inference) in Core Concepts.
-
-## Best Practices
-
-1. **Start with production imports** - Only import what you need
-2. **Compose schemas** - Build reusable schema pieces
-3. **Custom messages** - Provide helpful error messages
-4. **Test validation** - Validate your validation logic
-5. **Handle errors** - Always check for `value` or `issues`
-
-## Production Bundle Size
-
-Use selective imports for smaller bundles:
-
-```typescript
-import { createValchecker, string, number, object, min, max } from 'valchecker'
-
-const v = createValchecker({ steps: [string, number, object, min, max] })
-```
-
-Compare with development (uses all steps):
-
-```typescript
-import { allSteps, createValchecker } from 'valchecker'
-const v = createValchecker({ steps: allSteps })
-```
-
-## Getting Help
-
-- **Setup issues?** See [Setup Guide](./references/setup.md)
-- **How to use a feature?** Check [Core Concepts](./references/core-concepts.md)
-- **Need a pattern?** Find it in [Common Patterns](./references/patterns.md)
-- **Need all steps?** See [Step Reference](./references/step-reference.md)
-- **Error handling?** Check [Error Handling](./references/error-handling.md)
-- **Performance tips?** See [Performance Guide](./references/performance.md)
-- **Type questions?** See [Type Inference](./references/type-inference.md)
-
-## External Resources
-
-- [Valchecker Docs](https://valchecker.dev) - User documentation
-- [GitHub Repository](https://github.com/anomalyco/valchecker) - Source code
-- [Issues](https://github.com/anomalyco/valchecker/issues) - Bug reports
-
-## Next Steps
-
-1. Read [Setup & Installation](./references/setup.md) to get started
-2. Learn [Core Concepts](./references/core-concepts.md)
-3. Explore [Common Patterns](./references/patterns.md) for your use case
-4. Reference [Step Reference](./references/step-reference.md) as needed
+- [Setup](./references/setup.md)
+- [Core Concepts](./references/core-concepts.md)
+- [Type Inference](./references/type-inference.md)
+- [Common Patterns](./references/patterns.md)
+- [Error Handling](./references/error-handling.md)
+- [Performance](./references/performance.md)
+- [Step Reference](./references/step-reference.md)
+- [Documentation site](../../../docs/index.md)
