@@ -2,11 +2,11 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<'empty:expected_empty', { value: T }>
+	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<'isEmpty:expected_empty', { value: T }>
 }
 
 type Meta = DefineStepMethodMeta<{
-	Name: 'empty'
+	Name: 'isEmpty'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: { length: number } }>
 	SelfIssue: Internal.Issue
 }>
@@ -14,42 +14,30 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value has a length property and is empty (length === 0).
+	 * Checks that the value is empty (`length === 0`).
 	 *
 	 * ---
 	 *
 	 * ### Example:
-	 * #### Usage with strings
 	 * ```ts
-	 * import { createValchecker, empty, string } from 'valchecker'
+	 * import { createValchecker, isEmpty, string } from 'valchecker'
 	 *
-	 * const v = createValchecker({ steps: [string, empty] })
-	 * const schema = v.string().empty()
+	 * const v = createValchecker({ steps: [string, isEmpty] })
+	 * const schema = v.string().isEmpty()
 	 * const result = schema.execute('')
-	 * ```
-	 *
-	 * #### Usage with arrays
-	 * ```ts
-	 * import { createValchecker, empty, array, string } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [array, string, empty] })
-	 * const schema = v.array(v.string()).empty()
-	 * const result = schema.execute([])
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'empty:expected_empty'`: The value is not empty.
+	 * - `'isEmpty:expected_empty'`: The value is not empty.
 	 */
-	empty: DefineStepMethod<
+	isEmpty: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends{ length: number }
+			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
 				? (message?: MessageHandler<Internal.Issue<CurrentOutput>>) => Next<
-						{
-							issue: Internal.Issue<CurrentOutput>
-						},
+						{ issue: Internal.Issue<CurrentOutput> },
 						this['CurrentValchecker']
 					>
 				: never
@@ -58,17 +46,17 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const empty = implStepPlugin<PluginDef>({
-	empty: ({
+export const isEmpty = implStepPlugin<PluginDef>({
+	isEmpty: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
 		addSuccessStep(
 			value => value.length === 0
-				?	success(value)
-				:	failure(
+				? success(value)
+				: failure(
 						createIssue({
-							code: 'empty:expected_empty',
+							code: 'isEmpty:expected_empty',
 							payload: { value },
 							customMessage: message,
 							defaultMessage: 'Expected an empty value.',
