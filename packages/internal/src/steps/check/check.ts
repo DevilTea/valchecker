@@ -70,20 +70,19 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * #### adding issues manually (advanced)
 	 * ```ts
-	 * import { createValchecker, check, object, number, string, min, max } from 'valchecker'
+	 * import { check, createValchecker, object, string } from 'valchecker'
 	 *
 	 * const v = createValchecker({ steps: [check, object, string] })
 	 * const schema = v.object({
 	 *   prop1: v.string(),
 	 * })
 	 *   .check((obj, { addIssue }) => {
-	 *     // Custom cross-property validation, custom path for issues
 	 *     if (obj.prop1.length < 5) {
 	 *       addIssue({
 	 *         code: 'custom:prop1_too_short',
 	 *         path: ['prop1'],
 	 *         payload: { value: obj.prop1 },
-	 *         message: `prop1 must be at least 5 characters long.`,
+	 *         message: 'prop1 must be at least 5 characters long.',
 	 *       })
 	 *     }
 	 *   })
@@ -98,8 +97,8 @@ interface PluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-				?	[InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
-						?	<Output extends CurrentOutput>(
+				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
+						? <Output extends CurrentOutput>(
 								run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue>) => value is Output,
 								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
 							) => Next<
@@ -110,8 +109,8 @@ interface PluginDef extends TStepPluginDef {
 								},
 								This
 							>
-						:	never
-				:	never
+						: never
+				: never
 		>
 		| DefineStepMethod<
 			Meta,
@@ -189,10 +188,10 @@ export const check = implStepPlugin<PluginDef>({
 						: success(value)
 				}
 				return isPromiseLike(checkResult)
-					?	Promise.resolve(checkResult)
+					? Promise.resolve(checkResult)
 							.then(processCheckResult)
 							.catch(err => handleError(err))
-					:	processCheckResult(checkResult)
+					: processCheckResult(checkResult)
 			}
 			catch (error) {
 				return handleError(error)
