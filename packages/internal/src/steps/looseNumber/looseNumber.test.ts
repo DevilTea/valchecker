@@ -14,11 +14,13 @@ describe('looseNumber step plugin', () => {
 		['1e3', 1000],
 		['0x10', 16],
 		[' 1 ', 1],
+		['   ', 0],
+		['\n', 0],
 	])('normalizes %p to %p', (input, output) => {
 		expect(v.looseNumber().execute(input)).toEqual({ value: output })
 	})
 
-	it.each(['', '   ', 'NaN', 'Infinity', '-Infinity', 'not-a-number', true, 1n])('rejects %p', (value) => {
+	it.each(['', 'NaN', 'Infinity', '-Infinity', 'not-a-number', true, 1n])('rejects %p', (value) => {
 		const result = v.looseNumber().execute(value)
 		expect(result).toMatchObject({
 			issues: [{
