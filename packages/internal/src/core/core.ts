@@ -49,7 +49,22 @@ class MessageResolutionError {
 	) { }
 }
 
-const issueDraftMetadata = new WeakMap<object, IssueDraftMetadata>()
+const issueDraftMetadata = Symbol('valchecker.issueDraftMetadata')
+
+type IssueWithDraftMetadata = AnyExecutionIssue & {
+	[issueDraftMetadata]?: IssueDraftMetadata | undefined
+}
+
+function getIssueDraftMetadata(issue: AnyExecutionIssue): IssueDraftMetadata | undefined {
+	return (issue as IssueWithDraftMetadata)[issueDraftMetadata]
+}
+
+function setIssueDraftMetadata(
+	issue: AnyExecutionIssue,
+	metadata: IssueDraftMetadata,
+): void {
+	Object.defineProperty(issue, issueDraftMetadata, { value: metadata })
+}
 
 /* @__NO_SIDE_EFFECTS__ */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(stepImpl: StepPluginImpl<StepPluginDef>): StepPluginImpl<StepPluginDef> {
@@ -74,7 +89,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	messageScope?: MessageHandler<any> | undefined,
 ): Issue {
 	const hasPath = path != null && path.length > 0
-	const metadata = issueDraftMetadata.get(issue)
+	const metadata = getIssueDraftMetadata(issue)
 	const hasMessageScope = messageScope != null
 
 	if (!hasPath && !hasMessageScope)
@@ -91,7 +106,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	}
 
 	if (metadata != null) {
-		issueDraftMetadata.set(nextIssue, {
+		setIssueDraftMetadata(nextIssue, {
 			...metadata,
 			contextMessages: hasMessageScope
 				? [...metadata.contextMessages, messageScope]
@@ -99,7 +114,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 		})
 	}
 	else if (hasMessageScope) {
-		issueDraftMetadata.set(nextIssue, {
+		setIssueDraftMetadata(nextIssue, {
 			resolveMessage: resolveExternalIssueMessage,
 			contextMessages: [messageScope],
 			defaultMessage: issue.message,
@@ -380,11 +395,10 @@ function createMessageExceptionIssue(
 	return issue
 }
 
-function finalizeIssue(issue: AnyExecutionIssue): AnyExecutionIssue {
-	const metadata = issueDraftMetadata.get(issue)
-	if (metadata == null)
-		return issue
-
+function finalizeIssue(
+	issue: AnyExecutionIssue,
+	metadata: IssueDraftMetadata,
+): AnyExecutionIssue {
 	try {
 		return {
 			...issue,
@@ -410,12 +424,30 @@ function finalizeResult(result: ExecutionResult): ExecutionResult {
 		return result
 
 	const issues = result.issues
-	return {
-		issues: [
-			finalizeIssue(issues[0]!),
-			...issues.slice(1).map(finalizeIssue),
-		],
+	const firstIssue = issues[0]!
+	const firstMetadata = getIssueDraftMetadata(firstIssue)
+	if (issues.length === 1) {
+		return firstMetadata == null
+			? result
+			: { issues: [finalizeIssue(firstIssue, firstMetadata)] }
 	}
+
+	let finalizedIssues: AnyExecutionIssue[] | undefined
+	for (let i = 0; i < issues.length; i++) {
+		const issue = issues[i]!
+		const metadata = i === 0 ? firstMetadata : getIssueDraftMetadata(issue)
+		if (metadata != null) {
+			finalizedIssues ??= issues.slice(0, i)
+			finalizedIssues.push(finalizeIssue(issue, metadata))
+		}
+		else if (finalizedIssues != null) {
+			finalizedIssues.push(issue)
+		}
+	}
+
+	return finalizedIssues == null
+		? result
+		: { issues: finalizedIssues as [AnyExecutionIssue, ...AnyExecutionIssue[]] }
 }
 
 function createPublicExecutor(executeRaw: PipeExecutor): PipeExecutor {
@@ -450,7 +482,7 @@ function createUnknownExceptionFailure(
 		path: [],
 	}
 	if (staticMessage == null) {
-		issueDraftMetadata.set(issue, {
+		setIssueDraftMetadata(issue, {
 			resolveMessage,
 			contextMessages: [],
 			defaultMessage,
@@ -523,7 +555,7 @@ function createExecutionStepMethodUtils(
 			if (context != null)
 				issue.context = context
 			if (staticMessage == null) {
-				issueDraftMetadata.set(issue, {
+				setIssueDraftMetadata(issue, {
 					resolveMessage,
 					customMessage,
 					contextMessages: [],

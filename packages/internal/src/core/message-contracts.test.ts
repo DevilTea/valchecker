@@ -472,6 +472,51 @@ describe('issue finalization coverage contracts', () => {
 		})
 	})
 
+	it('finalizes mixed multi-issue results without leaking draft metadata', () => {
+		const v = createValchecker({ steps: [number, object] })
+		const cases = [
+			{
+				schema: v.object({
+					first: v.number(() => 'dynamic:first'),
+					second: v.number(),
+				}),
+				messages: ['dynamic:first', 'Expected a number.'],
+			},
+			{
+				schema: v.object({
+					first: v.number(),
+					second: v.number(() => 'dynamic:second'),
+				}),
+				messages: ['Expected a number.', 'dynamic:second'],
+			},
+			{
+				schema: v.object({
+					first: v.number(() => 'dynamic:first'),
+					second: v.number(() => 'dynamic:second'),
+				}),
+				messages: ['dynamic:first', 'dynamic:second'],
+			},
+			{
+				schema: v.object({ first: v.number(), second: v.number() }),
+				messages: ['Expected a number.', 'Expected a number.'],
+			},
+		]
+
+		for (const { schema, messages } of cases) {
+			const result = schema.execute({ first: 'wrong', second: 'wrong' })
+			expect(result).toMatchObject({
+				issues: [
+					{ message: messages[0], path: ['first'] },
+					{ message: messages[1], path: ['second'] },
+				],
+			})
+			if ('issues' in result) {
+				for (const issue of result.issues)
+					expect(Object.getOwnPropertySymbols(issue)).toEqual([])
+			}
+		}
+	})
+
 	it('defers unknown-exception messages only for dynamic global handlers', () => {
 		const v = createValchecker({
 			steps: [coveragePlugin],
