@@ -9,7 +9,7 @@ packages/internal/      core and built-in step plugins
 packages/all-steps/     dynamic allSteps collection
 packages/valchecker/    public package and default v instance
 docs/                   VitePress documentation
-benchmarks/              runtime and tree-shaking reports
+benchmarks/             runtime and tree-shaking reports
 ```
 
 ## Verification
@@ -19,7 +19,7 @@ pnpm install
 pnpm build
 pnpm lint
 pnpm typecheck
-pnpm test --coverage
+pnpm test:coverage
 pnpm docs:build
 ```
 
@@ -106,14 +106,18 @@ Steps use three layers:
 
 ## Testing requirements
 
-Modified step implementations require 100% coverage. Cover:
+Follow [`.github/TESTING.md`](.github/TESTING.md). Tests must protect observable runtime, type-state, interoperability, or regression contracts. Coverage is a guardrail and must not be the sole reason for a case.
 
-- valid and invalid inputs,
-- exact boundary behavior,
-- default and custom messages,
-- issue code and payload shape,
-- chaining availability and output inference,
-- asynchronous and early-failure behavior where relevant.
+For every modified step:
+
+- cover each distinct success and failure semantic;
+- cover exact boundaries and JavaScript-specific edge cases;
+- assert every owned issue code and payload shape once in the step's owning test;
+- verify custom messages for owned issues;
+- keep output, issue, operation-mode, and fluent-availability type contracts synchronized;
+- cover asynchronous, early-failure, ordering, and short-circuit behavior only where the public contract requires it.
+
+Use table-driven tests for equivalent inputs. Do not add tautological assertions, arbitrary timers, duplicated complete issue snapshots, or tests named after coverage and implementation branches.
 
 For TypeScript-aligned loose primitives, keep compile-time template-literal expectations and runtime fixtures synchronized.
 
