@@ -31,6 +31,9 @@ type MessageData = {
 }
 
 type MessageSource = 'step' | 'context' | 'global' | 'default'
+type RuntimeResolveMessageFn = ResolveMessageFn & {
+	globalMessage?: MessageHandler<any> | undefined
+}
 
 interface IssueDraftMetadata {
 	resolveMessage: ResolveMessageFn
@@ -255,8 +258,8 @@ export function resolveMessagePriority({
 /* @__NO_SIDE_EFFECTS__ */
 function createResolveMessageFunction(
 	globalMessage?: MessageHandler<any> | undefined,
-): ResolveMessageFn {
-	return ({
+): RuntimeResolveMessageFn {
+	const resolveMessage: RuntimeResolveMessageFn = ({
 		data,
 		customMessage,
 		contextMessages,
@@ -268,9 +271,56 @@ function createResolveMessageFunction(
 		defaultMessage,
 		globalMessage,
 	})
+	resolveMessage.globalMessage = globalMessage
+	return resolveMessage
 }
 
 const resolveExternalIssueMessage = createResolveMessageFunction()
+
+function hasDynamicMessageForCode(
+	message: MessageHandler<any> | undefined | null,
+	code: string,
+): boolean {
+	if (typeof message === 'function')
+		return true
+	return message != null
+		&& typeof message === 'object'
+		&& Object.hasOwn(message, code)
+		&& typeof (message as any)[code] === 'function'
+}
+
+function resolveStaticIssueMessage(
+	code: string,
+	customMessage: MessageHandler<any> | undefined | null,
+	globalMessage: MessageHandler<any> | undefined,
+	defaultMessage: MessageHandler<any> | undefined | null,
+): string | undefined {
+	if (typeof customMessage === 'string' || hasDynamicMessageForCode(customMessage, code))
+		return undefined
+	if (typeof globalMessage === 'string')
+		return globalMessage
+	if (hasDynamicMessageForCode(globalMessage, code))
+		return undefined
+	if (typeof defaultMessage === 'string')
+		return defaultMessage
+	if (hasDynamicMessageForCode(defaultMessage, code))
+		return undefined
+	return 'Invalid value.'
+}
+
+function getInitialIssueMessage(
+	customMessage: MessageHandler<any> | undefined | null,
+	globalMessage: MessageHandler<any> | undefined,
+	defaultMessage: MessageHandler<any> | undefined | null,
+): string {
+	if (typeof customMessage === 'string')
+		return customMessage
+	if (typeof globalMessage === 'string')
+		return globalMessage
+	if (typeof defaultMessage === 'string')
+		return defaultMessage
+	return 'Invalid value.'
+}
 
 function getMessageData(issue: AnyExecutionIssue): MessageData {
 	return {
@@ -384,22 +434,28 @@ function createUnknownExceptionFailure(
 	error: unknown,
 	resolveMessage: ResolveMessageFn,
 ): ExecutionFailureResult<CoreIssue> {
+	const code = 'core:unknown_exception'
+	const defaultMessage = 'An unexpected error occurred during step execution'
+	const globalMessage = (resolveMessage as RuntimeResolveMessageFn).globalMessage
+	const staticMessage = resolveStaticIssueMessage(code, undefined, globalMessage, defaultMessage)
 	const issue: ExecutionIssue<
-		'core:unknown_exception',
+		typeof code,
 		{ method: string, receivedResult: ExecutionResult, error: unknown },
 		'internal'
 	> = {
-		code: 'core:unknown_exception',
+		code,
 		category: 'internal',
 		payload: { method, receivedResult: lastResult, error },
-		message: 'Invalid value.',
+		message: staticMessage ?? getInitialIssueMessage(undefined, globalMessage, defaultMessage),
 		path: [],
 	}
-	issueDraftMetadata.set(issue, {
-		resolveMessage,
-		contextMessages: [],
-		defaultMessage: 'An unexpected error occurred during step execution',
-	})
+	if (staticMessage == null) {
+		issueDraftMetadata.set(issue, {
+			resolveMessage,
+			contextMessages: [],
+			defaultMessage,
+		})
+	}
 	return { issues: [issue] }
 }
 
@@ -446,25 +502,34 @@ function createExecutionStepMethodUtils(
 			customMessage,
 			defaultMessage,
 		}: any) => {
+			const globalMessage = (resolveMessage as RuntimeResolveMessageFn).globalMessage
+			const staticMessage = resolveStaticIssueMessage(
+				code,
+				customMessage,
+				globalMessage,
+				defaultMessage,
+			)
 			const issue: AnyExecutionIssue = {
 				code,
 				category,
 				payload,
 				path,
-				message: typeof customMessage === 'string'
-					? customMessage
-					: typeof defaultMessage === 'string'
-						? defaultMessage
-						: 'Invalid value.',
+				message: staticMessage ?? getInitialIssueMessage(
+					customMessage,
+					globalMessage,
+					defaultMessage,
+				),
 			}
 			if (context != null)
 				issue.context = context
-			issueDraftMetadata.set(issue, {
-				resolveMessage,
-				customMessage,
-				contextMessages: [],
-				defaultMessage,
-			})
+			if (staticMessage == null) {
+				issueDraftMetadata.set(issue, {
+					resolveMessage,
+					customMessage,
+					contextMessages: [],
+					defaultMessage,
+				})
+			}
 			return issue
 		},
 		issue: i => i,
