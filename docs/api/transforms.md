@@ -127,11 +127,125 @@ v.object({ key: v.string() })
 
 Unsupported values and circular structures produce an issue instead of escaping the validation result as an exception.
 
+## Primitive conversions
+
+Primitive conversion steps are available only after a different primitive type. Identity conversions such as `number().toNumber()` and `boolean().toBoolean()` are intentionally unavailable.
+
+### `toNumber()`
+
+Delegates directly to JavaScript `Number(value)`. It does not add parsing, finite-number, or precision-safety policy.
+
+```ts
+v.string().toNumber().execute('42')
+// { value: 42 }
+
+v.string().toNumber().execute('invalid')
+// { value: NaN }
+
+v.string().toNumber().execute('Infinity')
+// { value: Infinity }
+
+v.bigint().toNumber().execute(9007199254740993n)
+// { value: 9007199254740992 }
+```
+
+Use subsequent validation when a narrower numeric domain is required:
+
+```ts
+v.string().toNumber().isFinite()
+```
+
+### `toBoolean()`
+
+Delegates directly to JavaScript `Boolean(value)` truthiness coercion. It does not parse semantic boolean strings.
+
+```ts
+v.string().toBoolean().execute('false')
+// { value: true }
+
+v.string().toBoolean().execute('')
+// { value: false }
+
+v.number().toBoolean().execute(0)
+// { value: false }
+```
+
+Use `looseBoolean()` for the specific `boolean | `${boolean}`` boundary contract, or `toMappedBoolean()` for custom representations.
+
+### `toBigint(message?)`
+
+Delegates directly to JavaScript `BigInt(value)`. Native conversion exceptions become structured issues.
+
+**Issue code:** `toBigint:invalid_bigint`
+
+```ts
+v.string().toBigint().execute('42')
+// { value: 42n }
+
+v.boolean().toBigint().execute(true)
+// { value: 1n }
+
+v.number().toBigint().execute(1.5)
+// failure with toBigint:invalid_bigint
+```
+
+### `bigint().toSafeNumber(message?)`
+
+Converts a bigint only when it is between `Number.MIN_SAFE_INTEGER` and `Number.MAX_SAFE_INTEGER`, inclusive.
+
+**Issue code:** `toSafeNumber:out_of_safe_integer_range`
+
+```ts
+v.bigint().toSafeNumber().execute(42n)
+// { value: 42 }
+
+v.bigint().toSafeNumber().execute(9007199254740992n)
+// failure with toSafeNumber:out_of_safe_integer_range
+```
+
+Use `toNumber()` when native bigint precision loss is acceptable.
+
+### `toMappedBoolean(options, message?)`
+
+Maps configured values to booleans without implicit coercion, trimming, or case normalization.
+
+```ts
+v.string().toMappedBoolean({
+	trueValues: ['Y', 'yes'],
+	falseValues: ['N', 'no'],
+}).execute('Y')
+// { value: true }
+
+v.number().toMappedBoolean({
+	trueValues: [1],
+	falseValues: [0],
+}).execute(0)
+// { value: false }
+```
+
+Mappings use JavaScript `Set` SameValueZero equality. This means `NaN` matches `NaN`, and `0` matches `-0`.
+
+**Issue code:** `toMappedBoolean:unmapped_value`
+
+A value outside both mappings fails. One mapping may be empty, but both mappings may not be empty. Values may not appear in both mappings; invalid mapping configurations throw when the schema is created.
+
+Compose normalization steps explicitly when required:
+
+```ts
+v.string()
+	.toTrimmed()
+	.toLowercase()
+	.toMappedBoolean({
+		trueValues: ['yes', 'y'],
+		falseValues: ['no', 'n'],
+	})
+```
+
 ## General conversion
 
 ### `toString()`
 
-Converts a supported value to a string.
+Converts a supported value using its `toString` method.
 
 ```ts
 v.number().toString().execute(123)
