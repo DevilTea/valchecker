@@ -449,8 +449,16 @@ function finalizeFailureResult(
 		: { issues: finalizedIssues as [AnyExecutionIssue, ...AnyExecutionIssue[]] }
 }
 
+function hasIssueDraft(issues: readonly AnyExecutionIssue[]): boolean {
+	for (let i = 0; i < issues.length; i++) {
+		if ((issues[i] as IssueWithDraftMetadata)[issueDraftMetadata] != null)
+			return true
+	}
+	return false
+}
+
 function finalizeAsyncResult(result: ExecutionResult): ExecutionResult {
-	return 'issues' in result
+	return 'issues' in result && hasIssueDraft(result.issues)
 		? finalizeFailureResult(result)
 		: result
 }
@@ -460,7 +468,7 @@ function createPublicExecutor(executeRaw: PipeExecutor): PipeExecutor {
 		const result = executeRaw(value)
 		if (isPromiseLike(result))
 			return Promise.resolve(result).then(finalizeAsyncResult)
-		return 'issues' in result
+		return 'issues' in result && hasIssueDraft(result.issues)
 			? finalizeFailureResult(result)
 			: result
 	}
