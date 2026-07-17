@@ -1,9 +1,10 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toNumber'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string | boolean | bigint }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker
+	SelfIssue: ExecutionIssue<'toNumber:conversion_failed', { value: unknown, error: unknown }>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -11,7 +12,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Converts the current value with JavaScript's native `Number()` coercion.
 	 *
-	 * This step does not add finite-number, parsing, or precision-safety constraints. Values such as invalid numeric strings produce `NaN`, and large bigint values may lose precision, exactly as they do with `Number(value)`.
+	 * This step is available after any output that is not already a number. It does not add finite-number, parsing, or precision-safety constraints. Values such as invalid numeric strings produce `NaN`, and large bigint values may lose precision, exactly as they do with `Number(value)`.
 	 *
 	 * ---
 	 *
@@ -27,12 +28,20 @@ interface PluginDef extends TStepPluginDef {
 	 * ---
 	 *
 	 * ### Issues:
-	 * None.
+	 * - `'toNumber:conversion_failed'`: JavaScript's native `Number()` conversion threw an error.
 	 */
 	toNumber: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? () => Next<{ output: number }, this['CurrentValchecker']>
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? InferOutput<This> extends number
+				? never
+				: (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+						{
+							output: number
+							issue: Meta['SelfIssue']
+						},
+						This
+					>
 			: never
 	>
 }
@@ -40,10 +49,23 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const toNumber = implStepPlugin<PluginDef>({
 	toNumber: ({
-		utils: { addSuccessStep, success },
+		utils: { addSuccessStep, success, createIssue, failure },
+		params: [message],
 	}) => {
 		addSuccessStep((value) => {
-			return success(Number(value))
+			try {
+				return success(Number(value))
+			}
+			catch (error) {
+				return failure(
+					createIssue({
+						code: 'toNumber:conversion_failed',
+						payload: { value, error },
+						customMessage: message,
+						defaultMessage: 'Expected a value convertible to number.',
+					}),
+				)
+			}
 		})
 	},
 })
