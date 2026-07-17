@@ -24,6 +24,7 @@ describe('toSafeNumber step plugin', () => {
 		expect(v.bigint().toSafeNumber().execute(value)).toEqual({
 			issues: [{
 				code: 'toSafeNumber:out_of_safe_integer_range',
+				category: 'validation',
 				message: 'Expected the bigint to be within the safe integer range.',
 				path: [],
 				payload: { value, minimum, maximum },

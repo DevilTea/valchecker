@@ -1,10 +1,10 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
-	export type Issue<I extends ExecutionIssue = ExecutionIssue> = ExecutionIssue<'fallback:failed', { receivedIssues: I[], error?: unknown }>
+	export type Issue<I extends AnyExecutionIssue = AnyExecutionIssue> = ExecutionIssue<'fallback:failed', { receivedIssues: I[], error?: unknown }>
 }
 
 type Meta = DefineStepMethodMeta<{

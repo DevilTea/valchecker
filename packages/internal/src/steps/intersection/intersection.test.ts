@@ -203,6 +203,7 @@ describe('intersection plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'intersection:conflicting_outputs',
+					category: 'validation',
 					payload: { outputs: ['left', 'right'] },
 				}],
 			})
@@ -222,6 +223,7 @@ describe('intersection plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'intersection:conflicting_outputs',
+					category: 'validation',
 					payload: { outputs: [left, right] },
 				}],
 			})

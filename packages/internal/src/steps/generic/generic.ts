@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
@@ -49,7 +49,7 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			// Required to specify type parameter T.
-			? <T extends { operationMode?: OperationMode, output?: unknown, issue?: ExecutionIssue } = never>(
+			? <T extends { operationMode?: OperationMode, output?: unknown, issue?: AnyExecutionIssue } = never>(
 					step: NoInfer<Use<Valchecker>> | (() => NoInfer<Use<Valchecker>>),
 				) => Next<T, this['CurrentValchecker']>
 			: never

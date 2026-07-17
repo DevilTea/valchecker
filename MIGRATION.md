@@ -16,8 +16,9 @@ Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v
 8. Add `.toAsync()` where an API requires an unconditional promise.
 9. Verify unions, intersections, object variants, and issue-path handling.
 10. Remove imports of implementation helpers that are no longer exported.
-11. Update message maps for renamed issue codes and payload fields.
-12. Run installed-package consumer tests, not only workspace source tests.
+11. Update message maps for renamed issue codes, payload fields, and the required issue `category`.
+12. Replace assumptions that failure issue arrays may be empty.
+13. Run installed-package consumer tests, not only workspace source tests.
 
 ## Built-in step renames
 
@@ -216,6 +217,20 @@ Only compatible plain-object outputs are recursively composed. Distinct class, `
 - `looseObject()` preserves unknown own properties and descriptors.
 - Declared `__proto__` fields are safe own data properties.
 - A one-element tuple still marks a field optional.
+
+## Issue shape and core failures
+
+Every public Valchecker issue now includes a required `category`:
+
+```ts
+category: 'validation' | 'operation' | 'internal'
+```
+
+Two-argument `ExecutionIssue<'code', Payload>` declarations remain validation issues by default. Plugin authors must specify the third generic for operation or internal failures. Failure results now use a non-empty tuple, `[Issue, ...Issue[]]`.
+
+`core:unknown_exception` changed its payload field from `value` to `receivedResult` because the captured value is the complete execution result received by the failing step. Message-handler exceptions are represented separately as `core:message_exception`.
+
+Nested message handlers now run after the final path is assembled and may be provided at enclosing object scopes. The priority is leaf step, nearest enclosing structure, outer structures, originating instance global handler, leaf default, then `"Invalid value."`.
 
 ## Messages and issue paths
 

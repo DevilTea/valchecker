@@ -13,6 +13,7 @@ describe('isNotEmpty step plugin', () => {
 		expect(v.string().isNotEmpty().execute('')).toEqual({
 			issues: [{
 				code: 'isNotEmpty:expected_not_empty',
+				category: 'validation',
 				message: 'Expected a non-empty value.',
 				path: [],
 				payload: { value: '' },

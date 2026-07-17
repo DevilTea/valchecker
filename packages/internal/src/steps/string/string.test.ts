@@ -21,6 +21,7 @@ describe('string step plugin', () => {
 		expect(v.string().execute(value)).toEqual({
 			issues: [{
 				code: 'string:expected_string',
+				category: 'validation',
 				message: 'Expected a string.',
 				path: [],
 				payload: { value },
@@ -32,6 +33,7 @@ describe('string step plugin', () => {
 		expect(v.string('Custom error message').execute(123)).toEqual({
 			issues: [{
 				code: 'string:expected_string',
+				category: 'validation',
 				message: 'Custom error message',
 				path: [],
 				payload: { value: 123 },
@@ -44,6 +46,7 @@ describe('string step plugin', () => {
 		expect(v.string().isLengthAtLeast(5).execute('hi')).toEqual({
 			issues: [{
 				code: 'isLengthAtLeast:expected_length_at_least',
+				category: 'validation',
 				message: 'Expected a length of at least 5.',
 				path: [],
 				payload: { value: 'hi', minimum: 5 },

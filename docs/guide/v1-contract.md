@@ -191,12 +191,39 @@ Use direct execution when preserving synchronous behavior matters. Use `await` w
 
 ```ts
 type ExecutionSuccessResult<T> = { value: T }
-type ExecutionFailureResult<Issue> = { issues: Issue[] }
+type ExecutionFailureResult<Issue> = {
+	issues: [Issue, ...Issue[]]
+}
+
+interface ExecutionIssue<
+	Code extends string,
+	Payload,
+	Category extends IssueCategory = 'validation',
+> {
+	code: Code
+	category: Category
+	payload: Payload
+	message: string
+	path: PropertyKey[]
+	context?: IssueContext[]
+}
+
+type IssueCategory = 'validation' | 'operation' | 'internal'
 ```
 
 Use `isSuccess()` and `isFailure()` or discriminate by `value` and `issues`.
 
-Validation failures are values, not thrown validation exceptions. User callback exceptions are converted only where the relevant step contract explicitly supports that conversion.
+Failure results always contain at least one issue. Validation failures are values, not thrown validation exceptions. User callback exceptions are converted only where the relevant step contract explicitly supports that conversion.
+
+Issue categories have stable meanings:
+
+| Category | Meaning |
+| --- | --- |
+| `validation` | The input does not satisfy a schema or a documented conversion precondition. |
+| `operation` | A known callback or transformation operation failed. |
+| `internal` | Valchecker or a plugin encountered an unexpected execution failure. |
+
+`context` carries non-data provenance such as a future union branch marker. It does not change the data `path`.
 
 ## Standard Schema V1
 
@@ -213,18 +240,24 @@ Use `execute()` when Valchecker's complete issue payload is required.
 
 Issue messages use this priority:
 
-1. custom message supplied to the step,
-2. global handler supplied to `createValchecker`,
-3. built-in default message,
-4. `"Invalid value."`.
+1. custom message supplied to the originating step,
+2. nearest enclosing structure message,
+3. each next enclosing structure message,
+4. global handler from the Valchecker instance that originated the issue,
+5. originating step default message,
+6. `"Invalid value."`.
 
-Message maps inspect own properties only. Inherited keys are not treated as issue-code handlers.
+Message resolution is deferred until the issue has its final `path` and `context`, then runs once at the public `execute()` or Standard Schema boundary. Message maps inspect own properties only. Inherited keys are not treated as issue-code handlers. A handler may return `null` or `undefined` to continue to the next source.
+
+If a message handler throws, execution returns `core:message_exception` with category `internal`, the failing source, the unresolved issue snapshot, and the thrown value. Message handling errors do not escape the public execution boundary.
+
+The global handler type is derived from registered plugins. Selective instances expose only their registered issue codes plus core issues. Same-code payload variants remain discriminated unions, and registered custom plugins participate through `Meta.SelfIssue`.
 
 ## Issue paths and reuse
 
-Issue paths are arrays of property keys. Nested validators prepend paths by creating new issue objects rather than mutating child issues.
+Issue paths are arrays of property keys. Nested validators prepend paths by creating new issue objects rather than mutating child issues. Message handlers observe the completed path rather than a leaf-local path.
 
-Custom and delegated schemas may safely return frozen or reused issue objects. Symbol path segments are preserved.
+Custom and delegated schemas may safely return frozen or reused issue objects. Symbol path segments are preserved. A delegated issue retains the global message resolver belonging to the instance that created it; an explicit enclosing structure message still has higher priority.
 
 ## Object schemas
 

@@ -15,6 +15,7 @@ describe('isLengthAtMost step plugin', () => {
 		expect(v.string().isLengthAtMost(3).execute('hello')).toEqual({
 			issues: [{
 				code: 'isLengthAtMost:expected_length_at_most',
+				category: 'validation',
 				message: 'Expected a length of at most 3.',
 				path: [],
 				payload: { value: 'hello', maximum: 3 },

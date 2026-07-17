@@ -32,6 +32,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: 42 },
@@ -46,6 +47,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: 'hello' },
@@ -60,6 +62,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: true },
@@ -74,6 +77,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: null },
@@ -88,6 +92,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: {} },
@@ -102,6 +107,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: [] },
@@ -116,6 +122,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: 123n },
@@ -131,6 +138,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Expected undefined.',
 						path: [],
 						payload: { value: sym },
@@ -147,6 +155,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'undefined:expected_undefined',
+						category: 'validation',
 						message: 'Custom error message',
 						path: [],
 						payload: { value: 42 },
@@ -172,6 +181,7 @@ describe('undefined plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: undefined },

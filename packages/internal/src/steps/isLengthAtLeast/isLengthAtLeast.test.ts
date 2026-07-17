@@ -15,6 +15,7 @@ describe('isLengthAtLeast step plugin', () => {
 		expect(v.string().isLengthAtLeast(3).execute('hi')).toEqual({
 			issues: [{
 				code: 'isLengthAtLeast:expected_length_at_least',
+				category: 'validation',
 				message: 'Expected a length of at least 3.',
 				path: [],
 				payload: { value: 'hi', minimum: 3 },

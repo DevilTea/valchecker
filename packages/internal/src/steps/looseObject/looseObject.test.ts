@@ -132,6 +132,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						path: ['count'],
 						payload: { value: 10, error: new Error('fail') },
 						message: 'Transform failed',
@@ -161,6 +162,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: 'string' },
@@ -175,6 +177,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: 123 },
@@ -189,6 +192,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: [1, 2, 3] },
@@ -203,6 +207,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: null },
@@ -217,6 +222,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: undefined },
@@ -236,6 +242,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						message: 'Expected a number.',
 						path: ['age'],
 						payload: { value: 'thirty' },
@@ -253,6 +260,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						message: 'Expected a number.',
 						path: ['age'],
 						payload: { value: 'thirty' },
@@ -269,6 +277,7 @@ describe('looseObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'looseObject:expected_object',
+						category: 'validation',
 						message: 'Custom message',
 						path: [],
 						payload: { value: 'not an object' },

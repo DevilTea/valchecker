@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -75,7 +75,7 @@ export const array = implStepPlugin<PluginDef>({
 			}
 
 			// Optimized: Direct processing without Pipe overhead
-			const issues: ExecutionIssue[] = []
+			const issues: AnyExecutionIssue[] = []
 			const len = value.length
 			// eslint-disable-next-line unicorn/no-new-array
 			const output = new Array(len)

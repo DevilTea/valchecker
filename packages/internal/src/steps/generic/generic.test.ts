@@ -53,6 +53,7 @@ describe('generic plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						message: 'Expected a number.',
 						path: [],
 						payload: { value: 'not a number' },

@@ -39,6 +39,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: 42 },
@@ -53,6 +54,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: 'hello' },
@@ -67,6 +69,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: null },
@@ -81,6 +84,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: undefined },
@@ -95,6 +99,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: {} },
@@ -109,6 +114,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: [] },
@@ -123,6 +129,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: 123n },
@@ -138,6 +145,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Expected a boolean.',
 						path: [],
 						payload: { value: sym },
@@ -154,6 +162,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'boolean:expected_boolean',
+						category: 'validation',
 						message: 'Custom error message',
 						path: [],
 						payload: { value: 42 },
@@ -179,6 +188,7 @@ describe('boolean plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: false },

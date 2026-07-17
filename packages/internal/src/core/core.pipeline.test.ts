@@ -35,6 +35,7 @@ describe('specialized core pipelines', () => {
 	it('ignores an own message-map entry that is not a function', () => {
 		expect(handleMessage({
 			code: 'test:error',
+			category: 'validation',
 			payload: {},
 			path: [],
 		}, { 'test:error': 'not-a-handler' } as any))

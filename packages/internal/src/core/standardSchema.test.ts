@@ -36,6 +36,7 @@ describe('Standard Schema V1 contract', () => {
 		expect(failure).toMatchObject({
 			issues: [{
 				code: 'string:expected_string',
+				category: 'validation',
 				message: 'Expected a string.',
 				path: [],
 			}],
@@ -62,6 +63,7 @@ describe('Standard Schema V1 contract', () => {
 		})).resolves.toMatchObject({
 			issues: [{
 				code: 'string:expected_string',
+				category: 'validation',
 				path: ['profile', 'name'],
 			}],
 		})
@@ -105,6 +107,7 @@ describe('Standard Schema V1 contract', () => {
 		await expect(schema['~standard'].validate('Ada')).resolves.toEqual({
 			issues: [{
 				code: 'check:failed',
+				category: 'validation',
 				message: 'Check failed',
 				path: [],
 				payload: {

@@ -16,7 +16,7 @@ const payment = v.object({
 })
 ```
 
-A handler receives the fully typed issue:
+A handler receives the fully typed issue after its final path and context are known:
 
 ```ts
 const product = v.object({
@@ -100,12 +100,14 @@ const localized = createValchecker({
 
 ## Message priority
 
-Messages resolve in this order:
+Messages resolve once, after nested schemas have completed the issue path, in this order:
 
-1. per-step message,
-2. global resolver,
-3. built-in default,
-4. `"Invalid value."`.
+1. originating per-step message,
+2. nearest enclosing structure message,
+3. remaining enclosing structure messages,
+4. originating Valchecker instance global resolver,
+5. originating built-in default,
+6. `"Invalid value."`.
 
 ```ts
 const v = createValchecker({
@@ -117,7 +119,7 @@ const schema = v.string()
 	.isLengthAtLeast(3, 'Per-step message')
 ```
 
-The per-step message takes precedence.
+The per-step message takes precedence. Returning `null` or `undefined` continues to the next source.
 
 ## HTTP responses
 
@@ -131,7 +133,9 @@ if (v.isFailure(result)) {
 		error: 'Validation failed',
 		details: result.issues.map(issue => ({
 			path: issue.path,
+			context: issue.context,
 			code: issue.code,
+			category: issue.category,
 			message: issue.message,
 			payload: issue.payload,
 		})),
@@ -165,3 +169,9 @@ Use `issue.path` to map nested failures to fields. A root-level cross-field `che
 - Do not parse numbers or field names back out of message strings.
 - Include sensitive input values in messages or logs only when appropriate.
 - Test both default and custom message paths when adding a step.
+
+## Handler failures
+
+Message handlers execute inside Valchecker's public execution boundary. If a step, enclosing structure, global, or default handler throws, Valchecker returns a `core:message_exception` issue instead of throwing the message error. Its payload identifies the source, preserves the unresolved issue snapshot, and carries the original thrown value.
+
+For global localization of domain-specific issues, declare them through a registered custom plugin's `Meta.SelfIssue`. A dynamic issue added only by a later `check()` call cannot retroactively extend the issue universe of an already-created global handler.

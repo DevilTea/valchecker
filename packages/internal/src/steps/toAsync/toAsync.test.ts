@@ -42,6 +42,7 @@ describe('toAsync plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
+						category: 'validation',
 						payload: { value: 123 },
 						message: 'Expected a string.',
 						path: [],
@@ -78,6 +79,7 @@ describe('toAsync plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						payload: { value: 'test', error: expect.any(Error) },
 						message: 'Transform failed',
 						path: [],

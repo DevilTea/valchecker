@@ -10,7 +10,7 @@ The `utils` object passed to step implementations provides essential functions f
 | `addFailureStep(fn)` | Register a function that runs on failure (for recovery) | `void` |
 | `success(value)` | Return a successful result | `SuccessResult<T>` |
 | `failure(issue)` | Return a failure with single issue | `FailureResult` |
-| `failure([issues])` | Return a failure with multiple issues | `FailureResult` |
+| `failure([issues])` | Return a failure with a non-empty issue tuple | `FailureResult` |
 | `createIssue(opts)` | Create a structured issue object | `Issue` |
 
 ## addSuccessStep
@@ -70,8 +70,9 @@ Create a structured issue object:
 
 ```typescript
 createIssue({
-  code: 'step:issue_code',      // Unique identifier (step:snake_case)
-  payload: { /* data */ },      // Issue-specific data for message/debugging
+  code: 'step:issue_code',      // Must be declared by Meta.SelfIssue
+  category: 'operation',        // Required only when SelfIssue is not validation
+  payload: { /* data */ },      // Must match the selected issue code
   customMessage: message,       // User-provided message override (from params)
   defaultMessage: 'text',       // Fallback message when customMessage not provided
 })
@@ -133,3 +134,6 @@ export const positive = implStepPlugin<PluginDef>({
   },
 })
 ```
+
+
+`createIssue()` does not execute the message handler immediately. It stores typed message sources until the final public path and context are known. A thrown message handler becomes `core:message_exception` at the public execution boundary.

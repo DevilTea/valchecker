@@ -75,6 +75,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "hello".',
 						path: [],
 						payload: { value: 'world', expected: 'hello' },
@@ -89,6 +90,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "42".',
 						path: [],
 						payload: { value: 43, expected: 42 },
@@ -103,6 +105,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "true".',
 						path: [],
 						payload: { value: false, expected: true },
@@ -117,6 +120,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "123".',
 						path: [],
 						payload: { value: 124n, expected: 123n },
@@ -133,6 +137,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "Symbol(test)".',
 						path: [],
 						payload: { value: sym2, expected: sym1 },
@@ -147,6 +152,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "hello".',
 						path: [],
 						payload: { value: 42, expected: 'hello' },
@@ -184,6 +190,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "".',
 						path: [],
 						payload: { value: 'a', expected: '' },
@@ -198,6 +205,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Expected literal value "0".',
 						path: [],
 						payload: { value: 1, expected: 0 },
@@ -214,6 +222,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'literal:expected_literal',
+						category: 'validation',
 						message: 'Custom error message',
 						path: [],
 						payload: { value: 'world', expected: 'hello' },
@@ -239,6 +248,7 @@ describe('literal step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: 'hi' },

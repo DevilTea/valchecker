@@ -40,6 +40,7 @@ describe('toNumber step plugin', () => {
 		expect(result).toMatchObject({
 			issues: [{
 				code: 'toNumber:conversion_failed',
+				category: 'validation',
 				message: 'Expected a value convertible to number.',
 				path: [],
 				payload: { value },

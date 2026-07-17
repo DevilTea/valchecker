@@ -20,7 +20,10 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - Strict-object detection of unknown enumerable symbol keys.
 - Descriptor-preserving unknown fields in `looseObject()`.
 - Immutable issue-path prepending that supports frozen and reused child issues.
-- An explicit message-resolution order: custom, global, default, then `"Invalid value."`.
+- Explicit issue categories (`validation`, `operation`, and `internal`) plus optional non-data issue context.
+- Deferred, single-pass message finalization with final nested paths and enclosing structure message scopes.
+- Structured `core:message_exception` failures when a message handler throws.
+- An explicit message-resolution order: originating step, enclosing structures, originating global resolver, default, then `"Invalid value."`.
 - Public runtime and declaration export manifests for all published packages.
 - Installed-tarball consumer tests for ESM, CommonJS dynamic import, TypeScript `NodeNext`, and TypeScript `Bundler` resolution.
 - Coverage gates, documentation builds, cross-library benchmarks, generated benchmark reports, and immutable release-artifact validation in CI.
@@ -48,6 +51,9 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - Numeric bounds and length bounds are separate steps so their intent and payloads are explicit.
 - Primitive `toXxx()` conversions follow JavaScript `Number()`, `Boolean()`, and `BigInt()` semantics without hidden finite, parsing, truthiness, or precision-safety policies.
 - Identity primitive conversions are excluded from state-aware autocomplete; policy-bearing conversions use explicit names.
+- Failure issue arrays are typed as non-empty tuples.
+- `core:unknown_exception` now exposes the received execution result as `receivedResult` instead of the misleading `value` field.
+- Message maps preserve same-code payload variants and allow callbacks to return `null` or `undefined` to continue resolution.
 
 ### Renamed
 

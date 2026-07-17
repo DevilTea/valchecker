@@ -117,6 +117,7 @@ describe('json plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'json:invalid_json',
+						category: 'validation',
 						message: 'Expected a valid JSON string.',
 						path: [],
 						payload: { value: '{invalid}', error: expect.anything() },
@@ -133,6 +134,7 @@ describe('json plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'json:invalid_json',
+						category: 'validation',
 						message: 'Expected a valid JSON string.',
 						path: [],
 						payload: { value: '{"name": }', error: expect.anything() },
@@ -149,6 +151,7 @@ describe('json plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'json:invalid_json',
+						category: 'validation',
 						message: 'Expected a valid JSON string.',
 						path: [],
 						payload: { value: '', error: expect.anything() },
@@ -167,6 +170,7 @@ describe('json plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'json:invalid_json',
+						category: 'validation',
 						message: 'Custom error message',
 						path: [],
 						payload: { value: '', error: expect.anything() },

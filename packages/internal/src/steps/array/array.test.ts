@@ -13,6 +13,7 @@
 			expect(result).toEqual({
 				issues: [{
 					code: 'transform:failed',
+					category: 'validation',
 					path: [1],
 					payload: { value: 'fail', error: expect.any(Error) },
 				}],
@@ -50,6 +51,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
+						category: 'validation',
 						message: 'Expected an array.',
 						path: [],
 						payload: { value: 'not an array' },
@@ -64,6 +66,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
+						category: 'validation',
 						message: 'Expected an array.',
 						path: [],
 						payload: { value: 42 },
@@ -78,6 +81,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
+						category: 'validation',
 						message: 'Expected an array.',
 						path: [],
 						payload: { value: null },
@@ -92,6 +96,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
+						category: 'validation',
 						message: 'Expected an array.',
 						path: [],
 						payload: { value: undefined },
@@ -106,6 +111,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
+						category: 'validation',
 						message: 'Expected an array.',
 						path: [],
 						payload: { value: {} },
@@ -143,6 +149,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
+						category: 'validation',
 						path: [1],
 						payload: { value: 1 },
 						message: 'Expected a string.',
@@ -158,12 +165,14 @@ describe('array plugin', () => {
 					issues: [
 						{
 							code: 'string:expected_string',
+							category: 'validation',
 							path: [1],
 							payload: { value: 1 },
 							message: 'Expected a string.',
 						},
 						{
 							code: 'string:expected_string',
+							category: 'validation',
 							path: [2],
 							payload: { value: 2 },
 							message: 'Expected a string.',
@@ -192,6 +201,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						path: [1],
 						payload: { value: 'fail', error: expect.any(Error) },
 						message: 'Transform failed',
@@ -219,6 +229,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						path: [2],
 						payload: { value: 'fail', error: expect.any(Error) },
 						message: 'Transform failed',
@@ -251,12 +262,14 @@ describe('array plugin', () => {
 					issues: [
 						{
 							code: 'string:expected_string',
+							category: 'validation',
 							path: [1],
 							payload: { value: null },
 							message: 'Expected a string.',
 						},
 						{
 							code: 'string:expected_string',
+							category: 'validation',
 							path: [2],
 							payload: { value: undefined },
 							message: 'Expected a string.',
@@ -274,6 +287,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
+						category: 'validation',
 						path: [1],
 						payload: { value: undefined },
 						message: 'Expected a string.',
@@ -290,6 +304,7 @@ describe('array plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'array:expected_array',
+						category: 'validation',
 						message: 'Custom array message',
 						path: [],
 						payload: { value: 'not an array' },

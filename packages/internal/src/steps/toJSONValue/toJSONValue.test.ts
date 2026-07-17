@@ -15,6 +15,7 @@ describe('toJSONValue step plugin', () => {
 		expect(result).toMatchObject({
 			issues: [{
 				code: 'toJSONValue:invalid_json',
+				category: 'validation',
 				message: 'Expected a valid JSON string.',
 				path: [],
 				payload: { value: '{' },

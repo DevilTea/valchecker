@@ -74,12 +74,14 @@ describe('union plugin', () => {
 					issues: [
 						{
 							code: 'string:expected_string',
+							category: 'validation',
 							message: 'Expected a string.',
 							path: [],
 							payload: { value: null },
 						},
 						{
 							code: 'number:expected_number',
+							category: 'validation',
 							message: 'Expected a number.',
 							path: [],
 							payload: { value: null },

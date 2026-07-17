@@ -12,6 +12,7 @@ describe('isInteger step plugin', () => {
 		expect(v.number().isInteger().execute(value)).toEqual({
 			issues: [{
 				code: 'isInteger:expected_integer',
+				category: 'validation',
 				message: 'Expected an integer.',
 				path: [],
 				payload: { value },

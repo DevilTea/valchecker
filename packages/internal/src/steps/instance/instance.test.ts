@@ -55,6 +55,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Expected instance of Date.',
 						path: [],
 						payload: { value: 'not a date', expected: Date },
@@ -69,6 +70,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Expected instance of Date.',
 						path: [],
 						payload: { value: null, expected: Date },
@@ -83,6 +85,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Expected instance of Date.',
 						path: [],
 						payload: { value: undefined, expected: Date },
@@ -97,6 +100,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Expected instance of Date.',
 						path: [],
 						payload: { value: 42, expected: Date },
@@ -111,6 +115,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Expected instance of Date.',
 						path: [],
 						payload: { value: [], expected: Date },
@@ -127,6 +132,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Expected instance of String.',
 						path: [],
 						payload: { value: 'hello', expected: String },
@@ -141,6 +147,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Expected instance of Number.',
 						path: [],
 						payload: { value: 42, expected: Number },
@@ -160,6 +167,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'instance:expected_instance',
+						category: 'validation',
 						message: 'Custom error message',
 						path: [],
 						payload: { value: 'not a date', expected: Date },
@@ -186,6 +194,7 @@ describe('instance step plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: expect.any(Date) },

@@ -123,6 +123,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						message: 'Transform failed',
 						path: ['count'],
 						payload: { value: 10, error: new Error('fail') },
@@ -152,6 +153,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: 'string' },
@@ -166,6 +168,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: 123 },
@@ -180,6 +183,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: [1, 2, 3] },
@@ -194,6 +198,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: null },
@@ -208,6 +213,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: undefined },
@@ -227,6 +233,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						message: 'Expected a number.',
 						path: ['age'],
 						payload: { value: 'thirty' },
@@ -244,6 +251,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						message: 'Expected a number.',
 						path: ['age'],
 						payload: { value: 'thirty' },
@@ -260,6 +268,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:unexpected_keys',
+						category: 'validation',
 						message: 'Unexpected object keys found.',
 						path: [],
 						payload: { value: { name: 'John', extra: 'value', another: 123 }, keys: ['extra', 'another'] },
@@ -276,6 +285,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:expected_object',
+						category: 'validation',
 						message: 'Custom: strictObject:expected_object',
 						path: [],
 						payload: { value: 'not an object' },
@@ -298,6 +308,7 @@ describe('strictObject plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'strictObject:unexpected_keys',
+						category: 'validation',
 						message: 'Custom: strictObject:unexpected_keys - extra',
 						path: [],
 						payload: { value: { name: 'John', extra: 'value' }, keys: ['extra'] },

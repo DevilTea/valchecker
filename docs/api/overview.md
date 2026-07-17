@@ -143,13 +143,15 @@ Callback-driven steps may return direct or `PromiseLike` values according to the
 ```ts
 type ExecutionResult<T, Issue>
 	= | { value: T }
-		| { issues: Issue[] }
+		| { issues: [Issue, ...Issue[]] }
 
 interface ExecutionIssue {
 	code: string
+	category: 'validation' | 'operation' | 'internal'
 	message: string
 	path: PropertyKey[]
 	payload: unknown
+	context?: IssueContext[]
 }
 ```
 

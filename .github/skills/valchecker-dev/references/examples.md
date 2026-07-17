@@ -15,7 +15,7 @@ import { DefineExpectedValchecker, DefineStepMethodMeta, ExecutionIssue,
 type Meta = DefineStepMethodMeta<{
   Name: 'positive'
   ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
-  SelfIssue: ExecutionIssue<'positive:expected_positive', { value: number }>
+  SelfIssue: ExecutionIssue<'positive:expected_positive', { value: number }> // validation by default
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -283,3 +283,18 @@ Each example should be tested with:
 - Edge cases specific to the step
 
 See [testing guide](./testing.md) for complete testing details.
+
+
+## Operation issue example
+
+A callback failure must declare its category explicitly:
+
+```ts
+type CallbackIssue = ExecutionIssue<
+  'toDomain:callback_failed',
+  { value: Input, error: unknown },
+  'operation'
+>
+```
+
+Pass `category: 'operation'` to `createIssue()` for that code. TypeScript rejects a missing or mismatched category, code, or payload.

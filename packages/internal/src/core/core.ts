@@ -1,11 +1,16 @@
 import type { AnyFn, MaybePromise, MaybePromiseLike } from '../shared'
 import type {
+	AnyExecutionIssue,
+	CoreIssue,
 	ExecutionFailureResult,
 	ExecutionIssue,
 	ExecutionResult,
 	ExecutionSuccessResult,
 	InferAllIssue,
 	InitialValchecker,
+	IssueCategory,
+	IssueContext,
+	MessageExceptionIssue,
 	MessageHandler,
 	ResolveMessageFn,
 	StepMethodUtils,
@@ -16,6 +21,32 @@ import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
+
+type MessageData = {
+	code: string
+	category?: IssueCategory | undefined
+	payload: unknown
+	path: PropertyKey[]
+	context?: IssueContext[] | undefined
+}
+
+type MessageSource = 'step' | 'context' | 'global' | 'default'
+
+interface IssueDraftMetadata {
+	resolveMessage: ResolveMessageFn
+	customMessage?: MessageHandler<any> | undefined
+	contextMessages: MessageHandler<any>[]
+	defaultMessage?: MessageHandler<any> | undefined
+}
+
+class MessageResolutionError {
+	constructor(
+		readonly source: MessageSource,
+		readonly error: unknown,
+	) { }
+}
+
+const issueDraftMetadata = new WeakMap<object, IssueDraftMetadata>()
 
 /* @__NO_SIDE_EFFECTS__ */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(stepImpl: StepPluginImpl<StepPluginDef>): StepPluginImpl<StepPluginDef> {
@@ -34,17 +65,38 @@ export function isFailure(result: ExecutionResult): result is ExecutionFailureRe
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export function prependIssuePath(issue: ExecutionIssue, path: ExecutionIssue['path']): ExecutionIssue {
-	if (path == null || path.length === 0)
+export function prependIssuePath<Issue extends AnyExecutionIssue>(
+	issue: Issue,
+	path: Issue['path'],
+	messageScope?: MessageHandler<any> | undefined,
+): Issue {
+	const hasPath = path != null && path.length > 0
+	const metadata = issueDraftMetadata.get(issue)
+	const hasMessageScope = metadata != null && messageScope != null
+
+	if (!hasPath && !hasMessageScope)
 		return issue
 
 	const existingPath = issue.path
-	return {
+	const nextIssue = {
 		...issue,
-		path: existingPath == null || existingPath.length === 0
-			? [...path]
-			: [...path, ...existingPath],
+		path: hasPath
+			? existingPath == null || existingPath.length === 0
+				? [...path]
+				: [...path, ...existingPath]
+			: existingPath,
 	}
+
+	if (metadata != null) {
+		issueDraftMetadata.set(nextIssue, {
+			...metadata,
+			contextMessages: hasMessageScope
+				? [...metadata.contextMessages, messageScope as MessageHandler<any>]
+				: metadata.contextMessages,
+		})
+	}
+
+	return nextIssue
 }
 
 function executeRuntimeSteps(runtimeSteps: RuntimeStep[], value: unknown): MaybePromise<ExecutionResult> {
@@ -113,52 +165,83 @@ function createFinalizedPipeExecutor(runtimeSteps: RuntimeStep[]): PipeExecutor 
 	}
 }
 
+function normalizeMessageData(data: MessageData): Required<Pick<MessageData, 'code' | 'category' | 'payload' | 'path'>> & Pick<MessageData, 'context'> {
+	return {
+		code: data.code,
+		category: data.category ?? 'validation',
+		payload: data.payload,
+		path: data.path,
+		context: data.context,
+	}
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 export function handleMessage(
-	data: {
-		code: string
-		payload: any
-		path: PropertyKey[]
-	},
+	data: MessageData,
 	message?: MessageHandler<any> | undefined | null,
 ): string | undefined | null {
-	if (message == null || typeof message === 'string')
+	if (message == null)
 		return message
+	if (typeof message === 'string')
+		return message
+
+	const normalizedData = normalizeMessageData(data)
 	if (typeof message === 'function')
-		return message(data)
+		return message(normalizedData as any)
+
 	if (Object.hasOwn(message, data.code)) {
 		const mappedMessage = (message as any)[data.code]
 		if (typeof mappedMessage === 'function')
-			return mappedMessage(data)
+			return mappedMessage(normalizedData)
 	}
 	return null
+}
+
+function handleMessageSource(
+	data: MessageData,
+	message: MessageHandler<any> | undefined | null,
+	source: MessageSource,
+): string | undefined | null {
+	try {
+		return handleMessage(data, message)
+	}
+	catch (error) {
+		throw new MessageResolutionError(source, error)
+	}
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export function resolveMessagePriority({
 	data,
 	customMessage,
+	contextMessages = [],
 	defaultMessage,
 	globalMessage,
 }: {
-	data: {
-		code: string
-		payload: any
-		path: PropertyKey[]
-	}
+	data: MessageData
 	customMessage: MessageHandler<any> | undefined | null
+	contextMessages?: MessageHandler<any>[] | undefined
 	defaultMessage: MessageHandler<any> | undefined | null
 	globalMessage: MessageHandler<any> | undefined
 }): string {
-	const customMsg = handleMessage(data, customMessage)
+	const customMsg = handleMessageSource(data, customMessage, 'step')
 	if (customMsg != null)
 		return customMsg
-	const globalMsg = handleMessage(data, globalMessage)
+
+	for (const contextMessage of contextMessages) {
+		const contextMsg = handleMessageSource(data, contextMessage, 'context')
+		if (contextMsg != null)
+			return contextMsg
+	}
+
+	const globalMsg = handleMessageSource(data, globalMessage, 'global')
 	if (globalMsg != null)
 		return globalMsg
-	const defaultMsg = handleMessage(data, defaultMessage)
+
+	const defaultMsg = handleMessageSource(data, defaultMessage, 'default')
 	if (defaultMsg != null)
 		return defaultMsg
+
 	return 'Invalid value.'
 }
 
@@ -169,25 +252,131 @@ function createResolveMessageFunction(
 	return ({
 		data,
 		customMessage,
+		contextMessages,
 		defaultMessage,
 	}) => resolveMessagePriority({
 		data,
 		customMessage,
+		contextMessages,
 		defaultMessage,
 		globalMessage,
 	})
 }
 
-/* @__NO_SIDE_EFFECTS__ */
-function createUnknownExceptionFailure(method: string, lastResult: ExecutionResult, error: unknown): ExecutionFailureResult<any> {
+function getMessageData(issue: AnyExecutionIssue): MessageData {
 	return {
-		issues: [{
-			code: 'core:unknown_exception',
-			payload: { method, value: lastResult, error },
-			message: 'An unexpected error occurred during step execution',
-			path: [],
-		}],
+		code: issue.code,
+		category: issue.category,
+		payload: issue.payload,
+		path: issue.path,
+		context: issue.context,
 	}
+}
+
+function createMessageExceptionIssue(
+	unresolvedIssue: AnyExecutionIssue,
+	resolutionError: MessageResolutionError,
+	resolveMessage: ResolveMessageFn,
+): MessageExceptionIssue {
+	const defaultMessage = 'An unexpected error occurred while resolving an issue message.'
+	const issue: MessageExceptionIssue = {
+		code: 'core:message_exception',
+		category: 'internal',
+		payload: {
+			source: resolutionError.source,
+			unresolvedIssue: getMessageData(unresolvedIssue) as MessageExceptionIssue['payload']['unresolvedIssue'],
+			error: resolutionError.error,
+		},
+		message: defaultMessage,
+		path: [...unresolvedIssue.path],
+	}
+	if (unresolvedIssue.context != null)
+		issue.context = [...unresolvedIssue.context]
+
+	try {
+		issue.message = resolveMessage({
+			data: getMessageData(issue) as any,
+			defaultMessage,
+		})
+	}
+	catch {
+		// A message exception must always remain representable, even when the
+		// global resolver also rejects the core issue used to report it.
+	}
+
+	return issue
+}
+
+function finalizeIssue(issue: AnyExecutionIssue): AnyExecutionIssue {
+	const metadata = issueDraftMetadata.get(issue)
+	if (metadata == null)
+		return issue
+
+	try {
+		return {
+			...issue,
+			message: metadata.resolveMessage({
+				data: getMessageData(issue) as any,
+				customMessage: metadata.customMessage,
+				contextMessages: metadata.contextMessages,
+				defaultMessage: metadata.defaultMessage,
+			}),
+		}
+	}
+	catch (error) {
+		const resolutionError = error instanceof MessageResolutionError
+			? error
+			: new MessageResolutionError('default', error)
+		return createMessageExceptionIssue(issue, resolutionError, metadata.resolveMessage)
+	}
+}
+
+function finalizeResult(result: ExecutionResult): ExecutionResult {
+	if ('value' in result)
+		return result
+
+	const issues = result.issues
+	return {
+		issues: [
+			finalizeIssue(issues[0]!),
+			...issues.slice(1).map(finalizeIssue),
+		],
+	}
+}
+
+function createPublicExecutor(executeRaw: PipeExecutor): PipeExecutor {
+	return (value) => {
+		const result = executeRaw(value)
+		return isPromiseLike(result)
+			? Promise.resolve(result).then(finalizeResult)
+			: finalizeResult(result)
+	}
+}
+
+/* @__NO_SIDE_EFFECTS__ */
+function createUnknownExceptionFailure(
+	method: string,
+	lastResult: ExecutionResult,
+	error: unknown,
+	resolveMessage: ResolveMessageFn,
+): ExecutionFailureResult<CoreIssue> {
+	const issue: ExecutionIssue<
+		'core:unknown_exception',
+		{ method: string, receivedResult: ExecutionResult, error: unknown },
+		'internal'
+	> = {
+		code: 'core:unknown_exception',
+		category: 'internal',
+		payload: { method, receivedResult: lastResult, error },
+		message: 'Invalid value.',
+		path: [],
+	}
+	issueDraftMetadata.set(issue, {
+		resolveMessage,
+		contextMessages: [],
+		defaultMessage: 'An unexpected error occurred during step execution',
+	})
+	return { issues: [issue] }
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -195,18 +384,18 @@ function createExecutionStepMethodUtils(
 	method: string,
 	runtimeExecutions: RuntimeStep[],
 	resolveMessage: ResolveMessageFn,
-): StepMethodUtils<any, any, any> {
+): StepMethodUtils<any, any, any, any> {
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
 	) => (lastResult: ExecutionResult) => {
 		try {
 			const result = fn(lastResult)
 			return isPromiseLike(result)
-				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error))
+				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
 				: result
 		}
 		catch (error) {
-			return createUnknownExceptionFailure(method, lastResult, error)
+			return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
 		}
 	}
 
@@ -218,28 +407,37 @@ function createExecutionStepMethodUtils(
 		isFailure,
 		prependIssuePath,
 		success: value => ({ value }),
-		failure: issueOrIssues => ({ issues: Array.isArray(issueOrIssues) ? issueOrIssues : [issueOrIssues] }),
+		failure: (issueOrIssues) => {
+			const issues = Array.isArray(issueOrIssues) ? issueOrIssues : [issueOrIssues]
+			if (issues.length === 0)
+				throw new TypeError('A failure result requires at least one issue.')
+			return { issues: issues as [AnyExecutionIssue, ...AnyExecutionIssue[]] }
+		},
 		createIssue: ({
 			code,
+			category = 'validation',
 			payload,
 			path = [],
+			context,
 			customMessage,
 			defaultMessage,
-		}) => {
-			return {
+		}: any) => {
+			const issue: AnyExecutionIssue = {
 				code,
+				category,
 				payload,
 				path,
-				message: resolveMessage({
-					data: {
-						code,
-						payload,
-						path,
-					},
-					customMessage,
-					defaultMessage,
-				}),
+				message: 'Invalid value.',
 			}
+			if (context != null)
+				issue.context = context
+			issueDraftMetadata.set(issue, {
+				resolveMessage,
+				customMessage,
+				contextMessages: [],
+				defaultMessage,
+			})
+			return issue
 		},
 		issue: i => i,
 	}
@@ -284,8 +482,9 @@ function createProxyHandler({
 /* @__NO_SIDE_EFFECTS__ */
 function createCoreProperties(
 	runtimeSteps: RuntimeStep[],
-	execute: PipeExecutor,
+	executeRaw: PipeExecutor,
 ) {
+	const execute = createPublicExecutor(executeRaw)
 	return {
 		'~standard': {
 			version: 1,
@@ -299,7 +498,7 @@ function createCoreProperties(
 				return runtimeSteps
 			},
 		},
-		'~execute': execute,
+		'~execute': executeRaw,
 		execute,
 		isSuccess,
 		isFailure,
@@ -316,8 +515,8 @@ function createInstance({
 	resolveMessage: ResolveMessageFn
 	currentRuntimeSteps: RuntimeStep[]
 }): any {
-	const execute = createFinalizedPipeExecutor(currentRuntimeSteps)
-	const coreProperties = createCoreProperties(currentRuntimeSteps, execute)
+	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
+	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw)
 
 	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps }))
 }
