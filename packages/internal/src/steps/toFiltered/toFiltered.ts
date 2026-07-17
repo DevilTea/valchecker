@@ -1,54 +1,84 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferOutput, Next, TStepPluginDef } from '../../core'
-import type { OverloadParametersAndReturnType } from '../../shared'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+
+declare namespace Internal {
+	export type Issue<Input extends any[] = any[], Item = Input[number]> = ExecutionIssue<
+		'toFiltered:callback_failed',
+		{ value: Input, item: Item, index: number, error: unknown },
+		'operation'
+	>
+}
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toFiltered'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: any[] & { filter: (...params: any[]) => any } }>
+	SelfIssue: Internal.Issue
 }>
 
 interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Filters the array using the provided predicate function.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, array, number, toFiltered } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [array, number, toFiltered] })
-	 * const schema = v.array(v.number()).toFiltered((n) => n > 5)
-	 * const result = schema.execute([1, 6, 3, 8])
-	 * // result.value: [6, 8]
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * None.
-	 */
-	toFiltered: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-		?	OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['filter']> extends infer Tuple
-			?	Tuple extends [params: any[], ret: any]
-				?	DefineStepMethod<
-					Meta,
-					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['CurrentValchecker']>
-				>
-				:	never
-			:	never
-		:	never
+	toFiltered:
+		| DefineStepMethod<
+			Meta,
+			this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+				? InferOutput<this['CurrentValchecker']> extends infer Input extends any[]
+					? <Narrowed extends Input[number]>(
+						predicate: (item: Input[number], index: number, value: Input) => item is Narrowed,
+						thisArg?: any,
+						message?: MessageHandler<Internal.Issue<Input>>,
+					) => Next<{ output: Narrowed[], issue: Internal.Issue<Input> }, this['CurrentValchecker']>
+					: never
+				: never
+		>
+		| DefineStepMethod<
+			Meta,
+			this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+				? InferOutput<this['CurrentValchecker']> extends infer Input extends any[]
+					? (
+						predicate: (item: Input[number], index: number, value: Input) => unknown,
+						thisArg?: any,
+						message?: MessageHandler<Internal.Issue<Input>>,
+					) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, this['CurrentValchecker']>
+					: never
+				: never
+		>
+}
+
+class FilterCallbackError {
+	constructor(
+		readonly item: unknown,
+		readonly index: number,
+		readonly error: unknown,
+	) { }
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export const toFiltered = implStepPlugin<PluginDef>({
 	toFiltered: ({
-		utils: { addSuccessStep, success },
-		params,
+		utils: { addSuccessStep, success, createIssue, failure },
+		params: [predicate, thisArg, message],
 	}) => {
 		addSuccessStep((value) => {
-			return success(value.filter(...params))
+			try {
+				return success(value.filter((item: unknown, index: number, array: unknown[]) => {
+					try {
+						return predicate.call(thisArg, item, index, array)
+					}
+					catch (error) {
+						throw new FilterCallbackError(item, index, error)
+					}
+				}))
+			}
+			catch (error) {
+				if (!(error instanceof FilterCallbackError))
+					throw error
+				return failure(createIssue({
+					code: 'toFiltered:callback_failed',
+					category: 'operation',
+					payload: { value, item: error.item, index: error.index, error: error.error },
+					customMessage: message,
+					defaultMessage: 'Filter callback failed.',
+				}))
+			}
 		})
 	},
 })
