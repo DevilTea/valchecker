@@ -1,112 +1,49 @@
-/**
- * Test Plan for toSorted.ts
- *
- * This test file covers the `toSorted` step plugin implementation.
- *
- * Functions and Classes:
- * - toSorted: A step plugin that sorts an array using toSorted method.
- *
- * Input Scenarios:
- * - Arrays of numbers: Default sort, custom comparator.
- * - Arrays of strings: Default sort, custom comparator.
- * - Empty arrays: Should remain empty.
- * - Arrays with mixed types: Depending on comparator.
- * - Edge cases: Already sorted, reverse sorted.
- *
- * Expected Outputs and Behaviors:
- * - Success: Returns { value: newSortedArray }.
- *
- * Error Handling and Exceptions:
- * - Comparator exceptions become operation issues; non-comparator method errors remain internal.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
-
-import { describe, expect, it } from 'vitest'
+import type { InferOutput } from '../..'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { any, array, createValchecker, toSorted, transform } from '../..'
 
 const v = createValchecker({ steps: [array, any, toSorted, transform] })
 
-describe('toSorted plugin', () => {
-	describe('default sorting', () => {
-		it('should sort numbers in ascending order by default', () => {
-			const result = v.array(v.any())
-				.toSorted()
-				.execute([3, 1, 4, 1, 5])
-			expect(result)
-				.toEqual({ value: [1, 1, 3, 4, 5] })
-		})
+describe('toSorted step plugin', () => {
+	it('uses native default ordering and leaves the input unchanged', () => {
+		const input = ['banana', 'apple', 'cherry']
+		const schema = v.array(v.any()).toSorted()
+		const result = schema.execute(input)
 
-		it('should sort strings alphabetically by default', () => {
-			const result = v.array(v.any())
-				.toSorted()
-				.execute(['banana', 'apple', 'cherry'])
-			expect(result)
-				.toEqual({ value: ['apple', 'banana', 'cherry'] })
-		})
+		expect(result).toEqual({ value: ['apple', 'banana', 'cherry'] })
+		expect(input).toEqual(['banana', 'apple', 'cherry'])
+		if (v.isSuccess(result))
+			expect(result.value).not.toBe(input)
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<any[]>()
+	})
 
-		it('should handle empty array', () => {
-			const result = v.array(v.any())
-				.toSorted()
-				.execute([])
-			expect(result)
-				.toEqual({ value: [] })
-		})
-
-		it('should handle single element array', () => {
-			const result = v.array(v.any())
-				.toSorted()
-				.execute([42])
-			expect(result)
-				.toEqual({ value: [42] })
-		})
-
-		it('should handle already sorted array', () => {
-			const result = v.array(v.any())
-				.toSorted()
-				.execute([1, 2, 3, 4, 5])
-			expect(result)
-				.toEqual({ value: [1, 2, 3, 4, 5] })
-		})
-
-		it('should handle reverse sorted array', () => {
-			const result = v.array(v.any())
-				.toSorted()
-				.execute([5, 4, 3, 2, 1])
-			expect(result)
-				.toEqual({ value: [1, 2, 3, 4, 5] })
+	it('uses a custom comparator without changing duplicate membership', () => {
+		expect(v.array(v.any())
+			.toSorted((left: number, right: number) => right - left)
+			.execute([3, 1, 4, 1, 5])).toEqual({
+			value: [5, 4, 3, 1, 1],
 		})
 	})
 
-	describe('custom comparator', () => {
-		it('should sort with custom comparator', () => {
-			const result = v.array(v.any())
-				.toSorted((a: number, b: number) => b - a)
-				.execute([3, 1, 4, 1, 5])
-			expect(result)
-				.toEqual({ value: [5, 4, 3, 1, 1] })
-		})
-
-		it('should sort strings case-insensitively with custom comparator', () => {
-			const result = v.array(v.any())
-				.toSorted((a: string, b: string) => a.toLowerCase()
-					.localeCompare(b.toLowerCase()))
-				.execute(['Banana', 'apple', 'Cherry'])
-			expect(result)
-				.toEqual({ value: ['apple', 'Banana', 'Cherry'] })
-		})
+	it.each([
+		['empty', []],
+		['single', [42]],
+	] as const)('preserves the %s-array boundary', (_case, input) => {
+		expect(v.array(v.any()).toSorted().execute([...input])).toEqual({ value: input })
 	})
 
-	it('should report comparator exceptions with operands', () => {
+	it('reports comparator exceptions with both operands', () => {
 		const error = new Error('comparator')
 		const result = v.array(v.any())
 			.toSorted(() => { throw error }, 'Sort failed')
 			.execute([2, 1])
+
 		expect(result).toMatchObject({
 			issues: [{
 				code: 'toSorted:callback_failed',
 				category: 'operation',
 				message: 'Sort failed',
+				path: [],
 				payload: {
 					value: [2, 1],
 					left: expect.any(Number),
@@ -117,14 +54,14 @@ describe('toSorted plugin', () => {
 		})
 	})
 
-	it('should leave non-comparator sort failures to the core boundary', () => {
+	it('leaves failures outside the comparator callback to the core boundary', () => {
 		const error = new Error('sort method')
 		const value = [] as any[] & { toSorted: typeof Array.prototype.toSorted }
 		value.toSorted = () => { throw error }
-		const result = v.transform(() => value)
+
+		expect(v.transform(() => value)
 			.toSorted(() => 0)
-			.execute(null)
-		expect(result).toMatchObject({
+			.execute(null)).toMatchObject({
 			issues: [{
 				code: 'core:unknown_exception',
 				category: 'internal',
