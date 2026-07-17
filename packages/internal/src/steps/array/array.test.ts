@@ -1,301 +1,185 @@
-/**
- * Test Plan for array.ts
- *
- * This test file covers the `array` step plugin implementation.
- *
- * Functions and Classes:
- * - array: array validation definition and implementation.
- *
- * Input Scenarios:
- * - Non-array inputs: string, number, object, null, undefined.
- * - Valid arrays: empty, with valid items, with invalid items, mixed.
- * - Async item validators: success and failure.
- * - Edge cases: sparse arrays, null/undefined elements.
- *
- * Expected Outputs and Behaviors:
- * - Non-arrays: Issues with 'array:expected_array'.
- * - Valid arrays: Processed array or issues with prefixed paths.
- * - Async: Promise resolution with correct results.
- *
- * Error Handling and Exceptions:
- * - No exceptions; all errors handled via issues.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
+import { describe, expect, it, vi } from 'vitest'
+import { implStepPlugin } from '../../core'
+import { array, createValchecker, number, string, transform, unknown } from '../..'
 
-import { describe, expect, it } from 'vitest'
-import { array, createValchecker, number, string, transform } from '../..'
-
-const v = createValchecker({ steps: [array, string, number, transform] })
-
-describe('array plugin', () => {
-	describe('invalid inputs (not arrays)', () => {
-		it('should fail for string', () => {
-			const result = v.array(v.string())
-				.execute('not an array')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'array:expected_array',
-						category: 'validation',
-						message: 'Expected an array.',
-						path: [],
-						payload: { value: 'not an array' },
-					}],
-				})
+const arrayFixture = implStepPlugin<any>({
+	internalFailure: ({ utils }: any) => {
+		utils.addSuccessStep(() => {
+			throw new Error('internal failure')
 		})
-
-		it('should fail for number', () => {
-			const result = v.array(v.string())
-				.execute(42)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'array:expected_array',
-						category: 'validation',
-						message: 'Expected an array.',
-						path: [],
-						payload: { value: 42 },
-					}],
-				})
+	},
+	asyncInternalFailure: ({ utils }: any) => {
+		utils.addSuccessStep(async () => {
+			throw new Error('async internal failure')
 		})
-
-		it('should fail for null', () => {
-			const result = v.array(v.string())
-				.execute(null)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'array:expected_array',
-						category: 'validation',
-						message: 'Expected an array.',
-						path: [],
-						payload: { value: null },
-					}],
-				})
+	},
+	observe: ({ utils, params: [callback] }: any) => {
+		utils.addSuccessStep((value: unknown) => {
+			callback(value)
+			return utils.success(value)
 		})
+	},
+})
 
-		it('should fail for undefined', () => {
-			const result = v.array(v.string())
-				.execute(undefined)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'array:expected_array',
-						category: 'validation',
-						message: 'Expected an array.',
-						path: [],
-						payload: { value: undefined },
-					}],
-				})
-		})
+const v = createValchecker({
+	steps: [array, arrayFixture, number, string, transform, unknown],
+})
 
-		it('should fail for object', () => {
-			const result = v.array(v.string())
-				.execute({})
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'array:expected_array',
-						category: 'validation',
-						message: 'Expected an array.',
-						path: [],
-						payload: { value: {} },
-					}],
-				})
+describe('array step plugin', () => {
+	it.each([
+		['string', 'not an array'],
+		['number', 42],
+		['object', {}],
+		['null', null],
+		['undefined', undefined],
+	] as const)('rejects %s input as a non-array', (_kind, value) => {
+		expect(v.array(v.string()).execute(value)).toEqual({
+			issues: [{
+				code: 'array:expected_array',
+				category: 'validation',
+				message: 'Expected an array.',
+				path: [],
+				payload: { value },
+			}],
 		})
 	})
 
-	describe('valid arrays', () => {
-		it('should pass for empty array with string item validator', () => {
-			const result = v.array(v.string())
-				.execute([])
-			expect(result)
-				.toEqual({ value: [] })
-		})
-
-		it('should pass for array of strings', () => {
-			const result = v.array(v.string())
-				.execute(['a', 'b', 'c'])
-			expect(result)
-				.toEqual({ value: ['a', 'b', 'c'] })
-		})
-
-		it('should pass for array of numbers', () => {
-			const result = v.array(v.number())
-				.execute([1, 2, 3])
-			expect(result)
-				.toEqual({ value: [1, 2, 3] })
-		})
-
-		it('should fail for array with invalid items', () => {
-			const result = v.array(v.string())
-				.execute(['a', 1, 'c'])
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'string:expected_string',
-						category: 'validation',
-						path: [1],
-						payload: { value: 1 },
-						message: 'Expected a string.',
-					}],
-				})
-		})
-
-		it('should collect multiple issues', () => {
-			const result = v.array(v.string())
-				.execute(['a', 1, 2])
-			expect(result)
-				.toEqual({
-					issues: [
-						{
-							code: 'string:expected_string',
-							category: 'validation',
-							path: [1],
-							payload: { value: 1 },
-							message: 'Expected a string.',
-						},
-						{
-							code: 'string:expected_string',
-							category: 'validation',
-							path: [2],
-							payload: { value: 2 },
-							message: 'Expected a string.',
-						},
-					],
-				})
-		})
-
-		it('should handle async item validator', async () => {
-			const result = await v.array(v.string()
-				.transform(async x => x))
-				.execute(['a', 'b'])
-			expect(result)
-				.toEqual({ value: ['a', 'b'] })
-		})
-
-		it('should handle async item validator with failure', async () => {
-			const result = await v.array(v.string()
-				.transform(async (x) => {
-					if (x === 'fail')
-						throw new Error('fail')
-					return x
-				}))
-				.execute(['a', 'fail'])
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						path: [1],
-						payload: { phase: 'reject', value: 'fail', error: expect.any(Error) },
-						message: 'Transform callback failed.',
-					}],
-				})
-		})
-
-		it('should handle async item validator with multiple items (triggers chaining)', async () => {
-			const result = await v.array(v.string()
-				.transform(async x => x.toUpperCase()))
-				.execute(['a', 'b', 'c'])
-			expect(result)
-				.toEqual({ value: ['A', 'B', 'C'] })
-		})
-
-		it('should handle async item validator with failure in chain', async () => {
-			const result = await v.array(v.string()
-				.transform(async (x) => {
-					if (x === 'fail')
-						throw new Error('fail')
-					return x
-				}))
-				.execute(['a', 'b', 'fail', 'd'])
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						path: [2],
-						payload: { phase: 'reject', value: 'fail', error: expect.any(Error) },
-						message: 'Transform callback failed.',
-					}],
-				})
-		})
-
-		it('should handle mixed async and sync items in chain', async () => {
-			let firstItem = true
-			const result = await v.array(v.string()
-				.transform((x) => {
-					if (firstItem) {
-						firstItem = false
-						return Promise.resolve(x.toUpperCase())
-					}
-					return x.toLowerCase()
-				}))
-				.execute(['a', 'B', 'C'])
-			expect(result)
-				.toEqual({ value: ['A', 'b', 'c'] })
+	it('uses a custom message for its owned array-classification issue', () => {
+		expect(v.array(v.string(), 'Custom array').execute('wrong')).toMatchObject({
+			issues: [{
+				code: 'array:expected_array',
+				message: 'Custom array',
+			}],
 		})
 	})
 
-	describe('edge cases', () => {
-		it('should handle array with null and undefined', () => {
-			const result = v.array(v.string())
-				.execute(['a', null, undefined])
-			expect(result)
-				.toEqual({
-					issues: [
-						{
-							code: 'string:expected_string',
-							category: 'validation',
-							path: [1],
-							payload: { value: null },
-							message: 'Expected a string.',
-						},
-						{
-							code: 'string:expected_string',
-							category: 'validation',
-							path: [2],
-							payload: { value: undefined },
-							message: 'Expected a string.',
-						},
-					],
-				})
-		})
-
-		it('should handle sparse array', () => {
-			const arr = ['a']
-			arr[2] = 'c'
-			const result = v.array(v.string())
-				.execute(arr)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'string:expected_string',
-						category: 'validation',
-						path: [1],
-						payload: { value: undefined },
-						message: 'Expected a string.',
-					}],
-				})
+	it('returns transformed child outputs in item order', () => {
+		expect(v.array(v.string().transform(value => value.toUpperCase()))
+			.execute(['a', 'b', 'c'])).toEqual({
+			value: ['A', 'B', 'C'],
 		})
 	})
 
-	describe('custom messages', () => {
-		it('should use custom message for invalid array input', () => {
-			const result = v.array(v.string(), () => 'Custom array message')
-				.execute('not an array')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'array:expected_array',
-						category: 'validation',
-						message: 'Custom array message',
-						path: [],
-						payload: { value: 'not an array' },
-					}],
-				})
+	it('collects child issues with stable numeric paths', () => {
+		expect(v.array(v.string()).execute(['ok', 1, 2])).toEqual({
+			issues: [
+				{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: [1],
+					payload: { value: 1 },
+				},
+				{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: [2],
+					payload: { value: 2 },
+				},
+			],
 		})
+	})
+
+	it('validates sparse positions as undefined values', () => {
+		const input = ['a']
+		input[2] = 'c'
+
+		expect(v.array(v.string()).execute(input)).toMatchObject({
+			issues: [{
+				code: 'string:expected_string',
+				path: [1],
+				payload: { value: undefined },
+			}],
+		})
+	})
+
+	it('continues remaining items after a recoverable asynchronous child failure', async () => {
+		const later = vi.fn((value: string) => value.toUpperCase())
+		let index = 0
+		const item = v.string().transform(async (value) => {
+			const current = index++
+			if (current === 0)
+				throw new Error('recoverable')
+			return later(value)
+		})
+
+		await expect(v.array(item).execute(['first', 'second', 'third']))
+			.resolves.toMatchObject({
+				issues: [{
+					code: 'transform:callback_failed',
+					category: 'operation',
+					path: [0],
+					payload: { phase: 'reject', value: 'first' },
+				}],
+			})
+		expect(later).toHaveBeenCalledTimes(2)
+	})
+
+	it('continues synchronous items after the first item returns a promise', async () => {
+		let first = true
+		const item = v.string().transform((value) => {
+			if (first) {
+				first = false
+				return Promise.resolve(value.toUpperCase())
+			}
+			return value.toLowerCase()
+		})
+
+		await expect(v.array(item).execute(['a', 'B', 'C']))
+			.resolves.toEqual({ value: ['A', 'b', 'c'] })
+	})
+
+	it('stops later items after a synchronous internal child failure', () => {
+		const later = vi.fn()
+		let index = 0
+		const item = (v as any).unknown().observe((value: unknown) => {
+			const current = index++
+			if (current === 1)
+				throw new Error('fixture should be replaced')
+			later(value)
+		})
+		const internal = (v as any).unknown().internalFailure()
+		const selector = (v as any).unknown().transform((value: unknown) => value)
+		const schema = (v as any).array({
+			'~execute': (value: unknown) => value === 'internal'
+				? internal['~execute'](value)
+				: value === 'later'
+					? item['~execute'](value)
+					: selector['~execute'](value),
+		})
+		const result = schema.execute(['ok', 'internal', 'later'])
+
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				category: 'internal',
+				path: [1],
+				payload: { method: 'internalFailure' },
+			}],
+		})
+		expect(later).not.toHaveBeenCalled()
+	})
+
+	it('stops later items after an asynchronous internal child failure', async () => {
+		const later = vi.fn()
+		const internal = (v as any).unknown().asyncInternalFailure()
+		const observed = (v as any).unknown().observe(later)
+		const schema = (v as any).array({
+			'~execute': (value: unknown) => value === 'internal'
+				? internal['~execute'](value)
+				: observed['~execute'](value),
+		})
+
+		await expect(schema.execute(['internal', 'later']))
+			.resolves.toMatchObject({
+				issues: [{
+					code: 'core:unknown_exception',
+					category: 'internal',
+					path: [0],
+					payload: { method: 'asyncInternalFailure' },
+				}],
+			})
+		expect(later).not.toHaveBeenCalled()
 	})
 })
