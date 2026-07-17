@@ -123,12 +123,12 @@ v.number().isAtLeast(0).isAtMost(100)
 
 ## Primitive conversions
 
-Native coercion steps delegate directly to JavaScript and are exposed only after a different primitive type:
+Native coercion steps delegate directly to JavaScript and are exposed after any output that is not already the target primitive type:
 
 ```ts
 v.string().toNumber() // Number(value)
-v.string().toBoolean() // Boolean(value)
-v.string().toBigint() // BigInt(value), with native exceptions as issues
+v.unknown().toBoolean() // Boolean(value)
+v.object({ value: v.number() }).toBigint() // BigInt(value), with native exceptions as issues
 ```
 
 They do not hide extra safety policy:
@@ -140,7 +140,7 @@ v.bigint().toNumber().execute(9007199254740993n)
 // { value: 9007199254740992 }
 ```
 
-Explicit policy conversions are separate:
+Native exceptions from `Number()` and `BigInt()` become structured issues. Explicit policy conversions are separate:
 
 ```ts
 v.bigint().toSafeNumber()
