@@ -61,9 +61,22 @@ Each validation must enforce only the condition named by the method. Do not add 
 Use `toXxx` and describe the resulting representation:
 
 ```text
-toTrimmed, toLowercase, toSplit, toJSONValue,
-toJSONString, toSorted, toFiltered
+toTrimmed, toLowercase, toSplit, toJSONValue, toJSONString,
+toNumber, toBoolean, toBigint, toSafeNumber, toMappedBoolean,
+toSorted, toFiltered
 ```
+
+Native primitive conversions must delegate to their corresponding JavaScript operation without hidden policy:
+
+```text
+toNumber  -> Number(value)
+toBoolean -> Boolean(value)
+toBigint  -> BigInt(value)
+```
+
+Native exceptions become structured issues when applicable. Special values such as `NaN` and infinity remain successful `number` outputs. Precision loss from `Number(bigint)` is not blocked by `toNumber()`.
+
+Policy-bearing conversions require explicit names. `toSafeNumber()` enforces the safe integer range; `toMappedBoolean()` uses caller-provided mappings. Identity primitive conversions are unavailable in the state-aware API.
 
 ### Generic and flow-control operations
 
@@ -83,7 +96,7 @@ packages/internal/src/steps/<module>/
 └── index.ts
 ```
 
-Historical module directory names may differ from the current public method name. Public exports, `Meta.Name`, and the plugin object define API identity.
+Module directory and file names must match the public step name. Public exports, `Meta.Name`, and the plugin object define API identity.
 
 Steps use three layers:
 
@@ -104,6 +117,8 @@ Modified step implementations require 100% coverage. Cover:
 
 For TypeScript-aligned loose primitives, keep compile-time template-literal expectations and runtime fixtures synchronized.
 
+For native conversion steps, include edge cases that distinguish JavaScript coercion from parsing or validation, including `NaN`, infinity, empty strings, truthiness, native exceptions, and bigint precision loss.
+
 ## Issue codes
 
 Format:
@@ -119,6 +134,9 @@ string:expected_string
 isFinite:expected_finite
 isAtLeast:expected_at_least
 toJSONValue:invalid_json
+toBigint:invalid_bigint
+toSafeNumber:out_of_safe_integer_range
+toMappedBoolean:unmapped_value
 check:failed
 ```
 
