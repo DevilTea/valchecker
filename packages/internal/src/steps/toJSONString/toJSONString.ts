@@ -91,6 +91,15 @@ function prepareJSON(value: unknown): Prepared {
 			}
 		}
 
+		if (current instanceof Number)
+			return visit(Number.prototype.valueOf.call(current), at, key, false)
+		if (current instanceof String)
+			return visit(String.prototype.valueOf.call(current), at, key, false)
+		if (current instanceof Boolean)
+			return visit(Boolean.prototype.valueOf.call(current), at, key, false)
+		if (current instanceof BigInt)
+			return visit(BigInt.prototype.valueOf.call(current), at, key, false)
+
 		const identity = current as object
 		if (ancestors.has(identity))
 			return { ok: false, type: 'validation', reason: 'circular_reference', at }
