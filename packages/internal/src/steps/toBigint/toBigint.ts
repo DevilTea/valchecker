@@ -4,44 +4,19 @@ import { implStepPlugin } from '../../core'
 type Meta = DefineStepMethodMeta<{
 	Name: 'toBigint'
 	ExpectedCurrentValchecker: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'toBigint:invalid_bigint', { value: unknown, error: unknown }>
+	SelfIssue: ExecutionIssue<'toBigint:conversion_failed', { value: unknown, error: unknown }>
 }>
 
 interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Converts the current value with JavaScript's native `BigInt()` conversion.
-	 *
-	 * This step is available after any output that is not already a bigint. Native conversion errors are returned as structured validation issues. No additional parsing grammar or safety policy is applied.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, string, toBigint } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [string, toBigint] })
-	 * const result = v.string().toBigint().execute('42')
-	 * // { value: 42n }
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'toBigint:invalid_bigint'`: JavaScript's native `BigInt()` conversion threw an error.
-	 */
 	toBigint: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends bigint
 				? never
-				: (message?: MessageHandler<Meta['SelfIssue']>) => Next<
-						{
-							output: bigint
-							issue: Meta['SelfIssue']
-						},
-						This
-					>
+				: (message?: MessageHandler<Meta['SelfIssue']>) => Next<{
+					output: bigint
+					issue: Meta['SelfIssue']
+				}, This>
 			: never
 	>
 }
@@ -57,14 +32,12 @@ export const toBigint = implStepPlugin<PluginDef>({
 				return success(BigInt(value))
 			}
 			catch (error) {
-				return failure(
-					createIssue({
-						code: 'toBigint:invalid_bigint',
-						payload: { value, error },
-						customMessage: message,
-						defaultMessage: 'Expected a value convertible to bigint.',
-					}),
-				)
+				return failure(createIssue({
+					code: 'toBigint:conversion_failed',
+					payload: { value, error },
+					customMessage: message,
+					defaultMessage: 'Expected a value convertible to bigint.',
+				}))
 			}
 		})
 	},
