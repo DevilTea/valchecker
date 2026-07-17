@@ -79,15 +79,14 @@ export const union = implStepPlugin<PluginDef>({
 				if (!isFailure(result))
 					return result
 
-				for (const issue of result.issues) {
-					issues.push(appendIssueContext(issue, {
-						type: 'union',
-						branchIndex,
-					}))
-				}
-				return isRecoverableFailure(result)
-					? null
-					: failure(issues)
+				const branchIssues = result.issues.map(issue => appendIssueContext(issue, {
+					type: 'union',
+					branchIndex,
+				})) as [AnyExecutionIssue, ...AnyExecutionIssue[]]
+				if (!isRecoverableFailure(result))
+					return failure(branchIssues)
+				issues.push(...branchIssues)
+				return null
 			}
 
 			const continueAsync = async (startIndex: number, firstResult: PromiseLike<ExecutionResult>) => {

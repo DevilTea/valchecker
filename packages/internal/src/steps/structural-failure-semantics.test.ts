@@ -87,6 +87,7 @@ const v = createValchecker({
 		array,
 		fallback,
 		fatal,
+		fatalAsync,
 		intersection,
 		looseObject,
 		number,
@@ -258,14 +259,20 @@ describe('fatal and recoverable propagation contract', () => {
 			v.number(),
 		]).execute(null)
 		expect(result).toMatchObject({
-			issues: [{
-				code: 'string:expected_string',
-				message: 'inner:2',
-				context: [
-					{ type: 'union', branchIndex: 0 },
-					{ type: 'union', branchIndex: 0 },
-				],
-			}],
+			issues: [
+				{
+					code: 'string:expected_string',
+					message: 'inner:2',
+					context: [
+						{ type: 'union', branchIndex: 0 },
+						{ type: 'union', branchIndex: 0 },
+					],
+				},
+				{
+					code: 'number:expected_number',
+					context: [{ type: 'union', branchIndex: 1 }],
+				},
+			],
 		})
 	})
 
@@ -281,6 +288,24 @@ describe('fatal and recoverable propagation contract', () => {
 				code: 'fatal:failed',
 				category: 'internal',
 				context: [{ type: 'union', branchIndex: 0 }],
+			}],
+		})
+	})
+
+	it('union discards earlier alternative failures when a later branch is internal', () => {
+		const result = v.union([
+			v.number(),
+			v.fatal(),
+			v.string(),
+		]).execute('value')
+		expect(result).toEqual({
+			issues: [{
+				code: 'fatal:failed',
+				category: 'internal',
+				message: 'Fatal failure.',
+				path: [],
+				payload: { value: 'value' },
+				context: [{ type: 'union', branchIndex: 1 }],
 			}],
 		})
 	})
@@ -344,12 +369,15 @@ describe('fatal and recoverable propagation contract', () => {
 
 		const later = vi.fn()
 		const fatalResult = await v.union([
+			recoverable(),
 			v.fatalAsync(),
 			v.unknown().transform((value) => { later(); return value }),
 		]).execute('value')
 		expect(fatalResult).toMatchObject({
-			issues: [{ code: 'fatalAsync:failed', context: [{ type: 'union', branchIndex: 0 }] }],
+			issues: [{ code: 'fatalAsync:failed', context: [{ type: 'union', branchIndex: 1 }] }],
 		})
+		if (v.isFailure(fatalResult))
+			expect(fatalResult.issues).toHaveLength(1)
 		expect(later).not.toHaveBeenCalled()
 	})
 })
