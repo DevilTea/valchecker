@@ -5,12 +5,16 @@
  * custom messages, thrown errors, rejected promises, and issue append order.
  */
 
+import type { UnknownExceptionIssue } from '../../core'
 import { describe, expect, it } from 'vitest'
 import { check, createValchecker } from '../..'
 
 const v = createValchecker({ steps: [check] })
 
-function addTestIssue(value: unknown, addIssue: (issue: any) => void): void {
+function addTestIssue(
+	value: unknown,
+	addIssue: (issue: UnknownExceptionIssue<'check'>) => void,
+): void {
 	addIssue({
 		code: 'core:unknown_exception',
 		category: 'internal',
