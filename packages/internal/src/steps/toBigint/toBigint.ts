@@ -1,9 +1,9 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toBigint'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string | number | boolean }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: ExecutionIssue<'toBigint:invalid_bigint', { value: unknown, error: unknown }>
 }>
 
@@ -12,7 +12,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Converts the current value with JavaScript's native `BigInt()` conversion.
 	 *
-	 * Native conversion errors are returned as structured validation issues. No additional parsing grammar or safety policy is applied.
+	 * This step is available after any output that is not already a bigint. Native conversion errors are returned as structured validation issues. No additional parsing grammar or safety policy is applied.
 	 *
 	 * ---
 	 *
@@ -32,14 +32,16 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	toBigint: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
-					{
-						output: bigint
-						issue: Meta['SelfIssue']
-					},
-					this['CurrentValchecker']
-				>
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? InferOutput<This> extends bigint
+				? never
+				: (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+						{
+							output: bigint
+							issue: Meta['SelfIssue']
+						},
+						This
+					>
 			: never
 	>
 }
