@@ -1,0 +1,44 @@
+name: Agent apply PR B intersection coverage tests
+
+on:
+  push:
+    branches:
+      - agent/structural-combinator-failure-semantics
+    paths:
+      - .github/workflows/agent-apply-prb-fix7.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/structural-combinator-failure-semantics
+          fetch-depth: 0
+
+      - name: Apply intersection coverage tests
+        shell: bash
+        run: |
+          printf '%s  %s\n' \
+            '2446ec7569b7449449a8af133249a02de6c0e02441deb38a683f0ce078f912bb' \
+            '.github/agent/prb-fix7.patch.gz.b64' \
+            | sha256sum --check --strict
+          base64 --decode .github/agent/prb-fix7.patch.gz.b64 > /tmp/prb-fix7.patch.gz
+          gunzip -c /tmp/prb-fix7.patch.gz > /tmp/prb-fix7.patch
+          printf '%s  %s\n' \
+            '07bd1a0df63b1914dc876d86d724f1a19618eb5347f00610823dd3520406da40' \
+            '/tmp/prb-fix7.patch' \
+            | sha256sum --check --strict
+          git apply --index /tmp/prb-fix7.patch
+          rm -f \
+            .github/agent/prb-fix7.patch.gz.b64 \
+            .github/workflows/agent-apply-prb-fix7.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'test: cover intersection conflict classifications'
+          git push origin HEAD:agent/structural-combinator-failure-semantics
