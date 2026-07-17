@@ -12,6 +12,28 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the value is empty (`length === 0`). The runtime reads
+	 * `length` once and snapshots it in the failure payload.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isEmpty, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isEmpty] })
+	 * const schema = v.string().isEmpty()
+	 * schema.execute('') // { value: '' }
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isEmpty:expected_empty'`: The observed length is not zero.
+	 *   Payload: `{ value, length }`.
+	 */
 	isEmpty: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
