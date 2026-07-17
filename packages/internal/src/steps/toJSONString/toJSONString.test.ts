@@ -71,31 +71,37 @@ describe('toJSONString step plugin', () => {
 			enumerable: true,
 			get() { throw getterError },
 		})
-		expect(v.toJSONString().execute(getterValue)).toMatchObject({
+		const getterResult = v.toJSONString().execute(getterValue)
+		expect(getterResult).toMatchObject({
 			issues: [{
 				code: 'toJSONString:serialization_failed',
 				category: 'operation',
-				payload: { value: getterValue, at: ['value'], error: getterError },
+				payload: { at: ['value'], error: getterError },
 			}],
 		})
+		expect((getterResult as any).issues[0].payload.value).toBe(getterValue)
 
 		const proxyError = new Error('ownKeys')
 		const proxy = new Proxy({}, { ownKeys() { throw proxyError } })
-		expect(v.toJSONString().execute(proxy)).toMatchObject({
+		const proxyResult = v.toJSONString().execute(proxy)
+		expect(proxyResult).toMatchObject({
 			issues: [{
 				code: 'toJSONString:serialization_failed',
-				payload: { value: proxy, at: [], error: proxyError },
+				payload: { at: [], error: proxyError },
 			}],
 		})
+		expect((proxyResult as any).issues[0].payload.value).toBe(proxy)
 
 		const toJSONError = new Error('toJSON')
 		const toJSONValue = { toJSON() { throw toJSONError } }
-		expect(v.toJSONString().execute(toJSONValue)).toMatchObject({
+		const toJSONResult = v.toJSONString().execute(toJSONValue)
+		expect(toJSONResult).toMatchObject({
 			issues: [{
 				code: 'toJSONString:serialization_failed',
-				payload: { value: toJSONValue, at: [], error: toJSONError },
+				payload: { at: [], error: toJSONError },
 			}],
 		})
+		expect((toJSONResult as any).issues[0].payload.value).toBe(toJSONValue)
 	})
 
 	it('reports nested unsupported values at their exact path', () => {
