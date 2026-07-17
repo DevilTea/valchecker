@@ -44,7 +44,7 @@ interface PluginDef extends TStepPluginDef {
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
 					? <AddedIssue extends AnyExecutionIssue = never, Output extends CurrentOutput = CurrentOutput>(
 						run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue | AddedIssue>) => value is Output,
-						message?: MessageHandler<Internal.Issue<CurrentOutput> | AddedIssue>,
+						message?: MessageHandler<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
 					) => Next<{
 						operationMode: 'sync'
 						output: Output
@@ -59,7 +59,7 @@ interface PluginDef extends TStepPluginDef {
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
 					? <AddedIssue extends AnyExecutionIssue = never, Result extends Internal.RunCheckResult = Internal.RunCheckResult>(
 						run: Internal.RunCheck<CurrentOutput, CurrentIssue | AddedIssue, Result>,
-						message?: MessageHandler<Internal.Issue<CurrentOutput> | AddedIssue>,
+						message?: MessageHandler<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
 					) => Next<{
 						operationMode: IsEqual<IsPromise<Result>, true> extends true
 							? 'maybe-async'
