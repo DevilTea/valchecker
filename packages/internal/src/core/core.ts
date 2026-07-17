@@ -324,10 +324,11 @@ function finalizeIssue(issue: AnyExecutionIssue): AnyExecutionIssue {
 		}
 	}
 	catch (error) {
-		const resolutionError = error instanceof MessageResolutionError
-			? error
-			: new MessageResolutionError('default', error)
-		return createMessageExceptionIssue(issue, resolutionError, metadata.resolveMessage)
+		return createMessageExceptionIssue(
+			issue,
+			error as MessageResolutionError,
+			metadata.resolveMessage,
+		)
 	}
 }
 
@@ -427,7 +428,11 @@ function createExecutionStepMethodUtils(
 				category,
 				payload,
 				path,
-				message: 'Invalid value.',
+				message: typeof customMessage === 'string'
+					? customMessage
+					: typeof defaultMessage === 'string'
+						? defaultMessage
+						: 'Invalid value.',
 			}
 			if (context != null)
 				issue.context = context
