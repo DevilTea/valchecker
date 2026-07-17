@@ -58,6 +58,15 @@ describe('step failure and payload contracts', () => {
 					path: [],
 				})
 			}
+			if (value === 'existing') {
+				addIssue({
+					code: 'string:expected_string',
+					category: 'validation',
+					payload: { value },
+					message: 'Existing issue.',
+					path: [],
+				})
+			}
 			return value === 'allowed' || 'Expected an allowed value.'
 		}, (issue) => {
 			switch (issue.code) {
@@ -70,6 +79,9 @@ describe('step failure and payload contracts', () => {
 					break
 				case 'domain:blocked':
 					expectTypeOf(issue.payload.policy).toEqualTypeOf<'reserved'>()
+					break
+				case 'string:expected_string':
+					expectTypeOf(issue.payload.value).toEqualTypeOf<unknown>()
 					break
 			}
 			return undefined
