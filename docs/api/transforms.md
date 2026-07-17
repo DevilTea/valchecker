@@ -129,9 +129,9 @@ Unsupported values and circular structures produce an issue instead of escaping 
 
 ## Primitive conversions
 
-Primitive conversion steps are available only after a different primitive type. Identity conversions such as `number().toNumber()` and `boolean().toBoolean()` are intentionally unavailable.
+Native primitive conversion steps are available after any output that is not already the target primitive type. Identity conversions such as `number().toNumber()` and `boolean().toBoolean()` are intentionally unavailable.
 
-### `toNumber()`
+### `toNumber(message?)`
 
 Delegates directly to JavaScript `Number(value)`. It does not add parsing, finite-number, or precision-safety policy.
 
@@ -147,7 +147,14 @@ v.string().toNumber().execute('Infinity')
 
 v.bigint().toNumber().execute(9007199254740993n)
 // { value: 9007199254740992 }
+
+v.unknown().toNumber().execute(null)
+// { value: 0 }
 ```
+
+Native `Number()` exceptions become structured issues.
+
+**Issue code:** `toNumber:conversion_failed`
 
 Use subsequent validation when a narrower numeric domain is required:
 
@@ -168,6 +175,9 @@ v.string().toBoolean().execute('')
 
 v.number().toBoolean().execute(0)
 // { value: false }
+
+v.unknown().toBoolean().execute({})
+// { value: true }
 ```
 
 Use `looseBoolean()` for the specific ``boolean | `${boolean}``` boundary contract, or `toMappedBoolean()` for custom representations.
