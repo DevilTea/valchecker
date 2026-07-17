@@ -12,7 +12,15 @@ declare namespace Internal {
 	export type RunCheckResult = MaybePromiseLike<void | boolean | string | True<any>>
 	export type RunCheck<Input = any, I extends AnyExecutionIssue = AnyExecutionIssue, Result extends RunCheckResult = RunCheckResult> = (value: Input, utils: RunCheckUtils<Input, I>) => Result
 
-	export type Issue<Input = unknown> = ExecutionIssue<'check:failed', { value: Input, error?: unknown }>
+	export type FailedIssue<Input = unknown>
+		= | ExecutionIssue<'check:failed', { reason: 'returned_false', value: Input }>
+			| ExecutionIssue<'check:failed', { reason: 'returned_message', value: Input, returnedMessage: string }>
+	export type CallbackFailedIssue<Input = unknown> = ExecutionIssue<
+		'check:callback_failed',
+		{ phase: 'throw' | 'reject', value: Input, error: unknown },
+		'operation'
+	>
+	export type Issue<Input = unknown> = FailedIssue<Input> | CallbackFailedIssue<Input>
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -22,116 +30,39 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Runs a custom check function on the value, allowing for type narrowing or validation.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * #### type-guard
-	 * ```ts
-	 * import { createValchecker, check } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [check] })
-	 * const schema = v.check((x): x is '123' => x === '123')
-	 * const result = schema.execute('123')
-	 * ```
-	 *
-	 * #### boolean-returning
-	 * ```ts
-	 * import { createValchecker, check } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [check] })
-	 * const schema = v.check((x) => typeof x === 'number' && x > 0)
-	 * const result = schema.execute(42)
-	 * ```
-	 *
-	 * #### MaybePromise-returning
-	 * ```ts
-	 * import { createValchecker, check } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [check] })
-	 * const schema = v.check(async (x) => {
-	 *   await new Promise(res => setTimeout(res, 100))
-	 *   return typeof x === 'string' && x.length > 3
-	 * })
-	 * const result = await schema.execute('hello')
-	 * ```
-	 *
-	 * #### string-returning (for custom error message)
-	 * ```ts
-	 * import { createValchecker, check } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [check] })
-	 * const schema = v.check((x) => typeof x === 'string' && x.length > 3 ? true : 'String must be longer than 3 characters')
-	 * const result = schema.execute('hello')
-	 * ```
-	 *
-	 * #### adding issues manually (advanced)
-	 * ```ts
-	 * import { check, createValchecker, object, string } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [check, object, string] })
-	 * const schema = v.object({
-	 *   prop1: v.string(),
-	 * })
-	 *   .check((obj, { addIssue }) => {
-	 *     if (obj.prop1.length < 5) {
-	 *       addIssue({
-	 *         code: 'custom:prop1_too_short',
-	 *         path: ['prop1'],
-	 *         payload: { value: obj.prop1 },
-	 *         message: 'prop1 must be at least 5 characters long.',
-	 *       })
-	 *     }
-	 *   })
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'check:failed'`: The check function returned false, a string, or threw an error.
-	 */
 	check:
 		| DefineStepMethod<
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-				?	[InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
-						?	<Output extends CurrentOutput>(
-								run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue>) => value is Output,
-								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
-							) => Next<
-								{
-									operationMode: 'sync'
-									output: Output
-									issue: Internal.Issue<CurrentOutput> | InferIssue<This>
-								},
-								This
-							>
-						:	never
-				:	never
+				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
+					? <AddedIssue extends AnyExecutionIssue = never, Output extends CurrentOutput = CurrentOutput>(
+						run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue | AddedIssue>) => value is Output,
+						message?: MessageHandler<Internal.Issue<CurrentOutput> | AddedIssue>,
+					) => Next<{
+						operationMode: 'sync'
+						output: Output
+						issue: Internal.Issue<CurrentOutput> | AddedIssue
+					}, This>
+					: never
+				: never
 		>
 		| DefineStepMethod<
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
-						? <Result extends Internal.RunCheckResult>(
-								run: Internal.RunCheck<CurrentOutput, CurrentIssue, Result>,
-								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
-							) => Next<
-								{
-									operationMode: IsEqual<IsPromise<Result>, true> extends true
-										? 'maybe-async'
-										: IsEqual<IsPromise<Result>, false> extends true
-											? 'sync'
-											: 'maybe-async'
-									output: Awaited<Result> extends (Internal.True<infer T> | false) ? T : CurrentOutput
-									issue: Internal.Issue<CurrentOutput>
-								},
-								This
-							>
-						: never
+					? <AddedIssue extends AnyExecutionIssue = never, Result extends Internal.RunCheckResult = Internal.RunCheckResult>(
+						run: Internal.RunCheck<CurrentOutput, CurrentIssue | AddedIssue, Result>,
+						message?: MessageHandler<Internal.Issue<CurrentOutput> | AddedIssue>,
+					) => Next<{
+						operationMode: IsEqual<IsPromise<Result>, true> extends true
+							? 'maybe-async'
+							: IsEqual<IsPromise<Result>, false> extends true
+								? 'sync'
+								: 'maybe-async'
+						output: Awaited<Result> extends (Internal.True<infer T> | false) ? T : CurrentOutput
+						issue: Internal.Issue<CurrentOutput> | AddedIssue
+					}, This>
+					: never
 				: never
 		>
 }
@@ -139,62 +70,57 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const check = implStepPlugin<PluginDef>({
 	check: ({
-		utils: { addSuccessStep, success, createIssue, failure },
+		utils: { addSuccessStep, success, createIssue, failure, prependIssuePath },
 		params: [run, message],
 	}) => {
 		addSuccessStep((value) => {
-			const handleError = (error: unknown) => {
-				return failure(
-					createIssue({
-						code: 'check:failed',
-						payload: { value, error },
-						customMessage: message,
-						defaultMessage: 'Check failed',
-					}),
-				)
+			let issues: AnyExecutionIssue[] | undefined
+			const addIssue = (issue: AnyExecutionIssue) => {
+				(issues ??= []).push(prependIssuePath(issue, [], message))
 			}
+			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => {
+				const issue = createIssue({
+					code: 'check:callback_failed',
+					category: 'operation',
+					payload: { phase, value, error },
+					customMessage: message,
+					defaultMessage: 'Check callback failed.',
+				})
+				return failure(issues == null ? issue : [...issues, issue])
+			}
+			const process = (result: Awaited<Internal.RunCheckResult>) => {
+				if (result === false) {
+					const issue = createIssue({
+						code: 'check:failed',
+						payload: { reason: 'returned_false', value },
+						customMessage: message,
+						defaultMessage: 'Check failed.',
+					})
+					return failure(issues == null ? issue : [...issues, issue])
+				}
+				if (typeof result === 'string') {
+					const issue = createIssue({
+						code: 'check:failed',
+						payload: { reason: 'returned_message', value, returnedMessage: result },
+						customMessage: message,
+						defaultMessage: result,
+					})
+					return failure(issues == null ? issue : [...issues, issue])
+				}
+				return issues == null ? success(value) : failure(issues)
+			}
+
 			try {
-				const issues: AnyExecutionIssue[] = []
-				const addIssue = (issue: AnyExecutionIssue) => issues.push(issue)
-				const checkResult = run(value, {
+				const result = run(value, {
 					narrow: returnTrue as <T>() => Internal.True<T>,
 					addIssue,
 				})
-				const processCheckResult = (result: Awaited<Internal.RunCheckResult>) => {
-					if (result === false) {
-						return failure(
-							createIssue({
-								code: 'check:failed',
-								payload: { value },
-								customMessage: message,
-								defaultMessage: 'Check failed',
-							}),
-						)
-					}
-
-					if (typeof result === 'string') {
-						return failure(
-							createIssue({
-								code: 'check:failed',
-								payload: { value },
-								customMessage: message,
-								defaultMessage: result,
-							}),
-						)
-					}
-
-					return issues.length > 0
-						? failure(issues)
-						: success(value)
-				}
-				return isPromiseLike(checkResult)
-					?	Promise.resolve(checkResult)
-							.then(processCheckResult)
-							.catch(err => handleError(err))
-					:	processCheckResult(checkResult)
+				return isPromiseLike(result)
+					? Promise.resolve(result).then(process, error => callbackFailure('reject', error))
+					: process(result)
 			}
 			catch (error) {
-				return handleError(error)
+				return callbackFailure('throw', error)
 			}
 		})
 	},
