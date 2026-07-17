@@ -302,7 +302,7 @@ const schema = v.union([
 schema.execute('abc') // { value: 3 }
 ```
 
-If every branch fails, union returns collected branch issues. Each issue receives `{ type: 'union', branchIndex }` in `context`; the data `path` is unchanged. Validation and operation failures continue to the next branch, while an internal failure stops evaluation immediately and cannot be hidden by a later successful branch. Branch order is normative.
+If every branch fails, union returns collected branch issues. Each issue receives `{ type: 'union', branchIndex }` in `context`; the data `path` is unchanged. Validation and operation failures continue to the next branch, while an internal failure stops evaluation immediately, discards issues from earlier alternative branches, and cannot be hidden by a later successful branch. Branch order is normative.
 
 ## Intersection semantics
 

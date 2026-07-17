@@ -161,4 +161,4 @@ Issue drafts remain internal while nested structures prepend paths and message s
 
 Object-family steps must distinguish `Object.hasOwn(value, key)` from the property's value. Missing required keys use the variant-specific `missing_key` issue; present `undefined` runs the child schema. Optional missing keys skip the child and still materialize `undefined` in the declared output.
 
-Use `hasInternalIssue()` / `isRecoverableFailure()` for category-based propagation. Do not branch on issue-code strings. Union adds branch provenance to `context`, not `path`; fallback must preserve received issues when its callback fails.
+Within the internal package, use the package-private `hasInternalIssue()` / `isRecoverableFailure()` helpers for category-based propagation. Do not branch on issue-code strings. Union adds branch provenance to `context`, not `path`; fallback must preserve received issues when its callback fails.
