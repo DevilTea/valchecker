@@ -14,6 +14,29 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the value matches the specified literal with `Object.is`.
+	 * This means `NaN` matches `NaN`, while `0` and `-0` are distinct.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, literal } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [literal] })
+	 * const schema = v.literal('hello')
+	 * const result = schema.execute('hello')
+	 * // { value: 'hello' }
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'literal:expected_literal'`: The value does not match the expected literal.
+	 *   Payload: `{ value, expected }`.
+	 */
 	literal: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
