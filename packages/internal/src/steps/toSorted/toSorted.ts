@@ -1,54 +1,72 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferOutput, Next, TStepPluginDef } from '../../core'
-import type { OverloadParametersAndReturnType } from '../../shared'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+
+declare namespace Internal {
+	export type Issue<Input extends any[] = any[], Item = Input[number]> = ExecutionIssue<
+		'toSorted:callback_failed',
+		{ value: Input, left: Item, right: Item, error: unknown },
+		'operation'
+	>
+}
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toSorted'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: any[] & { toSorted: (...params: any[]) => any } }>
+	SelfIssue: Internal.Issue
 }>
 
 interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Sorts the array using the provided compare function.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, array, number, toSorted } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [array, number, toSorted] })
-	 * const schema = v.array(v.number()).toSorted((a, b) => a - b)
-	 * const result = schema.execute([3, 1, 4, 2])
-	 * // result.value: [1, 2, 3, 4]
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * None.
-	 */
-	toSorted: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-		?	OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['toSorted']> extends infer Tuple
-			?	Tuple extends [params: any[], ret: any]
-				?	DefineStepMethod<
-					Meta,
-					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['CurrentValchecker']>
-				>
-				:	never
-			:	never
-		:	never
+	toSorted: DefineStepMethod<
+		Meta,
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? InferOutput<this['CurrentValchecker']> extends infer Input extends any[]
+				? (
+					compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined,
+					message?: MessageHandler<Internal.Issue<Input>>,
+				) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, this['CurrentValchecker']>
+				: never
+			: never
+	>
+}
+
+class SortCallbackError {
+	constructor(
+		readonly left: unknown,
+		readonly right: unknown,
+		readonly error: unknown,
+	) { }
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export const toSorted = implStepPlugin<PluginDef>({
 	toSorted: ({
-		utils: { addSuccessStep, success },
-		params,
+		utils: { addSuccessStep, success, createIssue, failure },
+		params: [compareFn, message],
 	}) => {
 		addSuccessStep((value) => {
-			return success(value.toSorted(...params))
+			if (compareFn == null)
+				return success(value.toSorted())
+			try {
+				return success(value.toSorted((left: unknown, right: unknown) => {
+					try {
+						return compareFn(left, right)
+					}
+					catch (error) {
+						throw new SortCallbackError(left, right, error)
+					}
+				}))
+			}
+			catch (error) {
+				if (!(error instanceof SortCallbackError))
+					throw error
+				return failure(createIssue({
+					code: 'toSorted:callback_failed',
+					category: 'operation',
+					payload: { value, left: error.left, right: error.right, error: error.error },
+					customMessage: message,
+					defaultMessage: 'Sort callback failed.',
+				}))
+			}
 		})
 	},
 })
