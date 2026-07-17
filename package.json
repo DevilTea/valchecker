@@ -52,6 +52,7 @@
 		"@vitest/coverage-v8": "catalog:",
 		"bumpp": "catalog:",
 		"eslint": "catalog:",
+		"lint-staged": "catalog:",
 		"pathe": "catalog:",
 		"pkg-size": "catalog:",
 		"publint": "catalog:",
