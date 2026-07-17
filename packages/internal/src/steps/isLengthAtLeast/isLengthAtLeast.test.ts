@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { array, createValchecker, isLengthAtLeast, number, string } from '../..'
+import { any, array, createValchecker, isLengthAtLeast, number, string } from '../..'
 
-const v = createValchecker({ steps: [number, string, array, isLengthAtLeast] })
+const v = createValchecker({ steps: [any, number, string, array, isLengthAtLeast] })
 
 describe('isLengthAtLeast step plugin', () => {
 	it.each([
@@ -11,16 +11,31 @@ describe('isLengthAtLeast step plugin', () => {
 		expect(schema.execute(value as never)).toEqual({ value })
 	})
 
-	it('rejects values below minimum length', () => {
+	it('reports the observed length below the minimum', () => {
 		expect(v.string().isLengthAtLeast(3).execute('hi')).toEqual({
 			issues: [{
 				code: 'isLengthAtLeast:expected_length_at_least',
 				category: 'validation',
 				message: 'Expected a length of at least 3.',
 				path: [],
-				payload: { length: expect.any(Number), value: 'hi', minimum: 3 },
+				payload: { length: 2, value: 'hi', minimum: 3 },
 			}],
 		})
+	})
+
+	it('reads a dynamic length once and snapshots the observed value', () => {
+		let reads = 0
+		const value = {
+			get length() {
+				reads++
+				return 1
+			},
+		}
+
+		expect(v.any().isLengthAtLeast(3).execute(value)).toMatchObject({
+			issues: [{ payload: { value, minimum: 3, length: 1 } }],
+		})
+		expect(reads).toBe(1)
 	})
 
 	it('supports custom messages', () => {
