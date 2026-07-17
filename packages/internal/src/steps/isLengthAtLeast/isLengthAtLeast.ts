@@ -15,6 +15,29 @@ type LengthAtLeastMeta = DefineStepMethodMeta<{
 }>
 
 interface LengthAtLeastPluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the value's observed `length` is greater than or equal to the
+	 * specified minimum. The runtime reads `length` once and snapshots that value
+	 * in the failure payload.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isLengthAtLeast, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isLengthAtLeast] })
+	 * const schema = v.string().isLengthAtLeast(3)
+	 * schema.execute('hello') // { value: 'hello' }
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isLengthAtLeast:expected_length_at_least'`: The observed length is below the minimum.
+	 *   Payload: `{ value, minimum, length }`.
+	 */
 	isLengthAtLeast: DefineStepMethod<
 		LengthAtLeastMeta,
 		this['CurrentValchecker'] extends LengthAtLeastMeta['ExpectedCurrentValchecker']
