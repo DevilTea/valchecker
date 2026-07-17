@@ -33,13 +33,22 @@ export default defineConfig({
 				statements: 95,
 				functions: 95,
 				branches: 92,
+				'packages/*/src/**/*.ts': {
+					perFile: true,
+					lines: 90,
+					statements: 90,
+					functions: 90,
+					branches: 85,
+				},
 				'packages/internal/src/core/**/*.ts': {
+					perFile: true,
 					lines: 100,
 					statements: 100,
 					functions: 100,
 					branches: 95,
 				},
 				'packages/internal/src/steps/{union,intersection,object,strictObject,looseObject,use}/**/*.ts': {
+					perFile: true,
 					lines: 90,
 					statements: 90,
 					functions: 95,
