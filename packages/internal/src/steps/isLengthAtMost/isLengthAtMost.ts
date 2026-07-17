@@ -1,20 +1,20 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-declare namespace Internal {
+declare namespace LengthAtMostInternal {
 	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<
 		'isLengthAtMost:expected_length_at_most',
 		{ value: T, maximum: number }
 	>
 }
 
-type Meta = DefineStepMethodMeta<{
+type LengthAtMostMeta = DefineStepMethodMeta<{
 	Name: 'isLengthAtMost'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: { length: number } }>
-	SelfIssue: Internal.Issue
+	SelfIssue: LengthAtMostInternal.Issue
 }>
 
-interface PluginDef extends TStepPluginDef {
+interface LengthAtMostPluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that the value's length is less than or equal to the specified maximum.
@@ -36,11 +36,11 @@ interface PluginDef extends TStepPluginDef {
 	 * - `'isLengthAtMost:expected_length_at_most'`: The value is longer than the maximum length.
 	 */
 	isLengthAtMost: DefineStepMethod<
-		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+		LengthAtMostMeta,
+		this['CurrentValchecker'] extends LengthAtMostMeta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
-				? (maximum: number, message?: MessageHandler<Internal.Issue<CurrentOutput>>) => Next<
-						{ issue: Internal.Issue<CurrentOutput> },
+				? (maximum: number, message?: MessageHandler<LengthAtMostInternal.Issue<CurrentOutput>>) => Next<
+						{ issue: LengthAtMostInternal.Issue<CurrentOutput> },
 						this['CurrentValchecker']
 					>
 				: never
@@ -49,7 +49,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const isLengthAtMost = implStepPlugin<PluginDef>({
+export const isLengthAtMost = implStepPlugin<LengthAtMostPluginDef>({
 	isLengthAtMost: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [maximum, message],
