@@ -164,6 +164,26 @@ describe('intersection plugin', () => {
 		}
 	})
 
+	it('should reject a shared reference after it was merged with a distinct partner', () => {
+		const shared = { value: true }
+		const partner = { value: true }
+		const left = { first: shared, second: shared }
+		const right = { first: partner, second: shared }
+		const result = v.intersection([
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => right),
+		]).execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'intersection:conflicting_outputs',
+				payload: {
+					path: ['second'],
+					reason: 'incompatible_alias',
+				},
+			}],
+		})
+	})
+
 	it('should reject incompatible shared-reference topology', () => {
 		const shared = {}
 		const aliased = { first: shared, second: shared }
