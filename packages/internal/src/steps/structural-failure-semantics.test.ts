@@ -362,8 +362,8 @@ describe('fatal and recoverable propagation contract', () => {
 		const recoverableResult = await v.union([recoverable(), recoverable()]).execute('value')
 		expect(recoverableResult).toMatchObject({
 			issues: [
-				{ code: 'transform:failed', context: [{ type: 'union', branchIndex: 0 }] },
-				{ code: 'transform:failed', context: [{ type: 'union', branchIndex: 1 }] },
+				{ code: 'transform:callback_failed', context: [{ type: 'union', branchIndex: 0 }] },
+				{ code: 'transform:callback_failed', context: [{ type: 'union', branchIndex: 1 }] },
 			],
 		})
 

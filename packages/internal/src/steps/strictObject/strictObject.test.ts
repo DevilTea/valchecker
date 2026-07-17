@@ -122,11 +122,11 @@ describe('strictObject plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
-						message: 'Transform failed',
+						code: 'transform:callback_failed',
+						category: 'operation',
+						message: 'Transform callback failed.',
 						path: ['count'],
-						payload: { value: 10, error: new Error('fail') },
+						payload: { phase: 'reject', value: 10, error: new Error('fail') },
 					}],
 				})
 		})

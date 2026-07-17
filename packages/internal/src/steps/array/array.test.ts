@@ -4,21 +4,7 @@
  * This test file covers the `array` step plugin implementation.
  *
  * Functions and Classes:
- * - array: 		it('should handle async item validator with failure', async () => {
-			const result = await v.array(v.string().transform(async (x) => {
-				if (x === 'fail')
-					throw new Error('fail')
-				return x
-			})).execute(['a', 'fail'])
-			expect(result).toEqual({
-				issues: [{
-					code: 'transform:failed',
-					category: 'validation',
-					path: [1],
-					payload: { value: 'fail', error: expect.any(Error) },
-				}],
-			})
-		})n definition and implementation.
+ * - array: array validation definition and implementation.
  *
  * Input Scenarios:
  * - Non-array inputs: string, number, object, null, undefined.
@@ -200,11 +186,11 @@ describe('array plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
+						code: 'transform:callback_failed',
+						category: 'operation',
 						path: [1],
-						payload: { value: 'fail', error: expect.any(Error) },
-						message: 'Transform failed',
+						payload: { phase: 'reject', value: 'fail', error: expect.any(Error) },
+						message: 'Transform callback failed.',
 					}],
 				})
 		})
@@ -228,11 +214,11 @@ describe('array plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
+						code: 'transform:callback_failed',
+						category: 'operation',
 						path: [2],
-						payload: { value: 'fail', error: expect.any(Error) },
-						message: 'Transform failed',
+						payload: { phase: 'reject', value: 'fail', error: expect.any(Error) },
+						message: 'Transform callback failed.',
 					}],
 				})
 		})

@@ -76,7 +76,7 @@ describe('check plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: 'fail' },
+						payload: { reason: 'returned_false', value: 'fail' },
 					}],
 				})
 		})
@@ -91,7 +91,7 @@ describe('check plugin', () => {
 						category: 'validation',
 						message: 'Custom error',
 						path: [],
-						payload: { value: 'fail' },
+						payload: { reason: 'returned_message', returnedMessage: 'Custom error', value: 'fail' },
 					}],
 				})
 		})
@@ -115,7 +115,7 @@ describe('check plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: 'sync' },
+						payload: { reason: 'returned_false', value: 'sync' },
 					}],
 				})
 		})
@@ -130,11 +130,11 @@ describe('check plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'check:failed',
-						category: 'validation',
-						message: 'Check failed',
+						code: 'check:callback_failed',
+						category: 'operation',
+						message: 'Check callback failed.',
 						path: [],
-						payload: { value: 'error', error: expect.any(Error) },
+						payload: { phase: 'throw', value: 'error', error: expect.any(Error) },
 					}],
 				})
 		})
@@ -147,11 +147,11 @@ describe('check plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'check:failed',
-						category: 'validation',
-						message: 'Check failed',
+						code: 'check:callback_failed',
+						category: 'operation',
+						message: 'Check callback failed.',
 						path: [],
-						payload: { value: 'error', error: expect.any(Error) },
+						payload: { phase: 'reject', value: 'error', error: expect.any(Error) },
 					}],
 				})
 		})
@@ -171,7 +171,7 @@ describe('check plugin', () => {
 						category: 'validation',
 						message: 'Custom: custom',
 						path: [],
-						payload: { value: 'custom' },
+						payload: { reason: 'returned_false', value: 'custom' },
 					}],
 				})
 		})

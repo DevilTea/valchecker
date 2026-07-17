@@ -39,7 +39,7 @@ describe('toBigint step plugin', () => {
 		const result = v.string().toBigint().execute(value)
 		expect(result).toMatchObject({
 			issues: [{
-				code: 'toBigint:invalid_bigint',
+				code: 'toBigint:conversion_failed',
 				category: 'validation',
 				message: 'Expected a value convertible to bigint.',
 				path: [],
@@ -52,7 +52,7 @@ describe('toBigint step plugin', () => {
 	it.each([1.5, Number.NaN, Infinity, -Infinity])('reports invalid number %s', (value) => {
 		expect(v.number().toBigint().execute(value)).toMatchObject({
 			issues: [{
-				code: 'toBigint:invalid_bigint',
+				code: 'toBigint:conversion_failed',
 				category: 'validation',
 				payload: { value },
 			}],
@@ -62,7 +62,7 @@ describe('toBigint step plugin', () => {
 	it.each([null, undefined, Symbol('value')])('reports arbitrary values rejected by BigInt()', (value) => {
 		expect(v.unknown().toBigint().execute(value)).toMatchObject({
 			issues: [{
-				code: 'toBigint:invalid_bigint',
+				code: 'toBigint:conversion_failed',
 				category: 'validation',
 				payload: { value },
 			}],

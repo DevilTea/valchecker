@@ -18,7 +18,7 @@ import {
 	toSorted,
 	toString,
 	transform,
-} from '.'
+} from '../..'
 
 const v = createValchecker({
 	steps: [
@@ -84,7 +84,7 @@ describe('step failure and payload contracts', () => {
 			issues: [{
 				code: 'check:failed',
 				category: 'validation',
-				message: 'Check failed.',
+				message: 'Check failed',
 				path: [],
 				payload: { reason: 'returned_false', value: 'value' },
 			}],
@@ -147,6 +147,42 @@ describe('step failure and payload contracts', () => {
 					payload: { phase: 'reject', value: 'value', error: expect.any(Error) },
 				},
 			],
+		})
+	})
+
+	it('types audited step message payloads precisely', () => {
+		v.array(v.string()).toFiltered(
+			() => true,
+			undefined,
+			(issue) => {
+				expectTypeOf(issue.payload.item).toEqualTypeOf<string>()
+				expectTypeOf(issue.payload.index).toEqualTypeOf<number>()
+				expectTypeOf(issue.payload.error).toEqualTypeOf<unknown>()
+				return undefined
+			},
+		)
+		v.array(v.string()).toSorted(undefined, (issue) => {
+			expectTypeOf(issue.payload.left).toEqualTypeOf<string>()
+			expectTypeOf(issue.payload.right).toEqualTypeOf<string>()
+			return undefined
+		})
+		v.toJSONString((issue) => {
+			if (issue.code === 'toJSONString:unserializable') {
+				expectTypeOf(issue.payload.reason)
+					.toEqualTypeOf<'unsupported_type' | 'circular_reference' | 'undefined_result'>()
+			}
+			else {
+				expectTypeOf(issue.payload.error).toEqualTypeOf<unknown>()
+			}
+			return undefined
+		})
+		v.string().isLengthAtLeast(2, (issue) => {
+			expectTypeOf(issue.payload.length).toEqualTypeOf<number>()
+			return undefined
+		})
+		v.string().toMappedBoolean({ trueValues: ['yes'], falseValues: ['no'] }, (issue) => {
+			expectTypeOf(issue.payload.trueValues).toEqualTypeOf<readonly string[]>()
+			return undefined
 		})
 	})
 
@@ -252,20 +288,33 @@ describe('step failure and payload contracts', () => {
 	})
 
 	it('snapshots actual length without requiring message handlers to re-read it', () => {
+		let reads = 0
+		const value = {
+			get length() {
+				reads++
+				return 1
+			},
+		}
+		const result = v.any().isLengthAtLeast(3).execute(value)
+		expect(reads).toBe(1)
+		expect(result).toMatchObject({ issues: [{ payload: { value, minimum: 3, length: 1 } }] })
+
 		const cases = [
-			v.string().isLengthAtLeast(3).execute('x'),
 			v.string().isLengthAtMost(1).execute('xx'),
 			v.string().isEmpty().execute('x'),
 			v.string().isNotEmpty().execute(''),
 		]
-		for (const result of cases)
-			expect(result).toMatchObject({ issues: [{ payload: { length: expect.any(Number) } }] })
+		for (const current of cases)
+			expect(current).toMatchObject({ issues: [{ payload: { length: expect.any(Number) } }] })
 	})
 
 	it('includes immutable mapping snapshots in mapped boolean failures', () => {
-		const trueValues = ['yes'] as const
-		const falseValues = ['no'] as const
-		const result = v.toMappedBoolean({ trueValues, falseValues }).execute('maybe')
+		const trueValues = ['yes']
+		const falseValues = ['no']
+		const schema = v.toMappedBoolean({ trueValues, falseValues })
+		trueValues.push('later-true')
+		falseValues.push('later-false')
+		const result = schema.execute('maybe')
 		expect(result).toMatchObject({
 			issues: [{
 				code: 'toMappedBoolean:unmapped_value',

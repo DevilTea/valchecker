@@ -49,7 +49,7 @@ describe('string step plugin', () => {
 				category: 'validation',
 				message: 'Expected a length of at least 5.',
 				path: [],
-				payload: { value: 'hi', minimum: 5 },
+				payload: { length: expect.any(Number), value: 'hi', minimum: 5 },
 			}],
 		})
 	})

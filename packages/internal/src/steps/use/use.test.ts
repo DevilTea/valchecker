@@ -127,7 +127,7 @@ describe('use plugin', () => {
 						category: 'validation',
 						message: 'Must be positive',
 						path: [],
-						payload: { value: -5 },
+						payload: { reason: 'returned_false', value: -5 },
 					}],
 				})
 		})
@@ -180,7 +180,7 @@ describe('use plugin', () => {
 						category: 'validation',
 						message: 'Too short',
 						path: [],
-						payload: { value: 'hi' },
+						payload: { reason: 'returned_message', returnedMessage: 'Too short', value: 'hi' },
 					}],
 				})
 		})
@@ -269,7 +269,7 @@ describe('use plugin', () => {
 						category: 'validation',
 						message: 'Must be positive',
 						path: [],
-						payload: { value: -5 },
+						payload: { reason: 'returned_false', value: -5 },
 					}],
 				})
 		})

@@ -184,7 +184,7 @@ describe('null plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: null },
+						payload: { reason: 'returned_false', value: null },
 					}],
 				})
 		})

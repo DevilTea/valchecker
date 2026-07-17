@@ -191,7 +191,7 @@ describe('boolean plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: false },
+						payload: { reason: 'returned_false', value: false },
 					}],
 				})
 		})

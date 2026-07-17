@@ -19,25 +19,25 @@ interface PluginDef extends TStepPluginDef {
 	toFiltered:
 		| DefineStepMethod<
 			Meta,
-			this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-				? InferOutput<this['CurrentValchecker']> extends infer Input extends any[]
+			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+				? InferOutput<This> extends infer Input extends any[]
 					? <Narrowed extends Input[number]>(
 						predicate: (item: Input[number], index: number, value: Input) => item is Narrowed,
 						thisArg?: any,
 						message?: MessageHandler<Internal.Issue<Input>>,
-					) => Next<{ output: Narrowed[], issue: Internal.Issue<Input> }, this['CurrentValchecker']>
+					) => Next<{ output: Narrowed[], issue: Internal.Issue<Input> }, This>
 					: never
 				: never
 		>
 		| DefineStepMethod<
 			Meta,
-			this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-				? InferOutput<this['CurrentValchecker']> extends infer Input extends any[]
+			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+				? InferOutput<This> extends infer Input extends any[]
 					? (
 						predicate: (item: Input[number], index: number, value: Input) => unknown,
 						thisArg?: any,
 						message?: MessageHandler<Internal.Issue<Input>>,
-					) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, this['CurrentValchecker']>
+					) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, This>
 					: never
 				: never
 		>

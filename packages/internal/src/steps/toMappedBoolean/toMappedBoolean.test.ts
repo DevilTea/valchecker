@@ -59,7 +59,7 @@ describe('toMappedBoolean step plugin', () => {
 				category: 'validation',
 				message: 'Expected the value to match a configured boolean mapping.',
 				path: [],
-				payload: { value: 'unknown' },
+				payload: { trueValues: expect.any(Array), falseValues: expect.any(Array), value: 'unknown' },
 			}],
 		})
 	})

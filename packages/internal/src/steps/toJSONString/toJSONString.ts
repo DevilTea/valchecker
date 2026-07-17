@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -27,10 +27,10 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	toJSONString: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (message?: MessageHandler<Internal.Issue>) => Next<
-				{ output: string, issue: Internal.Issue },
-				this['CurrentValchecker']
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? (message?: MessageHandler<Internal.Issue<InferOutput<This>>>) => Next<
+				{ output: string, issue: Internal.Issue<InferOutput<This>> },
+				This
 			>
 			: never
 	>

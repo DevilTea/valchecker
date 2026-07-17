@@ -16,7 +16,7 @@ describe('isNotEmpty step plugin', () => {
 				category: 'validation',
 				message: 'Expected a non-empty value.',
 				path: [],
-				payload: { value: '' },
+				payload: { length: expect.any(Number), value: '' },
 			}],
 		})
 	})

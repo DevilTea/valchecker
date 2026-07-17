@@ -19,7 +19,7 @@ describe('toJSONString step plugin', () => {
 		[{ value: () => undefined }],
 		[1n],
 	])('rejects unserializable value %p', (value) => {
-		expect(v.toJSONString().execute(value)).toEqual({
+		expect(v.toJSONString().execute(value)).toMatchObject({
 			issues: [{
 				code: 'toJSONString:unserializable',
 				category: 'validation',
@@ -34,7 +34,7 @@ describe('toJSONString step plugin', () => {
 		const value = Object.defineProperty({}, 'toJSON', {
 			value: () => undefined,
 		})
-		expect(v.toJSONString().execute(value)).toEqual({
+		expect(v.toJSONString().execute(value)).toMatchObject({
 			issues: [{
 				code: 'toJSONString:unserializable',
 				category: 'validation',
@@ -48,13 +48,67 @@ describe('toJSONString step plugin', () => {
 	it('reports circular structures', () => {
 		const value: Record<string, unknown> = {}
 		value.self = value
-		expect(v.toJSONString().execute(value)).toEqual({
+		expect(v.toJSONString().execute(value)).toMatchObject({
 			issues: [{
 				code: 'toJSONString:unserializable',
 				category: 'validation',
 				message: 'Value cannot be serialized to JSON.',
 				path: [],
 				payload: { value },
+			}],
+		})
+	})
+
+	it('ignores inherited enumerable properties during preflight', () => {
+		const inherited = { inherited: 1n }
+		const value = Object.assign(Object.create(inherited), { own: 1 })
+		expect(v.toJSONString().execute(value)).toEqual({ value: '{"own":1}' })
+	})
+
+	it('reports getter, proxy, and toJSON failures with their paths', () => {
+		const getterError = new Error('getter')
+		const getterValue = Object.defineProperty({}, 'value', {
+			enumerable: true,
+			get() { throw getterError },
+		})
+		expect(v.toJSONString().execute(getterValue)).toMatchObject({
+			issues: [{
+				code: 'toJSONString:serialization_failed',
+				category: 'operation',
+				payload: { value: getterValue, at: ['value'], error: getterError },
+			}],
+		})
+
+		const proxyError = new Error('ownKeys')
+		const proxy = new Proxy({}, { ownKeys() { throw proxyError } })
+		expect(v.toJSONString().execute(proxy)).toMatchObject({
+			issues: [{
+				code: 'toJSONString:serialization_failed',
+				payload: { value: proxy, at: [], error: proxyError },
+			}],
+		})
+
+		const toJSONError = new Error('toJSON')
+		const toJSONValue = { toJSON() { throw toJSONError } }
+		expect(v.toJSONString().execute(toJSONValue)).toMatchObject({
+			issues: [{
+				code: 'toJSONString:serialization_failed',
+				payload: { value: toJSONValue, at: [], error: toJSONError },
+			}],
+		})
+	})
+
+	it('reports nested unsupported values at their exact path', () => {
+		const value = { nested: { value: 1n } }
+		expect(v.toJSONString().execute(value)).toMatchObject({
+			issues: [{
+				code: 'toJSONString:unserializable',
+				payload: {
+					reason: 'unsupported_type',
+					value,
+					at: ['nested', 'value'],
+					valueType: 'bigint',
+				},
 			}],
 		})
 	})

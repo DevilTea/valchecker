@@ -18,7 +18,7 @@ describe('isLengthAtLeast step plugin', () => {
 				category: 'validation',
 				message: 'Expected a length of at least 3.',
 				path: [],
-				payload: { value: 'hi', minimum: 3 },
+				payload: { length: expect.any(Number), value: 'hi', minimum: 3 },
 			}],
 		})
 	})

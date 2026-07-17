@@ -197,7 +197,7 @@ describe('instance step plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: expect.any(Date) },
+						payload: { reason: 'returned_false', value: expect.any(Date) },
 					}],
 				})
 		})

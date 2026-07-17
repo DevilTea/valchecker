@@ -131,11 +131,11 @@ describe('looseObject plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
+						code: 'transform:callback_failed',
+						category: 'operation',
 						path: ['count'],
-						payload: { value: 10, error: new Error('fail') },
-						message: 'Transform failed',
+						payload: { phase: 'reject', value: 10, error: new Error('fail') },
+						message: 'Transform callback failed.',
 					}],
 				})
 		})

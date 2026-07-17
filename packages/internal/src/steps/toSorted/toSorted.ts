@@ -18,12 +18,12 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	toSorted: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? InferOutput<this['CurrentValchecker']> extends infer Input extends any[]
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? InferOutput<This> extends infer Input extends any[]
 				? (
 					compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined,
 					message?: MessageHandler<Internal.Issue<Input>>,
-				) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, this['CurrentValchecker']>
+				) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, This>
 				: never
 			: never
 	>
