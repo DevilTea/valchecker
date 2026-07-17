@@ -1,54 +1,55 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferOutput, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, TStepPluginDef } from '../../core'
 import type { OverloadParametersAndReturnType } from '../../shared'
 import { implStepPlugin } from '../../core'
+
+declare namespace Internal {
+	export type Issue<Input = unknown> = ExecutionIssue<
+		'toString:conversion_failed',
+		{ value: Input, error: unknown },
+		'operation'
+	>
+}
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toString'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: { toString: (...params: any[]) => string } }>
+	SelfIssue: Internal.Issue
 }>
 
 interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Converts the value to a string using its toString method.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, number, toString } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [number, toString] })
-	 * const schema = v.number().toString()
-	 * const result = schema.execute(42)
-	 * // result.value: '42'
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * None.
-	 */
 	toString: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-		?	OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['toString']> extends infer Tuple
-			?	Tuple extends [params: any[], ret: any]
-				?	DefineStepMethod<
+		? OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['toString']> extends infer Tuple
+			? Tuple extends [params: any[], ret: any]
+				? DefineStepMethod<
 					Meta,
-					(...params: Tuple[0]) => Next<{ output: Tuple[1] }, this['CurrentValchecker']>
+					(...params: Tuple[0]) => Next<{
+						output: Tuple[1]
+						issue: Internal.Issue<InferOutput<this['CurrentValchecker']>>
+					}, this['CurrentValchecker']>
 				>
-				:	never
-			:	never
-		:	never
+				: never
+			: never
+		: never
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export const toString = implStepPlugin<PluginDef>({
 	toString: ({
-		utils: { addSuccessStep, success },
+		utils: { addSuccessStep, success, createIssue, failure },
 		params,
 	}) => {
 		addSuccessStep((value) => {
-			return success(value.toString(...params))
+			try {
+				return success(value.toString(...params))
+			}
+			catch (error) {
+				return failure(createIssue({
+					code: 'toString:conversion_failed',
+					category: 'operation',
+					payload: { value, error },
+					defaultMessage: 'String conversion failed.',
+				}))
+			}
 		})
 	},
 })
