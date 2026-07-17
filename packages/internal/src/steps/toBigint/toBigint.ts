@@ -8,6 +8,31 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Converts the current value with JavaScript's native `BigInt()` conversion.
+	 *
+	 * This step is unavailable when the current output is already a bigint.
+	 * Native conversion exceptions become structured validation issues; no
+	 * additional parsing grammar or safety policy is applied.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, string, toBigint } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, toBigint] })
+	 * const result = v.string().toBigint().execute('42')
+	 * // { value: 42n }
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toBigint:conversion_failed'`: JavaScript's native `BigInt()` conversion threw.
+	 *   Payload: `{ value, error }`.
+	 */
 	toBigint: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
