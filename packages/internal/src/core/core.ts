@@ -419,10 +419,9 @@ function finalizeIssue(
 	}
 }
 
-function finalizeResult(result: ExecutionResult): ExecutionResult {
-	if ('value' in result)
-		return result
-
+function finalizeFailureResult(
+	result: ExecutionFailureResult<AnyExecutionIssue>,
+): ExecutionFailureResult<AnyExecutionIssue> {
 	const issues = result.issues
 	const firstIssue = issues[0]!
 	const firstMetadata = getIssueDraftMetadata(firstIssue)
@@ -450,12 +449,20 @@ function finalizeResult(result: ExecutionResult): ExecutionResult {
 		: { issues: finalizedIssues as [AnyExecutionIssue, ...AnyExecutionIssue[]] }
 }
 
+function finalizeAsyncResult(result: ExecutionResult): ExecutionResult {
+	return 'issues' in result
+		? finalizeFailureResult(result)
+		: result
+}
+
 function createPublicExecutor(executeRaw: PipeExecutor): PipeExecutor {
 	return (value) => {
 		const result = executeRaw(value)
-		return isPromiseLike(result)
-			? Promise.resolve(result).then(finalizeResult)
-			: finalizeResult(result)
+		if (isPromiseLike(result))
+			return Promise.resolve(result).then(finalizeAsyncResult)
+		return 'issues' in result
+			? finalizeFailureResult(result)
+			: result
 	}
 }
 
