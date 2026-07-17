@@ -1,18 +1,18 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-declare namespace Internal {
+declare namespace AtLeastInternal {
 	export type NumberIssue = ExecutionIssue<'isAtLeast:expected_at_least', { target: 'number', value: number, minimum: number }>
 	export type BigIntIssue = ExecutionIssue<'isAtLeast:expected_at_least', { target: 'bigint', value: bigint, minimum: bigint }>
 }
 
-type Meta<T extends number | bigint> = DefineStepMethodMeta<{
+type AtLeastMeta<T extends number | bigint> = DefineStepMethodMeta<{
 	Name: 'isAtLeast'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: T }>
-	SelfIssue: T extends number ? Internal.NumberIssue : Internal.BigIntIssue
+	SelfIssue: T extends number ? AtLeastInternal.NumberIssue : AtLeastInternal.BigIntIssue
 }>
 
-interface PluginDef extends TStepPluginDef {
+interface AtLeastPluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that a number or bigint is greater than or equal to the specified minimum.
@@ -35,19 +35,19 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	isAtLeast:
 		| DefineStepMethod<
-			Meta<number>,
-			this['CurrentValchecker'] extends Meta<number>['ExpectedCurrentValchecker']
-				? (minimum: number, message?: MessageHandler<Internal.NumberIssue>) => Next<
-						{ issue: Internal.NumberIssue },
+			AtLeastMeta<number>,
+			this['CurrentValchecker'] extends AtLeastMeta<number>['ExpectedCurrentValchecker']
+				? (minimum: number, message?: MessageHandler<AtLeastInternal.NumberIssue>) => Next<
+						{ issue: AtLeastInternal.NumberIssue },
 						this['CurrentValchecker']
 					>
 				: never
 		>
 		| DefineStepMethod<
-			Meta<bigint>,
-			this['CurrentValchecker'] extends Meta<bigint>['ExpectedCurrentValchecker']
-				? (minimum: bigint, message?: MessageHandler<Internal.BigIntIssue>) => Next<
-						{ issue: Internal.BigIntIssue },
+			AtLeastMeta<bigint>,
+			this['CurrentValchecker'] extends AtLeastMeta<bigint>['ExpectedCurrentValchecker']
+				? (minimum: bigint, message?: MessageHandler<AtLeastInternal.BigIntIssue>) => Next<
+						{ issue: AtLeastInternal.BigIntIssue },
 						this['CurrentValchecker']
 					>
 				: never
@@ -55,7 +55,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const isAtLeast = implStepPlugin<PluginDef>({
+export const isAtLeast = implStepPlugin<AtLeastPluginDef>({
 	isAtLeast: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [minimum, message],
