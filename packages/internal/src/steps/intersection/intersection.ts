@@ -385,6 +385,43 @@ function mergeValues(
 	return createConflict(path, left, right, 'different_values')
 }
 
+function getEnumerableOwnValueAtPath(
+	value: unknown,
+	path: readonly PropertyKey[],
+): { found: true, value: unknown } | { found: false } {
+	let current = value
+	for (const key of path) {
+		if (!isObject(current)
+			|| !Object.prototype.propertyIsEnumerable.call(current, key))
+			return { found: false }
+		current = (current as Record<PropertyKey, unknown>)[key]
+	}
+	return { found: true, value: current }
+}
+
+function findConflictingLeftBranch(
+	outputs: readonly unknown[],
+	rightBranch: number,
+	conflict: MergeConflict,
+): number {
+	for (let leftBranch = rightBranch - 1; leftBranch >= 0; leftBranch--) {
+		const candidate = getEnumerableOwnValueAtPath(outputs[leftBranch], conflict.path)
+		if (candidate.found && Object.is(candidate.value, conflict.leftValue))
+			return leftBranch
+	}
+
+	for (let leftBranch = rightBranch - 1; leftBranch >= 0; leftBranch--) {
+		const direct = mergeOutputGraphs(outputs[leftBranch], outputs[rightBranch])
+		if (!direct.ok
+			&& direct.conflict.reason === conflict.reason
+			&& direct.conflict.path.length === conflict.path.length
+			&& direct.conflict.path.every((key, index) => Object.is(key, conflict.path[index])))
+			return leftBranch
+	}
+
+	return rightBranch - 1
+}
+
 function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
 	const pairingContext: PairingContext = {
 		leftPartners: new WeakMap(),
@@ -431,7 +468,7 @@ export const intersection = implStepPlugin<PluginDef>({
 							code: 'intersection:conflicting_outputs',
 							payload: {
 								path,
-								leftBranch: i - 1,
+								leftBranch: findConflictingLeftBranch(outputs, i, merged.conflict),
 								rightBranch: i,
 								leftValue,
 								rightValue,

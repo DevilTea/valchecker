@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
-import { hasInternalIssue, implStepPlugin } from '../../core'
+import { implStepPlugin } from '../../core'
+import { hasInternalIssue } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -24,7 +25,7 @@ declare namespace Internal {
 		{
 			[K in keyof S as S[K] extends Use<Valchecker> ? K : never]: S[K] extends Use<Valchecker> ? InferOutput<S[K]> : never
 		} & {
-			[K in keyof S as S[K] extends [optional: Use<Valchecker>] ? K : never]?: S[K] extends [optional: Use<Valchecker>] ? InferOutput<S[K][0]> : never
+			[K in keyof S as S[K] extends [optional: Use<Valchecker>] ? K : never]: S[K] extends [optional: Use<Valchecker>] ? InferOutput<S[K][0]> | undefined : never
 		}
 	>
 

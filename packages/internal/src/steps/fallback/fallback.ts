@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
-import { hasInternalIssue, implStepPlugin } from '../../core'
+import { implStepPlugin } from '../../core'
+import { hasInternalIssue } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {

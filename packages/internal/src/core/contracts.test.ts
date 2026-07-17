@@ -66,6 +66,19 @@ describe('public contracts', () => {
 			.toEqual({ value: { value: 'HELLO', extra: true } })
 	})
 
+	it('should type optional object outputs as materialized properties', () => {
+		const objectSchema = v.object({ value: [v.string()] })
+		const strictSchema = v.strictObject({ value: [v.string()] })
+		const looseSchema = v.looseObject({ value: [v.string()] })
+
+		expectTypeOf<InferOutput<typeof objectSchema>>()
+			.toEqualTypeOf<{ value: string | undefined }>()
+		expectTypeOf<InferOutput<typeof strictSchema>>()
+			.toEqualTypeOf<{ value: string | undefined }>()
+		expectTypeOf<InferOutput<typeof looseSchema>>()
+			.toMatchTypeOf<{ value: string | undefined }>()
+	})
+
 	it('should preserve delegated output and issue types without promising unconditional async execution', async () => {
 		const delegated = v.string()
 			.transform(async value => value.toUpperCase())
@@ -256,20 +269,20 @@ describe('public contracts', () => {
 	it('should not validate inherited values as object fields', () => {
 		const input = Object.create({ name: 'inherited' })
 		const schemas = [
-			v.object({ name: v.string() }),
-			v.strictObject({ name: v.string() }),
-			v.looseObject({ name: v.string() }),
-		]
+			['object:missing_key', v.object({ name: v.string() })],
+			['strictObject:missing_key', v.strictObject({ name: v.string() })],
+			['looseObject:missing_key', v.looseObject({ name: v.string() })],
+		] as const
 
-		for (const schema of schemas) {
+		for (const [code, schema] of schemas) {
 			const result = schema.execute(input)
 			expect(result)
 				.toMatchObject({
 					issues: [{
-						code: 'string:expected_string',
+						code,
 						category: 'validation',
 						path: ['name'],
-						payload: { value: undefined },
+						payload: { key: 'name' },
 					}],
 				})
 		}

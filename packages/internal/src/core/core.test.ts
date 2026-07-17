@@ -292,6 +292,32 @@ describe('core module', () => {
 			expect(appendIssueContext(validationIssue, { type: 'union', branchIndex: 0 }))
 				.toMatchObject({ context: [{ type: 'union', branchIndex: 0 }] })
 		})
+
+
+		it('preserves private dynamic-message metadata when appending context', () => {
+			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
+				dynamicIssue: ({ utils }: any) => {
+					utils.addSuccessStep((value: unknown) => utils.failure(utils.createIssue({
+						code: 'test:dynamic',
+						payload: { value },
+						customMessage: ({ context }: any) => `context:${String(context?.length)}`,
+						defaultMessage: 'dynamic',
+					})))
+				},
+			} as any
+			const checker = createValchecker({ steps: [mockStepImpl] })
+			const schema = (checker as any).dynamicIssue()
+			const rawResult = schema['~execute']('value') as ExecutionResult
+			expect(isFailure(rawResult)).toBe(true)
+			if (!isFailure(rawResult))
+				throw new Error('Expected raw failure')
+
+			const issue = rawResult.issues[0]!
+			const symbols = Object.getOwnPropertySymbols(issue)
+			expect(symbols).toHaveLength(1)
+			const contextualIssue = appendIssueContext(issue, { type: 'union', branchIndex: 0 })
+			expect(Object.getOwnPropertySymbols(contextualIssue)).toEqual(symbols)
+		})
 	})
 
 	describe('handleMessage', () => {

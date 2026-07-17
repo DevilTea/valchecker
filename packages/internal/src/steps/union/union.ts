@@ -1,6 +1,7 @@
 import type { IsEqual } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, ExecutionSuccessResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
-import { hasInternalIssue, implStepPlugin } from '../../core'
+import { implStepPlugin } from '../../core'
+import { isRecoverableFailure } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -84,9 +85,9 @@ export const union = implStepPlugin<PluginDef>({
 						branchIndex,
 					}))
 				}
-				return hasInternalIssue(result.issues)
-					? failure(issues)
-					: null
+				return isRecoverableFailure(result)
+					? null
+					: failure(issues)
 			}
 
 			const continueAsync = async (startIndex: number, firstResult: PromiseLike<ExecutionResult>) => {
