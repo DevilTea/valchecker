@@ -5,8 +5,11 @@ import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
 	export type RunTransform<Input = any, Result = any> = (value: Input) => Result
-
-	export type Issue<Input = unknown> = ExecutionIssue<'transform:failed', { value: Input, error: unknown }>
+	export type Issue<Input = unknown> = ExecutionIssue<
+		'transform:callback_failed',
+		{ phase: 'throw' | 'reject', value: Input, error: unknown },
+		'operation'
+	>
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -16,47 +19,24 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Transforms the value using a provided function.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, transform, string } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [transform, string] })
-	 * const schema = v.string().transform((value) => value.toUpperCase())
-	 * const result = schema.execute('hello')
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'transform:failed'`: Transform failed.
-	 */
 	transform: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			?	InferOutput<this['CurrentValchecker']> extends infer CurrentOutput
-				?	<Result>(
-						run: Internal.RunTransform<CurrentOutput, Result>,
-						message?: MessageHandler<Internal.Issue<CurrentOutput>>,
-					) => Next<
-						{
-							operationMode: IsEqual<IsPromise<Result>, true> extends true
-								? 'maybe-async'
-								: IsEqual<IsPromise<Result>, false> extends true
-									? 'sync'
-									: 'maybe-async'
-							output: Awaited<NoInfer<Result>>
-							issue: Internal.Issue<CurrentOutput>
-						},
-						this['CurrentValchecker']
-					>
-				:	never
-			:	never
+			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput
+				? <Result>(
+					run: Internal.RunTransform<CurrentOutput, Result>,
+					message?: MessageHandler<Internal.Issue<CurrentOutput>>,
+				) => Next<{
+					operationMode: IsEqual<IsPromise<Result>, true> extends true
+						? 'maybe-async'
+						: IsEqual<IsPromise<Result>, false> extends true
+							? 'sync'
+							: 'maybe-async'
+					output: Awaited<NoInfer<Result>>
+					issue: Internal.Issue<CurrentOutput>
+				}, this['CurrentValchecker']>
+				: never
+			: never
 	>
 }
 
@@ -67,26 +47,23 @@ export const transform = implStepPlugin<PluginDef>({
 		params: [run, message],
 	}) => {
 		addSuccessStep((value) => {
-			const handleError = (err: unknown) => {
-				return failure(
-					createIssue({
-						code: 'transform:failed',
-						payload: { value, error: err },
-						customMessage: message,
-						defaultMessage: 'Transform failed',
-					}),
-				)
-			}
+			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => failure(
+				createIssue({
+					code: 'transform:callback_failed',
+					category: 'operation',
+					payload: { phase, value, error },
+					customMessage: message,
+					defaultMessage: 'Transform callback failed.',
+				}),
+			)
 			try {
 				const result = run(value)
 				return isPromiseLike(result)
-					?	Promise.resolve(result)
-							.then(res => success(res))
-							.catch(err => handleError(err))
-					:	success(result)
+					? Promise.resolve(result).then(success, error => callbackFailure('reject', error))
+					: success(result)
 			}
 			catch (error) {
-				return handleError(error)
+				return callbackFailure('throw', error)
 			}
 		})
 	},
