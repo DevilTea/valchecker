@@ -1,8 +1,8 @@
 import type { InferOutput } from '../..'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { bigint, boolean, createValchecker, number, string, toBigint } from '../..'
+import { bigint, boolean, createValchecker, number, string, toBigint, unknown } from '../..'
 
-const v = createValchecker({ steps: [bigint, boolean, number, string, toBigint] })
+const v = createValchecker({ steps: [bigint, boolean, number, string, toBigint, unknown] })
 
 describe('toBigint step plugin', () => {
 	it.each([
@@ -25,6 +25,11 @@ describe('toBigint step plugin', () => {
 		[false, 0n],
 	] as const)('applies BigInt() to boolean %s', (value, expected) => {
 		expect(v.boolean().toBigint().execute(value)).toEqual({ value: expected })
+	})
+
+	it('applies native object-to-primitive conversion', () => {
+		const value = { valueOf: () => 42 }
+		expect(v.unknown().toBigint().execute(value)).toEqual({ value: 42n })
 	})
 
 	it.each([
@@ -52,14 +57,23 @@ describe('toBigint step plugin', () => {
 		})
 	})
 
+	it.each([null, undefined, Symbol('value')])('reports arbitrary values rejected by BigInt()', (value) => {
+		expect(v.unknown().toBigint().execute(value)).toMatchObject({
+			issues: [{
+				code: 'toBigint:invalid_bigint',
+				payload: { value },
+			}],
+		})
+	})
+
 	it('supports custom messages', () => {
-		expect(v.string().toBigint('Custom bigint').execute('invalid')).toMatchObject({
+		expect(v.unknown().toBigint('Custom bigint').execute(null)).toMatchObject({
 			issues: [{ message: 'Custom bigint' }],
 		})
 	})
 
 	it('infers bigint output and is unavailable after bigint()', () => {
-		const schema = v.string().toBigint()
+		const schema = v.unknown().toBigint()
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<bigint>()
 		expectTypeOf(v.bigint().toBigint).toBeNever()
 	})
