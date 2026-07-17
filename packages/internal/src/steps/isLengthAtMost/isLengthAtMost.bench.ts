@@ -7,8 +7,4 @@ describe('isLengthAtMost benchmarks', () => {
 	bench('length success', () => {
 		schema.execute('value')
 	})
-
-	bench('length failure', () => {
-		schema.execute('value that is too long')
-	})
 })
