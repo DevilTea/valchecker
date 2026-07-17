@@ -349,11 +349,11 @@ describe('object plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
+						code: 'transform:callback_failed',
+						category: 'operation',
 						path: ['city'],
-						payload: { value: 'NYC', error: new Error('fail') },
-						message: 'Transform failed',
+						payload: { phase: 'reject', value: 'NYC', error: new Error('fail') },
+						message: 'Transform callback failed.',
 					}],
 				})
 		})

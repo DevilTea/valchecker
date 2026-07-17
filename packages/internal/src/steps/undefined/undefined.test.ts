@@ -184,7 +184,7 @@ describe('undefined plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: undefined },
+						payload: { reason: 'returned_false', value: undefined },
 					}],
 				})
 		})

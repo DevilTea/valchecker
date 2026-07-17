@@ -156,7 +156,7 @@ describe('unknown step plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: 'test' },
+						payload: { reason: 'returned_false', value: 'test' },
 					}],
 				})
 		})

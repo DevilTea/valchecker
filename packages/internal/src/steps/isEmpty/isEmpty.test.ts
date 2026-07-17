@@ -18,7 +18,7 @@ describe('isEmpty step plugin', () => {
 				category: 'validation',
 				message: 'Expected an empty value.',
 				path: [],
-				payload: { value: 'x' },
+				payload: { length: expect.any(Number), value: 'x' },
 			}],
 		})
 	})

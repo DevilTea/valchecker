@@ -106,11 +106,12 @@ describe('Standard Schema V1 contract', () => {
 
 		await expect(schema['~standard'].validate('Ada')).resolves.toEqual({
 			issues: [{
-				code: 'check:failed',
-				category: 'validation',
-				message: 'Check failed',
+				code: 'check:callback_failed',
+				category: 'operation',
+				message: 'Check callback failed.',
 				path: [],
 				payload: {
+					phase: 'reject',
 					value: 'Ada',
 					error,
 				},

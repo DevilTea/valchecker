@@ -78,10 +78,10 @@ describe('toAsync plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
-						payload: { value: 'test', error: expect.any(Error) },
-						message: 'Transform failed',
+						code: 'transform:callback_failed',
+						category: 'operation',
+						payload: { phase: 'reject', value: 'test', error: expect.any(Error) },
+						message: 'Transform callback failed.',
 						path: [],
 					}],
 				})

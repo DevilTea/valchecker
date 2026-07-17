@@ -71,7 +71,7 @@ Validates a JavaScript symbol.
 
 ## `literal(value, message?)`
 
-Matches a single literal value exactly.
+Matches a single literal with `Object.is` semantics. `NaN` matches `NaN`, while `0` and `-0` are distinct.
 
 **Issue code:** `literal:expected_literal`
 
@@ -215,11 +215,15 @@ Checks `value.length >= minimum`.
 
 **Issue code:** `isLengthAtLeast:expected_length_at_least`
 
+Failure payload: `{ value, minimum, length }`, where `length` is the single runtime read used by validation.
+
 ### `isLengthAtMost(maximum, message?)`
 
 Checks `value.length <= maximum`.
 
 **Issue code:** `isLengthAtMost:expected_length_at_most`
+
+Failure payload: `{ value, maximum, length }`.
 
 ```ts
 const username = v.string()
@@ -233,11 +237,15 @@ Checks `value.length === 0`.
 
 **Issue code:** `isEmpty:expected_empty`
 
+Failure payload: `{ value, length }`.
+
 ### `isNotEmpty(message?)`
 
 Checks `value.length > 0`.
 
 **Issue code:** `isNotEmpty:expected_not_empty`
+
+Failure payload: `{ value, length }`.
 
 ## String constraints
 

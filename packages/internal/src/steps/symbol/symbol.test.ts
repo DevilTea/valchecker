@@ -195,7 +195,7 @@ describe('symbol plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: sym2 },
+						payload: { reason: 'returned_false', value: sym2 },
 					}],
 				})
 		})

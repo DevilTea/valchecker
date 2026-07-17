@@ -251,7 +251,7 @@ describe('literal step plugin', () => {
 						category: 'validation',
 						message: 'Check failed',
 						path: [],
-						payload: { value: 'hi' },
+						payload: { reason: 'returned_false', value: 'hi' },
 					}],
 				})
 		})

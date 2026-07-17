@@ -95,7 +95,10 @@ isFinite:expected_finite
 isAtLeast:expected_at_least
 isLengthAtLeast:expected_length_at_least
 toJSONValue:invalid_json
+toJSONString:serialization_failed
 check:failed
+check:callback_failed
+transform:callback_failed
 ```
 
 The public method name, `Meta.Name`, type-level `SelfIssue`, runtime `createIssue()` code, tests, docs, and migration notes must agree.
@@ -108,6 +111,8 @@ Issue payload field names should describe semantics rather than implementation a
 { value, prefix }
 { value, suffix }
 ```
+
+Callback issues should preserve callback phase or operands, serialization issues should preserve `at` and `error`, and length issues should snapshot `length`. If multiple payload variants share one code, keep a discriminant so message handlers narrow precisely.
 
 ## File layout
 

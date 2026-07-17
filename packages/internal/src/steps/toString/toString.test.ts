@@ -8,14 +8,14 @@
  *
  * Input Scenarios:
  * - Valid inputs: All types (number, boolean, string, array, object, bigint, symbol, null, undefined).
- * - Invalid inputs: None (always succeeds).
+ * - Invalid inputs: values whose toString access or call throws.
  * - Edge cases: Custom toString method, various primitive and object types.
  *
  * Expected Outputs and Behaviors:
  * - Success: Always returns { value: stringRepresentation }.
  *
  * Error Handling and Exceptions:
- * - No exceptions; toString is a standard method available on all objects.
+ * - Conversion exceptions become toString:conversion_failed operation issues.
  *
  * Coverage Goals: 100% statement, branch, and function coverage.
  */
@@ -111,6 +111,19 @@ describe('toString plugin', () => {
 				.execute({})
 			expect(result)
 				.toEqual({ value: '[object Object]' })
+		})
+	})
+
+	it('should report toString exceptions as operation issues', () => {
+		const error = new Error('toString')
+		const value = { toString() { throw error } }
+		const result = v.any().toString().execute(value)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'toString:conversion_failed',
+				category: 'operation',
+				payload: { value, error },
+			}],
 		})
 	})
 })

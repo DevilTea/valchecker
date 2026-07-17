@@ -18,15 +18,15 @@
  * - Success: Returns { value: filteredArray }.
  *
  * Error Handling and Exceptions:
- * - No exceptions; filter handles various inputs gracefully.
+ * - Predicate exceptions become operation issues; non-callback method errors remain internal.
  *
  * Coverage Goals: 100% statement, branch, and function coverage.
  */
 
 import { describe, expect, it } from 'vitest'
-import { any, array, createValchecker, toFiltered } from '../..'
+import { any, array, createValchecker, toFiltered, transform } from '../..'
 
-const v = createValchecker({ steps: [array, any, toFiltered] })
+const v = createValchecker({ steps: [array, any, toFiltered, transform] })
 
 describe('toFiltered plugin', () => {
 	describe('basic filtering', () => {
@@ -86,6 +86,41 @@ describe('toFiltered plugin', () => {
 				.execute([1, 2, 3])
 			expect(result)
 				.toEqual({ value: [1, 2, 3] })
+		})
+	})
+
+	it('should report predicate exceptions with item and index', () => {
+		const error = new Error('predicate')
+		const result = v.array(v.any())
+			.toFiltered((_item: number, index) => {
+				if (index === 1)
+					throw error
+				return true
+			}, undefined, 'Filter failed')
+			.execute([1, 2, 3])
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'toFiltered:callback_failed',
+				category: 'operation',
+				message: 'Filter failed',
+				payload: { value: [1, 2, 3], item: 2, index: 1, error },
+			}],
+		})
+	})
+
+	it('should leave non-predicate filter failures to the core boundary', () => {
+		const error = new Error('filter method')
+		const value = [] as any[] & { filter: typeof Array.prototype.filter }
+		value.filter = () => { throw error }
+		const result = v.transform(() => value)
+			.toFiltered(() => true)
+			.execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				category: 'internal',
+				payload: { error },
+			}],
 		})
 	})
 })

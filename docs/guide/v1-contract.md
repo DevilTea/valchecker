@@ -125,14 +125,14 @@ v.looseBigint().execute('1.0') // failure
 Built-in validations preserve the successful value.
 
 - `isAtLeast()` and `isAtMost()` apply to numbers and bigints.
-- `isLengthAtLeast()` and `isLengthAtMost()` apply to values with numeric `length`.
+- `isLengthAtLeast()` and `isLengthAtMost()` apply to values with numeric `length`; failure payloads include the single observed `length` value.
 - `isInteger()` follows `Number.isInteger`.
 - `isFinite()` follows `Number.isFinite`.
 - `isNaN()` follows `Number.isNaN`.
 - `isEmpty()` checks `length === 0`.
 - `isNotEmpty()` checks `length > 0`.
 - `isStartingWith()` and `isEndingWith()` follow the corresponding string methods.
-- `check()` is the generic validation escape hatch and may use a predicate or type guard according to its overload.
+- `check()` is the generic validation escape hatch and may use a predicate, type guard, or typed `addIssue()` callback. Returned failures use `check:failed`; thrown or rejected callbacks use the operation issue `check:callback_failed`.
 
 ## Transformation contract
 
@@ -144,7 +144,7 @@ Concrete transformations use `toXxx` and replace the successful output value:
 - `toLength()`, `toString()`,
 - `toJSONValue()`, `toJSONString()`.
 
-`transform()` remains the generic arbitrary-output escape hatch.
+`transform()` remains the generic arbitrary-output escape hatch. Callback exceptions use the operation issue `transform:callback_failed`. Array filter/sort callbacks and `toString()` similarly expose step-specific operation issues.
 
 `toAsync()` changes the execution return mode rather than the successful value.
 
@@ -338,7 +338,17 @@ If a fallback callback throws or rejects, the final failure contains the origina
 
 Callback steps such as `check`, `transform`, `fallback`, and custom plugin methods may return direct or `PromiseLike` values according to their individual contract.
 
+Callback result failures and callback execution failures are distinct. `check()` returning `false` or a message is validation; a throw or rejection is operation. `transform()`, `toFiltered()`, and `toSorted()` also expose callback-specific operation issues with the original error and relevant phase or operands.
+
+`check<AddedIssue>()` extends both the schema issue union and its message-handler union. If the callback adds issues before throwing or rejecting, those issues remain before `check:callback_failed` in the final non-empty tuple.
+
 Do not rely on `instanceof Promise`; Valchecker intentionally supports thenables and cross-realm promises.
+
+## Serialization and equality details
+
+`toJSONString()` performs a single-read preflight over own enumerable JSON properties. It reports unsupported values, cycles, and undefined results as validation issues with a nested `at` location; getter, Proxy, `toJSON`, and final stringify errors are operation issues. Sparse array holes become `null`, boxed string/number/boolean values preserve JSON semantics, and boxed BigInt remains unsupported.
+
+Length validators snapshot the actual `length` used for the decision. `toMappedBoolean()` snapshots its configured mappings at schema creation. `literal()` follows `Object.is`, including `NaN` equality and signed-zero distinction.
 
 ## Plugin-author contract
 

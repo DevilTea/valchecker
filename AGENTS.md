@@ -134,10 +134,16 @@ string:expected_string
 isFinite:expected_finite
 isAtLeast:expected_at_least
 toJSONValue:invalid_json
-toBigint:invalid_bigint
+toBigint:conversion_failed
 toSafeNumber:out_of_safe_integer_range
 toMappedBoolean:unmapped_value
 check:failed
+check:callback_failed
+transform:callback_failed
+toFiltered:callback_failed
+toSorted:callback_failed
+toString:conversion_failed
+toJSONString:serialization_failed
 ```
 
 Type declarations, runtime creation, tests, docs, and migration notes must agree.

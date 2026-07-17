@@ -23,6 +23,10 @@
 - Issue-path prepending does not mutate child issues.
 - Plugin methods cannot collide with core names or use `then` or symbol names.
 - Accidental implementation helpers have been removed from public exports.
+- Callback exceptions now use step-specific `operation` issues instead of validation or generic core issues.
+- `check<AddedIssue>()` preserves domain issue typing from `addIssue()`.
+- JSON serialization, length validation, and mapped-boolean payloads expose additional diagnostic fields.
+- `literal()` uses `Object.is`; `toBigint:invalid_bigint` becomes `toBigint:conversion_failed`.
 
 ## Common rename example
 

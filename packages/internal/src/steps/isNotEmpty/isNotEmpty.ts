@@ -2,7 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<'isNotEmpty:expected_not_empty', { value: T }>
+	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<'isNotEmpty:expected_not_empty', { value: T, length: number }>
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -14,7 +14,8 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value is not empty (`length > 0`).
+	 * Checks that the value is not empty (`length > 0`). The runtime reads
+	 * `length` once and snapshots it in the failure payload.
 	 *
 	 * ---
 	 *
@@ -23,22 +24,24 @@ interface PluginDef extends TStepPluginDef {
 	 * import { createValchecker, isNotEmpty, string } from 'valchecker'
 	 *
 	 * const v = createValchecker({ steps: [string, isNotEmpty] })
-	 * const result = v.string().isNotEmpty().execute('hello')
+	 * const schema = v.string().isNotEmpty()
+	 * schema.execute('hello') // { value: 'hello' }
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'isNotEmpty:expected_not_empty'`: The value is empty.
+	 * - `'isNotEmpty:expected_not_empty'`: The observed length is zero.
+	 *   Payload: `{ value, length }`.
 	 */
 	isNotEmpty: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
 				? (message?: MessageHandler<Internal.Issue<CurrentOutput>>) => Next<
-						{ issue: Internal.Issue<CurrentOutput> },
-						this['CurrentValchecker']
-					>
+					{ issue: Internal.Issue<CurrentOutput> },
+					this['CurrentValchecker']
+				>
 				: never
 			: never
 	>
@@ -50,15 +53,16 @@ export const isNotEmpty = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
-		addSuccessStep(value => value.length > 0
-			? success(value)
-			: failure(
-					createIssue({
-						code: 'isNotEmpty:expected_not_empty',
-						payload: { value },
-						customMessage: message,
-						defaultMessage: 'Expected a non-empty value.',
-					}),
-				))
+		addSuccessStep((value) => {
+			const length = value.length
+			return length > 0
+				? success(value)
+				: failure(createIssue({
+					code: 'isNotEmpty:expected_not_empty',
+					payload: { value, length },
+					customMessage: message,
+					defaultMessage: 'Expected a non-empty value.',
+				}))
+		})
 	},
 })

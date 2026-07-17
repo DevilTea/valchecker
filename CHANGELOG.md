@@ -32,6 +32,8 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - `looseBoolean()` and `looseBigint()` initial schemas.
 - Native primitive coercion transformations: `toNumber()`, `toBoolean()`, and `toBigint()`.
 - Explicit conversion policies through `bigint().toSafeNumber()` and `toMappedBoolean()`.
+- Typed domain issues through `check<AddedIssue>()` and `addIssue()`.
+- Step-specific operation issues for callback, string-conversion, and JSON-serialization failures.
 
 ### Changed
 
@@ -57,6 +59,11 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - Combinators now treat internal issues as fatal: union cannot skip them, fallback cannot recover them, and object/array sibling traversal stops immediately.
 - `intersection:conflicting_outputs` reports precise conflict paths, branch indices, values, and reason codes.
 - Fallback callback failures retain the original issues and append an `operation`-category `fallback:failed` issue with a required error.
+- `check:failed` now discriminates returned-false and returned-message payloads; callback exceptions use `check:callback_failed`.
+- `transform`, `toFiltered`, and `toSorted` callback exceptions now preserve phase or operand context in operation issues.
+- `toJSONString()` reports stable reason/path payloads, performs a single-read preflight, preserves boxed primitive semantics, and classifies getter, Proxy, and `toJSON` failures as operations.
+- Length validation issues include the observed `length`; mapped-boolean failures include immutable mapping snapshots.
+- `literal()` uses `Object.is`, and bigint conversion failures use `toBigint:conversion_failed`.
 
 ### Renamed
 
@@ -71,6 +78,8 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - `parseJSON()` → `toJSONValue()`
 - `stringifyJSON()` → `toJSONString()`
 - `toSplitted()` → `toSplit()`
+- issue code `transform:failed` → `transform:callback_failed`
+- issue code `toBigint:invalid_bigint` → `toBigint:conversion_failed`
 
 Issue codes for renamed built-in steps now use the public step name, including `isAtLeast:expected_at_least`, `isLengthAtLeast:expected_length_at_least`, and `toJSONValue:invalid_json`.
 

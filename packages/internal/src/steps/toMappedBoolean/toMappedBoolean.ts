@@ -6,54 +6,35 @@ declare namespace Internal {
 		readonly trueValues: readonly T[]
 		readonly falseValues: readonly T[]
 	}
+	export type Issue<T = unknown> = ExecutionIssue<
+		'toMappedBoolean:unmapped_value',
+		{ value: T, trueValues: readonly T[], falseValues: readonly T[] }
+	>
 }
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toMappedBoolean'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string | number | bigint }>
-	SelfIssue: ExecutionIssue<'toMappedBoolean:unmapped_value', { value: unknown }>
+	SelfIssue: Internal.Issue
 }>
 
 interface PluginDef extends TStepPluginDef {
 	/**
-	 * ### Description:
-	 * Converts configured values to booleans using SameValueZero equality, the same equality semantics used by JavaScript `Set`.
-	 *
-	 * Values outside both mappings produce an issue. The mappings do not trim, normalize case, or perform coercion. Overlapping mappings and two empty mappings are invalid schema configurations and throw immediately.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, string, toMappedBoolean } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [string, toMappedBoolean] })
-	 * const schema = v.string().toMappedBoolean({
-	 *   trueValues: ['Y', 'yes'],
-	 *   falseValues: ['N', 'no'],
-	 * })
-	 * const result = schema.execute('Y')
-	 * // { value: true }
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'toMappedBoolean:unmapped_value'`: The value is not present in either configured mapping.
+	 * Maps configured values to booleans with SameValueZero equality. Failure
+	 * payloads include immutable snapshots of both configured mappings.
 	 */
 	toMappedBoolean: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-			? (
-				options: Internal.Options<InferOutput<This>>,
-				message?: MessageHandler<Meta['SelfIssue']>,
-			) => Next<
-				{
+			? InferOutput<This> extends infer CurrentOutput
+				? (
+					options: Internal.Options<CurrentOutput>,
+					message?: MessageHandler<Internal.Issue<CurrentOutput>>,
+				) => Next<{
 					output: boolean
-					issue: Meta['SelfIssue']
-				},
-				This
-			>
+					issue: Internal.Issue<CurrentOutput>
+				}, This>
+				: never
 			: never
 	>
 }
@@ -64,34 +45,33 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options, message],
 	}) => {
-		if (options.trueValues.length === 0 && options.falseValues.length === 0) {
+		if (options.trueValues.length === 0 && options.falseValues.length === 0)
 			throw new TypeError('toMappedBoolean() requires at least one configured value.')
-		}
 
-		const trueValues = new Set(options.trueValues)
-		const falseValues = new Set(options.falseValues)
+		const trueValuesSnapshot = Object.freeze([...options.trueValues])
+		const falseValuesSnapshot = Object.freeze([...options.falseValues])
+		const trueValues = new Set(trueValuesSnapshot)
+		const falseValues = new Set(falseValuesSnapshot)
 		for (const value of trueValues) {
-			if (falseValues.has(value)) {
+			if (falseValues.has(value))
 				throw new TypeError('toMappedBoolean() trueValues and falseValues must not overlap.')
-			}
 		}
 
 		addSuccessStep((value) => {
-			if (trueValues.has(value)) {
+			if (trueValues.has(value))
 				return success(true)
-			}
-			if (falseValues.has(value)) {
+			if (falseValues.has(value))
 				return success(false)
-			}
-
-			return failure(
-				createIssue({
-					code: 'toMappedBoolean:unmapped_value',
-					payload: { value },
-					customMessage: message,
-					defaultMessage: 'Expected the value to match a configured boolean mapping.',
-				}),
-			)
+			return failure(createIssue({
+				code: 'toMappedBoolean:unmapped_value',
+				payload: {
+					value,
+					trueValues: trueValuesSnapshot,
+					falseValues: falseValuesSnapshot,
+				},
+				customMessage: message,
+				defaultMessage: 'Expected the value to match a configured boolean mapping.',
+			}))
 		})
 	},
 })

@@ -17,15 +17,15 @@
  * - Success: Returns { value: newSortedArray }.
  *
  * Error Handling and Exceptions:
- * - No exceptions; toSorted handles various inputs gracefully.
+ * - Comparator exceptions become operation issues; non-comparator method errors remain internal.
  *
  * Coverage Goals: 100% statement, branch, and function coverage.
  */
 
 import { describe, expect, it } from 'vitest'
-import { any, array, createValchecker, toSorted } from '../..'
+import { any, array, createValchecker, toSorted, transform } from '../..'
 
-const v = createValchecker({ steps: [array, any, toSorted] })
+const v = createValchecker({ steps: [array, any, toSorted, transform] })
 
 describe('toSorted plugin', () => {
 	describe('default sorting', () => {
@@ -94,6 +94,42 @@ describe('toSorted plugin', () => {
 				.execute(['Banana', 'apple', 'Cherry'])
 			expect(result)
 				.toEqual({ value: ['apple', 'Banana', 'Cherry'] })
+		})
+	})
+
+	it('should report comparator exceptions with operands', () => {
+		const error = new Error('comparator')
+		const result = v.array(v.any())
+			.toSorted(() => { throw error }, 'Sort failed')
+			.execute([2, 1])
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'toSorted:callback_failed',
+				category: 'operation',
+				message: 'Sort failed',
+				payload: {
+					value: [2, 1],
+					left: expect.any(Number),
+					right: expect.any(Number),
+					error,
+				},
+			}],
+		})
+	})
+
+	it('should leave non-comparator sort failures to the core boundary', () => {
+		const error = new Error('sort method')
+		const value = [] as any[] & { toSorted: typeof Array.prototype.toSorted }
+		value.toSorted = () => { throw error }
+		const result = v.transform(() => value)
+			.toSorted(() => 0)
+			.execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				category: 'internal',
+				payload: { error },
+			}],
 		})
 	})
 })

@@ -2,7 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<'isEmpty:expected_empty', { value: T }>
+	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<'isEmpty:expected_empty', { value: T, length: number }>
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -14,7 +14,8 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value is empty (`length === 0`).
+	 * Checks that the value is empty (`length === 0`). The runtime reads
+	 * `length` once and snapshots it in the failure payload.
 	 *
 	 * ---
 	 *
@@ -24,22 +25,23 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * const v = createValchecker({ steps: [string, isEmpty] })
 	 * const schema = v.string().isEmpty()
-	 * const result = schema.execute('')
+	 * schema.execute('') // { value: '' }
 	 * ```
 	 *
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'isEmpty:expected_empty'`: The value is not empty.
+	 * - `'isEmpty:expected_empty'`: The observed length is not zero.
+	 *   Payload: `{ value, length }`.
 	 */
 	isEmpty: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
 				? (message?: MessageHandler<Internal.Issue<CurrentOutput>>) => Next<
-						{ issue: Internal.Issue<CurrentOutput> },
-						this['CurrentValchecker']
-					>
+					{ issue: Internal.Issue<CurrentOutput> },
+					this['CurrentValchecker']
+				>
 				: never
 			: never
 	>
@@ -51,17 +53,16 @@ export const isEmpty = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [message],
 	}) => {
-		addSuccessStep(
-			value => value.length === 0
+		addSuccessStep((value) => {
+			const length = value.length
+			return length === 0
 				? success(value)
-				: failure(
-						createIssue({
-							code: 'isEmpty:expected_empty',
-							payload: { value },
-							customMessage: message,
-							defaultMessage: 'Expected an empty value.',
-						}),
-					),
-		)
+				: failure(createIssue({
+					code: 'isEmpty:expected_empty',
+					payload: { value, length },
+					customMessage: message,
+					defaultMessage: 'Expected an empty value.',
+				}))
+		})
 	},
 })

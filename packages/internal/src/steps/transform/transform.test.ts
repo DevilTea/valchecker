@@ -4,7 +4,7 @@
  * - Valid inputs: synchronous and asynchronous successful transformations.
  * - Invalid inputs: synchronous and asynchronous failed transformations.
  * - Edge cases: custom message handler.
- * - Expected behaviors: Success returns { value: transformedValue }; failure returns { issues: [{ code: 'transform:failed', payload: { value, error }, message }] }.
+ * - Expected behaviors: Success returns { value: transformedValue }; failure returns { issues: [{ code: 'transform:callback_failed', payload: { value, error }, message }] }.
  * - Error handling: Catches sync errors and promise rejections.
  * - Coverage goals: 100% statement, branch, and function coverage.
  */
@@ -35,11 +35,11 @@ describe('transform plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
-						message: 'Transform failed',
+						code: 'transform:callback_failed',
+						category: 'operation',
+						message: 'Transform callback failed.',
 						path: [],
-						payload: { value: 'hello', error: expect.any(Error) },
+						payload: { phase: 'throw', value: 'hello', error: expect.any(Error) },
 					}],
 				})
 		})
@@ -63,11 +63,11 @@ describe('transform plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
-						message: 'Transform failed',
+						code: 'transform:callback_failed',
+						category: 'operation',
+						message: 'Transform callback failed.',
 						path: [],
-						payload: { value: 'hello', error: expect.any(Error) },
+						payload: { phase: 'reject', value: 'hello', error: expect.any(Error) },
 					}],
 				})
 		})
@@ -82,11 +82,11 @@ describe('transform plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'transform:failed',
-						category: 'validation',
+						code: 'transform:callback_failed',
+						category: 'operation',
 						message: 'Custom: error',
 						path: [],
-						payload: { value: 'hello', error: expect.any(Error) },
+						payload: { phase: 'throw', value: 'hello', error: expect.any(Error) },
 					}],
 				})
 		})
