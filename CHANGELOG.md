@@ -16,11 +16,11 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - First-success transformed-output semantics for `union()`.
 - Graph-aware `intersection()` composition for compatible plain objects, cycles, aliases, enumerable symbol keys, and same-reference non-plain values.
 - Safe own-property handling for declared `__proto__` fields.
-- Own-property-only reads for declared object fields.
-- Strict-object detection of unknown enumerable symbol keys.
+- Own-property-only reads for declared object fields, explicit `*:missing_key` issues, and distinct missing-versus-present-`undefined` semantics.
+- Strict-object detection of unknown enumerable symbol keys with combined unknown/missing/invalid-field reporting.
 - Descriptor-preserving unknown fields in `looseObject()`.
 - Immutable issue-path prepending that supports frozen and reused child issues.
-- Explicit issue categories (`validation`, `operation`, and `internal`) plus optional non-data issue context.
+- Explicit issue categories (`validation`, `operation`, and `internal`) plus optional non-data issue context, including union branch provenance.
 - Deferred, single-pass message finalization with final nested paths and enclosing structure message scopes.
 - Structured `core:message_exception` failures when a message handler throws.
 - An explicit message-resolution order: originating step, enclosing structures, originating global resolver, default, then `"Invalid value."`.
@@ -54,6 +54,9 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - Failure issue arrays are typed as non-empty tuples.
 - `core:unknown_exception` now exposes the received execution result as `receivedResult` instead of the misleading `value` field.
 - Message maps preserve same-code payload variants and allow callbacks to return `null` or `undefined` to continue resolution.
+- Combinators now treat internal issues as fatal: union cannot skip them, fallback cannot recover them, and object/array sibling traversal stops immediately.
+- `intersection:conflicting_outputs` reports precise conflict paths, branch indices, values, and reason codes.
+- Fallback callback failures retain the original issues and append an `operation`-category `fallback:failed` issue with a required error.
 
 ### Renamed
 

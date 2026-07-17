@@ -164,6 +164,26 @@ describe('intersection plugin', () => {
 		}
 	})
 
+	it('should reject a shared reference after it was merged with a distinct partner', () => {
+		const shared = { value: true }
+		const partner = { value: true }
+		const left = { first: shared, second: shared }
+		const right = { first: partner, second: shared }
+		const result = v.intersection([
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => right),
+		]).execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'intersection:conflicting_outputs',
+				payload: {
+					path: ['second'],
+					reason: 'incompatible_alias',
+				},
+			}],
+		})
+	})
+
 	it('should reject incompatible shared-reference topology', () => {
 		const shared = {}
 		const aliased = { first: shared, second: shared }
@@ -204,7 +224,7 @@ describe('intersection plugin', () => {
 				issues: [{
 					code: 'intersection:conflicting_outputs',
 					category: 'validation',
-					payload: { outputs: ['left', 'right'] },
+					payload: { path: [], leftBranch: 0, rightBranch: 1, leftValue: 'left', rightValue: 'right', reason: 'different_values' },
 				}],
 			})
 	})
@@ -224,9 +244,107 @@ describe('intersection plugin', () => {
 				issues: [{
 					code: 'intersection:conflicting_outputs',
 					category: 'validation',
-					payload: { outputs: [left, right] },
+					payload: { path: [], leftBranch: 0, rightBranch: 1, leftValue: left, rightValue: right, reason: 'different_references' },
 				}],
 			})
+	})
+
+	it('should reject plain and non-plain object combinations', () => {
+		const left = { value: true }
+		const right = new Date(0)
+		const result = v.intersection([
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => right),
+		]).execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'intersection:conflicting_outputs',
+				payload: { reason: 'incompatible_prototype', leftValue: left, rightValue: right },
+			}],
+		})
+	})
+
+	it('should reject non-plain objects with different prototypes', () => {
+		const left = new Date(0)
+		const right = /value/
+		const result = v.intersection([
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => right),
+		]).execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'intersection:conflicting_outputs',
+				payload: { reason: 'incompatible_prototype', leftValue: left, rightValue: right },
+			}],
+		})
+	})
+
+	it('should reject plain objects with different prototypes', () => {
+		const left = Object.assign(Object.create(null) as Record<string, unknown>, { value: true })
+		const right = { value: true }
+		const result = v.intersection([
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => right),
+		]).execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'intersection:conflicting_outputs',
+				payload: { reason: 'incompatible_prototype', leftValue: left, rightValue: right },
+			}],
+		})
+	})
+
+	it('should distinguish incompatible cycles from aliases in either direction', () => {
+		const cyclic: Record<string, unknown> = {}
+		cyclic.self = cyclic
+		const nested: Record<string, unknown> = {}
+		nested.self = nested
+		const split = { self: nested }
+
+		for (const [left, right] of [[cyclic, split], [split, cyclic]]) {
+			const result = v.intersection([
+				v.unknown().transform(() => left),
+				v.unknown().transform(() => right),
+			]).execute(null)
+			expect(result).toMatchObject({
+				issues: [{
+					code: 'intersection:conflicting_outputs',
+					payload: { reason: 'incompatible_cycle' },
+				}],
+			})
+		}
+	})
+
+	it('should not re-run accessors while locating a three-branch conflict source', () => {
+		let leftReads = 0
+		let rightReads = 0
+		const left = Object.defineProperty({}, 'nested', {
+			enumerable: true,
+			get() {
+				leftReads++
+				return { value: 'left' }
+			},
+		})
+		const right = Object.defineProperty({}, 'nested', {
+			enumerable: true,
+			get() {
+				rightReads++
+				return { value: 'right' }
+			},
+		})
+		const result = v.intersection([
+			v.unknown().transform(() => ({ unrelated: true })),
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => right),
+		]).execute(null)
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'intersection:conflicting_outputs',
+				payload: { path: ['nested', 'value'], leftBranch: 1, rightBranch: 2 },
+			}],
+		})
+		expect(leftReads).toBe(1)
+		expect(rightReads).toBe(1)
 	})
 
 	it('should preserve the same non-plain object reference', () => {

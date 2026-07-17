@@ -248,6 +248,10 @@ export interface StepMethodUtils<
 		path: AnyExecutionIssue['path'],
 		messageScope?: MessageHandler<any> | undefined,
 	) => I
+	appendIssueContext: <I extends AnyExecutionIssue>(
+		issue: I,
+		context: IssueContext,
+	) => I
 
 	success: (value: Output) => ExecutionSuccessResult<Output>
 	failure: (issue: AnyExecutionIssue | AnyExecutionIssue[]) => ExecutionFailureResult<Issue>

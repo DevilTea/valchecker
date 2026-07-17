@@ -261,7 +261,7 @@ Custom and delegated schemas may safely return frozen or reused issue objects. S
 
 ## Object schemas
 
-All object validators read declared fields from own properties only. Inherited values do not satisfy declared fields.
+All object validators read declared fields from own properties only. Inherited values do not satisfy declared fields. A missing required own property produces the variant-specific `*:missing_key` issue with `{ key }`, and its public path points directly at that key. An own property whose value is `undefined` is present and is passed to the child schema.
 
 ### `object(shape)`
 
@@ -269,7 +269,7 @@ Validates declared fields and returns declared transformed outputs. Unknown inpu
 
 ### `strictObject(shape)`
 
-Behaves like `object()` and rejects unknown enumerable own string and symbol keys with `strictObject:unexpected_keys`.
+Behaves like `object()` and rejects unknown enumerable own string and symbol keys with `strictObject:unexpected_keys`. The payload is `{ keys, expectedKeys }`. Unexpected keys, missing required keys, and invalid known fields are collected in the same execution rather than returning after the first class of structural error.
 
 ### `looseObject(shape)`
 
@@ -287,7 +287,7 @@ A declared `__proto__` key is created as an own enumerable data property without
 
 `array(schema)` validates elements in index order and returns their transformed outputs. Nested issues receive numeric indices in their paths.
 
-Earlier synchronous failures can complete before later asynchronous element work is started.
+Earlier synchronous failures can complete before later asynchronous element work is started. Validation and operation issues are collected; an internal issue stops sibling element evaluation immediately and is returned without being hidden.
 
 ## Union semantics
 
@@ -302,7 +302,7 @@ const schema = v.union([
 schema.execute('abc') // { value: 3 }
 ```
 
-If every branch fails, union returns collected branch issues. Branch order is normative.
+If every branch fails, union returns collected branch issues. Each issue receives `{ type: 'union', branchIndex }` in `context`; the data `path` is unchanged. Validation and operation failures continue to the next branch, while an internal failure stops evaluation immediately, discards issues from earlier alternative branches, and cannot be hidden by a later successful branch. Branch order is normative.
 
 ## Intersection semantics
 
@@ -312,9 +312,23 @@ Only plain objects are recursively composed. Composition supports enumerable str
 
 Primitive values are compatible when `Object.is(left, right)` is true. The same non-plain object reference is preserved; distinct non-plain instances conflict.
 
-Incompatible outputs fail with `intersection:conflicting_outputs` and retain original branch outputs in the issue payload.
+Incompatible outputs fail with `intersection:conflicting_outputs`. Its payload identifies `path`, `leftBranch`, `rightBranch`, `leftValue`, `rightValue`, and a reason: `different_values`, `different_references`, `incompatible_alias`, `incompatible_cycle`, or `incompatible_prototype`.
 
 After the first asynchronous branch is reached, remaining branches are started and awaited together. A synchronous failure before asynchronous work remains fail-fast.
+
+## Fatal and recoverable failures
+
+Combinators use issue categories rather than issue-code string matching:
+
+| Consumer | `validation` | `operation` | `internal` |
+| --- | --- | --- | --- |
+| `union()` | try next branch | try next branch | return immediately |
+| `fallback()` | recoverable | recoverable | callback is not run |
+| object/array siblings | collect | collect | stop immediately |
+| `intersection()` | fail | fail | fail |
+| `use()` | pass through | pass through | pass through |
+
+If a fallback callback throws or rejects, the final failure contains the original received issues followed by `fallback:failed`, whose category is `operation` and whose payload always includes the thrown `error`.
 
 ## Delegation with `use()`
 

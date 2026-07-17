@@ -207,16 +207,22 @@ Callback steps may assimilate complete `PromiseLike` values, including custom th
 
 ### Intersection
 
-Only compatible plain-object outputs are recursively composed. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference. Compatible cycles, aliases, and enumerable symbol keys are supported. Incompatible outputs fail with `intersection:conflicting_outputs`.
+Only compatible plain-object outputs are recursively composed. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference. Compatible cycles, aliases, and enumerable symbol keys are supported. `intersection:conflicting_outputs` now reports the conflict path, branch pair, values, and a stable reason instead of carrying the complete outputs array.
 
 ### Objects
 
-- Declared fields are read from own properties only.
+- Declared fields are read from own properties only. Missing required own properties now produce `object:missing_key`, `strictObject:missing_key`, or `looseObject:missing_key`; present `undefined` is still validated by the child schema.
 - `object()` omits unknown output properties.
-- `strictObject()` rejects unknown enumerable own string and symbol keys.
+- `strictObject()` rejects unknown enumerable own string and symbol keys, reports `{ keys, expectedKeys }`, and collects unknown, missing, and invalid-known-field issues together.
 - `looseObject()` preserves unknown own properties and descriptors.
 - Declared `__proto__` fields are safe own data properties.
-- A one-element tuple still marks a field optional.
+- A one-element tuple still marks a field optional. When absent, the child schema is skipped and the declared output property is materialized with `undefined`.
+
+### Fatal and recoverable combinator behavior
+
+`union()` and `fallback()` no longer treat internal failures as ordinary alternatives. Union stops at an internal branch issue; fallback does not run its callback. Object and array traversal also stop sibling evaluation once an internal issue is observed. Union branch provenance is available in `issue.context` without changing `issue.path`.
+
+A throwing or rejecting fallback callback now emits an `operation`-category `fallback:failed` issue after the original issues, and `payload.error` is required.
 
 ## Issue shape and core failures
 

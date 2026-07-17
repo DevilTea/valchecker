@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -64,60 +64,57 @@ export const array = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep((value) => {
 			if (Array.isArray(value) === false) {
-				return failure(
-					createIssue({
-						code: 'array:expected_array',
-						payload: { value },
-						customMessage: message,
-						defaultMessage: 'Expected an array.',
-					}),
-				)
+				return failure(createIssue({
+					code: 'array:expected_array',
+					payload: { value },
+					customMessage: message,
+					defaultMessage: 'Expected an array.',
+				}))
 			}
 
-			// Optimized: Direct processing without Pipe overhead
 			const issues: AnyExecutionIssue[] = []
 			const len = value.length
 			// eslint-disable-next-line unicorn/no-new-array
 			const output = new Array(len)
 			const execute = item['~execute']
 
-			const processItemResult = (result: ExecutionResult, i: number) => {
+			for (let i = 0; i < len; i++) {
+				const result = execute(value[i])
+				if (isPromiseLike(result)) {
+					return (async () => {
+						for (let j = i; j < len; j++) {
+							const resolved = j === i ? await result : await execute(value[j])
+							if (isFailure(resolved)) {
+								let hasInternal = false
+								for (const issue of resolved.issues) {
+									if (issue.category === 'internal')
+										hasInternal = true
+									issues.push(prependIssuePath(issue, [j]))
+								}
+								if (hasInternal)
+									return failure(issues)
+							}
+							else {
+								output[j] = resolved.value
+							}
+						}
+						return issues.length > 0 ? failure(issues) : success(output)
+					})()
+				}
+
 				if (isFailure(result)) {
-					// Optimize: Avoid spread and map by using direct loop
-					for (const issue of result.issues!) {
+					let hasInternal = false
+					for (const issue of result.issues) {
+						if (issue.category === 'internal')
+							hasInternal = true
 						issues.push(prependIssuePath(issue, [i]))
 					}
+					if (hasInternal)
+						return failure(issues)
 				}
 				else {
-					output[i] = result.value!
+					output[i] = result.value
 				}
-			}
-
-			// Process items synchronously until we hit async
-			let isAsync = false
-			for (let i = 0; i < len; i++) {
-				if (isAsync) {
-					// Already in async mode, skip
-					continue
-				}
-				const itemValue = value[i]!
-				const itemResult = execute(itemValue)
-
-				if (isPromiseLike(itemResult)) {
-					isAsync = true
-					// Hit async, chain remaining items
-					let chain = Promise.resolve(itemResult)
-						.then(r => processItemResult(r, i))
-					for (let j = i + 1; j < len; j++) {
-						const jValue = value[j]!
-						const jIndex = j
-						chain = chain.then(() => Promise.resolve(execute(jValue))
-							.then(r => processItemResult(r, jIndex)))
-					}
-					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
-				}
-
-				processItemResult(itemResult, i)
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)

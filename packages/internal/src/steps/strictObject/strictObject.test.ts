@@ -57,7 +57,7 @@ describe('strictObject plugin', () => {
 			})
 				.execute({ name: 'John' })
 			expect(result)
-				.toEqual({ value: { name: 'John' } })
+				.toEqual({ value: { name: 'John', age: undefined } })
 		})
 
 		it('should pass for mixed required and optional properties', () => {
@@ -68,7 +68,7 @@ describe('strictObject plugin', () => {
 			})
 				.execute({ name: 'John', email: 'john@example.com' })
 			expect(result)
-				.toEqual({ value: { name: 'John', email: 'john@example.com' } })
+				.toEqual({ value: { name: 'John', age: undefined, email: 'john@example.com' } })
 		})
 
 		it('should handle nested object validation', () => {
@@ -271,7 +271,7 @@ describe('strictObject plugin', () => {
 						category: 'validation',
 						message: 'Unexpected object keys found.',
 						path: [],
-						payload: { value: { name: 'John', extra: 'value', another: 123 }, keys: ['extra', 'another'] },
+						payload: { keys: ['extra', 'another'], expectedKeys: ['name'] },
 					}],
 				})
 		})
@@ -311,7 +311,7 @@ describe('strictObject plugin', () => {
 						category: 'validation',
 						message: 'Custom: strictObject:unexpected_keys - extra',
 						path: [],
-						payload: { value: { name: 'John', extra: 'value' }, keys: ['extra'] },
+						payload: { keys: ['extra'], expectedKeys: ['name'] },
 					}],
 				})
 		})

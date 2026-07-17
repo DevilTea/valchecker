@@ -137,7 +137,9 @@ Steps that catch failures (like `fallback`):
 
 ```typescript
 addFailureStep((issues) => {
-  return success(defaultValue)  // Recover from failure
+  if (hasInternalIssue(issues))
+    return failure(issues)      // Internal failures are fatal
+  return success(defaultValue) // Recover validation/operation failures
 })
 ```
 
@@ -153,3 +155,10 @@ See `packages/internal/src/steps/min/min.ts` for a complete example of handling 
 `createIssue()` is type-checked against the current method's `Meta.SelfIssue`. A code typo, incompatible payload, or incompatible category must fail typechecking. Public issues contain `code`, `category`, `payload`, `message`, `path`, and optional `context`.
 
 Issue drafts remain internal while nested structures prepend paths and message scopes. Public `execute()` and Standard Schema validation finalize each issue once. Do not eagerly call message handlers in a step implementation.
+
+
+## Structural and combinator failure rules
+
+Object-family steps must distinguish `Object.hasOwn(value, key)` from the property's value. Missing required keys use the variant-specific `missing_key` issue; present `undefined` runs the child schema. Optional missing keys skip the child and still materialize `undefined` in the declared output.
+
+Within the internal package, use the package-private `hasInternalIssue()` / `isRecoverableFailure()` helpers for category-based propagation. Do not branch on issue-code strings. Union adds branch provenance to `context`, not `path`; fallback must preserve received issues when its callback fails.

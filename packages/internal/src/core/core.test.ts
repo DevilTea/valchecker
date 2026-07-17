@@ -12,11 +12,14 @@ import type { ExecutionIssue, ExecutionResult, StepPluginImpl, TStepPluginDef } 
 import { describe, expect, it } from 'vitest'
 import { runtimeExecutionStepDefMarker } from '../shared'
 import {
+	appendIssueContext,
 	createPipeExecutor,
 	createValchecker,
 	handleMessage,
+	hasInternalIssue,
 	implStepPlugin,
 	isFailure,
+	isRecoverableFailure,
 	isSuccess,
 	prependIssuePath,
 	resolveMessagePriority,
@@ -247,6 +250,73 @@ describe('core module', () => {
 					message: 'Test error',
 					path: ['root', 1, sym, 0],
 				})
+		})
+	})
+
+
+	describe('issue category helpers', () => {
+		const validationIssue: ExecutionIssue = {
+			code: 'test:validation',
+			category: 'validation',
+			payload: {},
+			message: 'validation',
+			path: [],
+		}
+		const internalIssue: ExecutionIssue<string, unknown, 'internal'> = {
+			code: 'test:internal',
+			category: 'internal',
+			payload: {},
+			message: 'internal',
+			path: [],
+		}
+
+		it('detects internal issues and recoverable failures', () => {
+			expect(hasInternalIssue([validationIssue])).toBe(false)
+			expect(hasInternalIssue([validationIssue, internalIssue])).toBe(true)
+			expect(isRecoverableFailure({ issues: [validationIssue] })).toBe(true)
+			expect(isRecoverableFailure({ issues: [internalIssue] })).toBe(false)
+			expect(isRecoverableFailure({ value: 1 })).toBe(false)
+		})
+
+		it('appends context without mutating the source issue', () => {
+			const withExisting = { ...validationIssue, context: [{ type: 'existing' }] }
+			const result = appendIssueContext(withExisting, { type: 'union', branchIndex: 1 })
+			expect(result).toEqual({
+				...validationIssue,
+				context: [
+					{ type: 'existing' },
+					{ type: 'union', branchIndex: 1 },
+				],
+			})
+			expect(withExisting.context).toEqual([{ type: 'existing' }])
+			expect(appendIssueContext(validationIssue, { type: 'union', branchIndex: 0 }))
+				.toMatchObject({ context: [{ type: 'union', branchIndex: 0 }] })
+		})
+
+
+		it('preserves private dynamic-message metadata when appending context', () => {
+			const mockStepImpl: StepPluginImpl<TStepPluginDef> = {
+				dynamicIssue: ({ utils }: any) => {
+					utils.addSuccessStep((value: unknown) => utils.failure(utils.createIssue({
+						code: 'test:dynamic',
+						payload: { value },
+						customMessage: ({ context }: any) => `context:${String(context?.length)}`,
+						defaultMessage: 'dynamic',
+					})))
+				},
+			} as any
+			const checker = createValchecker({ steps: [mockStepImpl] })
+			const schema = (checker as any).dynamicIssue()
+			const rawResult = schema['~execute']('value') as ExecutionResult
+			expect(isFailure(rawResult)).toBe(true)
+			if (!isFailure(rawResult))
+				throw new Error('Expected raw failure')
+
+			const issue = rawResult.issues[0]!
+			const symbols = Object.getOwnPropertySymbols(issue)
+			expect(symbols).toHaveLength(1)
+			const contextualIssue = appendIssueContext(issue, { type: 'union', branchIndex: 0 })
+			expect(Object.getOwnPropertySymbols(contextualIssue)).toEqual(symbols)
 		})
 	})
 

@@ -57,7 +57,7 @@ describe('looseObject plugin', () => {
 			})
 				.execute({ name: 'John' })
 			expect(result)
-				.toEqual({ value: { name: 'John' } })
+				.toEqual({ value: { name: 'John', age: undefined } })
 		})
 
 		it('should pass for mixed required and optional properties', () => {
@@ -68,7 +68,7 @@ describe('looseObject plugin', () => {
 			})
 				.execute({ name: 'John', email: 'john@example.com' })
 			expect(result)
-				.toEqual({ value: { name: 'John', email: 'john@example.com' } })
+				.toEqual({ value: { name: 'John', age: undefined, email: 'john@example.com' } })
 		})
 
 		it('should preserve extra keys in output', () => {
