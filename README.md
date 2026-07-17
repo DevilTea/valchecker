@@ -90,7 +90,7 @@ Built-in steps follow a predictable fluent API:
 
 - initial steps use nouns, such as `string()`, `number()`, and `looseBoolean()`,
 - validation steps use `isXxx()`, such as `isFinite()` and `isLengthAtLeast()`,
-- concrete transformations use `toXxx()`, such as `toTrimmed()` and `toJSONValue()`,
+- concrete transformations use `toXxx()`, such as `toTrimmed()`, `toNumber()`, and `toJSONValue()`,
 - generic escape hatches retain the direct names `check()` and `transform()`.
 
 Primitive initial steps align with TypeScript primitive types. In particular, `number()` accepts every JavaScript number, including `NaN`, `Infinity`, and `-Infinity`. Add `.isFinite()` when finite values are required.
@@ -104,6 +104,47 @@ v.looseBigint().execute('0x10') // { value: 16n }
 ```
 
 They do not perform general JavaScript truthiness or unrestricted coercion.
+
+### Primitive conversions
+
+Native coercion transformations delegate directly to JavaScript:
+
+```ts
+v.string().toNumber() // Number(value)
+v.string().toBoolean() // Boolean(value)
+v.string().toBigint() // BigInt(value)
+```
+
+They intentionally do not hide extra policy:
+
+```ts
+v.string().toNumber().execute('invalid')
+// { value: NaN }
+
+v.string().toBoolean().execute('false')
+// { value: true }
+
+v.bigint().toNumber().execute(9007199254740993n)
+// { value: 9007199254740992 }
+```
+
+`toBigint()` converts native `BigInt()` exceptions into structured validation issues. Explicit policy conversions remain separate:
+
+```ts
+v.bigint().toSafeNumber()
+
+v.string().toMappedBoolean({
+	trueValues: ['Y', 'yes'],
+	falseValues: ['N', 'no'],
+})
+
+v.number().toMappedBoolean({
+	trueValues: [1],
+	falseValues: [0],
+})
+```
+
+Identity conversions such as `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware fluent API.
 
 ## Execution semantics
 
