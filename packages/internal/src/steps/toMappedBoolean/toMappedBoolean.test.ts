@@ -49,7 +49,7 @@ describe('toMappedBoolean step plugin', () => {
 		expect(schema.execute(0)).toEqual({ value: false })
 	})
 
-	it('reports values outside both mappings', () => {
+	it('reports the configured mappings for an unmapped value', () => {
 		expect(v.string().toMappedBoolean({
 			trueValues: ['Y'],
 			falseValues: ['N'],
@@ -59,7 +59,27 @@ describe('toMappedBoolean step plugin', () => {
 				category: 'validation',
 				message: 'Expected the value to match a configured boolean mapping.',
 				path: [],
-				payload: { trueValues: expect.any(Array), falseValues: expect.any(Array), value: 'unknown' },
+				payload: { trueValues: ['Y'], falseValues: ['N'], value: 'unknown' },
+			}],
+		})
+	})
+
+	it('snapshots mappings when the schema is created', () => {
+		const trueValues = ['yes']
+		const falseValues = ['no']
+		const schema = v.string().toMappedBoolean({ trueValues, falseValues })
+
+		trueValues.push('later-true')
+		falseValues.push('later-false')
+
+		expect(schema.execute('maybe')).toMatchObject({
+			issues: [{
+				code: 'toMappedBoolean:unmapped_value',
+				payload: {
+					value: 'maybe',
+					trueValues: ['yes'],
+					falseValues: ['no'],
+				},
 			}],
 		})
 	})
