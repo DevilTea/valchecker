@@ -27,6 +27,8 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - npm trusted publishing through a protected, manually dispatched GitHub Actions workflow using OIDC.
 - `isFinite()`, `isNaN()`, and `isNotEmpty()` built-in validation steps.
 - `looseBoolean()` and `looseBigint()` initial schemas.
+- Native primitive coercion transformations: `toNumber()`, `toBoolean()`, and `toBigint()`.
+- Explicit conversion policies through `bigint().toSafeNumber()` and `toMappedBoolean()`.
 
 ### Changed
 
@@ -44,6 +46,8 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - `number()` now matches the TypeScript `number` primitive and accepts `NaN`, `Infinity`, and `-Infinity`; finite-number policy is explicit through `isFinite()`.
 - `looseNumber()` now accepts `number` or a TypeScript-compatible number string and normalizes output to `number`, rather than duplicating the old `number()` behavior.
 - Numeric bounds and length bounds are separate steps so their intent and payloads are explicit.
+- Primitive `toXxx()` conversions follow JavaScript `Number()`, `Boolean()`, and `BigInt()` semantics without hidden finite, parsing, truthiness, or precision-safety policies.
+- Identity primitive conversions are excluded from state-aware autocomplete; policy-bearing conversions use explicit names.
 
 ### Renamed
 

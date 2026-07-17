@@ -46,7 +46,19 @@ jobs:
         run: pnpm publint
 
       - name: Package Smoke Test
-        run: pnpm test:package
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test:package 2>&1 | tee package-smoke.log
+
+      - name: Upload Package Smoke Log
+        if: failure() && hashFiles('package-smoke.log') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: package-smoke-log
+          path: package-smoke.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Lint
         run: pnpm lint 2>&1 | tee lint.log
