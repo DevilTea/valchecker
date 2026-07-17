@@ -3,11 +3,7 @@ import type { OverloadParametersAndReturnType } from '../../shared'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type Issue<Input = unknown> = ExecutionIssue<
-		'toString:conversion_failed',
-		{ value: Input, error: unknown },
-		'operation'
-	>
+	export type Issue<Input = unknown> = ExecutionIssue<'toString:conversion_failed', { value: Input, error: unknown }, 'operation'>
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -17,15 +13,24 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
-	toString: this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-		? OverloadParametersAndReturnType<InferOutput<this['CurrentValchecker']>['toString']> extends infer Tuple
+	/**
+	 * ### Description:
+	 * Converts the value to a string using its toString method.
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toString:conversion_failed'`: The value's `toString` method threw.
+	 */
+	toString: this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+		? OverloadParametersAndReturnType<InferOutput<This>['toString']> extends infer Tuple
 			? Tuple extends [params: any[], ret: any]
 				? DefineStepMethod<
 					Meta,
 					(...params: Tuple[0]) => Next<{
 						output: Tuple[1]
-						issue: Internal.Issue<InferOutput<this['CurrentValchecker']>>
-					}, this['CurrentValchecker']>
+						issue: Internal.Issue<InferOutput<This>>
+					}, This>
 				>
 				: never
 			: never
