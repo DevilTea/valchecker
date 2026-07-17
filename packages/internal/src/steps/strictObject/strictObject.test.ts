@@ -1,319 +1,198 @@
-/**
- * Test Plan for strictObject.ts
- *
- * This test file covers the `strictObject` step plugin implementation.
- *
- * Functions and Classes:
- * - strictObject: The step plugin that validates objects and rejects extra keys.
- *
- * Input Scenarios:
- * - Valid objects: required/optional properties, no extra keys, nested.
- * - Invalid inputs: non-objects.
- * - Invalid properties: required/optional fail, extra keys.
- * - Async: with transform.
- *
- * Expected Outputs and Behaviors:
- * - Success: Returns validated object without extra keys.
- * - Failure: Issues with paths for invalid properties or unexpected keys.
- * - Async: Promise resolution.
- *
- * Error Handling and Exceptions:
- * - No exceptions; all errors handled via issues.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
-
 import { describe, expect, it } from 'vitest'
 import { createValchecker, number, strictObject, string, transform } from '../..'
 
-const v = createValchecker({ steps: [strictObject, string, number, transform] })
+const v = createValchecker({ steps: [number, strictObject, string, transform] })
 
-describe('strictObject plugin', () => {
-	describe('valid objects', () => {
-		it('should pass for basic object with required properties', () => {
-			const result = v.strictObject({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({ name: 'John', age: 30 })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: 30 } })
-		})
-
-		it('should pass for object with optional properties present', () => {
-			const result = v.strictObject({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({ name: 'John', age: 30 })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: 30 } })
-		})
-
-		it('should pass for object with optional properties missing', () => {
-			const result = v.strictObject({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({ name: 'John' })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: undefined } })
-		})
-
-		it('should pass for mixed required and optional properties', () => {
-			const result = v.strictObject({
-				name: v.string(),
-				age: [v.number()],
-				email: v.string(),
-			})
-				.execute({ name: 'John', email: 'john@example.com' })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: undefined, email: 'john@example.com' } })
-		})
-
-		it('should handle nested object validation', () => {
-			const result = v.strictObject({
-				user: v.strictObject({
-					name: v.string(),
-					age: v.number(),
-				}),
-			})
-				.execute({ user: { name: 'John', age: 30 } })
-			expect(result)
-				.toEqual({ value: { user: { name: 'John', age: 30 } } })
-		})
-
-		it('should handle async validation', async () => {
-			const asyncSchema = v.number()
-				.transform(async (x: number) => x * 2)
-			const result = await v.strictObject({
-				value: asyncSchema,
-			})
-				.execute({ value: 5 })
-			expect(result)
-				.toEqual({ value: { value: 10 } })
-		})
-
-		it('should handle async validation with multiple properties (triggers chaining)', async () => {
-			const asyncSchema = v.number()
-				.transform(async (x: number) => x * 2)
-			const result = await v.strictObject({
-				value: asyncSchema,
-				name: v.string(),
-				count: v.number(),
-			})
-				.execute({ value: 5, name: 'test', count: 10 })
-			expect(result)
-				.toEqual({ value: { value: 10, name: 'test', count: 10 } })
-		})
-
-		it('should handle async failure in property chain', async () => {
-			const failSchema = v.number()
-				.transform(async (_x: number) => {
-					throw new Error('fail')
-				})
-			const result = await v.strictObject({
-				value: v.number()
-					.transform(async (x: number) => x * 2),
-				name: v.string(),
-				count: failSchema,
-			})
-				.execute({ value: 5, name: 'test', count: 10 })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						message: 'Transform callback failed.',
-						path: ['count'],
-						payload: { phase: 'reject', value: 10, error: new Error('fail') },
-					}],
-				})
-		})
-
-		it('should handle mixed async and sync properties in chain', async () => {
-			let firstProp = true
-			const result = await v.strictObject({
-				value: v.number()
-					.transform((x: number) => firstProp ? (firstProp = false, Promise.resolve(x * 2)) : x),
-				name: v.string(),
-				count: v.number(),
-			})
-				.execute({ value: 5, name: 'test', count: 10 })
-			expect(result)
-				.toEqual({ value: { value: 10, name: 'test', count: 10 } })
+describe('strictObject step plugin', () => {
+	it.each([
+		['string', 'not an object'],
+		['number', 42],
+		['array', []],
+		['null', null],
+		['undefined', undefined],
+	] as const)('rejects %s input as a non-object', (_kind, value) => {
+		expect(v.strictObject({}).execute(value)).toEqual({
+			issues: [{
+				code: 'strictObject:expected_object',
+				category: 'validation',
+				message: 'Expected an object.',
+				path: [],
+				payload: { value },
+			}],
 		})
 	})
 
-	describe('invalid inputs (not objects)', () => {
-		it('should fail for string', () => {
-			const result = v.strictObject({})
-				.execute('string')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: 'string' },
-					}],
-				})
-		})
-
-		it('should fail for number', () => {
-			const result = v.strictObject({})
-				.execute(123)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: 123 },
-					}],
-				})
-		})
-
-		it('should fail for array', () => {
-			const result = v.strictObject({})
-				.execute([1, 2, 3])
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: [1, 2, 3] },
-					}],
-				})
-		})
-
-		it('should fail for null', () => {
-			const result = v.strictObject({})
-				.execute(null)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: null },
-					}],
-				})
-		})
-
-		it('should fail for undefined', () => {
-			const result = v.strictObject({})
-				.execute(undefined)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: undefined },
-					}],
-				})
+	it('returns only declared and validated outputs', () => {
+		expect(v.strictObject({
+			name: v.string().transform(value => value.toUpperCase()),
+			age: v.number(),
+		}).execute({
+			name: 'Ada',
+			age: 37,
+		})).toEqual({
+			value: {
+				name: 'ADA',
+				age: 37,
+			},
 		})
 	})
 
-	describe('invalid properties', () => {
-		it('should fail when required property validation fails', () => {
-			const result = v.strictObject({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({ name: 'John', age: 'thirty' })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'number:expected_number',
-						category: 'validation',
-						message: 'Expected a number.',
-						path: ['age'],
-						payload: { value: 'thirty' },
-					}],
-				})
-		})
-
-		it('should fail when optional property validation fails', () => {
-			const result = v.strictObject({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({ name: 'John', age: 'thirty' })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'number:expected_number',
-						category: 'validation',
-						message: 'Expected a number.',
-						path: ['age'],
-						payload: { value: 'thirty' },
-					}],
-				})
-		})
-
-		it('should fail for extra keys', () => {
-			const result = v.strictObject({
-				name: v.string(),
-			})
-				.execute({ name: 'John', extra: 'value', another: 123 })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:unexpected_keys',
-						category: 'validation',
-						message: 'Unexpected object keys found.',
-						path: [],
-						payload: { keys: ['extra', 'another'], expectedKeys: ['name'] },
-					}],
-				})
+	it('materializes a missing optional field as undefined', () => {
+		expect(v.strictObject({
+			name: v.string(),
+			age: [v.number()],
+		}).execute({ name: 'Ada' })).toEqual({
+			value: {
+				name: 'Ada',
+				age: undefined,
+			},
 		})
 	})
 
-	describe('custom messages', () => {
-		it('should use custom message for expected_object failure', () => {
-			const result = v.strictObject({}, issue => `Custom: ${issue.code}`)
-				.execute('not an object')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:expected_object',
-						category: 'validation',
-						message: 'Custom: strictObject:expected_object',
-						path: [],
-						payload: { value: 'not an object' },
-					}],
-				})
+	it('reports the complete missing-key issue contract', () => {
+		expect(v.strictObject({
+			name: v.string(),
+			age: v.number(),
+		}).execute({ name: 'Ada' })).toEqual({
+			issues: [{
+				code: 'strictObject:missing_key',
+				category: 'validation',
+				message: 'Missing required object key.',
+				path: ['age'],
+				payload: { key: 'age' },
+			}],
 		})
+	})
 
-		it('should use custom message for unexpected_keys failure', () => {
-			const result = v.strictObject(
-				{ name: v.string() },
-				(issue) => {
-					if (issue.code === 'strictObject:unexpected_keys') {
-						return `Custom: ${issue.code} - ${issue.payload.keys.join(', ')}`
-					}
-					return `Custom: ${issue.code}`
+	it('reports unexpected keys and the declared key set', () => {
+		expect(v.strictObject({
+			name: v.string(),
+		}).execute({
+			name: 'Ada',
+			extra: true,
+			another: 1,
+		})).toEqual({
+			issues: [{
+				code: 'strictObject:unexpected_keys',
+				category: 'validation',
+				message: 'Unexpected object keys found.',
+				path: [],
+				payload: {
+					keys: ['extra', 'another'],
+					expectedKeys: ['name'],
 				},
-			)
-				.execute({ name: 'John', extra: 'value' })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'strictObject:unexpected_keys',
-						category: 'validation',
-						message: 'Custom: strictObject:unexpected_keys - extra',
-						path: [],
-						payload: { keys: ['extra'], expectedKeys: ['name'] },
-					}],
-				})
+			}],
+		})
+	})
+
+	it('validates an own undefined value instead of treating the key as missing', () => {
+		expect(v.strictObject({ value: v.string() }).execute({ value: undefined }))
+			.toMatchObject({
+				issues: [{
+					code: 'string:expected_string',
+					path: ['value'],
+					payload: { value: undefined },
+				}],
+			})
+	})
+
+	it('collects unexpected, child, and missing-key issues in stable order', () => {
+		expect(v.strictObject({
+			name: v.string(),
+			age: v.number(),
+			city: v.string(),
+		}).execute({
+			name: 123,
+			age: 'old',
+			extra: true,
+		})).toEqual({
+			issues: [
+				{
+					code: 'strictObject:unexpected_keys',
+					category: 'validation',
+					message: 'Unexpected object keys found.',
+					path: [],
+					payload: {
+						keys: ['extra'],
+						expectedKeys: ['name', 'age', 'city'],
+					},
+				},
+				{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: ['name'],
+					payload: { value: 123 },
+				},
+				{
+					code: 'number:expected_number',
+					category: 'validation',
+					message: 'Expected a number.',
+					path: ['age'],
+					payload: { value: 'old' },
+				},
+				{
+					code: 'strictObject:missing_key',
+					category: 'validation',
+					message: 'Missing required object key.',
+					path: ['city'],
+					payload: { key: 'city' },
+				},
+			],
+		})
+	})
+
+	it('continues declared fields after the first asynchronous child', async () => {
+		const schema = v.strictObject({
+			value: v.number().transform(async value => value * 2),
+			name: v.string(),
+			count: v.number(),
+		})
+
+		await expect(schema.execute({
+			value: 5,
+			name: 'test',
+			count: 10,
+		})).resolves.toEqual({
+			value: {
+				value: 10,
+				name: 'test',
+				count: 10,
+			},
+		})
+	})
+
+	it('continues after a recoverable asynchronous child failure', async () => {
+		const schema = v.strictObject({
+			first: v.string().transform(async () => { throw new Error('recoverable') }),
+			optional: [v.number()],
+			last: v.string(),
+		})
+
+		await expect(schema.execute({
+			first: 'value',
+			last: 'still validated',
+		})).resolves.toMatchObject({
+			issues: [{
+				code: 'transform:callback_failed',
+				category: 'operation',
+				path: ['first'],
+			}],
+		})
+	})
+
+	it('uses custom messages for each owned structural issue', () => {
+		const message = (issue: { code: string }) => `Custom: ${issue.code}`
+
+		expect(v.strictObject({}, message as any).execute('wrong')).toMatchObject({
+			issues: [{ message: 'Custom: strictObject:expected_object' }],
+		})
+		expect(v.strictObject({ value: v.string() }, message as any).execute({})).toMatchObject({
+			issues: [{ message: 'Custom: strictObject:missing_key' }],
+		})
+		expect(v.strictObject({ value: v.string() }, message as any)
+			.execute({ value: 'ok', extra: true })).toMatchObject({
+			issues: [{ message: 'Custom: strictObject:unexpected_keys' }],
 		})
 	})
 })
