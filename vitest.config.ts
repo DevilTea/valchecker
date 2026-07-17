@@ -33,8 +33,7 @@ export default defineConfig({
 				statements: 95,
 				functions: 95,
 				branches: 92,
-				'packages/*/src/**/*.ts': {
-					perFile: true,
+				perFile: {
 					lines: 90,
 					statements: 90,
 					functions: 90,
