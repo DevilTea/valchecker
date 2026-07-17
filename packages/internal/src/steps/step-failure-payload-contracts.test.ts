@@ -275,13 +275,15 @@ describe('step failure and payload contracts', () => {
 			enumerable: true,
 			get() { throw getterError },
 		})
-		expect(v.toJSONString().execute(getterValue)).toMatchObject({
+		const getterResult = v.toJSONString().execute(getterValue)
+		expect(getterResult).toMatchObject({
 			issues: [{
 				code: 'toJSONString:serialization_failed',
 				category: 'operation',
-				payload: { value: getterValue, at: ['value'], error: getterError },
+				payload: { at: ['value'], error: getterError },
 			}],
 		})
+		expect((getterResult as any).issues[0].payload.value).toBe(getterValue)
 
 		expect(v.toJSONString().execute(Number.NaN)).toEqual({ value: 'null' })
 		expect(v.toJSONString().execute(Number.POSITIVE_INFINITY)).toEqual({ value: 'null' })
