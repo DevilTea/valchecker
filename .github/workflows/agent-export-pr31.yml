@@ -1,0 +1,25 @@
+name: Agent export PR 31 source
+
+on:
+  push:
+    branches:
+      - agent/step-failure-payload-audit
+    paths:
+      - .github/workflows/agent-export-pr31.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr31-source
+          path: |
+            .
+            !.git
+          include-hidden-files: true
+          retention-days: 1
