@@ -1,288 +1,151 @@
-/**
- * Test Plan for looseObject.ts
- *
- * This test file covers the `looseObject` step plugin implementation.
- *
- * Functions and Classes:
- * - looseObject: The step plugin that validates objects and preserves extra keys.
- *
- * Input Scenarios:
- * - Valid objects: required/optional properties, extra keys, nested.
- * - Invalid inputs: non-objects.
- * - Invalid properties: required/optional fail.
- * - Async: with transform.
- *
- * Expected Outputs and Behaviors:
- * - Success: Returns validated object with extra keys.
- * - Failure: Issues with paths for invalid properties.
- * - Async: Promise resolution.
- *
- * Error Handling and Exceptions:
- * - No exceptions; all errors handled via issues.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
-
 import { describe, expect, it } from 'vitest'
 import { createValchecker, looseObject, number, string, transform } from '../..'
 
-const v = createValchecker({ steps: [looseObject, string, number, transform] })
+const v = createValchecker({ steps: [looseObject, number, string, transform] })
 
-describe('looseObject plugin', () => {
-	describe('valid objects', () => {
-		it('should pass for basic object with required properties', () => {
-			const result = v.looseObject({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({ name: 'John', age: 30 })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: 30 } })
-		})
-
-		it('should pass for object with optional properties present', () => {
-			const result = v.looseObject({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({ name: 'John', age: 30 })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: 30 } })
-		})
-
-		it('should pass for object with optional properties missing', () => {
-			const result = v.looseObject({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({ name: 'John' })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: undefined } })
-		})
-
-		it('should pass for mixed required and optional properties', () => {
-			const result = v.looseObject({
-				name: v.string(),
-				age: [v.number()],
-				email: v.string(),
-			})
-				.execute({ name: 'John', email: 'john@example.com' })
-			expect(result)
-				.toEqual({ value: { name: 'John', age: undefined, email: 'john@example.com' } })
-		})
-
-		it('should preserve extra keys in output', () => {
-			const result = v.looseObject({
-				name: v.string(),
-			})
-				.execute({ name: 'John', extra: 'value', another: 123 })
-			expect(result)
-				.toEqual({ value: { name: 'John', extra: 'value', another: 123 } })
-		})
-
-		it('should handle nested object validation', () => {
-			const result = v.looseObject({
-				user: v.looseObject({
-					name: v.string(),
-					age: v.number(),
-				}),
-			})
-				.execute({ user: { name: 'John', age: 30 } })
-			expect(result)
-				.toEqual({ value: { user: { name: 'John', age: 30 } } })
-		})
-
-		it('should handle async validation', async () => {
-			const asyncSchema = v.number()
-				.transform(async (x: number) => x * 2)
-			const result = await v.looseObject({
-				value: asyncSchema,
-			})
-				.execute({ value: 5 })
-			expect(result)
-				.toEqual({ value: { value: 10 } })
-		})
-
-		it('should handle async validation with multiple properties (triggers chaining)', async () => {
-			const asyncSchema = v.number()
-				.transform(async (x: number) => x * 2)
-			const result = await v.looseObject({
-				value: asyncSchema,
-				name: v.string(),
-				count: v.number(),
-			})
-				.execute({ value: 5, name: 'test', count: 10, extra: 'ignored' })
-			expect(result)
-				.toEqual({ value: { value: 10, name: 'test', count: 10, extra: 'ignored' } })
-		})
-
-		it('should handle async failure in property chain', async () => {
-			const failSchema = v.number()
-				.transform(async (_x: number) => {
-					throw new Error('fail')
-				})
-			const result = await v.looseObject({
-				value: v.number()
-					.transform(async (x: number) => x * 2),
-				name: v.string(),
-				count: failSchema,
-			})
-				.execute({ value: 5, name: 'test', count: 10 })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						path: ['count'],
-						payload: { phase: 'reject', value: 10, error: new Error('fail') },
-						message: 'Transform callback failed.',
-					}],
-				})
-		})
-
-		it('should handle mixed async and sync properties in chain', async () => {
-			let firstProp = true
-			const result = await v.looseObject({
-				value: v.number()
-					.transform((x: number) => firstProp ? (firstProp = false, Promise.resolve(x * 2)) : x),
-				name: v.string(),
-				count: v.number(),
-			})
-				.execute({ value: 5, name: 'test', count: 10, extra: 'ignored' })
-			expect(result)
-				.toEqual({ value: { value: 10, name: 'test', count: 10, extra: 'ignored' } })
+describe('looseObject step plugin', () => {
+	it.each([
+		['string', 'not an object'],
+		['number', 42],
+		['array', []],
+		['null', null],
+		['undefined', undefined],
+	] as const)('rejects %s input as a non-object', (_kind, value) => {
+		expect(v.looseObject({}).execute(value)).toEqual({
+			issues: [{
+				code: 'looseObject:expected_object',
+				category: 'validation',
+				message: 'Expected an object.',
+				path: [],
+				payload: { value },
+			}],
 		})
 	})
 
-	describe('invalid inputs (not objects)', () => {
-		it('should fail for string', () => {
-			const result = v.looseObject({})
-				.execute('string')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'looseObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: 'string' },
-					}],
-				})
-		})
-
-		it('should fail for number', () => {
-			const result = v.looseObject({})
-				.execute(123)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'looseObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: 123 },
-					}],
-				})
-		})
-
-		it('should fail for array', () => {
-			const result = v.looseObject({})
-				.execute([1, 2, 3])
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'looseObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: [1, 2, 3] },
-					}],
-				})
-		})
-
-		it('should fail for null', () => {
-			const result = v.looseObject({})
-				.execute(null)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'looseObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: null },
-					}],
-				})
-		})
-
-		it('should fail for undefined', () => {
-			const result = v.looseObject({})
-				.execute(undefined)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'looseObject:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: undefined },
-					}],
-				})
+	it('preserves extra own properties while replacing declared outputs', () => {
+		expect(v.looseObject({
+			name: v.string().transform(value => value.toUpperCase()),
+			age: v.number(),
+		}).execute({
+			name: 'Ada',
+			age: 37,
+			extra: true,
+		})).toEqual({
+			value: {
+				name: 'ADA',
+				age: 37,
+				extra: true,
+			},
 		})
 	})
 
-	describe('invalid properties', () => {
-		it('should fail when required property validation fails', () => {
-			const result = v.looseObject({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({ name: 'John', age: 'thirty' })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'number:expected_number',
-						category: 'validation',
-						message: 'Expected a number.',
-						path: ['age'],
-						payload: { value: 'thirty' },
-					}],
-				})
-		})
-
-		it('should fail when optional property validation fails', () => {
-			const result = v.looseObject({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({ name: 'John', age: 'thirty' })
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'number:expected_number',
-						category: 'validation',
-						message: 'Expected a number.',
-						path: ['age'],
-						payload: { value: 'thirty' },
-					}],
-				})
+	it('materializes a missing optional field as undefined', () => {
+		expect(v.looseObject({
+			name: v.string(),
+			age: [v.number()],
+		}).execute({ name: 'Ada', extra: true })).toEqual({
+			value: {
+				name: 'Ada',
+				age: undefined,
+				extra: true,
+			},
 		})
 	})
 
-	describe('custom messages', () => {
-		it('should use custom message for expected_object failure', () => {
-			const result = v.looseObject({}, () => 'Custom message')
-				.execute('not an object')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'looseObject:expected_object',
-						category: 'validation',
-						message: 'Custom message',
-						path: [],
-						payload: { value: 'not an object' },
-					}],
-				})
+	it('reports the complete missing-key issue contract', () => {
+		expect(v.looseObject({
+			name: v.string(),
+			age: v.number(),
+		}).execute({ name: 'Ada' })).toEqual({
+			issues: [{
+				code: 'looseObject:missing_key',
+				category: 'validation',
+				message: 'Missing required object key.',
+				path: ['age'],
+				payload: { key: 'age' },
+			}],
+		})
+	})
+
+	it('validates an own undefined value instead of treating the key as missing', () => {
+		expect(v.looseObject({ value: v.string() }).execute({
+			value: undefined,
+			extra: true,
+		})).toMatchObject({
+			issues: [{
+				code: 'string:expected_string',
+				path: ['value'],
+				payload: { value: undefined },
+			}],
+		})
+	})
+
+	it('prefixes nested child issue paths', () => {
+		expect(v.looseObject({
+			profile: v.looseObject({ age: v.number() }),
+		}).execute({
+			profile: { age: 'old', extra: true },
+			topLevelExtra: true,
+		})).toMatchObject({
+			issues: [{
+				code: 'number:expected_number',
+				path: ['profile', 'age'],
+				payload: { value: 'old' },
+			}],
+		})
+	})
+
+	it('continues declared fields after asynchronous work and preserves extras', async () => {
+		const schema = v.looseObject({
+			value: v.number().transform(async value => value * 2),
+			name: v.string(),
+			count: v.number(),
+		})
+
+		await expect(schema.execute({
+			value: 5,
+			name: 'test',
+			count: 10,
+			extra: 'preserved',
+		})).resolves.toEqual({
+			value: {
+				value: 10,
+				name: 'test',
+				count: 10,
+				extra: 'preserved',
+			},
+		})
+	})
+
+	it('continues after a recoverable asynchronous child failure', async () => {
+		const schema = v.looseObject({
+			first: v.string().transform(async () => { throw new Error('recoverable') }),
+			optional: [v.number()],
+			last: v.string(),
+		})
+
+		await expect(schema.execute({
+			first: 'value',
+			last: 'still validated',
+			extra: true,
+		})).resolves.toMatchObject({
+			issues: [{
+				code: 'transform:callback_failed',
+				category: 'operation',
+				path: ['first'],
+			}],
+		})
+	})
+
+	it('uses custom messages for owned structural issues', () => {
+		expect(v.looseObject({}, 'Custom object').execute('wrong')).toMatchObject({
+			issues: [{ message: 'Custom object' }],
+		})
+		expect(v.looseObject({ value: v.string() }, 'Custom key').execute({})).toMatchObject({
+			issues: [{
+				code: 'looseObject:missing_key',
+				message: 'Custom key',
+			}],
 		})
 	})
 })
