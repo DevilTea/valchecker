@@ -60,7 +60,7 @@ Valchecker separates API roles through naming:
 
 - initial steps are nouns: `string()`, `number()`, `object()`, `looseBigint()`,
 - built-in validations use `isXxx()`: `isInteger()`, `isStartingWith()`, `isLengthAtLeast()`,
-- concrete transformations use `toXxx()`: `toTrimmed()`, `toSplit()`, `toJSONValue()`,
+- concrete transformations use `toXxx()`: `toTrimmed()`, `toNumber()`, `toJSONValue()`,
 - generic escape hatches remain `check()` and `transform()`.
 
 This makes the valid next operations discoverable through editor autocomplete.
@@ -121,7 +121,44 @@ v.number().isAtLeast(0).isAtMost(100)
 
 `isAtLeast()` and `isAtMost()` apply to numbers and bigints. Length constraints are intentionally separate and explicit.
 
-## Transformations
+## Primitive conversions
+
+Native coercion steps delegate directly to JavaScript and are exposed only after a different primitive type:
+
+```ts
+v.string().toNumber() // Number(value)
+v.string().toBoolean() // Boolean(value)
+v.string().toBigint() // BigInt(value), with native exceptions as issues
+```
+
+They do not hide extra safety policy:
+
+```ts
+v.string().toNumber().execute('invalid') // { value: NaN }
+v.string().toBoolean().execute('false') // { value: true }
+v.bigint().toNumber().execute(9007199254740993n)
+// { value: 9007199254740992 }
+```
+
+Explicit policy conversions are separate:
+
+```ts
+v.bigint().toSafeNumber()
+
+v.string().toMappedBoolean({
+	trueValues: ['Y', 'yes'],
+	falseValues: ['N', 'no'],
+})
+
+v.number().toMappedBoolean({
+	trueValues: [1],
+	falseValues: [0],
+})
+```
+
+Identity conversions such as `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware API.
+
+## Other transformations
 
 ```ts
 v.string().toTrimmed()
