@@ -117,6 +117,30 @@ describe('fallback plugin', () => {
 			})
 	})
 
+	it('isolates callback mutations from preserved original issues', () => {
+		const error = new Error('Mutating fallback error')
+		const original = expectedNumberIssue('bad')
+		const result = v.number()
+			.fallback((issues) => {
+				issues[0].path.push('mutated')
+				issues.splice(0, issues.length)
+				throw error
+			})
+			.execute('bad')
+		expect(result).toEqual({
+			issues: [
+				original,
+				{
+					code: 'fallback:failed',
+					category: 'operation',
+					message: 'Fallback failed.',
+					path: [],
+					payload: { receivedIssues: [original], error },
+				},
+			],
+		})
+	})
+
 	it('stores public-safe snapshots of the issues received by the callback', () => {
 		const result = v.number(() => 'Dynamic number issue')
 			.fallback(() => { throw new Error('failure') })

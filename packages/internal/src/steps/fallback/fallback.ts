@@ -68,6 +68,8 @@ export const fallback = implStepPlugin<PluginDef>({
 			if (hasInternalIssue(issues))
 				return failure(issues)
 
+			const callbackIssues = snapshotReceivedIssues(issues)
+
 			const handleError = (error: unknown) => {
 				const fallbackIssue = createIssue({
 					code: 'fallback:failed',
@@ -80,7 +82,7 @@ export const fallback = implStepPlugin<PluginDef>({
 			}
 
 			try {
-				const result = run(issues)
+				const result = run(callbackIssues)
 				return isPromiseLike(result)
 					? Promise.resolve(result)
 						.then(value => success(value))
