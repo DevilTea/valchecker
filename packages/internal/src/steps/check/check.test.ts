@@ -2,13 +2,27 @@
  * Test Plan for check.ts
  *
  * Covers synchronous and asynchronous checks, issue collection, narrowing,
- * custom messages, thrown errors, and rejected promises.
+ * custom messages, thrown errors, rejected promises, and issue append order.
  */
 
 import { describe, expect, it } from 'vitest'
 import { check, createValchecker } from '../..'
 
 const v = createValchecker({ steps: [check] })
+
+function addTestIssue(value: unknown, addIssue: (issue: any) => void): void {
+	addIssue({
+		code: 'core:unknown_exception',
+		category: 'internal',
+		payload: {
+			method: 'check',
+			receivedResult: { value },
+			error: null,
+		},
+		message: 'Test issue',
+		path: [],
+	})
+}
 
 describe('check plugin', () => {
 	describe('valid checks (sync pass)', () => {
@@ -21,17 +35,7 @@ describe('check plugin', () => {
 
 		it('should collect issues from addIssue', () => {
 			const result = v.check((value, utils) => {
-				utils.addIssue({
-					code: 'core:unknown_exception',
-					category: 'internal',
-					payload: {
-						method: 'check',
-						receivedResult: { value },
-						error: null,
-					},
-					message: 'Test issue',
-					path: [],
-				})
+				addTestIssue(value, utils.addIssue)
 				return true
 			})
 				.execute('test')
@@ -95,6 +99,42 @@ describe('check plugin', () => {
 					}],
 				})
 		})
+
+		it('should append returned-false failure after added issues', () => {
+			const result = v.check((value, utils) => {
+				addTestIssue(value, utils.addIssue)
+				return false
+			}).execute('fail')
+			expect(result).toMatchObject({
+				issues: [
+					{ code: 'core:unknown_exception' },
+					{
+						code: 'check:failed',
+						payload: { reason: 'returned_false', value: 'fail' },
+					},
+				],
+			})
+		})
+
+		it('should append returned-message failure after added issues', () => {
+			const result = v.check((value, utils) => {
+				addTestIssue(value, utils.addIssue)
+				return 'Custom error'
+			}).execute('fail')
+			expect(result).toMatchObject({
+				issues: [
+					{ code: 'core:unknown_exception' },
+					{
+						code: 'check:failed',
+						payload: {
+							reason: 'returned_message',
+							returnedMessage: 'Custom error',
+							value: 'fail',
+						},
+					},
+				],
+			})
+		})
 	})
 
 	describe('async checks', () => {
@@ -137,6 +177,22 @@ describe('check plugin', () => {
 						payload: { phase: 'throw', value: 'error', error: expect.any(Error) },
 					}],
 				})
+		})
+
+		it('should append callback failure after added issues', () => {
+			const result = v.check((value, utils) => {
+				addTestIssue(value, utils.addIssue)
+				throw new Error('Thrown error')
+			}).execute('error')
+			expect(result).toMatchObject({
+				issues: [
+					{ code: 'core:unknown_exception' },
+					{
+						code: 'check:callback_failed',
+						payload: { phase: 'throw', value: 'error', error: expect.any(Error) },
+					},
+				],
+			})
 		})
 
 		it('should handle rejected checks', async () => {
