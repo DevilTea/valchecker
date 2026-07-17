@@ -23,9 +23,10 @@ describe('check plugin', () => {
 			const result = v.check((value, utils) => {
 				utils.addIssue({
 					code: 'core:unknown_exception',
+					category: 'internal',
 					payload: {
 						method: 'check',
-						value,
+						receivedResult: { value },
 						error: null,
 					},
 					message: 'Test issue',
@@ -38,9 +39,10 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'core:unknown_exception',
+						category: 'internal',
 						payload: {
 							method: 'check',
-							value: 'test',
+							receivedResult: { value: 'test' },
 							error: null,
 						},
 						message: 'Test issue',
@@ -71,6 +73,7 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: 'fail' },
@@ -85,6 +88,7 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Custom error',
 						path: [],
 						payload: { value: 'fail' },
@@ -108,6 +112,7 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: 'sync' },
@@ -126,6 +131,7 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: 'error', error: expect.any(Error) },
@@ -142,6 +148,7 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: 'error', error: expect.any(Error) },
@@ -161,6 +168,7 @@ describe('check plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Custom: custom',
 						path: [],
 						payload: { value: 'custom' },

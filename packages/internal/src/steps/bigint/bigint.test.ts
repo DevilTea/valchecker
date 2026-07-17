@@ -21,6 +21,7 @@ describe('bigint step plugin', () => {
 		expect(v.bigint().execute(value)).toEqual({
 			issues: [{
 				code: 'bigint:expected_bigint',
+				category: 'validation',
 				message: 'Expected a bigint.',
 				path: [],
 				payload: { value },
@@ -32,6 +33,7 @@ describe('bigint step plugin', () => {
 		expect(v.bigint('Custom error message').execute(42)).toEqual({
 			issues: [{
 				code: 'bigint:expected_bigint',
+				category: 'validation',
 				message: 'Custom error message',
 				path: [],
 				payload: { value: 42 },
@@ -44,6 +46,7 @@ describe('bigint step plugin', () => {
 		expect(v.bigint().isAtLeast(5n).execute(3n)).toEqual({
 			issues: [{
 				code: 'isAtLeast:expected_at_least',
+				category: 'validation',
 				message: 'Expected a value of at least 5.',
 				path: [],
 				payload: { target: 'bigint', value: 3n, minimum: 5n },

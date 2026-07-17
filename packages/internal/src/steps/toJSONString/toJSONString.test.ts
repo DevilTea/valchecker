@@ -22,6 +22,7 @@ describe('toJSONString step plugin', () => {
 		expect(v.toJSONString().execute(value)).toEqual({
 			issues: [{
 				code: 'toJSONString:unserializable',
+				category: 'validation',
 				message: 'Value cannot be serialized to JSON.',
 				path: [],
 				payload: { value },
@@ -36,6 +37,7 @@ describe('toJSONString step plugin', () => {
 		expect(v.toJSONString().execute(value)).toEqual({
 			issues: [{
 				code: 'toJSONString:unserializable',
+				category: 'validation',
 				message: 'Value cannot be serialized to JSON.',
 				path: [],
 				payload: { value },
@@ -49,6 +51,7 @@ describe('toJSONString step plugin', () => {
 		expect(v.toJSONString().execute(value)).toEqual({
 			issues: [{
 				code: 'toJSONString:unserializable',
+				category: 'validation',
 				message: 'Value cannot be serialized to JSON.',
 				path: [],
 				payload: { value },

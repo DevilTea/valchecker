@@ -21,6 +21,7 @@ describe('looseBigint step plugin', () => {
 		expect(v.looseBigint().execute(value)).toEqual({
 			issues: [{
 				code: 'looseBigint:expected_bigint',
+				category: 'validation',
 				message: 'Expected a bigint or bigint string.',
 				path: [],
 				payload: { value },

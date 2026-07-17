@@ -40,6 +40,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: 'not an object' },
@@ -54,6 +55,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: 42 },
@@ -68,6 +70,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: null },
@@ -82,6 +85,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: undefined },
@@ -96,6 +100,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
+						category: 'validation',
 						message: 'Expected an object.',
 						path: [],
 						payload: { value: [] },
@@ -112,6 +117,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'object:expected_object',
+						category: 'validation',
 						message: 'Custom message',
 						path: [],
 						payload: { value: 'not an object' },
@@ -209,6 +215,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						path: ['age'],
 						payload: { value: undefined },
 						message: 'Expected a number.',
@@ -229,6 +236,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						path: ['age'],
 						payload: { value: 'thirty' },
 						message: 'Expected a number.',
@@ -249,6 +257,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'number:expected_number',
+						category: 'validation',
 						path: ['age'],
 						payload: { value: 'thirty' },
 						message: 'Expected a number.',
@@ -270,12 +279,14 @@ describe('object plugin', () => {
 					issues: [
 						{
 							code: 'string:expected_string',
+							category: 'validation',
 							path: ['name'],
 							payload: { value: 123 },
 							message: 'Expected a string.',
 						},
 						{
 							code: 'number:expected_number',
+							category: 'validation',
 							path: ['age'],
 							payload: { value: 'thirty' },
 							message: 'Expected a number.',
@@ -339,6 +350,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						path: ['city'],
 						payload: { value: 'NYC', error: new Error('fail') },
 						message: 'Transform failed',
@@ -407,6 +419,7 @@ describe('object plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'string:expected_string',
+						category: 'validation',
 						path: ['user', 'name'],
 						payload: { value: 123 },
 						message: 'Expected a string.',

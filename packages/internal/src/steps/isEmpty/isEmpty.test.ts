@@ -15,6 +15,7 @@ describe('isEmpty step plugin', () => {
 		expect(v.string().isEmpty().execute('x')).toEqual({
 			issues: [{
 				code: 'isEmpty:expected_empty',
+				category: 'validation',
 				message: 'Expected an empty value.',
 				path: [],
 				payload: { value: 'x' },

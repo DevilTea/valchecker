@@ -12,6 +12,7 @@ describe('isEndingWith step plugin', () => {
 		expect(v.string().isEndingWith('.txt').execute('file.md')).toEqual({
 			issues: [{
 				code: 'isEndingWith:expected_ending_with',
+				category: 'validation',
 				message: 'Expected the string to end with ".txt".',
 				path: [],
 				payload: { value: 'file.md', suffix: '.txt' },

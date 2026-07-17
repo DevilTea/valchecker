@@ -25,6 +25,7 @@ describe('looseNumber step plugin', () => {
 		expect(result).toMatchObject({
 			issues: [{
 				code: 'looseNumber:expected_number',
+				category: 'validation',
 				message: 'Expected a number or number string.',
 				path: [],
 				payload: { value },

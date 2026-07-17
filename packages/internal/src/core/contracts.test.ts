@@ -165,6 +165,7 @@ describe('public contracts', () => {
 	it('should prepend issue paths without mutating the original issue', () => {
 		const issue = Object.freeze({
 			code: 'test:error',
+			category: 'validation',
 			message: 'error',
 			path: Object.freeze(['leaf']),
 			payload: {},
@@ -227,6 +228,7 @@ describe('public contracts', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'strictObject:unexpected_keys',
+					category: 'validation',
 					payload: { keys: [extra] },
 				}],
 			})
@@ -265,6 +267,7 @@ describe('public contracts', () => {
 				.toMatchObject({
 					issues: [{
 						code: 'string:expected_string',
+						category: 'validation',
 						path: ['name'],
 						payload: { value: undefined },
 					}],

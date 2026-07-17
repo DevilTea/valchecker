@@ -41,6 +41,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: 42 },
@@ -55,6 +56,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: 'hello' },
@@ -69,6 +71,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: true },
@@ -83,6 +86,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: null },
@@ -97,6 +101,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: undefined },
@@ -111,6 +116,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: {} },
@@ -125,6 +131,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: [] },
@@ -139,6 +146,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Expected a symbol.',
 						path: [],
 						payload: { value: 123n },
@@ -155,6 +163,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'symbol:expected_symbol',
+						category: 'validation',
 						message: 'Custom error message',
 						path: [],
 						payload: { value: 42 },
@@ -183,6 +192,7 @@ describe('symbol plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'check:failed',
+						category: 'validation',
 						message: 'Check failed',
 						path: [],
 						payload: { value: sym2 },

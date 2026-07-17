@@ -1,16 +1,16 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike, returnTrue } from '../../shared'
 
 declare namespace Internal {
 	export type True<T> = true & { readonly '~output': T }
-	export interface RunCheckUtils<Input, I extends ExecutionIssue> {
+	export interface RunCheckUtils<Input, I extends AnyExecutionIssue> {
 		readonly narrow: <T extends Input>() => True<T>
 		readonly addIssue: (issue: I) => void
 	}
 	export type RunCheckResult = MaybePromiseLike<void | boolean | string | True<any>>
-	export type RunCheck<Input = any, I extends ExecutionIssue = ExecutionIssue, Result extends RunCheckResult = RunCheckResult> = (value: Input, utils: RunCheckUtils<Input, I>) => Result
+	export type RunCheck<Input = any, I extends AnyExecutionIssue = AnyExecutionIssue, Result extends RunCheckResult = RunCheckResult> = (value: Input, utils: RunCheckUtils<Input, I>) => Result
 
 	export type Issue<Input = unknown> = ExecutionIssue<'check:failed', { value: Input, error?: unknown }>
 }
@@ -97,7 +97,7 @@ interface PluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-				?	[InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
+				?	[InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
 						?	<Output extends CurrentOutput>(
 								run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue>) => value is Output,
 								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
@@ -115,7 +115,7 @@ interface PluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends ExecutionIssue]
+				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
 						? <Result extends Internal.RunCheckResult>(
 								run: Internal.RunCheck<CurrentOutput, CurrentIssue, Result>,
 								message?: MessageHandler<Internal.Issue<CurrentOutput>>,
@@ -154,8 +154,8 @@ export const check = implStepPlugin<PluginDef>({
 				)
 			}
 			try {
-				const issues: ExecutionIssue<any, any>[] = []
-				const addIssue = (issue: ExecutionIssue) => issues.push(issue)
+				const issues: AnyExecutionIssue[] = []
+				const addIssue = (issue: AnyExecutionIssue) => issues.push(issue)
 				const checkResult = run(value, {
 					narrow: returnTrue as <T>() => Internal.True<T>,
 					addIssue,

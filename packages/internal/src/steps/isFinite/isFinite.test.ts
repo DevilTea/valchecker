@@ -12,6 +12,7 @@ describe('isFinite step plugin', () => {
 		expect(v.number().isFinite().execute(value)).toEqual({
 			issues: [{
 				code: 'isFinite:expected_finite',
+				category: 'validation',
 				message: 'Expected a finite number.',
 				path: [],
 				payload: { value },

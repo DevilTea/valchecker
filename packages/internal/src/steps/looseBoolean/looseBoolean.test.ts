@@ -17,6 +17,7 @@ describe('looseBoolean step plugin', () => {
 		expect(v.looseBoolean().execute(value)).toEqual({
 			issues: [{
 				code: 'looseBoolean:expected_boolean',
+				category: 'validation',
 				message: 'Expected a boolean or boolean string.',
 				path: [],
 				payload: { value },

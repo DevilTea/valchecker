@@ -77,6 +77,7 @@ describe('core module', () => {
 			const result: ExecutionResult = {
 				issues: [{
 					code: 'test:error',
+					category: 'validation',
 					payload: {},
 					message: 'Test error',
 					path: [],
@@ -86,8 +87,8 @@ describe('core module', () => {
 				.toBe(false)
 		})
 
-		it('should return false for failure result with empty issues', () => {
-			const result: ExecutionResult = { issues: [] }
+		it('should return false for a malformed failure-like result with empty issues', () => {
+			const result = { issues: [] } as unknown as ExecutionResult
 			expect(isSuccess(result))
 				.toBe(false)
 		})
@@ -98,6 +99,7 @@ describe('core module', () => {
 			const result: ExecutionResult = {
 				issues: [{
 					code: 'test:error',
+					category: 'validation',
 					payload: {},
 					message: 'Test error',
 					path: [],
@@ -107,8 +109,8 @@ describe('core module', () => {
 				.toBe(true)
 		})
 
-		it('should return true for failure result with empty issues', () => {
-			const result: ExecutionResult = { issues: [] }
+		it('should recognize a malformed failure-like result with empty issues', () => {
+			const result = { issues: [] } as unknown as ExecutionResult
 			expect(isFailure(result))
 				.toBe(true)
 		})
@@ -130,6 +132,7 @@ describe('core module', () => {
 		it('should prepend path to issue with existing path', () => {
 			const issue: ExecutionIssue = {
 				code: 'test:error',
+				category: 'validation',
 				payload: {},
 				message: 'Test error',
 				path: ['nested', 'field'],
@@ -141,6 +144,7 @@ describe('core module', () => {
 			expect(result)
 				.toEqual({
 					code: 'test:error',
+					category: 'validation',
 					payload: {},
 					message: 'Test error',
 					path: ['root', 'parent', 'nested', 'field'],
@@ -150,6 +154,7 @@ describe('core module', () => {
 		it('should prepend path to issue without existing path', () => {
 			const issue: ExecutionIssue = {
 				code: 'test:error',
+				category: 'validation',
 				payload: {},
 				message: 'Test error',
 				path: [],
@@ -161,6 +166,7 @@ describe('core module', () => {
 			expect(result)
 				.toEqual({
 					code: 'test:error',
+					category: 'validation',
 					payload: {},
 					message: 'Test error',
 					path: ['root', 'parent'],
@@ -170,6 +176,7 @@ describe('core module', () => {
 		it('should return issue unchanged when path is null', () => {
 			const issue: ExecutionIssue = {
 				code: 'test:error',
+				category: 'validation',
 				payload: {},
 				message: 'Test error',
 				path: ['nested'],
@@ -184,6 +191,7 @@ describe('core module', () => {
 		it('should return issue unchanged when path is empty array', () => {
 			const issue: ExecutionIssue = {
 				code: 'test:error',
+				category: 'validation',
 				payload: {},
 				message: 'Test error',
 				path: ['nested'],
@@ -199,6 +207,7 @@ describe('core module', () => {
 		it('should handle undefined existing path', () => {
 			const issue: ExecutionIssue = {
 				code: 'test:error',
+				category: 'validation',
 				payload: {},
 				message: 'Test error',
 				path: [],
@@ -210,6 +219,7 @@ describe('core module', () => {
 			expect(result)
 				.toEqual({
 					code: 'test:error',
+					category: 'validation',
 					payload: {},
 					message: 'Test error',
 					path: ['root'],
@@ -220,6 +230,7 @@ describe('core module', () => {
 			const sym = Symbol('test')
 			const issue: ExecutionIssue = {
 				code: 'test:error',
+				category: 'validation',
 				payload: {},
 				message: 'Test error',
 				path: [sym, 0],
@@ -231,6 +242,7 @@ describe('core module', () => {
 			expect(result)
 				.toEqual({
 					code: 'test:error',
+					category: 'validation',
 					payload: {},
 					message: 'Test error',
 					path: ['root', 1, sym, 0],
@@ -242,6 +254,7 @@ describe('core module', () => {
 		it('should return string message as-is', () => {
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: [],
 			}, 'Custom message')
@@ -254,6 +267,7 @@ describe('core module', () => {
 			const messageFn = (issue: any) => `Error: ${issue.code}`
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: [],
 			}, messageFn)
@@ -265,6 +279,7 @@ describe('core module', () => {
 		it('should return null for null message', () => {
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: [],
 			}, null)
@@ -276,6 +291,7 @@ describe('core module', () => {
 		it('should return undefined for undefined message', () => {
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: [],
 			}, undefined)
@@ -288,6 +304,7 @@ describe('core module', () => {
 			const messageFn = (issue: any) => `${issue.path.join('.')}: ${issue.code}`
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: ['user', 'email'],
 			}, messageFn)
@@ -300,6 +317,7 @@ describe('core module', () => {
 			const messageFn = (issue: any) => `Path length: ${issue.path.length}`
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: [],
 			}, messageFn)
@@ -312,6 +330,7 @@ describe('core module', () => {
 			const messageFn = (issue: any) => `Payload: ${JSON.stringify(issue.payload)}`
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test', count: 5 },
 				path: [],
 			}, messageFn)
@@ -324,6 +343,7 @@ describe('core module', () => {
 			const messageFn = () => null
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: [],
 			}, messageFn)
@@ -336,6 +356,7 @@ describe('core module', () => {
 			const messageFn = () => undefined
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'test' },
 				path: [],
 			}, messageFn)
@@ -350,6 +371,7 @@ describe('core module', () => {
 			}
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 'x' },
 				path: ['a', 'b'],
 			}, map as any)
@@ -364,6 +386,7 @@ describe('core module', () => {
 			}
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 1 },
 				path: [],
 			}, map as any)
@@ -378,6 +401,7 @@ describe('core module', () => {
 			}
 			const result = handleMessage({
 				code: 'test:error',
+				category: 'validation',
 				payload: { value: 42 },
 				path: ['root', 'field'],
 			}, map as any)
@@ -1161,9 +1185,10 @@ describe('core module', () => {
 				.toEqual({
 					issues: [{
 						code: 'core:unknown_exception',
+						category: 'internal',
 						message: 'An unexpected error occurred during step execution',
 						path: [],
-						payload: { method: 'throwStep', value: { value: 'test' }, error: new Error('sync error') },
+						payload: { method: 'throwStep', receivedResult: { value: 'test' }, error: new Error('sync error') },
 					}],
 				})
 		})
@@ -1185,9 +1210,10 @@ describe('core module', () => {
 				.toEqual({
 					issues: [{
 						code: 'core:unknown_exception',
+						category: 'internal',
 						message: 'An unexpected error occurred during step execution',
 						path: [],
-						payload: { method: 'asyncThrowStep', value: { value: 'test' }, error: new Error('async error') },
+						payload: { method: 'asyncThrowStep', receivedResult: { value: 'test' }, error: new Error('async error') },
 					}],
 				})
 		})

@@ -36,6 +36,7 @@ describe('transform plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						message: 'Transform failed',
 						path: [],
 						payload: { value: 'hello', error: expect.any(Error) },
@@ -63,6 +64,7 @@ describe('transform plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						message: 'Transform failed',
 						path: [],
 						payload: { value: 'hello', error: expect.any(Error) },
@@ -81,6 +83,7 @@ describe('transform plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'transform:failed',
+						category: 'validation',
 						message: 'Custom: error',
 						path: [],
 						payload: { value: 'hello', error: expect.any(Error) },

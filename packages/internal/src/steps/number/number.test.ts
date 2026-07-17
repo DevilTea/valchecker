@@ -13,6 +13,7 @@ describe('number step plugin', () => {
 		expect(v.number().execute('1')).toEqual({
 			issues: [{
 				code: 'number:expected_number',
+				category: 'validation',
 				message: 'Expected a number.',
 				path: [],
 				payload: { value: '1' },
@@ -24,6 +25,7 @@ describe('number step plugin', () => {
 		expect(v.number(() => 'Custom number message').execute(null)).toEqual({
 			issues: [{
 				code: 'number:expected_number',
+				category: 'validation',
 				message: 'Custom number message',
 				path: [],
 				payload: { value: null },

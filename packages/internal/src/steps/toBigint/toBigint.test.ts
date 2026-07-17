@@ -40,6 +40,7 @@ describe('toBigint step plugin', () => {
 		expect(result).toMatchObject({
 			issues: [{
 				code: 'toBigint:invalid_bigint',
+				category: 'validation',
 				message: 'Expected a value convertible to bigint.',
 				path: [],
 				payload: { value },
@@ -52,6 +53,7 @@ describe('toBigint step plugin', () => {
 		expect(v.number().toBigint().execute(value)).toMatchObject({
 			issues: [{
 				code: 'toBigint:invalid_bigint',
+				category: 'validation',
 				payload: { value },
 			}],
 		})
@@ -61,6 +63,7 @@ describe('toBigint step plugin', () => {
 		expect(v.unknown().toBigint().execute(value)).toMatchObject({
 			issues: [{
 				code: 'toBigint:invalid_bigint',
+				category: 'validation',
 				payload: { value },
 			}],
 		})

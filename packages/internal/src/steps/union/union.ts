@@ -1,5 +1,5 @@
 import type { IsEqual } from 'type-fest'
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
@@ -86,7 +86,7 @@ export const union = implStepPlugin<PluginDef>({
 		const len = branchExecutors.length
 
 		addSuccessStep((value) => {
-			const issues: ExecutionIssue[] = []
+			const issues: AnyExecutionIssue[] = []
 
 			const processBranchResult = (result: ExecutionResult): ExecutionSuccessResult<unknown> | null => {
 				if (isFailure(result)) {

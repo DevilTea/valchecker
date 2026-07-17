@@ -16,6 +16,7 @@ describe('isAtLeast step plugin', () => {
 		expect(v.number().isAtLeast(10).execute(5)).toEqual({
 			issues: [{
 				code: 'isAtLeast:expected_at_least',
+				category: 'validation',
 				message: 'Expected a value of at least 10.',
 				path: [],
 				payload: { target: 'number', value: 5, minimum: 10 },

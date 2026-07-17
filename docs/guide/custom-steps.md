@@ -21,6 +21,18 @@ Issue codes use the public step name:
 isPositive:expected_positive
 ```
 
+`ExecutionIssue<'code', Payload>` defaults to the `validation` category. Use the third generic only when the failure is operational or internal:
+
+```ts
+type CallbackIssue = ExecutionIssue<
+	'toDomain:callback_failed',
+	{ value: Input, error: unknown },
+	'operation'
+>
+```
+
+Every runtime issue created by `createIssue()` receives the declared category. Its `code`, `payload`, and non-default `category` are checked against `Meta.SelfIssue` at compile time.
+
 ## Use `check()` first
 
 ```ts
@@ -146,7 +158,7 @@ interface PluginDef extends TStepPluginDef {
 }
 ```
 
-Runtime implementation:
+Runtime implementation. `createIssue()` is constrained by this plugin's `Meta.SelfIssue`, so misspelled codes and incompatible payloads are compile errors:
 
 ```ts
 /* @__NO_SIDE_EFFECTS__ */
@@ -331,3 +343,11 @@ A plugin method name must:
 - not be `then`.
 
 Symbol method names are rejected so schemas cannot accidentally become promise-like or produce inconsistent method registration.
+
+## Issue and message finalization
+
+`createIssue()` creates an internal issue draft. Do not resolve or cache user-facing messages yourself. Nested structures finish `path` and optional `context`, and Valchecker resolves the message exactly once when `execute()` or `~standard.validate()` returns publicly.
+
+A structure plugin that intentionally provides a message scope for delegated child issues may pass that handler as the third argument to `prependIssuePath(issue, path, message)`. The nearest enclosing scope wins. This is advanced infrastructure behavior; ordinary validation plugins should use `createIssue()` only.
+
+Registered plugin issues are collected through `Meta.SelfIssue`, which is why a selective instance's global message callback and message map can provide exact issue-code and payload autocomplete. Dynamic issues created only inside a later schema cannot retroactively alter the global handler type of an existing Valchecker instance.

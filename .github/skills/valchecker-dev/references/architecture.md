@@ -25,7 +25,7 @@ type Meta = DefineStepMethodMeta<{
 **Key Points:**
 - `Name`: The method name users will call (e.g., `'min'`, `'toTrimmed'`)
 - `ExpectedCurrentValchecker`: What input type this step expects
-- `SelfIssue`: The issue type this step can produce (or `never` for transforms)
+- `SelfIssue`: The issue type this step can produce (or `never` for non-failing transforms). Two generic arguments default to category `validation`; pass `operation` or `internal` explicitly when appropriate.
 
 ## Layer 2: PluginDef (TypeScript Interface)
 
@@ -98,7 +98,7 @@ export const stepName = implStepPlugin<PluginDef>({
 **Important Notes:**
 - Always use `/* @__NO_SIDE_EFFECTS__ */` for tree-shaking
 - Register validation with `addSuccessStep()` or `addFailureStep()`
-- Use `success()` to pass values, `failure()` to report issues
+- Use `success()` to pass values, `failure()` to report one or more issues; failure arrays must be non-empty
 - Return transformed values in `success()` for transform steps
 
 ## Common Patterns
@@ -146,3 +146,10 @@ addFailureStep((issues) => {
 Steps that work with multiple input types (like `min` for number/bigint/string.length):
 
 See `packages/internal/src/steps/min/min.ts` for a complete example of handling multiple types.
+
+
+## Issue typing and finalization
+
+`createIssue()` is type-checked against the current method's `Meta.SelfIssue`. A code typo, incompatible payload, or incompatible category must fail typechecking. Public issues contain `code`, `category`, `payload`, `message`, `path`, and optional `context`.
+
+Issue drafts remain internal while nested structures prepend paths and message scopes. Public `execute()` and Standard Schema validation finalize each issue once. Do not eagerly call message handlers in a step implementation.

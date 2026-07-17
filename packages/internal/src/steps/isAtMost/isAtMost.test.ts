@@ -16,6 +16,7 @@ describe('isAtMost step plugin', () => {
 		expect(v.number().isAtMost(10).execute(15)).toEqual({
 			issues: [{
 				code: 'isAtMost:expected_at_most',
+				category: 'validation',
 				message: 'Expected a value of at most 10.',
 				path: [],
 				payload: { target: 'number', value: 15, maximum: 10 },

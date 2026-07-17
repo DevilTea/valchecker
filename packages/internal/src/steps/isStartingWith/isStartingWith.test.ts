@@ -12,6 +12,7 @@ describe('isStartingWith step plugin', () => {
 		expect(v.string().isStartingWith('hello').execute('world')).toEqual({
 			issues: [{
 				code: 'isStartingWith:expected_starting_with',
+				category: 'validation',
 				message: 'Expected the string to start with "hello".',
 				path: [],
 				payload: { value: 'world', prefix: 'hello' },

@@ -12,6 +12,7 @@ describe('isNaN step plugin', () => {
 		expect(v.number().isNaN().execute(value)).toEqual({
 			issues: [{
 				code: 'isNaN:expected_nan',
+				category: 'validation',
 				message: 'Expected NaN.',
 				path: [],
 				payload: { value },

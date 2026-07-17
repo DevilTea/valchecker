@@ -45,6 +45,7 @@ describe('fallback plugin', () => {
 			expect(capturedIssues[0])
 				.toMatchObject({
 					code: 'number:expected_number',
+					category: 'validation',
 					payload: { value: 'not a number' },
 				})
 		})
@@ -72,11 +73,13 @@ describe('fallback plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'fallback:failed',
+						category: 'validation',
 						message: 'Fallback failed',
 						path: [],
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
+								category: 'validation',
 								message: 'Expected a number.',
 								path: [],
 								payload: { value: 'not a number' },
@@ -97,11 +100,13 @@ describe('fallback plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'fallback:failed',
+						category: 'validation',
 						message: 'Fallback failed',
 						path: [],
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
+								category: 'validation',
 								message: 'Expected a number.',
 								path: [],
 								payload: { value: 'not a number' },
@@ -122,11 +127,13 @@ describe('fallback plugin', () => {
 				.toEqual({
 					issues: [{
 						code: 'fallback:failed',
+						category: 'validation',
 						message: 'Custom fallback message',
 						path: [],
 						payload: {
 							receivedIssues: [{
 								code: 'number:expected_number',
+								category: 'validation',
 								message: 'Expected a number.',
 								path: [],
 								payload: { value: 'not a number' },

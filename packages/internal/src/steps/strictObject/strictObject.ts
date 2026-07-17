@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -171,7 +171,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 				)
 			}
 
-			const issues: ExecutionIssue<any, any>[] = []
+			const issues: AnyExecutionIssue[] = []
 			const output: Record<string, any> = {}
 
 			for (let i = 0; i < keysLen; i++) {
@@ -186,7 +186,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 						.then((r) => {
 							if (isFailure(r)) {
 								for (const issue of r.issues)
-									issues.push(prependIssuePath(issue, [key]))
+									issues.push(prependIssuePath(issue, [key], message))
 							}
 							else {
 								setOutputValue(output, key, r.value)
@@ -204,7 +204,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 							.then((r) => {
 								if (isFailure(r)) {
 									for (const issue of r.issues)
-										issues.push(prependIssuePath(issue, [nextMeta.key]))
+										issues.push(prependIssuePath(issue, [nextMeta.key], message))
 								}
 								else {
 									setOutputValue(output, nextMeta.key, r.value)
@@ -217,7 +217,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 
 				if (isFailure(propResult)) {
 					for (const issue of propResult.issues)
-						issues.push(prependIssuePath(issue, [key]))
+						issues.push(prependIssuePath(issue, [key], message))
 				}
 				else {
 					setOutputValue(output, key, propResult.value)
