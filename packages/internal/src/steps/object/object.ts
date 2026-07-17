@@ -1,14 +1,12 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
-import { implStepPlugin } from '../../core'
+import { hasInternalIssue, implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
-	export type Struct = Record<string, Use<Valchecker> | [optional: Use<Valchecker>]>
+	export type Struct = Record<PropertyKey, Use<Valchecker> | [optional: Use<Valchecker>]>
 
-	export type OpMode<
-		S extends Struct,
-	> = ValueOf<{
+	export type OpMode<S extends Struct> = ValueOf<{
 		[K in keyof S]: S[K] extends Use<Valchecker>
 			? InferOperationMode<S[K]>
 			: S[K] extends [optional: Use<Valchecker>]
@@ -16,17 +14,13 @@ declare namespace Internal {
 				: never
 	}> extends infer M
 		? [M] extends [never]
-				? 'sync'
-				: M extends OperationMode
-					? IsEqual<M, 'sync'> extends true
-						? 'sync'
-						: 'maybe-async'
-					: never
+			? 'sync'
+			: M extends OperationMode
+				? IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
+				: never
 		: never
 
-	export type Output<
-		S extends Struct,
-	> = Simplify<
+	export type Output<S extends Struct> = Simplify<
 		{
 			[K in keyof S as S[K] extends Use<Valchecker> ? K : never]: S[K] extends Use<Valchecker> ? InferOutput<S[K]> : never
 		} & {
@@ -35,19 +29,19 @@ declare namespace Internal {
 	>
 
 	export type Issue<S extends Struct = never>
-		=	| ExecutionIssue<'object:expected_object', { value: unknown }>
+		= | ExecutionIssue<'object:expected_object', { value: unknown }>
+			| ExecutionIssue<'object:missing_key', { key: PropertyKey }>
 			| (
-			IsEqual<S, never> extends true
-				? never
-				: ValueOf<{
-					[K in keyof S]: S[K] extends Use<Valchecker>
-						? InferIssue<S[K]>
-						: S[K] extends [optional: Use<Valchecker>]
-							? InferIssue<S[K][0]>
-							: never
-				}>
+				IsEqual<S, never> extends true
+					? never
+					: ValueOf<{
+						[K in keyof S]: S[K] extends Use<Valchecker>
+							? InferIssue<S[K]>
+							: S[K] extends [optional: Use<Valchecker>]
+								? InferIssue<S[K][0]>
+								: never
+					}>
 			)
-
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -59,55 +53,33 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the value is an object. (Extra keys are ignored.)
+	 * Checks that the value is an object. Extra keys are ignored.
 	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, object, string, number } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [object, string, number] })
-	 * const schema = v.object({
-	 *   name: v.string(),
-	 *   age: v.number(),
-	 * })
-	 * const result = schema.execute({ name: 'John', age: 30 })
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'object:expected_object'`: The value is not an object.
-	 * - Issues from the property validators.
+	 * Required keys that are not own properties produce `'object:missing_key'`.
+	 * An own property whose value is `undefined` is still validated by its child schema.
 	 */
 	object: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
-				?	<S extends Internal.Struct>(
-						struct: S,
-						message?: MessageHandler<Internal.Issue<NoInfer<S>>>,
-					) => Next<
-						{
-							operationMode: Internal.OpMode<NoInfer<S>>
-							output: Internal.Output<NoInfer<S>>
-							issue: Internal.Issue<NoInfer<S>>
-						},
-						this['CurrentValchecker']
-					>
-				:	never
-			:	never
+			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
+				? <S extends Internal.Struct>(
+					struct: S,
+					message?: MessageHandler<Internal.Issue<NoInfer<S>>>,
+				) => Next<{
+					operationMode: Internal.OpMode<NoInfer<S>>
+					output: Internal.Output<NoInfer<S>>
+					issue: Internal.Issue<NoInfer<S>>
+				}, this['CurrentValchecker']>
+				: never
+			: never
 	>
 }
 
-function getOwnValue(value: object, key: string): any {
-	return Object.hasOwn(value, key)
-		? (value as Record<string, any>)[key]
-		: undefined
+function getOwnValue(value: object, key: PropertyKey): unknown {
+	return (value as Record<PropertyKey, unknown>)[key]
 }
 
-function setOutputValue(output: Record<string, any>, key: string, value: unknown): void {
+function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, value: unknown): void {
 	if (key === '__proto__' && !Object.hasOwn(output, key)) {
 		Object.defineProperty(output, key, {
 			configurable: true,
@@ -126,10 +98,10 @@ export const object = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [struct, message],
 	}) => {
-		// Pre-compute metadata for each property to avoid repeated lookups
-		const keys = Object.keys(struct)
+		const keys = Reflect.ownKeys(struct)
+			.filter(key => Object.prototype.propertyIsEnumerable.call(struct, key))
 		const keysLen = keys.length
-		const propsMeta: Array<{ key: string, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
+		const propsMeta: Array<{ key: PropertyKey, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
 
 		for (let i = 0; i < keysLen; i++) {
 			const key = keys[i]!
@@ -141,84 +113,76 @@ export const object = implStepPlugin<PluginDef>({
 
 		addSuccessStep((value) => {
 			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
-				return failure(
-					createIssue({
-						code: 'object:expected_object',
-						payload: { value },
-						customMessage: message,
-						defaultMessage: 'Expected an object.',
-					}),
-				)
+				return failure(createIssue({
+					code: 'object:expected_object',
+					payload: { value },
+					customMessage: message,
+					defaultMessage: 'Expected an object.',
+				}))
 			}
 
 			const issues: AnyExecutionIssue[] = []
-			const output: Record<string, any> = {}
+			const output: Record<PropertyKey, any> = {}
 
-			// Inline processPropResult for better performance
-			// First pass: process synchronously until we hit async
-			let isAsync = false
+			const collectResult = (result: ExecutionResult, key: PropertyKey): boolean => {
+				if (isFailure(result)) {
+					for (const issue of result.issues)
+						issues.push(prependIssuePath(issue, [key], message))
+					return hasInternalIssue(result.issues)
+				}
+				setOutputValue(output, key, result.value)
+				return false
+			}
+
+			const addMissingIssue = (key: PropertyKey): void => {
+				issues.push(createIssue({
+					code: 'object:missing_key',
+					payload: { key },
+					path: [key],
+					customMessage: message,
+					defaultMessage: 'Missing required object key.',
+				}))
+			}
+
+			const continueAsync = async (startIndex: number, firstResult: PromiseLike<ExecutionResult>) => {
+				for (let i = startIndex; i < keysLen; i++) {
+					const { key, isOptional, execute } = propsMeta[i]!
+					let result: ExecutionResult
+					if (i === startIndex) {
+						result = await firstResult
+					}
+					else if (!Object.hasOwn(value, key)) {
+						if (isOptional)
+							setOutputValue(output, key, undefined)
+						else
+							addMissingIssue(key)
+						continue
+					}
+					else {
+						result = await execute(getOwnValue(value, key))
+					}
+
+					if (collectResult(result, key))
+						return failure(issues)
+				}
+				return issues.length > 0 ? failure(issues) : success(output)
+			}
+
 			for (let i = 0; i < keysLen; i++) {
-				if (isAsync) {
-					// Already in async mode, skip
+				const { key, isOptional, execute } = propsMeta[i]!
+				if (!Object.hasOwn(value, key)) {
+					if (isOptional)
+						setOutputValue(output, key, undefined)
+					else
+						addMissingIssue(key)
 					continue
 				}
-				const { key, isOptional, execute } = propsMeta[i]!
-				const propValue = getOwnValue(value, key)
 
-				const propResult = (isOptional && propValue === void 0)
-					? success(propValue)
-					: execute(propValue)
-
-				if (isPromiseLike(propResult)) {
-					isAsync = true
-					// Hit async, process rest in promise chain
-					let chain = Promise.resolve(propResult)
-						.then((r) => {
-							if (isFailure(r)) {
-								for (const issue of r.issues!) {
-									issues.push(prependIssuePath(issue, [key], message))
-								}
-							}
-							else {
-								setOutputValue(output, key, r.value)
-							}
-						})
-
-					// Chain remaining properties
-					for (let j = i + 1; j < keysLen; j++) {
-						const nextMeta = propsMeta[j]!
-						const nextPropValue = getOwnValue(value, nextMeta.key)
-
-						chain = chain.then((): void | Promise<void> => {
-							return Promise.resolve(
-								(nextMeta.isOptional && nextPropValue === void 0)
-									? success(nextPropValue)
-									: nextMeta.execute(nextPropValue),
-							)
-								.then((r) => {
-									if (isFailure(r)) {
-										for (const issue of r.issues!) {
-											issues.push(prependIssuePath(issue, [nextMeta.key], message))
-										}
-									}
-									else {
-										setOutputValue(output, nextMeta.key, r.value)
-									}
-								})
-						})
-					}
-
-					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
-				}
-
-				if (isFailure(propResult)) {
-					for (const issue of propResult.issues!) {
-						issues.push(prependIssuePath(issue, [key], message))
-					}
-				}
-				else {
-					setOutputValue(output, key, propResult.value)
-				}
+				const result = execute(getOwnValue(value, key))
+				if (isPromiseLike(result))
+					return continueAsync(i, result)
+				if (collectResult(result, key))
+					return failure(issues)
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)

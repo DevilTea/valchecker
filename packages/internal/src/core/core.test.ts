@@ -12,11 +12,14 @@ import type { ExecutionIssue, ExecutionResult, StepPluginImpl, TStepPluginDef } 
 import { describe, expect, it } from 'vitest'
 import { runtimeExecutionStepDefMarker } from '../shared'
 import {
+	appendIssueContext,
 	createPipeExecutor,
 	createValchecker,
 	handleMessage,
+	hasInternalIssue,
 	implStepPlugin,
 	isFailure,
+	isRecoverableFailure,
 	isSuccess,
 	prependIssuePath,
 	resolveMessagePriority,
@@ -247,6 +250,47 @@ describe('core module', () => {
 					message: 'Test error',
 					path: ['root', 1, sym, 0],
 				})
+		})
+	})
+
+
+	describe('issue category helpers', () => {
+		const validationIssue: ExecutionIssue = {
+			code: 'test:validation',
+			category: 'validation',
+			payload: {},
+			message: 'validation',
+			path: [],
+		}
+		const internalIssue: ExecutionIssue<string, unknown, 'internal'> = {
+			code: 'test:internal',
+			category: 'internal',
+			payload: {},
+			message: 'internal',
+			path: [],
+		}
+
+		it('detects internal issues and recoverable failures', () => {
+			expect(hasInternalIssue([validationIssue])).toBe(false)
+			expect(hasInternalIssue([validationIssue, internalIssue])).toBe(true)
+			expect(isRecoverableFailure({ issues: [validationIssue] })).toBe(true)
+			expect(isRecoverableFailure({ issues: [internalIssue] })).toBe(false)
+			expect(isRecoverableFailure({ value: 1 })).toBe(false)
+		})
+
+		it('appends context without mutating the source issue', () => {
+			const withExisting = { ...validationIssue, context: [{ type: 'existing' }] }
+			const result = appendIssueContext(withExisting, { type: 'union', branchIndex: 1 })
+			expect(result).toEqual({
+				...validationIssue,
+				context: [
+					{ type: 'existing' },
+					{ type: 'union', branchIndex: 1 },
+				],
+			})
+			expect(withExisting.context).toEqual([{ type: 'existing' }])
+			expect(appendIssueContext(validationIssue, { type: 'union', branchIndex: 0 }))
+				.toMatchObject({ context: [{ type: 'union', branchIndex: 0 }] })
 		})
 	})
 

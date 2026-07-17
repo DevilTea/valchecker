@@ -1,6 +1,6 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
-import { implStepPlugin } from '../../core'
+import { hasInternalIssue, implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -64,60 +64,47 @@ export const array = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep((value) => {
 			if (Array.isArray(value) === false) {
-				return failure(
-					createIssue({
-						code: 'array:expected_array',
-						payload: { value },
-						customMessage: message,
-						defaultMessage: 'Expected an array.',
-					}),
-				)
+				return failure(createIssue({
+					code: 'array:expected_array',
+					payload: { value },
+					customMessage: message,
+					defaultMessage: 'Expected an array.',
+				}))
 			}
 
-			// Optimized: Direct processing without Pipe overhead
 			const issues: AnyExecutionIssue[] = []
 			const len = value.length
 			// eslint-disable-next-line unicorn/no-new-array
 			const output = new Array(len)
 			const execute = item['~execute']
 
-			const processItemResult = (result: ExecutionResult, i: number) => {
+			const processItemResult = (result: ExecutionResult, index: number): boolean => {
 				if (isFailure(result)) {
-					// Optimize: Avoid spread and map by using direct loop
-					for (const issue of result.issues!) {
-						issues.push(prependIssuePath(issue, [i]))
-					}
+					for (const issue of result.issues)
+						issues.push(prependIssuePath(issue, [index]))
+					return hasInternalIssue(result.issues)
 				}
-				else {
-					output[i] = result.value!
-				}
+				output[index] = result.value
+				return false
 			}
 
-			// Process items synchronously until we hit async
-			let isAsync = false
+			const continueAsync = async (startIndex: number, firstResult: PromiseLike<ExecutionResult>) => {
+				for (let i = startIndex; i < len; i++) {
+					const result = i === startIndex
+						? await firstResult
+						: await execute(value[i])
+					if (processItemResult(result, i))
+						return failure(issues)
+				}
+				return issues.length > 0 ? failure(issues) : success(output)
+			}
+
 			for (let i = 0; i < len; i++) {
-				if (isAsync) {
-					// Already in async mode, skip
-					continue
-				}
-				const itemValue = value[i]!
-				const itemResult = execute(itemValue)
-
-				if (isPromiseLike(itemResult)) {
-					isAsync = true
-					// Hit async, chain remaining items
-					let chain = Promise.resolve(itemResult)
-						.then(r => processItemResult(r, i))
-					for (let j = i + 1; j < len; j++) {
-						const jValue = value[j]!
-						const jIndex = j
-						chain = chain.then(() => Promise.resolve(execute(jValue))
-							.then(r => processItemResult(r, jIndex)))
-					}
-					return chain.then(() => issues.length > 0 ? failure(issues) : success(output))
-				}
-
-				processItemResult(itemResult, i)
+				const result = execute(value[i])
+				if (isPromiseLike(result))
+					return continueAsync(i, result)
+				if (processItemResult(result, i))
+					return failure(issues)
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)

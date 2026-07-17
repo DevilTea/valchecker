@@ -214,11 +214,11 @@ describe('object plugin', () => {
 			expect(result)
 				.toEqual({
 					issues: [{
-						code: 'number:expected_number',
+						code: 'object:missing_key',
 						category: 'validation',
 						path: ['age'],
-						payload: { value: undefined },
-						message: 'Expected a number.',
+						payload: { key: 'age' },
+						message: 'Missing required object key.',
 					}],
 				})
 		})

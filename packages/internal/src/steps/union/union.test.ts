@@ -77,6 +77,7 @@ describe('union plugin', () => {
 							category: 'validation',
 							message: 'Expected a string.',
 							path: [],
+							context: [{ type: 'union', branchIndex: 0 }],
 							payload: { value: null },
 						},
 						{
@@ -84,6 +85,7 @@ describe('union plugin', () => {
 							category: 'validation',
 							message: 'Expected a number.',
 							path: [],
+							context: [{ type: 'union', branchIndex: 1 }],
 							payload: { value: null },
 						},
 					],

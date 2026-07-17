@@ -204,7 +204,7 @@ describe('intersection plugin', () => {
 				issues: [{
 					code: 'intersection:conflicting_outputs',
 					category: 'validation',
-					payload: { outputs: ['left', 'right'] },
+					payload: { path: [], leftBranch: 0, rightBranch: 1, leftValue: 'left', rightValue: 'right', reason: 'different_values' },
 				}],
 			})
 	})
@@ -224,7 +224,7 @@ describe('intersection plugin', () => {
 				issues: [{
 					code: 'intersection:conflicting_outputs',
 					category: 'validation',
-					payload: { outputs: [left, right] },
+					payload: { path: [], leftBranch: 0, rightBranch: 1, leftValue: left, rightValue: right, reason: 'different_references' },
 				}],
 			})
 	})

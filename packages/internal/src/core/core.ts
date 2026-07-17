@@ -124,6 +124,40 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	return nextIssue
 }
 
+
+/* @__NO_SIDE_EFFECTS__ */
+export function appendIssueContext<Issue extends AnyExecutionIssue>(
+	issue: Issue,
+	context: IssueContext,
+): Issue {
+	const metadata = getIssueDraftMetadata(issue)
+	const nextIssue = {
+		...issue,
+		context: issue.context == null
+			? [context]
+			: [...issue.context, context],
+	}
+	if (metadata != null)
+		setIssueDraftMetadata(nextIssue, metadata)
+	return nextIssue as Issue
+}
+
+/* @__NO_SIDE_EFFECTS__ */
+export function hasInternalIssue(issues: readonly AnyExecutionIssue[]): boolean {
+	for (let i = 0; i < issues.length; i++) {
+		if (issues[i]!.category === 'internal')
+			return true
+	}
+	return false
+}
+
+/* @__NO_SIDE_EFFECTS__ */
+export function isRecoverableFailure(
+	result: ExecutionResult,
+): result is ExecutionFailureResult<AnyExecutionIssue> {
+	return isFailure(result) && !hasInternalIssue(result.issues)
+}
+
 function executeRuntimeSteps(runtimeSteps: RuntimeStep[], value: unknown): MaybePromise<ExecutionResult> {
 	const len = runtimeSteps.length
 	let result: MaybePromise<ExecutionResult> = { value }
@@ -533,6 +567,7 @@ function createExecutionStepMethodUtils(
 		isSuccess,
 		isFailure,
 		prependIssuePath,
+		appendIssueContext,
 		success: value => ({ value }),
 		failure: (issueOrIssues) => {
 			const issues = Array.isArray(issueOrIssues) ? issueOrIssues : [issueOrIssues]
