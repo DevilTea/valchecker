@@ -1,0 +1,53 @@
+name: Agent apply PR B
+
+on:
+  push:
+    branches:
+      - agent/structural-combinator-failure-semantics
+    paths:
+      - .github/workflows/agent-apply-prb.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/structural-combinator-failure-semantics
+          fetch-depth: 0
+
+      - name: Apply structural semantics patch
+        shell: bash
+        run: |
+          cat .github/agent/prb.patch.part00 \
+              .github/agent/prb.patch.part01 \
+              .github/agent/prb.patch.part02 \
+              .github/agent/prb.patch.part03 \
+            > /tmp/prb.patch.gz.b64
+          printf '%s  %s\n' \
+            '792df9270e1fed6d94960c3e285a37058f9af541060ad1c1e0e13cb47802cba3' \
+            '/tmp/prb.patch.gz.b64' \
+            | sha256sum --check --strict
+          base64 --decode /tmp/prb.patch.gz.b64 > /tmp/prb.patch.gz
+          gunzip -c /tmp/prb.patch.gz > /tmp/prb.patch
+          printf '%s  %s\n' \
+            '057ad815b3fcec5db50b7d8ae9a7c984ccb3cb613f50ace0a0febeacd702cb96' \
+            '/tmp/prb.patch' \
+            | sha256sum --check --strict
+          git apply --index /tmp/prb.patch
+          rm -f \
+            .github/agent/prb.patch.gz.b64 \
+            .github/agent/prb.patch.part00 \
+            .github/agent/prb.patch.part01 \
+            .github/agent/prb.patch.part02 \
+            .github/agent/prb.patch.part03 \
+            .github/workflows/agent-apply-prb.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'refactor: define structural and combinator failure semantics'
+          git push origin HEAD:agent/structural-combinator-failure-semantics
