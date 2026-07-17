@@ -42,14 +42,14 @@ Every built-in step uses:
 A normal step directory contains:
 
 ```text
-packages/internal/src/steps/<module>/
-├── <module>.ts
-├── <module>.test.ts
-├── <module>.bench.ts
+packages/internal/src/steps/<public-step-name>/
+├── <public-step-name>.ts
+├── <public-step-name>.test.ts
+├── <public-step-name>.bench.ts
 └── index.ts
 ```
 
-Some historical module directory names may differ from the current public method name. Public exports and `Meta.Name` define the API; avoid file moves that add noise without architectural value.
+Directory and file names must match the public step name. Public exports, `Meta.Name`, and the plugin object must agree.
 
 ## Built-in naming contract
 
@@ -83,9 +83,22 @@ Do not mechanically create grammatically invalid names such as `isStartsWith`. A
 Use `toXxx` and name the resulting representation:
 
 ```text
-toTrimmed, toLowercase, toSplit, toJSONValue,
-toJSONString, toSorted, toFiltered
+toTrimmed, toLowercase, toSplit, toJSONValue, toJSONString,
+toNumber, toBoolean, toBigint, toSafeNumber, toMappedBoolean,
+toSorted, toFiltered
 ```
+
+Native primitive conversions delegate directly to JavaScript:
+
+```text
+toNumber  -> Number(value)
+toBoolean -> Boolean(value)
+toBigint  -> BigInt(value)
+```
+
+Do not add hidden parsing, finite-number, truthiness, precision, or safe-integer policies to these generic names. Preserve special numeric outputs and convert native exceptions to structured issues when applicable.
+
+Policy-bearing conversions must be explicit. `toSafeNumber()` checks the bigint safe-integer range; `toMappedBoolean()` uses caller-provided mappings. Identity primitive conversions are unavailable after the target primitive initial step.
 
 ### Generic and flow-control steps
 
@@ -112,6 +125,9 @@ string:expected_string
 isFinite:expected_finite
 isAtLeast:expected_at_least
 toJSONValue:invalid_json
+toBigint:invalid_bigint
+toSafeNumber:out_of_safe_integer_range
+toMappedBoolean:unmapped_value
 check:failed
 ```
 
@@ -141,13 +157,14 @@ Step implementations require 100% coverage. Test:
 - state-aware type availability,
 - transformed output inference,
 - synchronous, asynchronous, and early-failure paths when relevant,
-- exact boundary behavior for TypeScript-aligned loose primitives.
+- exact boundary behavior for TypeScript-aligned loose primitives,
+- native coercion edge cases such as `NaN`, infinity, empty strings, truthiness, native exceptions, and bigint precision loss.
 
 For loose primitives, keep compile-time template-literal expectations and runtime grammar fixtures aligned.
 
 ## Public API review
 
-A public rename or semantic change must update:
+A public addition, rename, or semantic change must update:
 
 - implementation exports,
 - `api-surface.json`,
