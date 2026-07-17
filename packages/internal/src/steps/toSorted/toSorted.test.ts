@@ -122,7 +122,7 @@ describe('toSorted plugin', () => {
 		const value = [] as any[] & { toSorted: typeof Array.prototype.toSorted }
 		value.toSorted = () => { throw error }
 		const result = v.transform(() => value)
-			.toSorted()
+			.toSorted(() => 0)
 			.execute(null)
 		expect(result).toMatchObject({
 			issues: [{
