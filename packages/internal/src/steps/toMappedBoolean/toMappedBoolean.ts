@@ -1,6 +1,13 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
+declare namespace Internal {
+	export interface Options<T> {
+		readonly trueValues: readonly T[]
+		readonly falseValues: readonly T[]
+	}
+}
+
 type Meta = DefineStepMethodMeta<{
 	Name: 'toMappedBoolean'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string | number | bigint }>
@@ -36,19 +43,16 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	toMappedBoolean: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? (
-				options: {
-					readonly trueValues: readonly InferOutput<this['CurrentValchecker']>[]
-					readonly falseValues: readonly InferOutput<this['CurrentValchecker']>[]
-				},
+				options: Internal.Options<InferOutput<This>>,
 				message?: MessageHandler<Meta['SelfIssue']>,
 			) => Next<
 				{
 					output: boolean
 					issue: Meta['SelfIssue']
 				},
-				this['CurrentValchecker']
+				This
 			>
 			: never
 	>
