@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, TStepPluginDef } from '../../core'
 import { describe, expect, it, vi } from 'vitest'
-import { createValchecker, fallback, implStepPlugin, number, string } from '../..'
+import { createValchecker, fallback, implStepPlugin, number, string, union } from '../..'
 
 type FatalIssue = ExecutionIssue<'fatal:failed', { value: unknown }, 'internal'>
 type FatalMeta = DefineStepMethodMeta<{
@@ -27,7 +27,7 @@ const fatal = implStepPlugin<FatalPluginDef>({
 	},
 })
 
-const v = createValchecker({ steps: [fallback, string, number, fatal] })
+const v = createValchecker({ steps: [fallback, string, number, union, fatal] })
 
 function expectedNumberIssue(value: unknown) {
 	return {
@@ -159,6 +159,20 @@ describe('fallback plugin', () => {
 				expect(snapshot.path).not.toBe(result.issues[0]!.path)
 			}
 		}
+	})
+
+	it('snapshots union provenance received by a failing callback', () => {
+		const result = v.union([v.string(), v.number()])
+			.fallback(() => { throw new Error('failure') })
+			.execute(false)
+		if (!v.isFailure(result))
+			throw new Error('Expected failure')
+		const callbackIssue = result.issues[2]
+		if (callbackIssue?.code !== 'fallback:failed')
+			throw new Error('Expected fallback issue')
+		const snapshot = callbackIssue.payload.receivedIssues[0]!
+		expect(snapshot.context).toEqual([{ type: 'union', branchIndex: 0 }])
+		expect(snapshot.context).not.toBe(result.issues[0]!.context)
 	})
 
 	it('uses the callback failure message override', () => {
