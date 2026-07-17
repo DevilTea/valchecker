@@ -1,9 +1,9 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferOutput, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toBoolean'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string | number | bigint }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -11,7 +11,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Converts the current value with JavaScript's native `Boolean()` truthiness coercion.
 	 *
-	 * This step does not parse semantic boolean representations. For example, the non-empty strings `"false"`, `"0"`, and `"no"` all convert to `true`.
+	 * This step is available after any output that is not already a boolean. It does not parse semantic boolean representations. For example, the non-empty strings `"false"`, `"0"`, and `"no"` all convert to `true`.
 	 *
 	 * ---
 	 *
@@ -31,8 +31,10 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	toBoolean: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? () => Next<{ output: boolean }, this['CurrentValchecker']>
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? InferOutput<This> extends boolean
+				? never
+				: () => Next<{ output: boolean }, This>
 			: never
 	>
 }
