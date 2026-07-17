@@ -72,7 +72,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 ): Issue {
 	const hasPath = path != null && path.length > 0
 	const metadata = issueDraftMetadata.get(issue)
-	const hasMessageScope = metadata != null && messageScope != null
+	const hasMessageScope = messageScope != null
 
 	if (!hasPath && !hasMessageScope)
 		return issue
@@ -91,8 +91,15 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 		issueDraftMetadata.set(nextIssue, {
 			...metadata,
 			contextMessages: hasMessageScope
-				? [...metadata.contextMessages, messageScope as MessageHandler<any>]
+				? [...metadata.contextMessages, messageScope]
 				: metadata.contextMessages,
+		})
+	}
+	else if (hasMessageScope) {
+		issueDraftMetadata.set(nextIssue, {
+			resolveMessage: resolveExternalIssueMessage,
+			contextMessages: [messageScope],
+			defaultMessage: issue.message,
 		})
 	}
 
@@ -263,6 +270,8 @@ function createResolveMessageFunction(
 	})
 }
 
+const resolveExternalIssueMessage = createResolveMessageFunction()
+
 function getMessageData(issue: AnyExecutionIssue): MessageData {
 	return {
 		code: issue.code,
@@ -271,6 +280,20 @@ function getMessageData(issue: AnyExecutionIssue): MessageData {
 		path: issue.path,
 		context: issue.context,
 	}
+}
+
+function createUnresolvedIssueSnapshot(
+	issue: AnyExecutionIssue,
+): MessageExceptionIssue['payload']['unresolvedIssue'] {
+	const snapshot: MessageExceptionIssue['payload']['unresolvedIssue'] = {
+		code: issue.code,
+		category: issue.category,
+		payload: issue.payload,
+		path: [...issue.path],
+	}
+	if (issue.context != null)
+		snapshot.context = [...issue.context]
+	return snapshot
 }
 
 function createMessageExceptionIssue(
@@ -284,7 +307,7 @@ function createMessageExceptionIssue(
 		category: 'internal',
 		payload: {
 			source: resolutionError.source,
-			unresolvedIssue: getMessageData(unresolvedIssue) as MessageExceptionIssue['payload']['unresolvedIssue'],
+			unresolvedIssue: createUnresolvedIssueSnapshot(unresolvedIssue),
 			error: resolutionError.error,
 		},
 		message: defaultMessage,

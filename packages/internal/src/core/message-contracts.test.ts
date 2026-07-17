@@ -320,7 +320,21 @@ describe('issue finalization and message resolution', () => {
 				},
 			}],
 		})
+
+		const issue = (result as any).issues[0]
+		const unresolvedPath = issue.payload.unresolvedIssue.path
+		expect(unresolvedPath).not.toBe(issue.path)
+		issue.path.push('mutated')
+		expect(unresolvedPath).toEqual(['age'])
 	})
+})
+
+const frozenExternalIssue = Object.freeze({
+	code: 'coverage:external',
+	category: 'validation',
+	payload: Object.freeze({ marker: true }),
+	message: 'external default',
+	path: Object.freeze([]),
 })
 
 const coveragePlugin = implStepPlugin<any>({
@@ -338,6 +352,9 @@ const coveragePlugin = implStepPlugin<any>({
 			context: [{ type: 'coverage', marker: 1 }],
 			defaultMessage: 'default',
 		})))
+	},
+	external: ({ utils: { addSuccessStep, failure } }: any) => {
+		addSuccessStep(() => failure(frozenExternalIssue as any))
 	},
 	emptyFailure: ({ utils: { addSuccessStep, failure } }: any) => {
 		addSuccessStep(() => failure([]))
@@ -365,7 +382,8 @@ describe('issue finalization coverage contracts', () => {
 				throw new Error('message failure')
 			},
 		}) as any
-		expect(v.contextual().execute('value')).toMatchObject({
+		const result = v.contextual().execute('value')
+		expect(result).toMatchObject({
 			issues: [{
 				code: 'core:message_exception',
 				context: [{ type: 'coverage', marker: 1 }],
@@ -375,6 +393,38 @@ describe('issue finalization coverage contracts', () => {
 					},
 				},
 			}],
+		})
+
+		const issue = result.issues[0]
+		const unresolvedContext = issue.payload.unresolvedIssue.context
+		expect(unresolvedContext).not.toBe(issue.context)
+		issue.context.push({ type: 'mutated' })
+		expect(unresolvedContext).toEqual([{ type: 'coverage', marker: 1 }])
+	})
+
+	it('applies enclosing message scopes to frozen reused external issues', () => {
+		const v = createValchecker({ steps: [coveragePlugin, object] }) as any
+		const schema = v.object({ value: v.external() }, {
+			'coverage:external': ({ path }: any) => `object:${path.join('.')}`,
+		})
+
+		for (let i = 0; i < 2; i++) {
+			expect(schema.execute({ value: 'input' })).toEqual({
+				issues: [{
+					code: 'coverage:external',
+					category: 'validation',
+					payload: { marker: true },
+					message: 'object:value',
+					path: ['value'],
+				}],
+			})
+		}
+		expect(frozenExternalIssue).toEqual({
+			code: 'coverage:external',
+			category: 'validation',
+			payload: { marker: true },
+			message: 'external default',
+			path: [],
 		})
 	})
 
