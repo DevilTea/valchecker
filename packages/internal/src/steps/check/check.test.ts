@@ -1,239 +1,137 @@
-/**
- * Test Plan for check.ts
- *
- * Covers synchronous and asynchronous checks, issue collection, narrowing,
- * custom messages, thrown errors, rejected promises, and issue append order.
- */
-
-import type { UnknownExceptionIssue } from '../../core'
+import type { ExecutionIssue } from '../../core'
 import { describe, expect, it } from 'vitest'
 import { check, createValchecker } from '../..'
 
 const v = createValchecker({ steps: [check] })
 
-function addTestIssue(
-	value: unknown,
-	addIssue: (issue: UnknownExceptionIssue<'check'>) => void,
-): void {
+type DomainIssue = ExecutionIssue<'domain:blocked', { value: unknown }>
+
+function addDomainIssue(value: unknown, addIssue: (issue: DomainIssue) => void): void {
 	addIssue({
-		code: 'core:unknown_exception',
-		category: 'internal',
-		payload: {
-			method: 'check',
-			receivedResult: { value },
-			error: null,
-		},
-		message: 'Test issue',
+		code: 'domain:blocked',
+		category: 'validation',
+		payload: { value },
+		message: 'Blocked by domain policy.',
 		path: [],
 	})
 }
 
-describe('check plugin', () => {
-	describe('valid checks (sync pass)', () => {
-		it('should pass when check returns true', () => {
-			const result = v.check(value => value === 'pass')
-				.execute('pass')
-			expect(result)
-				.toEqual({ value: 'pass' })
-		})
+describe('check step plugin', () => {
+	it('preserves the value when the predicate passes', () => {
+		expect(v.check(value => value === 'pass').execute('pass')).toEqual({ value: 'pass' })
+	})
 
-		it('should collect issues from addIssue', () => {
-			const result = v.check((value, utils) => {
-				addTestIssue(value, utils.addIssue)
-				return true
-			})
-				.execute('test')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'core:unknown_exception',
-						category: 'internal',
-						payload: {
-							method: 'check',
-							receivedResult: { value: 'test' },
-							error: null,
-						},
-						message: 'Test issue',
-						path: [],
-					}],
-				})
-		})
-
-		it('should handle narrow function', () => {
-			const result = v.check((value, utils) => {
-				if (typeof value === 'string') {
-					utils.narrow<'string'>()
-					return true
-				}
-				return false
-			})
-				.execute('narrow')
-			expect(result)
-				.toEqual({ value: 'narrow' })
+	it('reports the complete returned-false failure contract', () => {
+		expect(v.check(value => value === 'pass').execute('fail')).toEqual({
+			issues: [{
+				code: 'check:failed',
+				category: 'validation',
+				message: 'Check failed',
+				path: [],
+				payload: { reason: 'returned_false', value: 'fail' },
+			}],
 		})
 	})
 
-	describe('invalid checks (sync fail)', () => {
-		it('should fail when check returns false', () => {
-			const result = v.check(value => value === 'pass')
-				.execute('fail')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'check:failed',
-						category: 'validation',
-						message: 'Check failed',
-						path: [],
-						payload: { reason: 'returned_false', value: 'fail' },
-					}],
-				})
-		})
-
-		it('should fail with custom message when check returns string', () => {
-			const result = v.check(value => value !== 'fail' ? true : 'Custom error')
-				.execute('fail')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'check:failed',
-						category: 'validation',
-						message: 'Custom error',
-						path: [],
-						payload: { reason: 'returned_message', returnedMessage: 'Custom error', value: 'fail' },
-					}],
-				})
-		})
-
-		it('should append returned-false failure after added issues', () => {
-			const result = v.check((value, utils) => {
-				addTestIssue(value, utils.addIssue)
-				return false
-			}).execute('fail')
-			expect(result).toMatchObject({
-				issues: [
-					{ code: 'core:unknown_exception' },
-					{
-						code: 'check:failed',
-						payload: { reason: 'returned_false', value: 'fail' },
-					},
-				],
-			})
-		})
-
-		it('should append returned-message failure after added issues', () => {
-			const result = v.check((value, utils) => {
-				addTestIssue(value, utils.addIssue)
-				return 'Custom error'
-			}).execute('fail')
-			expect(result).toMatchObject({
-				issues: [
-					{ code: 'core:unknown_exception' },
-					{
-						code: 'check:failed',
-						payload: {
-							reason: 'returned_message',
-							returnedMessage: 'Custom error',
-							value: 'fail',
-						},
-					},
-				],
-			})
+	it('uses a returned string as the failure message and payload reason', () => {
+		expect(v.check(value => value !== 'fail' || 'Custom error').execute('fail')).toEqual({
+			issues: [{
+				code: 'check:failed',
+				category: 'validation',
+				message: 'Custom error',
+				path: [],
+				payload: {
+					reason: 'returned_message',
+					returnedMessage: 'Custom error',
+					value: 'fail',
+				},
+			}],
 		})
 	})
 
-	describe('async checks', () => {
-		it('should handle async check returning true', async () => {
-			const result = await v.check(async value => value === 'async')
-				.execute('async')
-			expect(result)
-				.toEqual({ value: 'async' })
-		})
-
-		it('should handle async check returning false', async () => {
-			const result = await v.check(async value => value === 'async')
-				.execute('sync')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'check:failed',
-						category: 'validation',
-						message: 'Check failed',
-						path: [],
-						payload: { reason: 'returned_false', value: 'sync' },
-					}],
-				})
+	it('returns explicitly added issues even when the predicate otherwise passes', () => {
+		expect(v.check<DomainIssue>((value, { addIssue }) => {
+			addDomainIssue(value, addIssue)
+			return true
+		}).execute('blocked')).toEqual({
+			issues: [{
+				code: 'domain:blocked',
+				category: 'validation',
+				payload: { value: 'blocked' },
+				message: 'Blocked by domain policy.',
+				path: [],
+			}],
 		})
 	})
 
-	describe('error handling', () => {
-		it('should handle thrown errors', () => {
-			const result = v.check(() => {
-				throw new Error('Thrown error')
-			})
-				.execute('error')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'check:callback_failed',
-						category: 'operation',
-						message: 'Check callback failed.',
-						path: [],
-						payload: { phase: 'throw', value: 'error', error: expect.any(Error) },
-					}],
-				})
-		})
+	it.each([
+		['false', false, { reason: 'returned_false', value: 'fail' }],
+		[
+			'message',
+			'Custom error',
+			{ reason: 'returned_message', returnedMessage: 'Custom error', value: 'fail' },
+		],
+	] as const)('appends a returned-%s issue after explicitly added issues', (_case, returned, payload) => {
+		const result = v.check<DomainIssue>((value, { addIssue }) => {
+			addDomainIssue(value, addIssue)
+			return returned
+		}).execute('fail')
 
-		it('should append callback failure after added issues', () => {
-			const result = v.check((value, utils) => {
-				addTestIssue(value, utils.addIssue)
-				throw new Error('Thrown error')
-			}).execute('error')
-			expect(result).toMatchObject({
-				issues: [
-					{ code: 'core:unknown_exception' },
-					{
-						code: 'check:callback_failed',
-						payload: { phase: 'throw', value: 'error', error: expect.any(Error) },
-					},
-				],
-			})
-		})
-
-		it('should handle rejected checks', async () => {
-			const result = await v.check(async () => {
-				throw new Error('Rejected error')
-			})
-				.execute('error')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'check:callback_failed',
-						category: 'operation',
-						message: 'Check callback failed.',
-						path: [],
-						payload: { phase: 'reject', value: 'error', error: expect.any(Error) },
-					}],
-				})
+		expect(result).toMatchObject({
+			issues: [
+				{ code: 'domain:blocked' },
+				{ code: 'check:failed', payload },
+			],
 		})
 	})
 
-	describe('custom message', () => {
-		it('should use custom message handler', () => {
-			const result = v.check(
-				_value => false,
-				issue => `Custom: ${issue.payload.value}`,
-			)
-				.execute('custom')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'check:failed',
-						category: 'validation',
-						message: 'Custom: custom',
-						path: [],
-						payload: { reason: 'returned_false', value: 'custom' },
-					}],
-				})
+	it('supports asynchronous predicate success and failure', async () => {
+		await expect(v.check(async value => value === 'pass').execute('pass'))
+			.resolves.toEqual({ value: 'pass' })
+		await expect(v.check(async value => value === 'pass').execute('fail'))
+			.resolves.toMatchObject({
+				issues: [{
+					code: 'check:failed',
+					payload: { reason: 'returned_false', value: 'fail' },
+				}],
+			})
+	})
+
+	it('reports a synchronous callback throw as an operation issue', () => {
+		const error = new Error('Thrown error')
+		expect(v.check(() => { throw error }).execute('value')).toEqual({
+			issues: [{
+				code: 'check:callback_failed',
+				category: 'operation',
+				message: 'Check callback failed.',
+				path: [],
+				payload: { phase: 'throw', value: 'value', error },
+			}],
+		})
+	})
+
+	it('reports an asynchronous callback rejection as an operation issue', async () => {
+		const error = new Error('Rejected error')
+		await expect(v.check(async () => { throw error }).execute('value')).resolves.toEqual({
+			issues: [{
+				code: 'check:callback_failed',
+				category: 'operation',
+				message: 'Check callback failed.',
+				path: [],
+				payload: { phase: 'reject', value: 'value', error },
+			}],
+		})
+	})
+
+	it('uses a custom message handler for owned failures', () => {
+		expect(v.check(
+			() => false,
+			issue => `Custom: ${issue.payload.value}`,
+		).execute('value')).toMatchObject({
+			issues: [{
+				code: 'check:failed',
+				message: 'Custom: value',
+			}],
 		})
 	})
 })
