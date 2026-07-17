@@ -356,6 +356,26 @@ const coveragePlugin = implStepPlugin<any>({
 	external: ({ utils: { addSuccessStep, failure } }: any) => {
 		addSuccessStep(() => failure(frozenExternalIssue as any))
 	},
+	dynamicDefault: ({ utils: { addSuccessStep, createIssue, failure } }: any) => {
+		addSuccessStep(() => failure(createIssue({
+			code: 'coverage:dynamic_default',
+			payload: {},
+			defaultMessage: () => 'dynamic default',
+		})))
+	},
+	dynamicCustom: ({ utils: { addSuccessStep, createIssue, failure } }: any) => {
+		addSuccessStep(() => failure(createIssue({
+			code: 'coverage:dynamic_custom',
+			payload: {},
+			customMessage: () => 'dynamic custom',
+		})))
+	},
+	noMessage: ({ utils: { addSuccessStep, createIssue, failure } }: any) => {
+		addSuccessStep(() => failure(createIssue({
+			code: 'coverage:no_message',
+			payload: {},
+		})))
+	},
 	emptyFailure: ({ utils: { addSuccessStep, failure } }: any) => {
 		addSuccessStep(() => failure([]))
 	},
@@ -425,6 +445,43 @@ describe('issue finalization coverage contracts', () => {
 			payload: { marker: true },
 			message: 'external default',
 			path: [],
+		})
+	})
+
+	it('covers static and dynamic message fast-path decisions', () => {
+		const staticGlobal = createValchecker({
+			steps: [number],
+			message: 'global string',
+		})
+		expect(staticGlobal.number().execute('wrong')).toMatchObject({
+			issues: [{ message: 'global string' }],
+		})
+		expect(staticGlobal.number(() => undefined).execute('wrong')).toMatchObject({
+			issues: [{ message: 'global string' }],
+		})
+
+		const v = createValchecker({ steps: [coveragePlugin] }) as any
+		expect(v.dynamicDefault().execute('value')).toMatchObject({
+			issues: [{ message: 'dynamic default' }],
+		})
+		expect(v.dynamicCustom().execute('value')).toMatchObject({
+			issues: [{ message: 'dynamic custom' }],
+		})
+		expect(v.noMessage().execute('value')).toMatchObject({
+			issues: [{ message: 'Invalid value.' }],
+		})
+	})
+
+	it('defers unknown-exception messages only for dynamic global handlers', () => {
+		const v = createValchecker({
+			steps: [coveragePlugin],
+			message: ({ code }: any) => `global:${code}`,
+		}) as any
+		expect(v.emptyFailure().execute('value')).toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				message: 'global:core:unknown_exception',
+			}],
 		})
 	})
 
