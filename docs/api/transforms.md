@@ -170,7 +170,7 @@ v.number().toBoolean().execute(0)
 // { value: false }
 ```
 
-Use `looseBoolean()` for the specific `boolean | `${boolean}`` boundary contract, or `toMappedBoolean()` for custom representations.
+Use `looseBoolean()` for the specific ``boolean | `${boolean}``` boundary contract, or `toMappedBoolean()` for custom representations.
 
 ### `toBigint(message?)`
 
