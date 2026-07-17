@@ -76,6 +76,12 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+type PropMeta = {
+	key: PropertyKey
+	isOptional: boolean
+	execute: Use<Valchecker>['~execute']
+}
+
 function getOwnValue(value: object, key: PropertyKey): unknown {
 	return (value as Record<PropertyKey, unknown>)[key]
 }
@@ -108,7 +114,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 		}
 		const keysLen = keys.length
 		const knownKeysSet = new Set<PropertyKey>(keys)
-		const propsMeta: Array<{ key: PropertyKey, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
+		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
 			const key = keys[i]!
@@ -116,6 +122,59 @@ export const strictObject = implStepPlugin<PluginDef>({
 			const isOptional = Array.isArray(prop)
 			const schema = isOptional ? prop[0]! : prop
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
+		}
+
+		const continueAsync = async (
+			value: object,
+			startIndex: number,
+			firstResult: PromiseLike<ExecutionResult>,
+			output: Record<PropertyKey, any> | undefined,
+			issues: AnyExecutionIssue[] | undefined,
+		): Promise<ExecutionResult> => {
+			for (let i = startIndex; i < keysLen; i++) {
+				const meta = propsMeta[i]!
+				let result: ExecutionResult
+				if (i === startIndex) {
+					result = await firstResult
+				}
+				else if (!Object.hasOwn(value, meta.key)) {
+					if (meta.isOptional) {
+						if (output != null)
+							setOutputValue(output, meta.key, undefined)
+					}
+					else {
+						(issues ??= []).push(createIssue({
+							code: 'strictObject:missing_key',
+							payload: { key: meta.key },
+							path: [meta.key],
+							customMessage: message,
+							defaultMessage: 'Missing required object key.',
+						}))
+						output = undefined
+					}
+					continue
+				}
+				else {
+					result = await meta.execute(getOwnValue(value, meta.key))
+				}
+
+				if (isFailure(result)) {
+					let hasInternal = false
+					const target = issues ??= []
+					output = undefined
+					for (const issue of result.issues) {
+						if (issue.category === 'internal')
+							hasInternal = true
+						target.push(prependIssuePath(issue, [meta.key], message))
+					}
+					if (hasInternal)
+						return failure(target)
+				}
+				else if (output != null) {
+					setOutputValue(output, meta.key, result.value)
+				}
+			}
+			return issues == null ? success(output!) : failure(issues)
 		}
 
 		addSuccessStep((value) => {
@@ -135,102 +194,68 @@ export const strictObject = implStepPlugin<PluginDef>({
 				if (Object.prototype.propertyIsEnumerable.call(value, key))
 					ownKeys.push(key)
 			}
-			const unknownKeys: PropertyKey[] = []
+			let unknownKeys: PropertyKey[] | undefined
 			for (let i = 0; i < ownKeys.length; i++) {
 				const key = ownKeys[i]!
 				if (!knownKeysSet.has(key))
-					unknownKeys.push(key)
+					(unknownKeys ??= []).push(key)
 			}
 
-			const issues: AnyExecutionIssue[] = []
-			if (unknownKeys.length > 0) {
-				issues.push(createIssue({
+			let issues: AnyExecutionIssue[] | undefined
+			let output: Record<PropertyKey, any> | undefined = {}
+			if (unknownKeys != null) {
+				issues = [createIssue({
 					code: 'strictObject:unexpected_keys',
 					payload: { keys: unknownKeys, expectedKeys: [...keys] },
 					customMessage: message,
 					defaultMessage: 'Unexpected object keys found.',
-				}))
+				})]
+				output = undefined
 			}
-			const output: Record<PropertyKey, any> = {}
 
 			for (let i = 0; i < keysLen; i++) {
-				const { key, isOptional, execute } = propsMeta[i]!
+				const meta = propsMeta[i]!
+				const key = meta.key
 				if (!Object.hasOwn(value, key)) {
-					if (isOptional)
-						setOutputValue(output, key, undefined)
+					if (meta.isOptional) {
+						if (output != null)
+							setOutputValue(output, key, undefined)
+					}
 					else {
-						issues.push(createIssue({
+						(issues ??= []).push(createIssue({
 							code: 'strictObject:missing_key',
 							payload: { key },
 							path: [key],
 							customMessage: message,
 							defaultMessage: 'Missing required object key.',
 						}))
+						output = undefined
 					}
 					continue
 				}
 
-				const result = execute(getOwnValue(value, key))
-				if (isPromiseLike(result)) {
-					return (async () => {
-						for (let j = i; j < keysLen; j++) {
-							const meta = propsMeta[j]!
-							let resolved: ExecutionResult
-							if (j === i) {
-								resolved = await result
-							}
-							else if (!Object.hasOwn(value, meta.key)) {
-								if (meta.isOptional)
-									setOutputValue(output, meta.key, undefined)
-								else {
-									issues.push(createIssue({
-										code: 'strictObject:missing_key',
-										payload: { key: meta.key },
-										path: [meta.key],
-										customMessage: message,
-										defaultMessage: 'Missing required object key.',
-									}))
-								}
-								continue
-							}
-							else {
-								resolved = await meta.execute(getOwnValue(value, meta.key))
-							}
-
-							if (isFailure(resolved)) {
-								let hasInternal = false
-								for (const issue of resolved.issues) {
-									if (issue.category === 'internal')
-										hasInternal = true
-									issues.push(prependIssuePath(issue, [meta.key], message))
-								}
-								if (hasInternal)
-									return failure(issues)
-							}
-							else {
-								setOutputValue(output, meta.key, resolved.value)
-							}
-						}
-						return issues.length > 0 ? failure(issues) : success(output)
-					})()
-				}
+				const result = meta.execute(getOwnValue(value, key))
+				if (isPromiseLike(result))
+					return continueAsync(value, i, result, output, issues)
 
 				if (isFailure(result)) {
 					let hasInternal = false
+					const target = issues ??= []
+					output = undefined
 					for (const issue of result.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
-						issues.push(prependIssuePath(issue, [key], message))
+						target.push(prependIssuePath(issue, [key], message))
 					}
 					if (hasInternal)
-						return failure(issues)
+						return failure(target)
 				}
-				else {
+				else if (output != null) {
 					setOutputValue(output, key, result.value)
 				}
 			}
 
-			return issues.length > 0 ? failure(issues) : success(output)
+			return issues == null ? success(output!) : failure(issues)
 		})
 	},
 })
