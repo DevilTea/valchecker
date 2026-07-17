@@ -10,6 +10,9 @@ describe('toJSONString step plugin', () => {
 		['value', '"value"'],
 		[true, 'true'],
 		[{ value: 42 }, '{"value":42}'],
+		[Object(42), '42'],
+		[Object('value'), '"value"'],
+		[Object(false), 'false'],
 	])('serializes %p', (value, output) => {
 		expect(v.toJSONString().execute(value)).toEqual({ value: output })
 	})
@@ -18,6 +21,7 @@ describe('toJSONString step plugin', () => {
 		[() => undefined],
 		[{ value: () => undefined }],
 		[1n],
+		[Object(1n)],
 	])('rejects unserializable value %p', (value) => {
 		expect(v.toJSONString().execute(value)).toMatchObject({
 			issues: [{
