@@ -426,6 +426,23 @@ describe('intersection conflict contract', () => {
 		})
 	})
 
+	it('does not re-run accessors while locating the conflicting branch', () => {
+		const read = vi.fn(() => 1)
+		const left = Object.defineProperty({}, 'value', {
+			enumerable: true,
+			get: read,
+		})
+		const result = v.intersection([
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => ({ other: true })),
+			v.unknown().transform(() => ({ value: 2 })),
+		]).execute(null)
+		expect(result).toMatchObject({
+			issues: [{ payload: { leftBranch: 0, rightBranch: 2, path: ['value'] } }],
+		})
+		expect(read).toHaveBeenCalledTimes(1)
+	})
+
 	it('distinguishes incompatible prototypes from distinct references', () => {
 		const left = Object.create(null)
 		left.value = 1

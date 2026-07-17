@@ -7,7 +7,7 @@ import { isPromiseLike } from '../../shared'
 declare namespace Internal {
 	export type Issue<I extends AnyExecutionIssue = AnyExecutionIssue> = ExecutionIssue<
 		'fallback:failed',
-		{ receivedIssues: I[], error: unknown },
+		{ receivedIssues: [I, ...I[]], error: unknown },
 		'operation'
 	>
 }
@@ -29,7 +29,7 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends infer CurrentOutput
 				? <Result extends MaybePromiseLike<CurrentOutput>>(
-					run: (issues: InferIssue<This>[]) => Result,
+					run: (issues: [InferIssue<This>, ...InferIssue<This>[]]) => Result,
 					message?: MessageHandler<Internal.Issue<InferIssue<This>>>,
 				) => Next<{
 					operationMode: IsEqual<IsPromise<Result>, true> extends true
@@ -42,6 +42,20 @@ interface PluginDef extends TStepPluginDef {
 				: never
 			: never
 	>
+}
+
+function snapshotReceivedIssues<Issue extends AnyExecutionIssue>(
+	issues: [Issue, ...Issue[]],
+): [Issue, ...Issue[]] {
+	return issues.map((issue) => {
+		const snapshot = {
+			...issue,
+			path: [...issue.path],
+		}
+		if (issue.context != null)
+			snapshot.context = [...issue.context]
+		return snapshot
+	}) as [Issue, ...Issue[]]
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -58,7 +72,7 @@ export const fallback = implStepPlugin<PluginDef>({
 				const fallbackIssue = createIssue({
 					code: 'fallback:failed',
 					category: 'operation',
-					payload: { receivedIssues: issues, error },
+					payload: { receivedIssues: snapshotReceivedIssues(issues), error },
 					customMessage: message,
 					defaultMessage: 'Fallback failed.',
 				})

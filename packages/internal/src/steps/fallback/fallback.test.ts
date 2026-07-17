@@ -117,6 +117,26 @@ describe('fallback plugin', () => {
 			})
 	})
 
+	it('stores public-safe snapshots of the issues received by the callback', () => {
+		const result = v.number(() => 'Dynamic number issue')
+			.fallback(() => { throw new Error('failure') })
+			.execute('bad')
+		expect(result).toMatchObject({
+			issues: [
+				{ code: 'number:expected_number', message: 'Dynamic number issue' },
+				{ code: 'fallback:failed' },
+			],
+		})
+		if (v.isFailure(result)) {
+			const callbackIssue = result.issues[1]
+			if (callbackIssue?.code === 'fallback:failed') {
+				const snapshot = callbackIssue.payload.receivedIssues[0]!
+				expect(Object.getOwnPropertySymbols(snapshot)).toEqual([])
+				expect(snapshot.path).not.toBe(result.issues[0]!.path)
+			}
+		}
+	})
+
 	it('uses the callback failure message override', () => {
 		const original = expectedNumberIssue('bad')
 		const result = v.number()

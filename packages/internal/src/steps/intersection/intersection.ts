@@ -385,40 +385,38 @@ function mergeValues(
 	return createConflict(path, left, right, 'different_values')
 }
 
-function getEnumerableOwnValueAtPath(
+function hasEnumerableOwnPath(
 	value: unknown,
 	path: readonly PropertyKey[],
-): { found: true, value: unknown } | { found: false } {
+): boolean {
+	if (path.length === 0)
+		return true
+
 	let current = value
-	for (const key of path) {
-		if (!isObject(current)
-			|| !Object.prototype.propertyIsEnumerable.call(current, key))
-			return { found: false }
-		current = (current as Record<PropertyKey, unknown>)[key]
+	for (let i = 0; i < path.length; i++) {
+		if (!isObject(current))
+			return false
+		const descriptor = Object.getOwnPropertyDescriptor(current, path[i]!)
+		if (descriptor == null || !descriptor.enumerable)
+			return false
+		if (i === path.length - 1)
+			return true
+		if (!('value' in descriptor))
+			return false
+		current = descriptor.value
 	}
-	return { found: true, value: current }
+	return false
 }
 
 function findConflictingLeftBranch(
 	outputs: readonly unknown[],
 	rightBranch: number,
-	conflict: MergeConflict,
+	path: readonly PropertyKey[],
 ): number {
 	for (let leftBranch = rightBranch - 1; leftBranch >= 0; leftBranch--) {
-		const candidate = getEnumerableOwnValueAtPath(outputs[leftBranch], conflict.path)
-		if (candidate.found && Object.is(candidate.value, conflict.leftValue))
+		if (hasEnumerableOwnPath(outputs[leftBranch], path))
 			return leftBranch
 	}
-
-	for (let leftBranch = rightBranch - 1; leftBranch >= 0; leftBranch--) {
-		const direct = mergeOutputGraphs(outputs[leftBranch], outputs[rightBranch])
-		if (!direct.ok
-			&& direct.conflict.reason === conflict.reason
-			&& direct.conflict.path.length === conflict.path.length
-			&& direct.conflict.path.every((key, index) => Object.is(key, conflict.path[index])))
-			return leftBranch
-	}
-
 	return rightBranch - 1
 }
 
@@ -468,7 +466,7 @@ export const intersection = implStepPlugin<PluginDef>({
 							code: 'intersection:conflicting_outputs',
 							payload: {
 								path,
-								leftBranch: findConflictingLeftBranch(outputs, i, merged.conflict),
+								leftBranch: findConflictingLeftBranch(outputs, i, path),
 								rightBranch: i,
 								leftValue,
 								rightValue,
