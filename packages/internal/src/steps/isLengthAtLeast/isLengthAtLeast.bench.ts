@@ -7,8 +7,4 @@ describe('isLengthAtLeast benchmarks', () => {
 	bench('length success', () => {
 		schema.execute('value')
 	})
-
-	bench('length failure', () => {
-		schema.execute('hi')
-	})
 })
