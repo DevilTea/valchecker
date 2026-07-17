@@ -37,7 +37,8 @@ describe('isLengthAtLeast step plugin', () => {
 		expect(v.isFailure(result)).toBe(true)
 		if (v.isFailure(result)) {
 			const issue = result.issues[0]!
-			expect(issue.code).toBe('isLengthAtLeast:expected_length_at_least')
+			if (issue.code !== 'isLengthAtLeast:expected_length_at_least')
+				throw new Error(`Unexpected issue: ${issue.code}`)
 			expect(issue.payload).toMatchObject({ minimum: 3, length: 1 })
 			expect(issue.payload.value).toBe(value)
 		}
