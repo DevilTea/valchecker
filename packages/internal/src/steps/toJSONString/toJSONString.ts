@@ -2,8 +2,9 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
+	export type UnsupportedType = 'bigint' | 'function' | 'symbol'
 	export type UnserializablePayload<Input = unknown>
-		= | { reason: 'unsupported_type', value: Input, at: PropertyKey[], valueType: string }
+		= | { reason: 'unsupported_type', value: Input, at: PropertyKey[], valueType: UnsupportedType }
 			| { reason: 'circular_reference', value: Input, at: PropertyKey[] }
 			| { reason: 'undefined_result', value: Input, at: PropertyKey[] }
 	export type UnserializableIssue<Input = unknown> = ExecutionIssue<
@@ -25,6 +26,11 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * Converts the current value to JSON text after a single-read preflight.
+	 * Unsupported data emits `toJSONString:unserializable`; getter, Proxy, or
+	 * `toJSON` failures emit the operation issue `toJSONString:serialization_failed`.
+	 */
 	toJSONString: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
@@ -38,7 +44,7 @@ interface PluginDef extends TStepPluginDef {
 
 type Prepared
 	= | { ok: true, value: unknown }
-		| { ok: false, type: 'validation', reason: 'unsupported_type', at: PropertyKey[], valueType: string }
+		| { ok: false, type: 'validation', reason: 'unsupported_type', at: PropertyKey[], valueType: Internal.UnsupportedType }
 		| { ok: false, type: 'validation', reason: 'circular_reference' | 'undefined_result', at: PropertyKey[] }
 		| { ok: false, type: 'operation', at: PropertyKey[], error: unknown }
 

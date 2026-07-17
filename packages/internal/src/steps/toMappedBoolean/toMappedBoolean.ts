@@ -19,6 +19,10 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * Maps configured values to booleans with SameValueZero equality. Failure
+	 * payloads include immutable snapshots of both configured mappings.
+	 */
 	toMappedBoolean: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']

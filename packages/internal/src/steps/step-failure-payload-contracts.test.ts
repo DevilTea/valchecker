@@ -170,6 +170,10 @@ describe('step failure and payload contracts', () => {
 			if (issue.code === 'toJSONString:unserializable') {
 				expectTypeOf(issue.payload.reason)
 					.toEqualTypeOf<'unsupported_type' | 'circular_reference' | 'undefined_result'>()
+				if (issue.payload.reason === 'unsupported_type') {
+					expectTypeOf(issue.payload.valueType)
+						.toEqualTypeOf<'bigint' | 'function' | 'symbol'>()
+				}
 			}
 			else {
 				expectTypeOf(issue.payload.error).toEqualTypeOf<unknown>()

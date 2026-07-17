@@ -18,7 +18,8 @@ Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v
 10. Remove imports of implementation helpers that are no longer exported.
 11. Update message maps for renamed issue codes, payload fields, and the required issue `category`.
 12. Replace assumptions that failure issue arrays may be empty.
-13. Run installed-package consumer tests, not only workspace source tests.
+13. Update callback, conversion, JSON, length, and mapped-boolean issue payload handling.
+14. Run installed-package consumer tests, not only workspace source tests.
 
 ## Built-in step renames
 
@@ -85,6 +86,8 @@ Examples:
 | `empty:expected_empty` | `isEmpty:expected_empty` |
 | `parseJSON:invalid_json` | `toJSONValue:invalid_json` |
 | `stringifyJSON:unserializable` | `toJSONString:unserializable` |
+| `transform:failed` | `transform:callback_failed` |
+| `toBigint:invalid_bigint` | `toBigint:conversion_failed` |
 
 Numeric lower-bound payloads now use:
 
@@ -96,16 +99,43 @@ Numeric lower-bound payloads now use:
 }
 ```
 
-Length lower-bound payloads now use:
+Length lower-bound payloads now snapshot the actual length used by validation:
 
 ```ts
 {
 	value: { length: number }
 	minimum: number
+	length: number
 }
 ```
 
-Upper-bound payloads analogously use `maximum`.
+Upper-bound payloads analogously use `maximum`; `isEmpty` and `isNotEmpty` expose `{ value, length }`.
+
+## Callback, conversion, and JSON issue contracts
+
+Callback result failures remain validation issues, while callback exceptions are operation issues:
+
+| Step | Issue | Payload |
+| --- | --- | --- |
+| `check()` returned `false` or a string | `check:failed` | `{ reason, value, returnedMessage? }` |
+| `check()` threw or rejected | `check:callback_failed` | `{ phase, value, error }` |
+| `transform()` threw or rejected | `transform:callback_failed` | `{ phase, value, error }` |
+| `toFiltered()` predicate threw | `toFiltered:callback_failed` | `{ value, item, index, error }` |
+| `toSorted()` comparator threw | `toSorted:callback_failed` | `{ value, left, right, error }` |
+| `toString()` threw | `toString:conversion_failed` | `{ value, error }` |
+
+When `check<AddedIssue>()` uses `addIssue()`, declare the domain issue type explicitly. Added issues remain in the inferred issue and message-handler unions, and they are preserved if the callback later throws or rejects.
+
+`toJSONString()` now distinguishes invalid data from execution failures:
+
+- `toJSONString:unserializable` is a validation issue with `{ reason, value, at, valueType? }`.
+- `toJSONString:serialization_failed` is an operation issue with `{ value, at, error }`.
+
+The `at` field is the nested serialization location. Update snapshots that previously expected only `{ value }`.
+
+`toMappedBoolean:unmapped_value` now includes immutable schema-time snapshots as `{ value, trueValues, falseValues }`.
+
+`literal()` now uses `Object.is`: `NaN` matches itself, while `0` and `-0` are distinct.
 
 ## `number()` now matches TypeScript `number`
 

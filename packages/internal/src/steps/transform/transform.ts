@@ -19,6 +19,11 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * Applies an arbitrary synchronous or asynchronous transformation.
+	 * Throwing and rejected callbacks emit the operation issue
+	 * `transform:callback_failed` with the callback phase and original error.
+	 */
 	transform: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']

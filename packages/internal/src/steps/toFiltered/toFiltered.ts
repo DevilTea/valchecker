@@ -16,6 +16,11 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * Returns elements accepted by the predicate. The optional `thisArg` follows
+	 * `Array.prototype.filter`; the optional third argument is the step message.
+	 * Predicate exceptions emit `toFiltered:callback_failed` with item and index.
+	 */
 	toFiltered:
 		| DefineStepMethod<
 			Meta,

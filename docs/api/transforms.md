@@ -48,9 +48,13 @@ v.string().toSplit(',', 2).execute('a,b,c')
 
 ## Array transforms
 
-### `toFiltered(predicate)`
+### `toFiltered(predicate, thisArg?, message?)`
 
-Keeps elements accepted by the predicate.
+Keeps elements accepted by the predicate. Type-guard predicates narrow the output element type. The second parameter follows `Array.prototype.filter`; the optional third parameter is the step message.
+
+**Issue code:** `toFiltered:callback_failed` (`operation`)
+
+The failure payload is `{ value, item, index, error }`.
 
 ```ts
 v.array(v.number())
@@ -59,9 +63,13 @@ v.array(v.number())
 // { value: [1, 3] }
 ```
 
-### `toSorted(compare?)`
+### `toSorted(compare?, message?)`
 
-Returns a sorted array output.
+Returns a sorted array output without mutating the input.
+
+**Issue code:** `toSorted:callback_failed` (`operation`)
+
+The failure payload is `{ value, left, right, error }`.
 
 ```ts
 v.array(v.number())
@@ -114,9 +122,14 @@ const config = v.string()
 
 ### `toJSONString(message?)`
 
-Serializes a supported value with `JSON.stringify`.
+Serializes a supported value with JSON semantics after a single-read preflight. Inherited and symbol-keyed properties are ignored, sparse array holes become `null`, boxed string/number/boolean values are unboxed, and `NaN` or infinity serialize as `null`.
 
-**Issue code:** `toJSONString:unserializable`
+Issue codes:
+
+- `toJSONString:unserializable` (`validation`) — payload `{ reason, value, at, valueType? }`; `reason` is `unsupported_type`, `circular_reference`, or `undefined_result`.
+- `toJSONString:serialization_failed` (`operation`) — payload `{ value, at, error }` for getter, Proxy, `toJSON`, or final serialization failures.
+
+`at` identifies the nested serialization location independently of the validation issue `path`.
 
 ```ts
 v.object({ key: v.string() })
@@ -124,8 +137,6 @@ v.object({ key: v.string() })
 	.execute({ key: 'value' })
 // { value: '{"key":"value"}' }
 ```
-
-Unsupported values and circular structures produce an issue instead of escaping the validation result as an exception.
 
 ## Primitive conversions
 
@@ -186,7 +197,7 @@ Use `looseBoolean()` for the specific ``boolean | `${boolean}``` boundary contra
 
 Delegates directly to JavaScript `BigInt(value)`. Native conversion exceptions become structured issues.
 
-**Issue code:** `toBigint:invalid_bigint`
+**Issue code:** `toBigint:conversion_failed`
 
 ```ts
 v.string().toBigint().execute('42')
@@ -196,7 +207,7 @@ v.boolean().toBigint().execute(true)
 // { value: 1n }
 
 v.number().toBigint().execute(1.5)
-// failure with toBigint:invalid_bigint
+// failure with toBigint:conversion_failed
 ```
 
 ### `bigint().toSafeNumber(message?)`
@@ -237,6 +248,8 @@ Mappings use JavaScript `Set` SameValueZero equality. This means `NaN` matches `
 
 **Issue code:** `toMappedBoolean:unmapped_value`
 
+The failure payload contains `{ value, trueValues, falseValues }`. Both mapping arrays are immutable schema-time snapshots, so later mutations of the caller's arrays cannot rewrite diagnostics.
+
 A value outside both mappings fails. One mapping may be empty, but both mappings may not be empty. Values may not appear in both mappings; invalid mapping configurations throw when the schema is created.
 
 Compose normalization steps explicitly when required:
@@ -253,20 +266,24 @@ v.string()
 
 ## General conversion
 
-### `toString()`
+### `toString(...nativeArguments)`
 
-Converts a supported value using its `toString` method.
+Calls the current value's `toString` method and preserves its native parameters and return type.
+
+**Issue code:** `toString:conversion_failed` (`operation`)
+
+The failure payload is `{ value, error }`. Because arguments belong to the native `toString` method, this step has no trailing per-step message parameter; global and code-map message handlers still receive the typed issue.
 
 ```ts
-v.number().toString().execute(123)
-// { value: '123' }
+v.number().toString(16).execute(255)
+// { value: 'ff' }
 ```
 
 ## Generic transform
 
 ### `transform(fn)`
 
-`transform()` remains the high-level escape hatch for arbitrary output changes. The callback may return a direct value or a supported asynchronous result according to the step contract.
+`transform()` remains the high-level escape hatch for arbitrary output changes. The callback may return a direct value or a supported asynchronous result according to the step contract. Throwing or rejecting emits the operation issue `transform:callback_failed` with `{ phase, value, error }`.
 
 ```ts
 const slug = v.string()

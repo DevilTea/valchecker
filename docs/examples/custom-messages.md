@@ -36,7 +36,7 @@ Length constraints expose their own explicit payload:
 const username = v.string().isLengthAtLeast(
 	3,
 	({ payload }) =>
-		`Expected at least ${payload.minimum} characters; received ${payload.value.length}`,
+		`Expected at least ${payload.minimum} characters; received ${payload.length}`,
 )
 ```
 

@@ -16,6 +16,10 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * Returns a sorted array without mutating the input. Comparator exceptions
+	 * emit `toSorted:callback_failed` with the compared operands.
+	 */
 	toSorted: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']

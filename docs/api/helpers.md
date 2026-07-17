@@ -2,11 +2,14 @@
 
 These steps provide generic validation, arbitrary transformation, recovery, delegation, recursion, type assertions, and execution-mode control.
 
-## `check(predicate, message?)`
+## `check<AddedIssue = never>(callback, message?)`
 
-`check()` is the generic validation escape hatch. It intentionally keeps its direct name instead of adopting `isXxx`, because the callback defines the actual condition.
+`check()` is the generic validation escape hatch. The callback may return `true`, `false`, a failure message, a type-guard result, or a supported `PromiseLike` equivalent.
 
-**Issue code:** `check:failed`
+Built-in issues:
+
+- `check:failed` — category `validation`; payload is either `{ reason: 'returned_false', value }` or `{ reason: 'returned_message', value, returnedMessage }`.
+- `check:callback_failed` — category `operation`; payload is `{ phase: 'throw' | 'reject', value, error }`.
 
 ```ts
 const positive = v.number().check(
@@ -15,21 +18,39 @@ const positive = v.number().check(
 )
 ```
 
-A callback may return:
-
-- `true` to succeed,
-- `false` to fail with the configured message,
-- a string to fail with that message,
-- a supported asynchronous or `PromiseLike` equivalent.
-
 Type-guard overloads narrow the output type:
 
 ```ts
-const isString = (value: unknown): value is string =>
-	typeof value === 'string'
-
-const schema = v.unknown().check(isString)
+const schema = v.unknown().check(
+	(value): value is string => typeof value === 'string',
+)
 ```
+
+Declare `AddedIssue` when `addIssue()` introduces a domain issue. The added issue remains in the inferred issue union and in the message-handler union:
+
+```ts
+import type { ExecutionIssue } from 'valchecker'
+
+type ReservedIssue = ExecutionIssue<
+	'domain:reserved_name',
+	{ value: string }
+>
+
+const username = v.string().check<ReservedIssue>((value, { addIssue }) => {
+	if (value === 'admin') {
+		addIssue({
+			code: 'domain:reserved_name',
+			category: 'validation',
+			payload: { value },
+			message: 'This name is reserved.',
+			path: [],
+		})
+	}
+	return true
+})
+```
+
+If a callback throws or rejects after adding issues, Valchecker preserves those issues and appends `check:callback_failed`.
 
 Use built-in named validations when available:
 
@@ -38,17 +59,15 @@ v.string().isLengthAtLeast(3).isLengthAtMost(20)
 v.number().isFinite().isAtLeast(0)
 ```
 
-## `transform(fn)`
+## `transform(fn, message?)`
 
-`transform()` is the generic arbitrary-output escape hatch. Concrete built-in transformations use `toXxx` names.
+`transform()` is the generic arbitrary-output escape hatch. The inferred output follows the callback result. A thrown or rejected callback emits the operation issue `transform:callback_failed` with `{ phase, value, error }`.
 
 ```ts
 const schema = v.string()
 	.toTrimmed()
 	.transform(value => ({ value }))
 ```
-
-The inferred output follows the callback's result.
 
 ## `fallback(getValue)`
 

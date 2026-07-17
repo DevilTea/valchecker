@@ -30,6 +30,13 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * Runs a custom predicate, type guard, or issue-producing callback.
+	 *
+	 * Returning `false` or a string emits `check:failed`. Throwing or rejecting
+	 * emits the operation issue `check:callback_failed`. Use `check<AddedIssue>()`
+	 * when `addIssue()` introduces domain-specific issue types.
+	 */
 	check:
 		| DefineStepMethod<
 			Meta,
