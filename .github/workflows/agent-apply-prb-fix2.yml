@@ -1,0 +1,44 @@
+name: Agent apply PR B fatal fixes
+
+on:
+  push:
+    branches:
+      - agent/structural-combinator-failure-semantics
+    paths:
+      - .github/workflows/agent-apply-prb-fix2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/structural-combinator-failure-semantics
+          fetch-depth: 0
+
+      - name: Apply fatal propagation fixes
+        shell: bash
+        run: |
+          printf '%s  %s\n' \
+            '87ef6eb6d07dee67a04915f91e5b415398e0b470e33bd03a8fc23035839185eb' \
+            '.github/agent/prb-fix2.patch.gz.b64' \
+            | sha256sum --check --strict
+          base64 --decode .github/agent/prb-fix2.patch.gz.b64 > /tmp/prb-fix2.patch.gz
+          gunzip -c /tmp/prb-fix2.patch.gz > /tmp/prb-fix2.patch
+          printf '%s  %s\n' \
+            '9cf339ee47ab9fac6d9bee88b7354d21d4e6643d49aafa7860f4ae9dcd029e10' \
+            '/tmp/prb-fix2.patch' \
+            | sha256sum --check --strict
+          git apply --index /tmp/prb-fix2.patch
+          rm -f \
+            .github/agent/prb-fix2.patch.gz.b64 \
+            .github/workflows/agent-apply-prb-fix2.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: preserve fatal union branch semantics'
+          git push origin HEAD:agent/structural-combinator-failure-semantics
