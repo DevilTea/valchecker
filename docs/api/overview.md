@@ -108,9 +108,9 @@ Each validation step checks only the condition expressed by its name. For exampl
 - `toTrimmedEnd()` — trim the end
 - `toUppercase()` — uppercase string
 - `toLowercase()` — lowercase string
-- `toNumber()` — native `Number(value)` conversion from string, boolean, or bigint
-- `toBoolean()` — native `Boolean(value)` conversion from string, number, or bigint
-- `toBigint(message?)` — native `BigInt(value)` conversion from string, number, or boolean
+- `toNumber(message?)` — native `Number(value)` conversion after any non-number output
+- `toBoolean()` — native `Boolean(value)` conversion after any non-boolean output
+- `toBigint(message?)` — native `BigInt(value)` conversion after any non-bigint output
 - `toSafeNumber(message?)` — bigint to number only within the safe integer range
 - `toMappedBoolean(options, message?)` — explicit true/false value mappings for string, number, or bigint
 - `toString()` — convert a supported value through its `toString` method
@@ -123,9 +123,9 @@ Each validation step checks only the condition expressed by its name. For exampl
 - `toJSONString()` — stringify a supported value
 - `toAsync()` — force the complete schema to return a native promise
 
-Native coercion steps deliberately follow JavaScript semantics. For example, `string().toNumber()` may produce `NaN`, and `string().toBoolean()` converts the non-empty string `'false'` to `true`. Use explicit validation or policy conversions when a narrower contract is required.
+Native coercion steps deliberately follow JavaScript semantics. For example, `string().toNumber()` may produce `NaN`, and `string().toBoolean()` converts the non-empty string `'false'` to `true`. Native exceptions from `Number()` and `BigInt()` become structured issues. Use explicit validation or policy conversions when a narrower contract is required.
 
-Identity conversions are not exposed: `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware API.
+Identity conversions are not exposed: `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware API. A union or unknown output remains convertible when it is not already entirely the target primitive type.
 
 `json()` is an initial validator for JSON-compatible values, not a transformation.
 
