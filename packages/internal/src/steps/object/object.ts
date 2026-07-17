@@ -122,14 +122,6 @@ export const object = implStepPlugin<PluginDef>({
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
 		}
 
-		const createMissingIssue = (key: PropertyKey) => createIssue({
-			code: 'object:missing_key',
-			payload: { key },
-			path: [key],
-			customMessage: message,
-			defaultMessage: 'Missing required object key.',
-		})
-
 		const continueAsync = async (
 			value: object,
 			startIndex: number,
@@ -146,8 +138,15 @@ export const object = implStepPlugin<PluginDef>({
 				else if (!Object.hasOwn(value, meta.key)) {
 					if (meta.isOptional)
 						setOutputValue(output, meta.key, undefined)
-					else
-						(issues ??= []).push(createMissingIssue(meta.key))
+					else {
+						(issues ??= []).push(createIssue({
+							code: 'object:missing_key',
+							payload: { key: meta.key },
+							path: [meta.key],
+							customMessage: message,
+							defaultMessage: 'Missing required object key.',
+						}))
+					}
 					continue
 				}
 				else {
@@ -191,8 +190,15 @@ export const object = implStepPlugin<PluginDef>({
 				if (!Object.hasOwn(value, key)) {
 					if (meta.isOptional)
 						setOutputValue(output, key, undefined)
-					else
-						(issues ??= []).push(createMissingIssue(key))
+					else {
+						(issues ??= []).push(createIssue({
+							code: 'object:missing_key',
+							payload: { key },
+							path: [key],
+							customMessage: message,
+							defaultMessage: 'Missing required object key.',
+						}))
+					}
 					continue
 				}
 
