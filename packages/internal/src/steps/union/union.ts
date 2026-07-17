@@ -1,7 +1,6 @@
 import type { IsEqual } from 'type-fest'
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, ExecutionSuccessResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
-import { isRecoverableFailure } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -58,11 +57,6 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-type BranchOutcome
-	= | ExecutionSuccessResult<unknown>
-		| { issues: [AnyExecutionIssue, ...AnyExecutionIssue[]] }
-		| null
-
 /* @__NO_SIDE_EFFECTS__ */
 export const union = implStepPlugin<PluginDef>({
 	union: ({
@@ -73,44 +67,56 @@ export const union = implStepPlugin<PluginDef>({
 		const len = branchExecutors.length
 
 		addSuccessStep((value) => {
-			const issues: AnyExecutionIssue[] = []
-
-			const processBranchResult = (result: ExecutionResult, branchIndex: number): BranchOutcome => {
-				if (!isFailure(result))
-					return result
-
-				const branchIssues = result.issues.map(issue => appendIssueContext(issue, {
-					type: 'union',
-					branchIndex,
-				})) as [AnyExecutionIssue, ...AnyExecutionIssue[]]
-				if (!isRecoverableFailure(result))
-					return failure(branchIssues)
-				issues.push(...branchIssues)
-				return null
-			}
-
-			const continueAsync = async (startIndex: number, firstResult: PromiseLike<ExecutionResult>) => {
-				for (let i = startIndex; i < len; i++) {
-					const result = i === startIndex
-						? await firstResult
-						: await branchExecutors[i]!(value)
-					const outcome = processBranchResult(result, i)
-					if (outcome != null)
-						return outcome
-				}
-				return failure(issues)
-			}
+			let issues: AnyExecutionIssue[] | undefined
 
 			for (let i = 0; i < len; i++) {
 				const branchResult = branchExecutors[i]!(value)
-				if (isPromiseLike(branchResult))
-					return continueAsync(i, branchResult)
-				const outcome = processBranchResult(branchResult, i)
-				if (outcome != null)
-					return outcome
+				if (isPromiseLike(branchResult)) {
+					return (async () => {
+						for (let j = i; j < len; j++) {
+							const result = j === i
+								? await branchResult
+								: await branchExecutors[j]!(value)
+							if (!isFailure(result))
+								return result
+
+							const collected = issues ??= []
+							const branchStart = collected.length
+							let hasInternal = false
+							for (const issue of result.issues) {
+								if (issue.category === 'internal')
+									hasInternal = true
+								collected.push(appendIssueContext(issue, {
+									type: 'union',
+									branchIndex: j,
+								}))
+							}
+							if (hasInternal)
+								return failure(collected.slice(branchStart))
+						}
+						return failure(issues!)
+					})()
+				}
+
+				if (!isFailure(branchResult))
+					return branchResult
+
+				const collected = issues ??= []
+				const branchStart = collected.length
+				let hasInternal = false
+				for (const issue of branchResult.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					collected.push(appendIssueContext(issue, {
+						type: 'union',
+						branchIndex: i,
+					}))
+				}
+				if (hasInternal)
+					return failure(collected.slice(branchStart))
 			}
 
-			return failure(issues)
+			return failure(issues!)
 		})
 	},
 })

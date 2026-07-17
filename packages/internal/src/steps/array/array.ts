@@ -1,7 +1,6 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { hasInternalIssue } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -79,33 +78,43 @@ export const array = implStepPlugin<PluginDef>({
 			const output = new Array(len)
 			const execute = item['~execute']
 
-			const processItemResult = (result: ExecutionResult, index: number): boolean => {
-				if (isFailure(result)) {
-					for (const issue of result.issues)
-						issues.push(prependIssuePath(issue, [index]))
-					return hasInternalIssue(result.issues)
-				}
-				output[index] = result.value
-				return false
-			}
-
-			const continueAsync = async (startIndex: number, firstResult: PromiseLike<ExecutionResult>) => {
-				for (let i = startIndex; i < len; i++) {
-					const result = i === startIndex
-						? await firstResult
-						: await execute(value[i])
-					if (processItemResult(result, i))
-						return failure(issues)
-				}
-				return issues.length > 0 ? failure(issues) : success(output)
-			}
-
 			for (let i = 0; i < len; i++) {
 				const result = execute(value[i])
-				if (isPromiseLike(result))
-					return continueAsync(i, result)
-				if (processItemResult(result, i))
-					return failure(issues)
+				if (isPromiseLike(result)) {
+					return (async () => {
+						for (let j = i; j < len; j++) {
+							const resolved = j === i ? await result : await execute(value[j])
+							if (isFailure(resolved)) {
+								let hasInternal = false
+								for (const issue of resolved.issues) {
+									if (issue.category === 'internal')
+										hasInternal = true
+									issues.push(prependIssuePath(issue, [j]))
+								}
+								if (hasInternal)
+									return failure(issues)
+							}
+							else {
+								output[j] = resolved.value
+							}
+						}
+						return issues.length > 0 ? failure(issues) : success(output)
+					})()
+				}
+
+				if (isFailure(result)) {
+					let hasInternal = false
+					for (const issue of result.issues) {
+						if (issue.category === 'internal')
+							hasInternal = true
+						issues.push(prependIssuePath(issue, [i]))
+					}
+					if (hasInternal)
+						return failure(issues)
+				}
+				else {
+					output[i] = result.value
+				}
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)
