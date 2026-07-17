@@ -104,6 +104,44 @@ describe('toJSONString step plugin', () => {
 		expect((toJSONResult as any).issues[0].payload.value).toBe(toJSONValue)
 	})
 
+	it('serializes array values and sparse holes', () => {
+		const sparse = [1, 2, 3]
+		delete sparse[1]
+		expect(v.toJSONString().execute([1, { value: true }])).toEqual({
+			value: '[1,{"value":true}]',
+		})
+		expect(v.toJSONString().execute(sparse)).toEqual({ value: '[1,null,3]' })
+	})
+
+	it('reports array element and toJSON property access failures', () => {
+		const elementError = new Error('element')
+		const arrayValue = Object.defineProperty([1], 0, {
+			enumerable: true,
+			get() { throw elementError },
+		})
+		const arrayResult = v.toJSONString().execute(arrayValue)
+		expect(arrayResult).toMatchObject({
+			issues: [{
+				code: 'toJSONString:serialization_failed',
+				payload: { at: [0], error: elementError },
+			}],
+		})
+		expect((arrayResult as any).issues[0].payload.value).toBe(arrayValue)
+
+		const toJSONGetterError = new Error('toJSON getter')
+		const toJSONGetterValue = Object.defineProperty({}, 'toJSON', {
+			get() { throw toJSONGetterError },
+		})
+		const toJSONGetterResult = v.toJSONString().execute(toJSONGetterValue)
+		expect(toJSONGetterResult).toMatchObject({
+			issues: [{
+				code: 'toJSONString:serialization_failed',
+				payload: { at: [], error: toJSONGetterError },
+			}],
+		})
+		expect((toJSONGetterResult as any).issues[0].payload.value).toBe(toJSONGetterValue)
+	})
+
 	it('reports nested unsupported values at their exact path', () => {
 		const value = { nested: { value: 1n } }
 		expect(v.toJSONString().execute(value)).toMatchObject({
