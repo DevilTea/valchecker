@@ -100,7 +100,19 @@ jobs:
           retention-days: 7
 
       - name: Format
-        run: pnpm lint:fix
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm lint:fix 2>&1 | tee migration-lint.log
+
+      - name: Upload Migration Lint Log
+        if: failure() && hashFiles('migration-lint.log') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: step-options-migration-lint-log
+          path: migration-lint.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Rebuild and Record API Surface
         run: |
