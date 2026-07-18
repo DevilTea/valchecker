@@ -143,12 +143,12 @@ v.number()
 
 ## `isMultipleOf(divisor, options?)`
 
-Checks bigint divisibility with exact remainder semantics. Number inputs use a small tolerance around the native remainder so ordinary floating-point decimal multiples are accepted.
+Checks bigint divisibility with exact remainder semantics. Number inputs first accept an exact zero remainder, then compare the quotient with its nearest integer using a small relative tolerance capped by an absolute maximum. This accepts ordinary floating-point decimal noise without allowing tolerance to grow unbounded for huge values.
 
 ```ts
 v.number()
 	.isMultipleOf(0.1)
-	.execute(0.3) // success
+	.execute(0.1 + 0.2) // success
 ```
 
 Non-finite number inputs fail. A zero divisor, non-finite number divisor, or zero bigint divisor is rejected while constructing the schema.
