@@ -1,104 +1,124 @@
-/**
- * Test plan for union step:
- * - Functions tested: union validation (matches at least one of the provided branches).
- * - Valid inputs: value matches any branch, transformed branch output, async branches.
- * - Invalid inputs: value matches no branches, async failure.
- * - Edge cases: single branch union.
- * - Expected behaviors: Success returns the first successful branch output; failure returns issues from all failed branches.
- * - Error handling: No exceptions; all errors via issues.
- * - Coverage goals: 100% statement, branch, and function coverage.
- */
+import { describe, expect, it, vi } from 'vitest'
+import { implStepPlugin } from '../../core'
+import { createValchecker, number, string, transform, union, unknown } from '../..'
 
-import { describe, expect, it } from 'vitest'
-import { createValchecker, number, string, transform, union } from '../..'
-
-const v = createValchecker({ steps: [union, string, number, transform] })
-
-describe('union plugin', () => {
-	describe('valid inputs', () => {
-		it('should pass when value matches first branch', () => {
-			const result = v.union([v.string(), v.number()])
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'hello' })
+const unionFixture = implStepPlugin<any>({
+	internalFailure: ({ utils }: any) => {
+		utils.addSuccessStep(() => {
+			throw new Error('internal failure')
 		})
-
-		it('should pass when value matches second branch', () => {
-			const result = v.union([v.string(), v.number()])
-				.execute(42)
-			expect(result)
-				.toEqual({ value: 42 })
+	},
+	asyncInternalFailure: ({ utils }: any) => {
+		utils.addSuccessStep(async () => {
+			throw new Error('async internal failure')
 		})
+	},
+	observe: ({ utils, params: [callback] }: any) => {
+		utils.addSuccessStep((value: unknown) => {
+			callback(value)
+			return utils.success(value)
+		})
+	},
+})
 
-		it('should return a successful branch transform output', () => {
-			const result = v.union([
+const v = createValchecker({
+	steps: [number, string, transform, union, unionFixture, unknown],
+})
+
+describe('union step plugin', () => {
+	it.each([
+		['first', v.union([v.string(), v.number()]), 'hello', 'hello'],
+		['later', v.union([v.string(), v.number()]), 42, 42],
+		[
+			'transformed',
+			v.union([
 				v.number(),
-				v.string()
-					.transform(value => value.toUpperCase()),
-			])
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'HELLO' })
-		})
+				v.string().transform(value => value.toUpperCase()),
+			]),
+			'hello',
+			'HELLO',
+		],
+	] as const)('returns the %s successful branch output', (_case, schema, input, output) => {
+		expect(schema.execute(input as never)).toEqual({ value: output })
+	})
 
-		it('should return async branch transform output', async () => {
-			const result = await v.union([
-				v.string()
-					.transform(async value => value.toUpperCase()),
-				v.number(),
-			])
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'HELLO' })
-		})
-
-		it('should continue after async branch failure', async () => {
-			const result = await v.union([
-				v.number(),
-				v.string()
-					.transform(async () => { throw new Error('fail') }),
-				v.string(),
-			])
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'hello' })
+	it('aggregates recoverable branch issues with stable branch context', () => {
+		expect(v.union([v.string(), v.number()]).execute(null)).toEqual({
+			issues: [
+				{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: [],
+					context: [{ type: 'union', branchIndex: 0 }],
+					payload: { value: null },
+				},
+				{
+					code: 'number:expected_number',
+					category: 'validation',
+					message: 'Expected a number.',
+					path: [],
+					context: [{ type: 'union', branchIndex: 1 }],
+					payload: { value: null },
+				},
+			],
 		})
 	})
 
-	describe('invalid unions', () => {
-		it('should fail when value matches no branches', () => {
-			const result = v.union([v.string(), v.number()])
-				.execute(null)
-			expect(result)
-				.toEqual({
-					issues: [
-						{
-							code: 'string:expected_string',
-							category: 'validation',
-							message: 'Expected a string.',
-							path: [],
-							context: [{ type: 'union', branchIndex: 0 }],
-							payload: { value: null },
-						},
-						{
-							code: 'number:expected_number',
-							category: 'validation',
-							message: 'Expected a number.',
-							path: [],
-							context: [{ type: 'union', branchIndex: 1 }],
-							payload: { value: null },
-						},
-					],
-				})
-		})
+	it('continues after an asynchronous recoverable branch failure', async () => {
+		const later = vi.fn((value: string) => value)
+		const result = v.union([
+			v.string().transform(async () => {
+				throw new Error('recoverable')
+			}),
+			v.string().transform(later),
+			v.number(),
+		]).execute('hello')
+
+		expect(result).toBeInstanceOf(Promise)
+		await expect(result).resolves.toEqual({ value: 'hello' })
+		expect(later).toHaveBeenCalledOnce()
 	})
 
-	describe('edge cases', () => {
-		it('should handle single branch union', () => {
-			const result = v.union([v.string()])
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'hello' })
+	it('does not evaluate later branches after a synchronous internal failure', () => {
+		const later = vi.fn()
+		const schema = (v as any).union([
+			v.number(),
+			(v as any).unknown().internalFailure(),
+			(v as any).unknown().observe(later),
+		])
+		const result = schema.execute('value')
+
+		expect(result).toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				category: 'internal',
+				context: [{ type: 'union', branchIndex: 1 }],
+				payload: { method: 'internalFailure' },
+			}],
 		})
+		expect((result as any).issues).toHaveLength(1)
+		expect(later).not.toHaveBeenCalled()
+	})
+
+	it('does not evaluate later branches after an asynchronous internal failure', async () => {
+		const later = vi.fn()
+		const schema = (v as any).union([
+			v.number(),
+			(v as any).unknown().asyncInternalFailure(),
+			(v as any).unknown().observe(later),
+		])
+		const result = schema.execute('value')
+
+		expect(result).toBeInstanceOf(Promise)
+		await expect(result).resolves.toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				category: 'internal',
+				context: [{ type: 'union', branchIndex: 1 }],
+				payload: { method: 'asyncInternalFailure' },
+			}],
+		})
+		expect(later).not.toHaveBeenCalled()
 	})
 })

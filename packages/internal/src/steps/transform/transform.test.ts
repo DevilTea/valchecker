@@ -1,94 +1,73 @@
-/**
- * Test plan for transform step:
- * - Functions tested: transform validation with optional custom messages.
- * - Valid inputs: synchronous and asynchronous successful transformations.
- * - Invalid inputs: synchronous and asynchronous failed transformations.
- * - Edge cases: custom message handler.
- * - Expected behaviors: Success returns { value: transformedValue }; failure returns { issues: [{ code: 'transform:callback_failed', payload: { value, error }, message }] }.
- * - Error handling: Catches sync errors and promise rejections.
- * - Coverage goals: 100% statement, branch, and function coverage.
- */
-
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createValchecker, string, transform } from '../..'
 
 const v = createValchecker({ steps: [string, transform] })
 
-describe('transform plugin', () => {
-	describe('valid inputs', () => {
-		it('should succeed with sync transform', () => {
-			const result = v.string()
-				.transform(x => x.toUpperCase())
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'HELLO' })
+describe('transform step plugin', () => {
+	it('returns a synchronous transformed output', () => {
+		expect(v.string()
+			.transform(value => value.toUpperCase())
+			.execute('hello')).toEqual({ value: 'HELLO' })
+	})
+
+	it('returns a native Promise for an asynchronous transformed output', async () => {
+		const result = v.string()
+			.transform(async value => value.toUpperCase())
+			.execute('hello')
+
+		expect(result).toBeInstanceOf(Promise)
+		await expect(result).resolves.toEqual({ value: 'HELLO' })
+	})
+
+	it('reports the complete synchronous callback failure contract', () => {
+		const error = new Error('sync error')
+		expect(v.string()
+			.transform(() => { throw error })
+			.execute('hello')).toEqual({
+			issues: [{
+				code: 'transform:callback_failed',
+				category: 'operation',
+				message: 'Transform callback failed.',
+				path: [],
+				payload: { phase: 'throw', value: 'hello', error },
+			}],
 		})
 	})
 
-	describe('invalid inputs', () => {
-		it('should fail with sync transform error', () => {
-			const result = v.string()
-				.transform((_x) => {
-					throw new Error('sync error')
-				})
-				.execute('hello')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						message: 'Transform callback failed.',
-						path: [],
-						payload: { phase: 'throw', value: 'hello', error: expect.any(Error) },
-					}],
-				})
+	it('distinguishes asynchronous callback rejection in the payload', async () => {
+		const error = new Error('async error')
+		await expect(v.string()
+			.transform(async () => { throw error })
+			.execute('hello')).resolves.toEqual({
+			issues: [{
+				code: 'transform:callback_failed',
+				category: 'operation',
+				message: 'Transform callback failed.',
+				path: [],
+				payload: { phase: 'reject', value: 'hello', error },
+			}],
 		})
 	})
 
-	describe('edge cases', () => {
-		it('should succeed with async transform', async () => {
-			const result = await v.string()
-				.transform(async x => x.toUpperCase())
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'HELLO' })
+	it('uses a custom message for callback failures', () => {
+		expect(v.string()
+			.transform(
+				() => { throw new Error('error') },
+				issue => `Custom: ${(issue.payload.error as Error).message}`,
+			)
+			.execute('hello')).toMatchObject({
+			issues: [{
+				code: 'transform:callback_failed',
+				message: 'Custom: error',
+			}],
 		})
+	})
 
-		it('should fail with async transform error', async () => {
-			const result = await v.string()
-				.transform(async (_x) => {
-					throw new Error('async error')
-				})
-				.execute('hello')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						message: 'Transform callback failed.',
-						path: [],
-						payload: { phase: 'reject', value: 'hello', error: expect.any(Error) },
-					}],
-				})
+	it('does not invoke the callback after an earlier failure', () => {
+		const callback = vi.fn((value: string) => value)
+		expect(v.string().transform(callback).execute(42)).toMatchObject({
+			issues: [{ code: 'string:expected_string' }],
 		})
-
-		it('should use custom message handler', () => {
-			const result = v.string()
-				.transform(
-					(_x: string) => { throw new Error('error') },
-					issue => `Custom: ${(issue.payload.error as any).message}`,
-				)
-				.execute('hello')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						message: 'Custom: error',
-						path: [],
-						payload: { phase: 'throw', value: 'hello', error: expect.any(Error) },
-					}],
-				})
-		})
+		expect(callback).not.toHaveBeenCalled()
 	})
 })

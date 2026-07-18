@@ -25,7 +25,34 @@ jobs:
           node-version: 24
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee install.log
+
+      - name: Upload Install Log
+        if: failure() && hashFiles('install.log') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: install-log
+          path: install.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Test Quality
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test:quality 2>&1 | tee test-quality.log
+
+      - name: Upload Test Quality Log
+        if: failure() && hashFiles('test-quality.log') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-quality-log
+          path: test-quality.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Build
         run: pnpm build
@@ -269,4 +296,16 @@ jobs:
         run: pnpm build
 
       - name: Test
-        run: pnpm test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test.log
+
+      - name: Upload Test Log
+        if: failure() && hashFiles('test.log') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-log-${{ matrix.node }}-${{ runner.os }}
+          path: test.log
+          if-no-files-found: error
+          retention-days: 7

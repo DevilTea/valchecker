@@ -1,95 +1,32 @@
-/**
- * Test Plan for toFiltered.ts
- *
- * This test file covers the `toFiltered` step plugin implementation.
- *
- * Functions and Classes:
- * - toFiltered: A step plugin that filters an array using the filter method.
- *
- * Input Scenarios:
- * - Arrays of numbers: Filter even numbers, etc.
- * - Arrays of strings: Filter by length, etc.
- * - Arrays of objects: Filter by property.
- * - Empty arrays: Should remain empty.
- * - Arrays with mixed types.
- * - Filter with index parameter.
- *
- * Expected Outputs and Behaviors:
- * - Success: Returns { value: filteredArray }.
- *
- * Error Handling and Exceptions:
- * - Predicate exceptions become operation issues; non-callback method errors remain internal.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
-
-import { describe, expect, it } from 'vitest'
+import type { InferOutput } from '../..'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { any, array, createValchecker, toFiltered, transform } from '../..'
 
 const v = createValchecker({ steps: [array, any, toFiltered, transform] })
 
-describe('toFiltered plugin', () => {
-	describe('basic filtering', () => {
-		it('should filter numbers greater than 3', () => {
-			const result = v.array(v.any())
-				.toFiltered((x: number) => x > 3)
-				.execute([1, 2, 3, 4, 5])
-			expect(result)
-				.toEqual({ value: [4, 5] })
-		})
+describe('toFiltered step plugin', () => {
+	it('filters with item and index while leaving the input unchanged', () => {
+		const input = [1, 2, 3, 4, 5]
+		const schema = v.array(v.any()).toFiltered((item: number, index) => item > 2 && index % 2 === 0)
+		const result = schema.execute(input)
 
-		it('should filter strings starting with "a"', () => {
-			const result = v.array(v.any())
-				.toFiltered((s: string) => s.startsWith('a'))
-				.execute(['apple', 'banana', 'avocado', 'cherry'])
-			expect(result)
-				.toEqual({ value: ['apple', 'avocado'] })
-		})
-
-		it('should filter with index parameter', () => {
-			const result = v.array(v.any())
-				.toFiltered((_: any, index: number) => index % 2 === 0)
-				.execute([10, 20, 30, 40, 50])
-			expect(result)
-				.toEqual({ value: [10, 30, 50] })
-		})
-
-		it('should filter objects by property', () => {
-			const result = v.array(v.any())
-				.toFiltered((obj: { active: boolean }) => obj.active)
-				.execute([{ active: true, id: 1 }, { active: false, id: 2 }, { active: true, id: 3 }])
-			expect(result)
-				.toEqual({ value: [{ active: true, id: 1 }, { active: true, id: 3 }] })
-		})
+		expect(result).toEqual({ value: [3, 5] })
+		expect(input).toEqual([1, 2, 3, 4, 5])
+		if (v.isSuccess(result))
+			expect(result.value).not.toBe(input)
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<any[]>()
 	})
 
-	describe('edge cases', () => {
-		it('should handle empty array', () => {
-			const result = v.array(v.any())
-				.toFiltered((x: number) => x > 0)
-				.execute([])
-			expect(result)
-				.toEqual({ value: [] })
-		})
-
-		it('should handle filter that removes all elements', () => {
-			const result = v.array(v.any())
-				.toFiltered((x: number) => x > 100)
-				.execute([1, 2, 3])
-			expect(result)
-				.toEqual({ value: [] })
-		})
-
-		it('should handle filter that keeps all elements', () => {
-			const result = v.array(v.any())
-				.toFiltered((x: number) => x >= 0)
-				.execute([1, 2, 3])
-			expect(result)
-				.toEqual({ value: [1, 2, 3] })
-		})
+	it.each([
+		['empty', [], []],
+		['none', [1, 2, 3], []],
+		['all', [1, 2, 3], [1, 2, 3]],
+	] as const)('handles the %s-result boundary', (mode, input, expected) => {
+		const predicate = mode === 'all' ? () => true : () => false
+		expect(v.array(v.any()).toFiltered(predicate).execute([...input])).toEqual({ value: expected })
 	})
 
-	it('should report predicate exceptions with item and index', () => {
+	it('reports predicate exceptions with the current item and index', () => {
 		const error = new Error('predicate')
 		const result = v.array(v.any())
 			.toFiltered((_item: number, index) => {
@@ -98,24 +35,26 @@ describe('toFiltered plugin', () => {
 				return true
 			}, undefined, 'Filter failed')
 			.execute([1, 2, 3])
-		expect(result).toMatchObject({
+
+		expect(result).toEqual({
 			issues: [{
 				code: 'toFiltered:callback_failed',
 				category: 'operation',
 				message: 'Filter failed',
+				path: [],
 				payload: { value: [1, 2, 3], item: 2, index: 1, error },
 			}],
 		})
 	})
 
-	it('should leave non-predicate filter failures to the core boundary', () => {
+	it('leaves failures outside the predicate callback to the core boundary', () => {
 		const error = new Error('filter method')
 		const value = [] as any[] & { filter: typeof Array.prototype.filter }
 		value.filter = () => { throw error }
-		const result = v.transform(() => value)
+
+		expect(v.transform(() => value)
 			.toFiltered(() => true)
-			.execute(null)
-		expect(result).toMatchObject({
+			.execute(null)).toMatchObject({
 			issues: [{
 				code: 'core:unknown_exception',
 				category: 'internal',

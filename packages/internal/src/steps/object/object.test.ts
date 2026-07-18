@@ -1,430 +1,255 @@
-/**
- * Test Plan for object.ts
- *
- * This test file covers the `object` step plugin implementation.
- *
- * Functions and Classes:
- * - object: The step plugin that validates objects against a struct schema.
- *
- * Input Scenarios:
- * - Non-object inputs: string, number, null, undefined, array.
- * - Valid objects: empty struct, with required/optional properties, extra properties ignored.
- * - Invalid objects: missing required properties, invalid property values.
- * - Mixed scenarios: some valid, some invalid properties.
- * - Async property schemas: transform with async functions.
- * - Edge cases: nested objects, empty objects.
- *
- * Expected Outputs and Behaviors:
- * - Non-objects: Issues with 'object:expected_object'.
- * - Valid: Processed object with validated properties.
- * - Invalid: Issues with paths to invalid properties.
- * - Async: Promise resolution with correct results.
- *
- * Error Handling and Exceptions:
- * - No exceptions; all errors handled via issues.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
+import { describe, expect, it, vi } from 'vitest'
+import { implStepPlugin } from '../../core'
+import { createValchecker, number, object, string, transform, unknown } from '../..'
 
-import { describe, expect, it } from 'vitest'
-import { createValchecker, number, object, string, transform } from '../..'
-
-const v = createValchecker({ steps: [object, string, number, transform] })
-
-describe('object plugin', () => {
-	describe('invalid inputs (not objects)', () => {
-		it('should fail for string', () => {
-			const result = v.object({})
-				.execute('not an object')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'object:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: 'not an object' },
-					}],
-				})
+const internalFixture = implStepPlugin<any>({
+	internalFailure: ({ utils }: any) => {
+		utils.addSuccessStep(() => {
+			throw new Error('internal failure')
 		})
-
-		it('should fail for number', () => {
-			const result = v.object({})
-				.execute(42)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'object:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: 42 },
-					}],
-				})
+	},
+	asyncInternalFailure: ({ utils }: any) => {
+		utils.addSuccessStep(async () => {
+			throw new Error('async internal failure')
 		})
-
-		it('should fail for null', () => {
-			const result = v.object({})
-				.execute(null)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'object:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: null },
-					}],
-				})
+	},
+	observe: ({ utils, params: [callback] }: any) => {
+		utils.addSuccessStep((value: unknown) => {
+			callback(value)
+			return utils.success(value)
 		})
+	},
+})
 
-		it('should fail for undefined', () => {
-			const result = v.object({})
-				.execute(undefined)
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'object:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: undefined },
-					}],
-				})
-		})
+const v = createValchecker({
+	steps: [internalFixture, number, object, string, transform, unknown],
+})
 
-		it('should fail for array', () => {
-			const result = v.object({})
-				.execute([])
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'object:expected_object',
-						category: 'validation',
-						message: 'Expected an object.',
-						path: [],
-						payload: { value: [] },
-					}],
-				})
+describe('object step plugin', () => {
+	it.each([
+		['string', 'not an object'],
+		['number', 42],
+		['null', null],
+		['undefined', undefined],
+		['array', []],
+	] as const)('rejects %s input as a non-object', (_kind, value) => {
+		expect(v.object({}).execute(value)).toEqual({
+			issues: [{
+				code: 'object:expected_object',
+				category: 'validation',
+				message: 'Expected an object.',
+				path: [],
+				payload: { value },
+			}],
 		})
 	})
 
-	describe('custom messages', () => {
-		it('should use custom message for expected_object failure', () => {
-			const result = v.object({}, () => 'Custom message')
-				.execute('not an object')
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'object:expected_object',
-						category: 'validation',
-						message: 'Custom message',
-						path: [],
-						payload: { value: 'not an object' },
-					}],
-				})
+	it('supports a custom message for its owned object-classification issue', () => {
+		expect(v.object({}, 'Custom object').execute('wrong')).toMatchObject({
+			issues: [{
+				code: 'object:expected_object',
+				message: 'Custom object',
+			}],
 		})
 	})
 
-	describe('valid objects', () => {
-		it('should pass for empty struct', () => {
-			const result = v.object({})
-				.execute({})
-			expect(result)
-				.toEqual({ value: {} })
-		})
-
-		it('should pass for object with required properties', () => {
-			const result = v.object({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({
-					name: 'John',
-					age: 30,
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						name: 'John',
-						age: 30,
-					},
-				})
-		})
-
-		it('should ignore extra properties', () => {
-			const result = v.object({
-				name: v.string(),
-			})
-				.execute({
-					name: 'John',
-					extra: 'ignored',
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						name: 'John',
-					},
-				})
-		})
-
-		it('should handle optional properties present', () => {
-			const result = v.object({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({
-					name: 'John',
-					age: 30,
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						name: 'John',
-						age: 30,
-					},
-				})
-		})
-
-		it('should handle optional properties missing', () => {
-			const result = v.object({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({
-					name: 'John',
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						name: 'John',
-						age: undefined,
-					},
-				})
-		})
-
-		it('should fail for missing required property', () => {
-			const result = v.object({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({
-					name: 'John',
-				})
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'object:missing_key',
-						category: 'validation',
-						path: ['age'],
-						payload: { key: 'age' },
-						message: 'Missing required object key.',
-					}],
-				})
-		})
-
-		it('should fail for invalid required property', () => {
-			const result = v.object({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({
-					name: 'John',
-					age: 'thirty',
-				})
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'number:expected_number',
-						category: 'validation',
-						path: ['age'],
-						payload: { value: 'thirty' },
-						message: 'Expected a number.',
-					}],
-				})
-		})
-
-		it('should fail for invalid optional property', () => {
-			const result = v.object({
-				name: v.string(),
-				age: [v.number()],
-			})
-				.execute({
-					name: 'John',
-					age: 'thirty',
-				})
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'number:expected_number',
-						category: 'validation',
-						path: ['age'],
-						payload: { value: 'thirty' },
-						message: 'Expected a number.',
-					}],
-				})
-		})
-
-		it('should collect multiple issues', () => {
-			const result = v.object({
-				name: v.string(),
-				age: v.number(),
-			})
-				.execute({
-					name: 123,
-					age: 'thirty',
-				})
-			expect(result)
-				.toEqual({
-					issues: [
-						{
-							code: 'string:expected_string',
-							category: 'validation',
-							path: ['name'],
-							payload: { value: 123 },
-							message: 'Expected a string.',
-						},
-						{
-							code: 'number:expected_number',
-							category: 'validation',
-							path: ['age'],
-							payload: { value: 'thirty' },
-							message: 'Expected a number.',
-						},
-					],
-				})
-		})
-
-		it('should handle async property schemas', async () => {
-			const result = await v.object({
-				name: v.string()
-					.transform(async x => x.toUpperCase()),
-			})
-				.execute({
-					name: 'john',
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						name: 'JOHN',
-					},
-				})
-		})
-
-		it('should handle async property schemas with multiple properties (triggers chaining)', async () => {
-			const result = await v.object({
-				name: v.string()
-					.transform(async x => x.toUpperCase()),
-				age: v.number(),
-				city: v.string(),
-			})
-				.execute({
-					name: 'john',
-					age: 30,
-					city: 'NYC',
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						name: 'JOHN',
-						age: 30,
-						city: 'NYC',
-					},
-				})
-		})
-
-		it('should handle async failure in property chain', async () => {
-			const result = await v.object({
-				name: v.string()
-					.transform(async x => x.toUpperCase()),
-				age: v.number(),
-				city: v.string()
-					.transform(async (_x) => { throw new Error('fail') }),
-			})
-				.execute({
-					name: 'john',
-					age: 30,
-					city: 'NYC',
-				})
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'transform:callback_failed',
-						category: 'operation',
-						path: ['city'],
-						payload: { phase: 'reject', value: 'NYC', error: new Error('fail') },
-						message: 'Transform callback failed.',
-					}],
-				})
-		})
-
-		it('should handle mixed async and sync properties in chain', async () => {
-			let firstProp = true
-			const result = await v.object({
-				name: v.string()
-					.transform(x => firstProp ? (firstProp = false, Promise.resolve(x.toUpperCase())) : x),
-				age: v.number(),
-				city: v.string(),
-			})
-				.execute({
-					name: 'john',
-					age: 30,
-					city: 'NYC',
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						name: 'JOHN',
-						age: 30,
-						city: 'NYC',
-					},
-				})
+	it('validates declared fields and strips extra keys', () => {
+		expect(v.object({
+			name: v.string(),
+			age: v.number(),
+		}).execute({
+			name: 'Ada',
+			age: 37,
+			extra: true,
+		})).toEqual({
+			value: {
+				name: 'Ada',
+				age: 37,
+			},
 		})
 	})
 
-	describe('edge cases', () => {
-		it('should handle nested objects', () => {
-			const result = v.object({
-				user: v.object({
-					name: v.string(),
-				}),
-			})
-				.execute({
-					user: {
-						name: 'John',
-					},
-				})
-			expect(result)
-				.toEqual({
-					value: {
-						user: {
-							name: 'John',
-						},
-					},
-				})
+	it('materializes missing optional fields as undefined', () => {
+		expect(v.object({
+			name: v.string(),
+			age: [v.number()],
+		}).execute({ name: 'Ada' })).toEqual({
+			value: {
+				name: 'Ada',
+				age: undefined,
+			},
+		})
+	})
+
+	it('reports the complete missing-key issue contract', () => {
+		expect(v.object({
+			name: v.string(),
+			age: v.number(),
+		}).execute({ name: 'Ada' })).toEqual({
+			issues: [{
+				code: 'object:missing_key',
+				category: 'validation',
+				message: 'Missing required object key.',
+				path: ['age'],
+				payload: { key: 'age' },
+			}],
+		})
+	})
+
+	it('validates an own undefined value instead of treating the key as missing', () => {
+		expect(v.object({ value: v.string() }).execute({ value: undefined })).toEqual({
+			issues: [{
+				code: 'string:expected_string',
+				category: 'validation',
+				message: 'Expected a string.',
+				path: ['value'],
+				payload: { value: undefined },
+			}],
+		})
+	})
+
+	it('collects child and missing-key issues in struct order', () => {
+		expect(v.object({
+			name: v.string(),
+			age: v.number(),
+			city: v.string(),
+		}).execute({
+			name: 123,
+			age: 'old',
+		})).toEqual({
+			issues: [
+				{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: ['name'],
+					payload: { value: 123 },
+				},
+				{
+					code: 'number:expected_number',
+					category: 'validation',
+					message: 'Expected a number.',
+					path: ['age'],
+					payload: { value: 'old' },
+				},
+				{
+					code: 'object:missing_key',
+					category: 'validation',
+					message: 'Missing required object key.',
+					path: ['city'],
+					payload: { key: 'city' },
+				},
+			],
+		})
+	})
+
+	it('prepends every nested structural key to child issue paths', () => {
+		expect(v.object({
+			profile: v.object({
+				contact: v.object({ email: v.string() }),
+			}),
+		}).execute({
+			profile: {
+				contact: { email: 42 },
+			},
+		})).toMatchObject({
+			issues: [{
+				code: 'string:expected_string',
+				path: ['profile', 'contact', 'email'],
+				payload: { value: 42 },
+			}],
+		})
+	})
+
+	it('continues remaining fields after a recoverable asynchronous child failure', async () => {
+		const later = vi.fn((value: string) => value.toUpperCase())
+		const schema = v.object({
+			first: v.string().transform(async () => {
+				throw new Error('recoverable')
+			}),
+			second: v.string().transform(later),
+			optional: [v.number()],
 		})
 
-		it('should fail for nested invalid properties', () => {
-			const result = v.object({
-				user: v.object({
-					name: v.string(),
-				}),
-			})
-				.execute({
-					user: {
-						name: 123,
-					},
-				})
-			expect(result)
-				.toEqual({
-					issues: [{
-						code: 'string:expected_string',
-						category: 'validation',
-						path: ['user', 'name'],
-						payload: { value: 123 },
-						message: 'Expected a string.',
-					}],
-				})
+		await expect(schema.execute({
+			first: 'first',
+			second: 'second',
+		})).resolves.toMatchObject({
+			issues: [{
+				code: 'transform:callback_failed',
+				category: 'operation',
+				path: ['first'],
+				payload: { phase: 'reject', value: 'first' },
+			}],
 		})
+		expect(later).toHaveBeenCalledOnce()
+	})
+
+	it('continues a mixed pipeline after the first child becomes asynchronous', async () => {
+		const schema = v.object({
+			name: v.string().transform(async value => value.toUpperCase()),
+			age: v.number(),
+			city: v.string(),
+		})
+
+		await expect(schema.execute({
+			name: 'ada',
+			age: 37,
+			city: 'Taipei',
+		})).resolves.toEqual({
+			value: {
+				name: 'ADA',
+				age: 37,
+				city: 'Taipei',
+			},
+		})
+	})
+
+	it('stops synchronous field evaluation after an internal child failure', () => {
+		const later = vi.fn()
+		const schema = (v as any).object({
+			invalid: v.number(),
+			internal: (v as any).unknown().internalFailure(),
+			later: (v as any).unknown().observe(later),
+		})
+		const result = schema.execute({
+			invalid: 'wrong',
+			internal: 'value',
+			later: 'not reached',
+		})
+
+		expect(result).toMatchObject({
+			issues: [
+				{ code: 'number:expected_number', path: ['invalid'] },
+				{
+					code: 'core:unknown_exception',
+					category: 'internal',
+					path: ['internal'],
+					payload: { method: 'internalFailure' },
+				},
+			],
+		})
+		expect(later).not.toHaveBeenCalled()
+	})
+
+	it('stops asynchronous field evaluation after an internal child failure', async () => {
+		const later = vi.fn()
+		const schema = (v as any).object({
+			internal: (v as any).unknown().asyncInternalFailure(),
+			later: (v as any).unknown().observe(later),
+		})
+
+		await expect(schema.execute({
+			internal: 'value',
+			later: 'not reached',
+		})).resolves.toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				category: 'internal',
+				path: ['internal'],
+				payload: { method: 'asyncInternalFailure' },
+			}],
+		})
+		expect(later).not.toHaveBeenCalled()
 	})
 })
