@@ -1,18 +1,28 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
-import type { HasRegisteredPlugin } from '../union/union-shorthand'
+import type { TUnionShorthandDef } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
+
+type Issue = ExecutionIssue<'undefined:expected_undefined', { value: unknown }>
+
+interface UnionShorthandDef extends TUnionShorthandDef {
+	input: undefined
+	result: this['branch'] extends undefined
+		? {
+			operationMode: 'sync'
+			output: undefined
+			issue: Issue
+		}
+		: never
+}
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'undefined'
 	ExpectedCurrentValchecker: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'undefined:expected_undefined', { value: unknown }>
+	SelfIssue: Issue
 }>
-
-declare const undefinedPluginDefBrand: unique symbol
-
 interface PluginDef extends TStepPluginDef {
-	readonly [undefinedPluginDefBrand]: true
+	UnionShorthand: UnionShorthandDef
 	/**
 	 * ### Description:
 	 * Checks that the value is undefined.
@@ -69,23 +79,3 @@ export const undefined_ = implStepPlugin<PluginDef>({
 		)
 	},
 })
-
-declare module '../union/union-shorthand' {
-	interface UnionShorthandInputRegistry<Registered extends TStepPluginDef> {
-		undefined: HasRegisteredPlugin<Registered, PluginDef> extends true
-			? undefined
-			: never
-	}
-
-	interface UnionShorthandResultRegistry<Registered extends TStepPluginDef, Branch> {
-		undefined: HasRegisteredPlugin<Registered, PluginDef> extends true
-			? Branch extends undefined
-				? {
-					operationMode: 'sync'
-					output: undefined
-					issue: Meta['SelfIssue']
-				}
-				: never
-			: never
-	}
-}
