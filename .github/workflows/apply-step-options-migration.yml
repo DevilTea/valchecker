@@ -1,15 +1,20 @@
 name: Apply Step Options Migration
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/standardize-step-options
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
 
 jobs:
   Migrate:
+    if: github.head_ref == 'agent/standardize-step-options'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
