@@ -14,7 +14,8 @@ export interface UnionShorthandResult {
 
 /**
  * Open type-level registry for union shorthand inputs. Provider steps augment
- * this interface and condition each entry on their own registered PluginDef.
+ * this interface and condition each entry on the provider PluginDef being
+ * present in the current Valchecker instance.
  */
 export interface UnionShorthandInputRegistry<
 	Registered extends TStepPluginDef,
