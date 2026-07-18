@@ -196,6 +196,26 @@ export const result = {
 `, {
 		requiredMarkers: ['map:expected_map', 'map:duplicate_transformed_key', 'set:expected_set', 'set:duplicate_transformed_item'],
 	}),
+	scenario('valchecker-collection-capabilities-free', 'Valchecker', 'Collections without size and membership plugins', 'Collection capability isolation', `
+import { createValchecker, map, number, set, string } from 'valchecker'
+const v = createValchecker({ steps: [map, number, set, string] })
+export const result = {
+	map: v.map({ key: v.string(), value: v.number() }).execute(new Map([['a', 1]])),
+	set: v.set(v.string()).execute(new Set(['a'])),
+}
+`, {
+		forbiddenMarkers: ['isSizeAtLeast:expected_size_at_least', 'isSizeAtMost:expected_size_at_most', 'isSizeExactly:expected_size_exactly', 'isIncludingKey:expected_including_key', 'isIncludingValue:expected_including_value'],
+	}),
+	scenario('valchecker-collection-capabilities', 'Valchecker', 'Selective collection size and membership', 'Collection capability isolation', `
+import { createValchecker, isIncluding, isIncludingKey, isIncludingValue, isSizeAtLeast, isSizeAtMost, isSizeExactly, map, number, set, string, toSize } from 'valchecker'
+const v = createValchecker({ steps: [isIncluding, isIncludingKey, isIncludingValue, isSizeAtLeast, isSizeAtMost, isSizeExactly, map, number, set, string, toSize] })
+export const result = {
+	map: v.map({ key: v.string(), value: v.number() }).isSizeAtLeast(1).isIncludingKey('a').isIncludingValue(1).toSize().execute(new Map([['a', 1]])),
+	set: v.set(v.string()).isSizeAtMost(2).isSizeExactly(1).isIncluding('a').execute(new Set(['a'])),
+}
+`, {
+		requiredMarkers: ['isSizeAtLeast:expected_size_at_least', 'isSizeAtMost:expected_size_at_most', 'isSizeExactly:expected_size_exactly', 'isIncludingKey:expected_including_key', 'isIncludingValue:expected_including_value'],
+	}),
 	...[
 		['valchecker-full', 'Valchecker', 'valchecker'],
 		['zod3-full', 'Zod 3', 'zod3'],
@@ -278,6 +298,8 @@ function analyze(results) {
 	const unionShorthand = byId(results, 'valchecker-union-shorthand')
 	const collectionFree = byId(results, 'valchecker-collection-free')
 	const mapSetSelective = byId(results, 'valchecker-map-set-selective')
+	const collectionCapabilitiesFree = byId(results, 'valchecker-collection-capabilities-free')
+	const collectionCapabilities = byId(results, 'valchecker-collection-capabilities')
 	const comparisons = [
 		comparison(selectiveString, byId(results, 'zod4-string'), 'string pipeline'),
 		comparison(selectiveObject, byId(results, 'zod4-object'), 'object schema'),
@@ -294,6 +316,8 @@ function analyze(results) {
 	const unionProviderMarkersPresent = unionShorthand.retainedRequiredMarkers.length === unionShorthand.requiredMarkers.length
 	const collectionMarkersAbsent = collectionFree.retainedForbiddenMarkers.length === 0
 	const collectionMarkersPresent = mapSetSelective.retainedRequiredMarkers.length === mapSetSelective.requiredMarkers.length
+	const collectionCapabilityMarkersAbsent = collectionCapabilitiesFree.retainedForbiddenMarkers.length === 0
+	const collectionCapabilityMarkersPresent = collectionCapabilities.retainedRequiredMarkers.length === collectionCapabilities.requiredMarkers.length
 	const checks = [
 		{ name: 'Selective minimal chain is materially smaller than default v', passed: stringReduction >= 0.2, value: percent(stringReduction) },
 		{ name: 'Selective object schema is materially smaller than default v', passed: objectReduction >= 0.2, value: percent(objectReduction) },
@@ -303,6 +327,8 @@ function analyze(results) {
 		{ name: 'Union shorthand retains every registered provider marker', passed: unionProviderMarkersPresent, value: unionProviderMarkersPresent ? unionShorthand.retainedRequiredMarkers.join(', ') : `${unionShorthand.retainedRequiredMarkers.length}/${unionShorthand.requiredMarkers.length} retained` },
 		{ name: 'Selective builds without Map and Set exclude collection issue markers', passed: collectionMarkersAbsent, value: collectionMarkersAbsent ? 'none retained' : collectionFree.retainedForbiddenMarkers.join(', ') },
 		{ name: 'Selective Map and Set schemas retain every collection issue marker', passed: collectionMarkersPresent, value: collectionMarkersPresent ? mapSetSelective.retainedRequiredMarkers.join(', ') : `${mapSetSelective.retainedRequiredMarkers.length}/${mapSetSelective.requiredMarkers.length} retained` },
+		{ name: 'Collections without size/membership plugins exclude their issue markers', passed: collectionCapabilityMarkersAbsent, value: collectionCapabilityMarkersAbsent ? 'none retained' : collectionCapabilitiesFree.retainedForbiddenMarkers.join(', ') },
+		{ name: 'Selective collection size/membership retains every issue marker', passed: collectionCapabilityMarkersPresent, value: collectionCapabilityMarkersPresent ? collectionCapabilities.retainedRequiredMarkers.join(', ') : `${collectionCapabilities.retainedRequiredMarkers.length}/${collectionCapabilities.requiredMarkers.length} retained` },
 	]
 	return {
 		status: checks.every(check => check.passed) ? 'healthy' : 'needs-attention',
@@ -326,7 +352,7 @@ function markdown(report, concise = false) {
 	const context = `Generated with Rollup ${report.environment.rollup}, Terser ${report.environment.terser}, Node.js ${report.environment.node}. Brotli is the primary comparison metric.`
 	const body = concise
 		? table(report.results.filter(result => result.group === 'Minimal string pipeline'))
-		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Map and Set isolation', 'Full-library reference']
+		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Map and Set isolation', 'Collection capability isolation', 'Full-library reference']
 			.map(group => `## ${group}\n\n${table(report.results.filter(result => result.group === group))}`)
 			.join('\n\n')
 	return `# Tree-shaking ${concise ? 'summary' : 'report'}\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${body}\n\n${context}\n`

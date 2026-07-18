@@ -160,8 +160,9 @@ Built-in validations preserve the successful value.
 - `isInteger()` follows `Number.isInteger`.
 - `isFinite()` follows `Number.isFinite`.
 - `isNaN()` follows `Number.isNaN`.
-- `isEmpty()` checks `length === 0`.
-- `isNotEmpty()` checks `length > 0`.
+- `isEmpty()` checks the current output's numeric `length` or `size` for equality with zero.
+- `isNotEmpty()` checks the current output's numeric `length` or `size` for a value greater than zero.
+- `isSizeAtLeast()`, `isSizeAtMost()`, and `isSizeExactly()` apply to outputs with numeric `size`.
 - `isStartingWith()` and `isEndingWith()` follow the corresponding string methods.
 - `check()` is the generic validation escape hatch and may use a predicate, type guard, or typed `addIssue()` callback. Returned failures use `check:failed`; thrown or rejected callbacks use the operation issue `check:callback_failed`.
 
@@ -172,7 +173,7 @@ Concrete transformations use `toXxx` and replace the successful output value:
 - `toTrimmed()`, `toTrimmedStart()`, `toTrimmedEnd()`,
 - `toUppercase()`, `toLowercase()`,
 - `toSplit()`, `toSliced()`, `toSorted()`, `toFiltered()`,
-- `toLength()`, `toString()`,
+- `toLength()`, `toSize()`, `toString()`,
 - `toJSONValue()`, `toJSONString()`.
 
 `transform()` remains the generic arbitrary-output escape hatch. Callback exceptions use the operation issue `transform:callback_failed`. Array filter/sort callbacks and `toString()` similarly expose step-specific operation issues.
@@ -332,6 +333,12 @@ Fully synchronous child schemas preserve synchronous collection execution. After
 Outputs are newly constructed collections and do not mutate the input. If successful source items or keys transform to duplicate SameValueZero values, `set:duplicate_transformed_item` or `map:duplicate_transformed_key` is returned instead of silently reducing Set cardinality or applying Map last-write-wins behavior.
 
 The collection-level message participates as an enclosing structure message for owned and nested child issues after paths are prepended.
+
+Map and Set outputs support size-aware `isEmpty()` and `isNotEmpty()`. String and array failures retain `{ value, length }`, while Map and Set failures use `{ value, size }`; the observed property is read once and snapshotted in the issue payload.
+
+`isSizeAtLeast()`, `isSizeAtMost()`, and `isSizeExactly()` preserve the successful collection and compare only the named condition against its numeric `size`. They do not add implicit finite, integer, or non-negative policy to the configured operand. `toSize()` replaces the successful collection with its numeric size and emits no issue.
+
+Set membership uses `isIncluding(item)`. Map membership is explicit through `isIncludingKey(key)` and `isIncludingValue(value)`, avoiding key/value ambiguity. Membership uses SameValueZero semantics: `NaN` matches `NaN`, and `0` matches `-0`.
 
 ## Union semantics
 
