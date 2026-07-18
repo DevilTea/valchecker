@@ -21,7 +21,7 @@
 	"scripts": {
 		"api:surface": "tsx ./scripts/check-api-surface.ts",
 		"api:surface:update": "tsx ./scripts/check-api-surface.ts --write",
-		"build": "pnpm -r --filter='./packages/*' build",
+		"build": "tsx ./scripts/generate-step-option-call-migration.ts && pnpm -r --filter='./packages/*' build",
 		"stub": "pnpm -r --filter='./packages/*' stub",
 		"newpkg": "tsx ./scripts/newpkg.ts",
 		"publint": "pnpm -r --filter='./packages/*' exec publint",
