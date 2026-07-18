@@ -1,4 +1,4 @@
-name: Diagnose P0 Generation
+name: Generate P0 Steps
 
 on:
   pull_request:
@@ -8,10 +8,10 @@ on:
       - synchronize
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  Diagnose:
+  Generate:
     if: github.head_ref == 'agent/add-p0-steps'
     runs-on: ubuntu-24.04
     steps:
@@ -21,24 +21,64 @@ jobs:
           ref: agent/add-p0-steps
           fetch-depth: 0
 
+      - name: Detect pending generator
+        id: pending
+        shell: bash
+        run: |
+          if [[ -f scripts/apply-p0-steps.py ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup PNPM
+        if: steps.pending.outputs.run == 'true'
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 
       - name: Setup Node
+        if: steps.pending.outputs.run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
 
       - name: Install dependencies
+        if: steps.pending.outputs.run == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Generate steps and documentation
-        run: python scripts/apply-p0-steps.py
-
-      - name: Format changed files
-        shell: bash
+        if: steps.pending.outputs.run == 'true'
         run: |
-          set -o pipefail
+          python scripts/apply-p0-steps.py
+          python - <<'PY'
+          from pathlib import Path
+
+          for name, success in [
+              ('isDefined', "expect(schema.execute(1)).toEqual({ value: 1 })"),
+              ('isNonNull', "expect(schema.execute(undefined)).toEqual({ value: undefined })"),
+              ('isNonNullish', "expect(schema.execute('value')).toEqual({ value: 'value' })"),
+          ]:
+              path = Path(f'packages/internal/src/steps/{name}/{name}.test.ts')
+              source = path.read_text()
+              marker = "\t\texpectTypeOf<InferOutput<typeof schema>>()"
+              source = source.replace(marker, f"\t\t{success}\n{marker}")
+              path.write_text(source)
+
+          path = Path('packages/internal/src/steps/isOneOf/isOneOf.test.ts')
+          source = path.read_text().replace("\t\t(values as any)[1] = 1", "\t\tReflect.set(values, 1, 1)")
+          path.write_text(source)
+
+          path = Path('packages/internal/src/steps/toMapped/toMapped.test.ts')
+          source = path.read_text().replace(
+              "\t\tvalue.map = () => { throw error }",
+              "\t\tvalue.map = () => {\n\t\t\tthrow error\n\t\t}",
+          )
+          path.write_text(source)
+          PY
+          rm scripts/apply-p0-steps.py
+
+      - name: Format generated TypeScript
+        if: steps.pending.outputs.run == 'true'
+        run: |
           pnpm exec eslint --fix \
             packages/internal/src/steps/isDefined \
             packages/internal/src/steps/isEqualTo \
@@ -54,15 +94,43 @@ jobs:
             packages/internal/src/steps/isSafeInteger \
             packages/internal/src/steps/toMapped \
             packages/internal/src/steps/toNormalized \
-            packages/internal/src/steps/index.ts \
-            README.md CHANGELOG.md docs/api/overview.md docs/api/primitives.md docs/api/transforms.md \
-            2>&1 | tee p0-lint.log
+            packages/internal/src/steps/index.ts
 
-      - name: Upload lint diagnostics
-        if: always() && hashFiles('p0-lint.log') != ''
+      - name: Build and record API surface
+        if: steps.pending.outputs.run == 'true'
+        run: |
+          pnpm build
+          pnpm api:surface:update
+
+      - name: Validate generated change
+        if: steps.pending.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test:quality 2>&1 | tee p0-test-quality.log
+          pnpm typecheck 2>&1 | tee p0-typecheck.log
+          pnpm test 2>&1 | tee p0-test.log
+          pnpm docs:build 2>&1 | tee p0-docs.log
+          git diff --check
+
+      - name: Upload validation diagnostics
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: p0-generation-lint
-          path: p0-lint.log
-          if-no-files-found: error
+          name: p0-generation-validation
+          path: |
+            p0-test-quality.log
+            p0-typecheck.log
+            p0-test.log
+            p0-docs.log
+          if-no-files-found: ignore
           retention-days: 7
+
+      - name: Commit generated change
+        if: steps.pending.outputs.run == 'true' && success()
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "feat: add state-aware P0 validation steps"
+          git push origin HEAD:agent/add-p0-steps
