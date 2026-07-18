@@ -10,9 +10,6 @@ declare namespace Internal {
 	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
 		readonly thisArg?: any
 	}
-	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
-		readonly thisArg?: any
-	}
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -23,8 +20,9 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
-	 * Returns elements accepted by the predicate. The optional `thisArg` and message are supplied through the second options object.
-	 * Predicate exceptions emit `toFiltered:callback_failed` with item and index.
+	 * Returns elements accepted by the predicate. The optional `thisArg` and
+	 * message are supplied through the second options object. Predicate
+	 * exceptions emit `toFiltered:callback_failed` with item and index.
 	 */
 	toFiltered:
 		| DefineStepMethod<
