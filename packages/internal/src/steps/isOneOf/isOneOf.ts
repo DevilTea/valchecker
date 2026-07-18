@@ -6,6 +6,7 @@ declare namespace Internal {
 	export type Primitive = bigint | boolean | null | number | string | symbol | undefined
 	export type Comparable<T> = IsExactlyAnyOrUnknown<T> extends true ? Primitive : Extract<T, Primitive>
 	export type Narrow<T, Expected extends Primitive> = IsExactlyAnyOrUnknown<T> extends true ? Expected : Extract<T, Primitive> & Expected
+	export type Values<T extends Primitive = Primitive> = readonly [T, ...T[]]
 	export type Issue<T = unknown, Expected extends Primitive = Primitive> = ExecutionIssue<
 		'isOneOf:expected_one_of',
 		{ value: T, expectedValues: readonly Expected[] }
@@ -26,7 +27,7 @@ interface PluginDef extends TStepPluginDef {
 				? InferOutput<This> extends infer Output
 					? [Internal.Comparable<Output>] extends [never]
 						? never
-						: <const Values extends readonly Internal.Comparable<Output>[]>(
+						: <const Values extends Internal.Values<Internal.Comparable<Output>>>(
 							values: Values,
 							options?: StepOptions<Internal.Issue<Output, Values[number]>>,
 						) => Next<{
