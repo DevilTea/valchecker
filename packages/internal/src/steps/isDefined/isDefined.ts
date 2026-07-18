@@ -3,9 +3,11 @@ import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type Issue<T = unknown> = ExecutionIssue<'isDefined:expected_defined', { value: T }>
+	export type Issue = ExecutionIssue<'isDefined:expected_defined', { value: undefined }>
 	export type HasTarget<T> = IsExactlyAnyOrUnknown<T> extends true ? true : undefined extends T ? true : false
-	export type Narrow<T> = Exclude<T, undefined>
+	export type Narrow<T> = IsExactlyAnyOrUnknown<T> extends true
+		? NonNullable<unknown> | null
+		: Exclude<T, undefined>
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -21,9 +23,9 @@ interface PluginDef extends TStepPluginDef {
 			? InferExecutionContext<This>['initial'] extends false
 				? InferOutput<This> extends infer Output
 					? Internal.HasTarget<Output> extends true
-						? (options?: StepOptions<Internal.Issue<Output>>) => Next<{
+						? (options?: StepOptions<Internal.Issue>) => Next<{
 							output: Internal.Narrow<Output>
-							issue: Internal.Issue<Output>
+							issue: Internal.Issue
 						}, This>
 						: never
 					: never
@@ -42,7 +44,7 @@ export const isDefined = implStepPlugin<PluginDef>({
 			? success(value as any)
 			: failure(createIssue({
 					code: 'isDefined:expected_defined',
-					payload: { value },
+					payload: { value: value as undefined },
 					customMessage: options?.message,
 					defaultMessage: 'Expected a defined value.',
 				})))
