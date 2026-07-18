@@ -14,6 +14,11 @@ describe('default valchecker instance', () => {
 			identifier: v.string().toBigint(),
 			safeIdentifier: v.bigint().toSafeNumber(),
 			truthy: v.string().toBoolean(),
+			tags: v.set(v.string().toLowercase()),
+			scores: v.map({
+				key: v.string().toUppercase(),
+				value: v.number(),
+			}),
 		}).execute({
 			name: '  Ada  ',
 			age: '37',
@@ -22,6 +27,8 @@ describe('default valchecker instance', () => {
 			identifier: '42',
 			safeIdentifier: 7n,
 			truthy: 'false',
+			tags: new Set(['TS', 'JS']),
+			scores: new Map([['a', 1]]),
 		})
 
 		expect(result).toEqual({
@@ -33,6 +40,8 @@ describe('default valchecker instance', () => {
 				identifier: 42n,
 				safeIdentifier: 7,
 				truthy: true,
+				tags: new Set(['ts', 'js']),
+				scores: new Map([['A', 1]]),
 			},
 		})
 	})
