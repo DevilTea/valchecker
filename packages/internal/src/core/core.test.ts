@@ -62,6 +62,10 @@ const flowPlugin = implStepPlugin({
 			throw new Error('unreachable')
 		})
 	},
+	composeInitialIncrement: ({ utils, params: [amount], context }: any) => {
+		const schema = context.createInitialSchema('increment', [amount])
+		utils.addSuccessStep((value: unknown) => schema['~execute'](value))
+	},
 	contextFailure: ({ utils }: any) => {
 		utils.addSuccessStep(() => {
 			const issue = utils.issue(validationIssue('test:context'))
@@ -299,6 +303,13 @@ describe('Valchecker instance contracts', () => {
 		expect(v['~core'].runtimeSteps).toHaveLength(0)
 		expect(incremented['~core'].runtimeSteps).toHaveLength(1)
 		expect(chained['~core'].runtimeSteps).toHaveLength(3)
+	})
+
+	it('composes an initial schema from the same registry without inheriting the current chain', () => {
+		const v = createValchecker({ steps: [flowPlugin] }) as any
+		const schema = v.increment(10).composeInitialIncrement(2)
+
+		expect(schema.execute(1)).toEqual({ value: 13 })
 	})
 
 	it('runs success and failure steps only for their matching result variant', () => {

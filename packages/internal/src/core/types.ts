@@ -230,6 +230,10 @@ type CreateIssueContent<Issue extends AnyExecutionIssue> = {
 }[Issue['code']]
 
 // Impl
+interface StepMethodContext {
+	createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
+}
+
 export interface StepMethodUtils<
 	Input,
 	Output,
@@ -286,6 +290,7 @@ export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToInter
 								Def[M]['Meta']['SelfIssue']
 							>
 							params: MethodTuple[0]
+							context: StepMethodContext
 						},
 					) => void
 				: never

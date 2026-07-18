@@ -22,6 +22,10 @@ import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
 
+interface StepMethodContext {
+	createInitialSchema: (method: string, params?: readonly unknown[]) => any
+}
+
 type MessageData = {
 	code: string
 	category?: IssueCategory | undefined
@@ -619,6 +623,40 @@ function createExecutionStepMethodUtils(
 }
 
 /* @__NO_SIDE_EFFECTS__ */
+function createStepMethodContext({
+	stepMethods,
+	resolveMessage,
+}: {
+	stepMethods: Record<PropertyKey, unknown>
+	resolveMessage: ResolveMessageFn
+}): StepMethodContext {
+	const context: StepMethodContext = {
+		createInitialSchema: (method, params = []) => {
+			const stepMethod = stepMethods[method]
+			if (typeof stepMethod !== 'function')
+				throw new TypeError(`Required step method is not registered: ${method}`)
+
+			const runtimeSteps: RuntimeStep[] = []
+			stepMethod({
+				utils: createExecutionStepMethodUtils(
+					method,
+					runtimeSteps,
+					resolveMessage,
+				),
+				params: [...params],
+				context,
+			})
+			return createInstance({
+				stepMethods,
+				resolveMessage,
+				currentRuntimeSteps: runtimeSteps,
+			})
+		},
+	}
+	return context
+}
+
+/* @__NO_SIDE_EFFECTS__ */
 function createProxyHandler({
 	stepMethods,
 	resolveMessage,
@@ -628,6 +666,8 @@ function createProxyHandler({
 	resolveMessage: ResolveMessageFn
 	runtimeSteps: RuntimeStep[]
 }) {
+	const context = createStepMethodContext({ stepMethods, resolveMessage })
+
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
 			if (Object.hasOwn(stepMethods, p) === false)
@@ -643,6 +683,7 @@ function createProxyHandler({
 						resolveMessage,
 					),
 					params,
+					context,
 				})
 				return createInstance({
 					stepMethods,

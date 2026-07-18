@@ -1,6 +1,11 @@
 import type { AnyExecutionIssue, OperationMode, TStepPluginDef } from '../../core'
 import type { ValueOf } from '../../shared'
 
+export type HasRegisteredPlugin<
+	Registered extends TStepPluginDef,
+	Provider extends TStepPluginDef,
+> = [Extract<Registered, Provider>] extends [never] ? false : true
+
 export interface UnionShorthandResult {
 	operationMode: OperationMode
 	output: unknown

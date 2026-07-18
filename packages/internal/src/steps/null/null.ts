@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
+import type { HasRegisteredPlugin } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -8,7 +9,10 @@ type Meta = DefineStepMethodMeta<{
 	SelfIssue: ExecutionIssue<'null:expected_null', { value: unknown }>
 }>
 
+declare const nullPluginDefBrand: unique symbol
+
 interface PluginDef extends TStepPluginDef {
+	readonly [nullPluginDefBrand]: true
 	/**
 	 * ### Description:
 	 * Checks that the value is null.
@@ -65,3 +69,23 @@ export const null_ = implStepPlugin<PluginDef>({
 		)
 	},
 })
+
+declare module '../union/union-shorthand' {
+	interface UnionShorthandInputRegistry<Registered extends TStepPluginDef> {
+		null: HasRegisteredPlugin<Registered, PluginDef> extends true
+			? null
+			: never
+	}
+
+	interface UnionShorthandResultRegistry<Registered extends TStepPluginDef, Branch> {
+		null: HasRegisteredPlugin<Registered, PluginDef> extends true
+			? Branch extends null
+				? {
+					operationMode: 'sync'
+					output: null
+					issue: Meta['SelfIssue']
+				}
+				: never
+			: never
+	}
+}

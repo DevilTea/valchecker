@@ -1,34 +1,41 @@
 import type { IsEqual } from 'type-fest'
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
+import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
+
+interface UnionStepMethodContext {
+	createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
+}
 
 declare namespace Internal {
-	type Branches = [Use<Valchecker>, ...Use<Valchecker>[]]
+	type Branch<This extends Valchecker> =
+		| Use<Valchecker>
+		| UnionShorthandInput<InferRegisteredStepPluginDefs<This>>
 
-	type OpMode<B extends Branches> = (
-		B[number] extends infer S
-			? S extends Use<Valchecker>
-				? InferOperationMode<S>
-				: never
-			: never
-	) extends infer M extends OperationMode
+	type Branches<This extends Valchecker> = readonly [
+		Branch<This>,
+		...Branch<This>[],
+	]
+
+	type ResolveBranch<This extends Valchecker, Branch> = Branch extends Use<Valchecker>
+		? {
+				operationMode: InferOperationMode<Branch>
+				output: InferOutput<Branch>
+				issue: InferIssue<Branch>
+			}
+		: ResolveUnionShorthand<InferRegisteredStepPluginDefs<This>, Branch>
+
+	type Resolved<This extends Valchecker, B extends Branches<This>> = ResolveBranch<This, B[number]>
+
+	type OpMode<This extends Valchecker, B extends Branches<This>> = Resolved<This, B>['operationMode'] extends infer M extends OperationMode
 		? IsEqual<M, 'sync'> extends true
 			? 'sync'
 			: 'maybe-async'
 		: never
 
-	type Output<B extends Branches> = B[number] extends infer S
-		? S extends Use<Valchecker>
-			? InferOutput<S>
-			: never
-		: never
-
-	type Issue<B extends Branches> = B[number] extends infer S
-		? S extends Use<Valchecker>
-			? InferIssue<S>
-			: never
-		: never
+	type Output<This extends Valchecker, B extends Branches<This>> = Resolved<This, B>['output']
+	type Issue<This extends Valchecker, B extends Branches<This>> = Resolved<This, B>['issue']
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -42,19 +49,54 @@ interface PluginDef extends TStepPluginDef {
 	 * successful branch output. Failed branch issues receive a non-data
 	 * `{ type: 'union', branchIndex }` context entry. Internal failures stop
 	 * branch evaluation immediately.
+	 *
+	 * Registered `literal`, `null`, and `undefined` initial-schema steps also
+	 * enable their corresponding shorthand branch values.
 	 */
 	union: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? <B extends [Use<Valchecker>, ...Use<Valchecker>[]]>(
+			? <const B extends Internal.Branches<this['CurrentValchecker']>>(
 				branches: B,
 			) => Next<{
-				operationMode: Internal.OpMode<B>
-				output: Internal.Output<B>
-				issue: Internal.Issue<B>
+				operationMode: Internal.OpMode<this['CurrentValchecker'], B>
+				output: Internal.Output<this['CurrentValchecker'], B>
+				issue: Internal.Issue<this['CurrentValchecker'], B>
 			}, this['CurrentValchecker']>
 			: never
 	>
+}
+
+function isValcheckerSchema(value: unknown): value is Use<Valchecker> {
+	return (
+		typeof value === 'function'
+		|| (typeof value === 'object' && value !== null)
+	) && typeof Reflect.get(value, '~execute') === 'function'
+}
+
+function isLiteralShorthand(value: unknown): value is bigint | boolean | number | string | symbol {
+	const type = typeof value
+	return type === 'bigint'
+		|| type === 'boolean'
+		|| type === 'number'
+		|| type === 'string'
+		|| type === 'symbol'
+}
+
+function normalizeBranch(
+	branch: unknown,
+	index: number,
+	context: UnionStepMethodContext,
+): Use<Valchecker> {
+	if (isValcheckerSchema(branch))
+		return branch
+	if (branch === null)
+		return context.createInitialSchema('null')
+	if (branch === undefined)
+		return context.createInitialSchema('undefined')
+	if (isLiteralShorthand(branch))
+		return context.createInitialSchema('literal', [branch])
+	throw new TypeError(`Invalid union branch at index ${index}.`)
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -62,8 +104,17 @@ export const union = implStepPlugin<PluginDef>({
 	union: ({
 		utils: { addSuccessStep, appendIssueContext, failure, isFailure },
 		params: [branches],
+		context,
 	}) => {
-		const branchExecutors = branches.map(branch => branch['~execute'])
+		if (!Array.isArray(branches) || branches.length === 0)
+			throw new TypeError('union() requires at least one branch.')
+
+		const branchExecutors = new Array(branches.length)
+		for (let index = 0; index < branches.length; index++) {
+			if (!Object.hasOwn(branches, index))
+				throw new TypeError(`union() branch at index ${index} is missing.`)
+			branchExecutors[index] = normalizeBranch(branches[index], index, context)['~execute']
+		}
 		const len = branchExecutors.length
 
 		addSuccessStep((value) => {
