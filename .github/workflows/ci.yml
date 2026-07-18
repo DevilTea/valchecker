@@ -1,4 +1,4 @@
-name: Diagnose Step Options Migration
+name: Finalize Step Options Migration
 
 on:
   pull_request:
@@ -8,10 +8,10 @@ on:
       - synchronize
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  Diagnose:
+  Finalize:
     if: github.head_ref == 'agent/standardize-step-options-v2'
     runs-on: ubuntu-24.04
     steps:
@@ -32,13 +32,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply and inspect migration
+      - name: Apply call-site and native-call migration
+        run: pnpm build
+
+      - name: Normalize generated call syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for path in Path('.').rglob('*'):
+              if not path.is_file() or path.suffix not in {'.ts', '.tsx', '.mts', '.cts', '.md'}:
+                  continue
+              source = path.read_text()
+              normalized = source.replace('[],, message:', '[], message:')
+              if normalized != source:
+                  path.write_text(normalized)
+          PY
+
+      - name: Remove migration scaffolding
         shell: bash
         run: |
-          set +e
-          pnpm build > migration-build.log 2>&1
-          build_status=$?
-
           python - <<'PY'
           import json
           from pathlib import Path
@@ -51,24 +63,27 @@ jobs:
           rm -rf artifacts/step-option-call-migration
           git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
 
-          pnpm lint:fix > lint-fix.log 2>&1
-          lint_status=$?
+      - name: Record public API
+        run: |
+          pnpm build
+          pnpm api:surface:update
 
-          mkdir -p artifacts/finalize-diagnostics
-          cp migration-build.log lint-fix.log artifacts/finalize-diagnostics/
-          git diff -- . ':(exclude).github/workflows/ci.yml' > artifacts/finalize-diagnostics/migrated.patch
-          git ls-files -z | tar --null -czf artifacts/finalize-diagnostics/tracked-worktree.tar.gz -T -
-          printf 'build_status=%s\nlint_status=%s\n' "$build_status" "$lint_status" > artifacts/finalize-diagnostics/status.txt
+      - name: Validate migrated repository
+        run: |
+          pnpm test:quality
+          pnpm typecheck
+          pnpm test
+          pnpm docs:build
+          pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
+          pnpm --dir benchmarks verify
+          git diff --check
 
-          if [[ "$build_status" -ne 0 || "$lint_status" -ne 0 ]]; then
-            exit 1
-          fi
-
-      - name: Upload diagnostics
-        if: always() && hashFiles('artifacts/finalize-diagnostics/**') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: finalize-diagnostics
-          path: artifacts/finalize-diagnostics
-          if-no-files-found: error
-          retention-days: 7
+      - name: Squash migration history and push
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git reset --soft origin/main
+          git add -A
+          git commit -m "refactor!: standardize built-in step options"
+          git push --force origin HEAD:agent/standardize-step-options-v2
