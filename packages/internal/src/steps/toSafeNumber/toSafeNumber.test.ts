@@ -14,33 +14,45 @@ describe('toSafeNumber step plugin', () => {
 		[1n, 1],
 		[maximum, Number.MAX_SAFE_INTEGER],
 	] as const)('converts safe bigint %s', (value, expected) => {
-		expect(v.bigint().toSafeNumber().execute(value)).toEqual({ value: expected })
+		expect(v.bigint()
+			.toSafeNumber()
+			.execute(value))
+			.toEqual({ value: expected })
 	})
 
 	it.each([
 		minimum - 1n,
 		maximum + 1n,
 	])('rejects bigint outside the safe integer range: %s', (value) => {
-		expect(v.bigint().toSafeNumber().execute(value)).toEqual({
-			issues: [{
-				code: 'toSafeNumber:out_of_safe_integer_range',
-				category: 'validation',
-				message: 'Expected the bigint to be within the safe integer range.',
-				path: [],
-				payload: { value, minimum, maximum },
-			}],
-		})
+		expect(v.bigint()
+			.toSafeNumber()
+			.execute(value))
+			.toEqual({
+				issues: [{
+					code: 'toSafeNumber:out_of_safe_integer_range',
+					category: 'validation',
+					message: 'Expected the bigint to be within the safe integer range.',
+					path: [],
+					payload: { value, minimum, maximum },
+				}],
+			})
 	})
 
 	it('supports custom messages', () => {
-		expect(v.bigint().toSafeNumber('Custom safe range').execute(maximum + 1n)).toMatchObject({
-			issues: [{ message: 'Custom safe range' }],
-		})
+		expect(v.bigint()
+			.toSafeNumber({ message: 'Custom safe range' })
+			.execute(maximum + 1n))
+			.toMatchObject({
+				issues: [{ message: 'Custom safe range' }],
+			})
 	})
 
 	it('infers number output and is unavailable outside bigint()', () => {
-		const schema = v.bigint().toSafeNumber()
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<number>()
-		expectTypeOf(v.number().toSafeNumber).toBeNever()
+		const schema = v.bigint()
+			.toSafeNumber()
+		expectTypeOf<InferOutput<typeof schema>>()
+			.toEqualTypeOf<number>()
+		expectTypeOf(v.number().toSafeNumber)
+			.toBeNever()
 	})
 })

@@ -5,7 +5,9 @@ const v = createValchecker({ steps: [string, isLengthAtLeast] })
 
 describe('string step plugin', () => {
 	it.each(['hello', '', '你好'])('accepts string %p', (value) => {
-		expect(v.string().execute(value)).toEqual({ value })
+		expect(v.string()
+			.execute(value))
+			.toEqual({ value })
 	})
 
 	it.each([
@@ -18,39 +20,49 @@ describe('string step plugin', () => {
 		123n,
 		Symbol('test'),
 	])('rejects non-string %p', (value) => {
-		expect(v.string().execute(value)).toEqual({
-			issues: [{
-				code: 'string:expected_string',
-				category: 'validation',
-				message: 'Expected a string.',
-				path: [],
-				payload: { value },
-			}],
-		})
+		expect(v.string()
+			.execute(value))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: [],
+					payload: { value },
+				}],
+			})
 	})
 
 	it('supports custom messages', () => {
-		expect(v.string('Custom error message').execute(123)).toEqual({
-			issues: [{
-				code: 'string:expected_string',
-				category: 'validation',
-				message: 'Custom error message',
-				path: [],
-				payload: { value: 123 },
-			}],
-		})
+		expect(v.string({ message: 'Custom error message' })
+			.execute(123))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Custom error message',
+					path: [],
+					payload: { value: 123 },
+				}],
+			})
 	})
 
 	it('chains with length validation', () => {
-		expect(v.string().isLengthAtLeast(5).execute('hello')).toEqual({ value: 'hello' })
-		expect(v.string().isLengthAtLeast(5).execute('hi')).toEqual({
-			issues: [{
-				code: 'isLengthAtLeast:expected_length_at_least',
-				category: 'validation',
-				message: 'Expected a length of at least 5.',
-				path: [],
-				payload: { length: expect.any(Number), value: 'hi', minimum: 5 },
-			}],
-		})
+		expect(v.string()
+			.isLengthAtLeast(5)
+			.execute('hello'))
+			.toEqual({ value: 'hello' })
+		expect(v.string()
+			.isLengthAtLeast(5)
+			.execute('hi'))
+			.toEqual({
+				issues: [{
+					code: 'isLengthAtLeast:expected_length_at_least',
+					category: 'validation',
+					message: 'Expected a length of at least 5.',
+					path: [],
+					payload: { length: expect.any(Number), value: 'hi', minimum: 5 },
+				}],
+			})
 	})
 })

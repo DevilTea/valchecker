@@ -88,7 +88,8 @@ describe('toMappedBoolean step plugin', () => {
 		const schema = v.string().toMappedBoolean({
 			trueValues: ['enabled'],
 			falseValues: [],
-		}, 'Custom mapping')
+			message: 'Custom mapping',
+		})
 		expect(schema.execute('enabled')).toEqual({ value: true })
 		expect(schema.execute('disabled')).toMatchObject({
 			issues: [{ message: 'Custom mapping' }],

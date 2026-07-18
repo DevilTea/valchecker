@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -38,10 +38,10 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
-				? (message?: MessageHandler<Internal.Issue<CurrentOutput>>) => Next<
-					{ issue: Internal.Issue<CurrentOutput> },
-					this['CurrentValchecker']
-				>
+				? (options?: StepOptions<Internal.Issue<CurrentOutput>>) => Next<
+						{ issue: Internal.Issue<CurrentOutput> },
+						this['CurrentValchecker']
+					>
 				: never
 			: never
 	>
@@ -51,18 +51,18 @@ interface PluginDef extends TStepPluginDef {
 export const isEmpty = implStepPlugin<PluginDef>({
 	isEmpty: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep((value) => {
 			const length = value.length
 			return length === 0
 				? success(value)
 				: failure(createIssue({
-					code: 'isEmpty:expected_empty',
-					payload: { value, length },
-					customMessage: message,
-					defaultMessage: 'Expected an empty value.',
-				}))
+						code: 'isEmpty:expected_empty',
+						payload: { value, length },
+						customMessage: options?.message,
+						defaultMessage: 'Expected an empty value.',
+					}))
 		})
 	},
 })

@@ -37,6 +37,8 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Changed
 
+- Standardized all message-bearing built-in step parameters around trailing options objects and removed positional messages.
+
 - The supported runtime is Node.js 22 or newer.
 - Published packages are ESM-only. CommonJS consumers must use dynamic `import()`.
 - `execute()` now has a documented sync/maybe-async contract instead of being described as universally asynchronous.

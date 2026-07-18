@@ -1,5 +1,18 @@
 # Migrating to Valchecker 1.0
 
+## Step messages now use options objects
+
+All built-in positional message parameters have been removed before 1.0. Keep one required semantic operand positional and move the message into the trailing options object. Callback configuration such as `thisArg` and `compareFn` belongs to that object as well.
+
+```ts
+// Before
+v.number().isAtLeast(0, 'Must be non-negative.')
+v.array(v.string()).toFiltered(predicate, undefined, 'Filter failed.')
+
+// After
+v.number().isAtLeast(0, { message: 'Must be non-negative.' })
+v.array(v.string()).toFiltered(predicate, { message: 'Filter failed.' })
+```
 This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases.
 
 Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative post-migration behavior.
@@ -148,16 +161,21 @@ typeof value === 'number'
 Therefore all of these succeed:
 
 ```ts
-v.number().execute(Number.NaN)
-v.number().execute(Infinity)
-v.number().execute(-Infinity)
+v.number()
+	.execute(Number.NaN)
+v.number()
+	.execute(Infinity)
+v.number()
+	.execute(-Infinity)
 ```
 
 Add explicit constraints for application policy:
 
 ```ts
-const finite = v.number().isFinite()
-const integer = v.number().isInteger()
+const finite = v.number()
+	.isFinite()
+const integer = v.number()
+	.isInteger()
 const percentage = v.number()
 	.isFinite()
 	.isAtLeast(0)
@@ -171,23 +189,34 @@ Named validations enforce only their stated condition. `isAtLeast(0)` accepts po
 `looseNumber()` no longer duplicates the primitive `number()` check. It accepts a number or a string representation compatible with TypeScript's number template-literal type, then outputs a number.
 
 ```ts
-v.looseNumber().execute('1e3') // { value: 1000 }
-v.looseNumber().execute('0x10') // { value: 16 }
-v.looseNumber().execute('') // failure
-v.looseNumber().execute('Infinity') // failure
-v.looseNumber().execute(Infinity) // success
+v.looseNumber()
+	.execute('1e3') // { value: 1000 }
+v.looseNumber()
+	.execute('0x10') // { value: 16 }
+v.looseNumber()
+	.execute('') // failure
+v.looseNumber()
+	.execute('Infinity') // failure
+v.looseNumber()
+	.execute(Infinity) // success
 ```
 
 New initial schemas apply the same model:
 
 ```ts
-v.looseBoolean().execute('false') // { value: false }
-v.looseBoolean().execute('TRUE') // failure
-v.looseBoolean().execute(1) // failure
+v.looseBoolean()
+	.execute('false') // { value: false }
+v.looseBoolean()
+	.execute('TRUE') // failure
+v.looseBoolean()
+	.execute(1) // failure
 
-v.looseBigint().execute('-0x10') // { value: -16n }
-v.looseBigint().execute('01') // failure
-v.looseBigint().execute('1.0') // failure
+v.looseBigint()
+	.execute('-0x10') // { value: -16n }
+v.looseBigint()
+	.execute('01') // failure
+v.looseBigint()
+	.execute('1.0') // failure
 ```
 
 These are not unrestricted JavaScript constructor coercions.
@@ -213,13 +242,16 @@ Use modern TypeScript resolution such as `NodeNext` or `Bundler`.
 A synchronous schema returns directly:
 
 ```ts
-const result = v.string().toTrimmed().execute(' value ')
+const result = v.string()
+	.toTrimmed()
+	.execute(' value ')
 ```
 
 A callback-driven schema returns a promise only when asynchronous work is reached:
 
 ```ts
-const schema = v.string().check(async value => value.length > 0)
+const schema = v.string()
+	.check(async value => value.length > 0)
 
 schema.execute('value') // Promise<ExecutionResult<string>>
 schema.execute(42) // synchronous failure before callback

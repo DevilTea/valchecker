@@ -216,7 +216,7 @@ describe('literal step plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.literal('hello', () => 'Custom error message')
+			const result = v.literal('hello', { message: () => 'Custom error message' })
 				.execute('world')
 			expect(result)
 				.toEqual({

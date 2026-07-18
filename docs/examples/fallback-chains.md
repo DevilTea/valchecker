@@ -8,12 +8,14 @@ Use `fallback()` to recover from earlier pipeline failures with an explicit repl
 import { v } from 'valchecker'
 
 const payloadSchema = v.string()
-	.toJSONValue('Invalid JSON format')
+	.toJSONValue({ message: 'Invalid JSON format' })
 	.fallback(() => ({ items: [] }))
 	.use(v.object({
 		items: v.array(
 			v.object({
-				id: v.string().toTrimmed().isNotEmpty(),
+				id: v.string()
+					.toTrimmed()
+					.isNotEmpty(),
 				quantity: v.number()
 					.isFinite()
 					.isInteger()
@@ -57,13 +59,13 @@ Any earlier failure in a field pipeline triggers its fallback, including initial
 const phone = v.string()
 	.toTrimmed()
 	.transform(value => value.replace(/\D/g, ''))
-	.isLengthAtLeast(10, 'Phone number too short')
+	.isLengthAtLeast(10, { message: 'Phone number too short' })
 	.fallback(() => '')
 
 const email = v.string()
 	.toTrimmed()
 	.toLowercase()
-	.check(value => value.includes('@'), 'Invalid email format')
+	.check(value => value.includes('@'), { message: 'Invalid email format' })
 	.fallback(() => null)
 
 const form = v.object({
@@ -97,15 +99,12 @@ A later validation may fail after an earlier fallback has recovered:
 
 ```ts
 const schema = v.string()
-	.toJSONValue('Step 1: Invalid JSON')
+	.toJSONValue({ message: 'Step 1: Invalid JSON' })
 	.fallback(() => ({}))
-	.check(
-		(value): value is { items: unknown } =>
-			typeof value === 'object'
-			&& value !== null
-			&& 'items' in value,
-		'Step 2: Missing items',
-	)
+	.check((value): value is { items: unknown } =>
+		typeof value === 'object'
+		&& value !== null
+		&& 'items' in value, { message: 'Step 2: Missing items' })
 	.fallback(() => ({ items: [] }))
 ```
 

@@ -1,5 +1,5 @@
 import type { Class } from 'type-fest'
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 
@@ -38,7 +38,7 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
-				?	<C extends Class<any>>(class_: C, message?: MessageHandler<Internal.Issue<C>>) => Next<
+				?	<C extends Class<any>>(class_: C, options?: StepOptions<Internal.Issue<C>>) => Next<
 						{
 							output: InstanceType<C>
 							issue: Internal.Issue<C>
@@ -54,7 +54,7 @@ interface PluginDef extends TStepPluginDef {
 export const instance = implStepPlugin<PluginDef>({
 	instance: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [class_, message],
+		params: [class_, options],
 	}) => {
 		addSuccessStep(
 			value => value instanceof class_
@@ -63,7 +63,7 @@ export const instance = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'instance:expected_instance',
 							payload: { value, expected: class_ },
-							customMessage: message,
+							customMessage: options?.message,
 							defaultMessage: `Expected instance of ${class_.name}.`,
 						}),
 					),

@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -7,6 +7,9 @@ declare namespace Internal {
 		{ value: Input, left: Item, right: Item, error: unknown },
 		'operation'
 	>
+	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
+		readonly compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined
+	}
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -24,10 +27,7 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends infer Input extends any[]
-				? (
-					compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined,
-					message?: MessageHandler<Internal.Issue<Input>>,
-				) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, This>
+				? (options?: Internal.Options<Input>) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, This>
 				: never
 			: never
 	>
@@ -45,8 +45,9 @@ class SortCallbackError {
 export const toSorted = implStepPlugin<PluginDef>({
 	toSorted: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [compareFn, message],
+		params: [options],
 	}) => {
+		const compareFn = options?.compareFn
 		addSuccessStep((value) => {
 			if (compareFn == null)
 				return success(value.toSorted())
@@ -67,7 +68,7 @@ export const toSorted = implStepPlugin<PluginDef>({
 					code: 'toSorted:callback_failed',
 					category: 'operation',
 					payload: { value, left: error.left, right: error.right, error: error.error },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Sort callback failed.',
 				}))
 			}

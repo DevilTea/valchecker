@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -29,17 +29,17 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput
 				? <Result>(
-					run: Internal.RunTransform<CurrentOutput, Result>,
-					message?: MessageHandler<Internal.Issue<CurrentOutput>>,
-				) => Next<{
-					operationMode: IsEqual<IsPromise<Result>, true> extends true
-						? 'maybe-async'
-						: IsEqual<IsPromise<Result>, false> extends true
-							? 'sync'
-							: 'maybe-async'
-					output: Awaited<NoInfer<Result>>
-					issue: Internal.Issue<CurrentOutput>
-				}, this['CurrentValchecker']>
+						run: Internal.RunTransform<CurrentOutput, Result>,
+						options?: StepOptions<Internal.Issue<CurrentOutput>>,
+					) => Next<{
+						operationMode: IsEqual<IsPromise<Result>, true> extends true
+							? 'maybe-async'
+							: IsEqual<IsPromise<Result>, false> extends true
+								? 'sync'
+								: 'maybe-async'
+						output: Awaited<NoInfer<Result>>
+						issue: Internal.Issue<CurrentOutput>
+					}, this['CurrentValchecker']>
 				: never
 			: never
 	>
@@ -49,7 +49,7 @@ interface PluginDef extends TStepPluginDef {
 export const transform = implStepPlugin<PluginDef>({
 	transform: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [run, message],
+		params: [run, options],
 	}) => {
 		addSuccessStep((value) => {
 			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => failure(
@@ -57,14 +57,15 @@ export const transform = implStepPlugin<PluginDef>({
 					code: 'transform:callback_failed',
 					category: 'operation',
 					payload: { phase, value, error },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Transform callback failed.',
 				}),
 			)
 			try {
 				const result = run(value)
 				return isPromiseLike(result)
-					? Promise.resolve(result).then(success, error => callbackFailure('reject', error))
+					? Promise.resolve(result)
+							.then(success, error => callbackFailure('reject', error))
 					: success(result)
 			}
 			catch (error) {

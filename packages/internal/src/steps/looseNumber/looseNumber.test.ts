@@ -17,25 +17,31 @@ describe('looseNumber step plugin', () => {
 		['   ', 0],
 		['\n', 0],
 	])('normalizes %p to %p', (input, output) => {
-		expect(v.looseNumber().execute(input)).toEqual({ value: output })
+		expect(v.looseNumber()
+			.execute(input))
+			.toEqual({ value: output })
 	})
 
 	it.each(['', 'NaN', 'Infinity', '-Infinity', 'not-a-number', true, 1n])('rejects %p', (value) => {
-		const result = v.looseNumber().execute(value)
-		expect(result).toMatchObject({
-			issues: [{
-				code: 'looseNumber:expected_number',
-				category: 'validation',
-				message: 'Expected a number or number string.',
-				path: [],
-				payload: { value },
-			}],
-		})
+		const result = v.looseNumber()
+			.execute(value)
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'looseNumber:expected_number',
+					category: 'validation',
+					message: 'Expected a number or number string.',
+					path: [],
+					payload: { value },
+				}],
+			})
 	})
 
 	it('supports custom messages', () => {
-		expect(v.looseNumber('Custom loose number').execute('nope')).toMatchObject({
-			issues: [{ message: 'Custom loose number' }],
-		})
+		expect(v.looseNumber({ message: 'Custom loose number' })
+			.execute('nope'))
+			.toMatchObject({
+				issues: [{ message: 'Custom loose number' }],
+			})
 	})
 })

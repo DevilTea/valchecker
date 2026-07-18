@@ -130,7 +130,7 @@ const username = v.string()
 Generic validation or type-guard escape hatch. It intentionally retains `check()` because the callback defines the condition.
 
 ```ts
-v.string().check(value => value.includes('@'), 'Must contain @')
+v.string().check(value => value.includes('@'), { message: 'Must contain @' })
 ```
 
 ## Concrete transformations

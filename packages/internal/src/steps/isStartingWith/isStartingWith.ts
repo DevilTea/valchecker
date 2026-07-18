@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -31,7 +31,7 @@ interface PluginDef extends TStepPluginDef {
 	isStartingWith: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (prefix: string, message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? (prefix: string, options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{ issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
@@ -43,7 +43,7 @@ interface PluginDef extends TStepPluginDef {
 export const isStartingWith = implStepPlugin<PluginDef>({
 	isStartingWith: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [prefix, message],
+		params: [prefix, options],
 	}) => {
 		addSuccessStep(value => value.startsWith(prefix)
 			? success(value)
@@ -51,7 +51,7 @@ export const isStartingWith = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'isStartingWith:expected_starting_with',
 						payload: { value, prefix },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: `Expected the string to start with "${prefix}".`,
 					}),
 				))

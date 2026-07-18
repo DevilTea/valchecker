@@ -41,7 +41,9 @@ function expectedNumberIssue(value: unknown) {
 
 describe('fallback plugin', () => {
 	it('does not run when the previous step succeeds', () => {
-		expect(v.string().fallback(() => 'fallback').execute('hello'))
+		expect(v.string()
+			.fallback(() => 'fallback')
+			.execute('hello'))
 			.toEqual({ value: 'hello' })
 	})
 
@@ -53,28 +55,35 @@ describe('fallback plugin', () => {
 				return 42
 			})
 			.execute('bad')
-		expect(result).toEqual({ value: 42 })
-		expect(captured).toEqual([expectedNumberIssue('bad')])
+		expect(result)
+			.toEqual({ value: 42 })
+		expect(captured)
+			.toEqual([expectedNumberIssue('bad')])
 	})
 
 	it('supports asynchronous recovery', async () => {
-		await expect(v.number().fallback(async () => 42).execute('bad'))
+		await expect(v.number()
+			.fallback(async () => 42)
+			.execute('bad'))
 			.resolves.toEqual({ value: 42 })
 	})
 
 	it('bypasses the callback for internal failures', () => {
 		const run = vi.fn(() => 'recovered')
-		const result = v.fatal().fallback(run).execute('input')
+		const result = v.fatal()
+			.fallback(run)
+			.execute('input')
 		expect(run).not.toHaveBeenCalled()
-		expect(result).toEqual({
-			issues: [{
-				code: 'fatal:failed',
-				category: 'internal',
-				message: 'Fatal failure.',
-				path: [],
-				payload: { value: 'input' },
-			}],
-		})
+		expect(result)
+			.toEqual({
+				issues: [{
+					code: 'fatal:failed',
+					category: 'internal',
+					message: 'Fatal failure.',
+					path: [],
+					payload: { value: 'input' },
+				}],
+			})
 	})
 
 	it('preserves original issues when the callback throws', () => {
@@ -83,18 +92,19 @@ describe('fallback plugin', () => {
 		const result = v.number()
 			.fallback(() => { throw error })
 			.execute('bad')
-		expect(result).toEqual({
-			issues: [
-				original,
-				{
-					code: 'fallback:failed',
-					category: 'operation',
-					message: 'Fallback failed.',
-					path: [],
-					payload: { receivedIssues: [original], error },
-				},
-			],
-		})
+		expect(result)
+			.toEqual({
+				issues: [
+					original,
+					{
+						code: 'fallback:failed',
+						category: 'operation',
+						message: 'Fallback failed.',
+						path: [],
+						payload: { receivedIssues: [original], error },
+					},
+				],
+			})
 	})
 
 	it('preserves original issues when the callback rejects', async () => {
@@ -127,35 +137,38 @@ describe('fallback plugin', () => {
 				throw error
 			})
 			.execute('bad')
-		expect(result).toEqual({
-			issues: [
-				original,
-				{
-					code: 'fallback:failed',
-					category: 'operation',
-					message: 'Fallback failed.',
-					path: [],
-					payload: { receivedIssues: [original], error },
-				},
-			],
-		})
+		expect(result)
+			.toEqual({
+				issues: [
+					original,
+					{
+						code: 'fallback:failed',
+						category: 'operation',
+						message: 'Fallback failed.',
+						path: [],
+						payload: { receivedIssues: [original], error },
+					},
+				],
+			})
 	})
 
 	it('stores public-safe snapshots of the issues received by the callback', () => {
-		const result = v.number(() => 'Dynamic number issue')
+		const result = v.number({ message: () => 'Dynamic number issue' })
 			.fallback(() => { throw new Error('failure') })
 			.execute('bad')
-		expect(result).toMatchObject({
-			issues: [
-				{ code: 'number:expected_number', message: 'Dynamic number issue' },
-				{ code: 'fallback:failed' },
-			],
-		})
+		expect(result)
+			.toMatchObject({
+				issues: [
+					{ code: 'number:expected_number', message: 'Dynamic number issue' },
+					{ code: 'fallback:failed' },
+				],
+			})
 		if (v.isFailure(result)) {
 			const callbackIssue = result.issues[1]
 			if (callbackIssue?.code === 'fallback:failed') {
 				const snapshot = callbackIssue.payload.receivedIssues[0]!
-				expect(Object.getOwnPropertySymbols(snapshot)).toEqual([])
+				expect(Object.getOwnPropertySymbols(snapshot))
+					.toEqual([])
 				expect(snapshot.path).not.toBe(result.issues[0]!.path)
 			}
 		}
@@ -171,24 +184,26 @@ describe('fallback plugin', () => {
 		if (callbackIssue?.code !== 'fallback:failed')
 			throw new Error('Expected fallback issue')
 		const snapshot = callbackIssue.payload.receivedIssues[0]!
-		expect(snapshot.context).toEqual([{ type: 'union', branchIndex: 0 }])
+		expect(snapshot.context)
+			.toEqual([{ type: 'union', branchIndex: 0 }])
 		expect(snapshot.context).not.toBe(result.issues[0]!.context)
 	})
 
 	it('uses the callback failure message override', () => {
 		const original = expectedNumberIssue('bad')
 		const result = v.number()
-			.fallback(() => { throw new Error('failure') }, 'Custom fallback message')
+			.fallback(() => { throw new Error('failure') }, { message: 'Custom fallback message' })
 			.execute('bad')
-		expect(result).toMatchObject({
-			issues: [
-				original,
-				{
-					code: 'fallback:failed',
-					category: 'operation',
-					message: 'Custom fallback message',
-				},
-			],
-		})
+		expect(result)
+			.toMatchObject({
+				issues: [
+					original,
+					{
+						code: 'fallback:failed',
+						category: 'operation',
+						message: 'Custom fallback message',
+					},
+				],
+			})
 	})
 })

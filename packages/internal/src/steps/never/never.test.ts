@@ -268,7 +268,7 @@ describe('never step plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message', () => {
-			const result = v.never('Custom message')
+			const result = v.never({ message: 'Custom message' })
 				.execute(42)
 			expect(result)
 				.toEqual({

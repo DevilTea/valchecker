@@ -5,24 +5,33 @@ const v = createValchecker({ steps: [string, isEndingWith] })
 
 describe('isEndingWith step plugin', () => {
 	it('accepts matching suffixes', () => {
-		expect(v.string().isEndingWith('.txt').execute('file.txt')).toEqual({ value: 'file.txt' })
+		expect(v.string()
+			.isEndingWith('.txt')
+			.execute('file.txt'))
+			.toEqual({ value: 'file.txt' })
 	})
 
 	it('rejects non-matching suffixes', () => {
-		expect(v.string().isEndingWith('.txt').execute('file.md')).toEqual({
-			issues: [{
-				code: 'isEndingWith:expected_ending_with',
-				category: 'validation',
-				message: 'Expected the string to end with ".txt".',
-				path: [],
-				payload: { value: 'file.md', suffix: '.txt' },
-			}],
-		})
+		expect(v.string()
+			.isEndingWith('.txt')
+			.execute('file.md'))
+			.toEqual({
+				issues: [{
+					code: 'isEndingWith:expected_ending_with',
+					category: 'validation',
+					message: 'Expected the string to end with ".txt".',
+					path: [],
+					payload: { value: 'file.md', suffix: '.txt' },
+				}],
+			})
 	})
 
 	it('supports custom messages', () => {
-		expect(v.string().isEndingWith('.txt', 'Custom suffix').execute('file.md')).toMatchObject({
-			issues: [{ message: 'Custom suffix' }],
-		})
+		expect(v.string()
+			.isEndingWith('.txt', { message: 'Custom suffix' })
+			.execute('file.md'))
+			.toMatchObject({
+				issues: [{ message: 'Custom suffix' }],
+			})
 	})
 })

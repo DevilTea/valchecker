@@ -1,15 +1,15 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export interface Options<T> {
-		readonly trueValues: readonly T[]
-		readonly falseValues: readonly T[]
-	}
 	export type Issue<T = unknown> = ExecutionIssue<
 		'toMappedBoolean:unmapped_value',
 		{ value: T, trueValues: readonly T[], falseValues: readonly T[] }
 	>
+	export interface Options<T> extends StepOptions<Issue<T>> {
+		readonly trueValues: readonly T[]
+		readonly falseValues: readonly T[]
+	}
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -27,13 +27,10 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends infer CurrentOutput
-				? (
-					options: Internal.Options<CurrentOutput>,
-					message?: MessageHandler<Internal.Issue<CurrentOutput>>,
-				) => Next<{
-					output: boolean
-					issue: Internal.Issue<CurrentOutput>
-				}, This>
+				? (options: Internal.Options<CurrentOutput>) => Next<{
+						output: boolean
+						issue: Internal.Issue<CurrentOutput>
+					}, This>
 				: never
 			: never
 	>
@@ -43,7 +40,7 @@ interface PluginDef extends TStepPluginDef {
 export const toMappedBoolean = implStepPlugin<PluginDef>({
 	toMappedBoolean: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [options, message],
+		params: [options],
 	}) => {
 		if (options.trueValues.length === 0 && options.falseValues.length === 0)
 			throw new TypeError('toMappedBoolean() requires at least one configured value.')
@@ -69,7 +66,7 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 					trueValues: trueValuesSnapshot,
 					falseValues: falseValuesSnapshot,
 				},
-				customMessage: message,
+				customMessage: options.message,
 				defaultMessage: 'Expected the value to match a configured boolean mapping.',
 			}))
 		})

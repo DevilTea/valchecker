@@ -71,22 +71,30 @@ describe('message type contracts', () => {
 			steps: [bigint, isAtLeast, number, string],
 			message: (issue) => {
 				if (issue.code === 'string:expected_string') {
-					expectTypeOf(issue.category).toEqualTypeOf<'validation'>()
-					expectTypeOf(issue.payload.value).toEqualTypeOf<unknown>()
+					expectTypeOf(issue.category)
+						.toEqualTypeOf<'validation'>()
+					expectTypeOf(issue.payload.value)
+						.toEqualTypeOf<unknown>()
 				}
 				else if (issue.code === 'isAtLeast:expected_at_least') {
 					if (issue.payload.target === 'number') {
-						expectTypeOf(issue.payload.value).toEqualTypeOf<number>()
-						expectTypeOf(issue.payload.minimum).toEqualTypeOf<number>()
+						expectTypeOf(issue.payload.value)
+							.toEqualTypeOf<number>()
+						expectTypeOf(issue.payload.minimum)
+							.toEqualTypeOf<number>()
 					}
 					else {
-						expectTypeOf(issue.payload.value).toEqualTypeOf<bigint>()
-						expectTypeOf(issue.payload.minimum).toEqualTypeOf<bigint>()
+						expectTypeOf(issue.payload.value)
+							.toEqualTypeOf<bigint>()
+						expectTypeOf(issue.payload.minimum)
+							.toEqualTypeOf<bigint>()
 					}
 				}
 				else if (issue.code === 'core:message_exception') {
-					expectTypeOf(issue.category).toEqualTypeOf<'internal'>()
-					expectTypeOf(issue.payload.source).toEqualTypeOf<'step' | 'context' | 'global' | 'default'>()
+					expectTypeOf(issue.category)
+						.toEqualTypeOf<'internal'>()
+					expectTypeOf(issue.payload.source)
+						.toEqualTypeOf<'step' | 'context' | 'global' | 'default'>()
 				}
 				return null
 			},
@@ -98,10 +106,14 @@ describe('message type contracts', () => {
 			steps: [bigint, isAtLeast, number],
 			message: {
 				'isAtLeast:expected_at_least': ({ payload }) => {
-					if (payload.target === 'number')
-						expectTypeOf(payload.value).toEqualTypeOf<number>()
-					else
-						expectTypeOf(payload.value).toEqualTypeOf<bigint>()
+					if (payload.target === 'number') {
+						expectTypeOf(payload.value)
+							.toEqualTypeOf<number>()
+					}
+					else {
+						expectTypeOf(payload.value)
+							.toEqualTypeOf<bigint>()
+					}
 					return undefined
 				},
 				'core:unknown_exception': () => null,
@@ -123,25 +135,31 @@ describe('message type contracts', () => {
 	it('keeps step, structure-child, and custom-plugin handlers precise', () => {
 		const v = createValchecker({ steps: [custom, isAtLeast, number, object] })
 
-		v.number().isAtLeast(10, ({ payload }) => {
-			expectTypeOf(payload.target).toEqualTypeOf<'number'>()
-			expectTypeOf(payload.minimum).toEqualTypeOf<number>()
-			return null
-		})
+		v.number()
+			.isAtLeast(10, { message: ({ payload }) => {
+				expectTypeOf(payload.target)
+					.toEqualTypeOf<'number'>()
+				expectTypeOf(payload.minimum)
+					.toEqualTypeOf<number>()
+				return null
+			} })
 
-		v.object({ value: v.number() }, {
+		v.object({ value: v.number() }, { message: {
 			'number:expected_number': ({ payload, path }) => {
-				expectTypeOf(payload.value).toEqualTypeOf<unknown>()
-				expectTypeOf(path).toEqualTypeOf<PropertyKey[]>()
+				expectTypeOf(payload.value)
+					.toEqualTypeOf<unknown>()
+				expectTypeOf(path)
+					.toEqualTypeOf<PropertyKey[]>()
 				return undefined
 			},
-		})
+		} })
 
 		createValchecker({
 			steps: [custom],
 			message: {
 				'custom:failed': ({ payload }) => {
-					expectTypeOf(payload.value).toEqualTypeOf<number>()
+					expectTypeOf(payload.value)
+						.toEqualTypeOf<number>()
 					return String(payload.value)
 				},
 			},

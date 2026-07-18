@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -31,7 +31,7 @@ interface PluginDef extends TStepPluginDef {
 	toJSONValue: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? <T = unknown>(message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? <T = unknown>(options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{ output: T, issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
@@ -43,7 +43,7 @@ interface PluginDef extends TStepPluginDef {
 export const toJSONValue = implStepPlugin<PluginDef>({
 	toJSONValue: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep((value) => {
 			try {
@@ -54,7 +54,7 @@ export const toJSONValue = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'toJSONValue:invalid_json',
 						payload: { value, error },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: 'Expected a valid JSON string.',
 					}),
 				)

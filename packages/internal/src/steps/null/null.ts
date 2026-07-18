@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 
@@ -33,7 +33,7 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
-				?	(message?: MessageHandler<Meta['SelfIssue']>) => Next<
+				?	(options?: StepOptions<Meta['SelfIssue']>) => Next<
 						{
 							output: null
 							issue: Meta['SelfIssue']
@@ -49,7 +49,7 @@ interface PluginDef extends TStepPluginDef {
 export const null_ = implStepPlugin<PluginDef>({
 	null: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep(
 			value => value === null
@@ -58,7 +58,7 @@ export const null_ = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'null:expected_null',
 							payload: { value },
-							customMessage: message,
+							customMessage: options?.message,
 							defaultMessage: 'Expected null.',
 						}),
 					),

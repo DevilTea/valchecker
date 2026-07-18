@@ -12,11 +12,16 @@ import { v } from 'valchecker'
 ## Primitive identity
 
 ```ts
-v.string().execute('Alice') // success
-v.boolean().execute(true) // success
-v.bigint().execute(42n) // success
-v.number().execute(Number.NaN) // success
-v.number().execute(Infinity) // success
+v.string()
+	.execute('Alice') // success
+v.boolean()
+	.execute(true) // success
+v.bigint()
+	.execute(42n) // success
+v.number()
+	.execute(Number.NaN) // success
+v.number()
+	.execute(Infinity) // success
 ```
 
 Primitive initial schemas align with TypeScript identities. Add explicit validations for narrower runtime domains.
@@ -61,8 +66,13 @@ age.execute(Infinity) // failure
 Each constraint checks only its named condition:
 
 ```ts
-v.number().isAtLeast(0).execute(Infinity) // success
-v.number().isFinite().isAtLeast(0).execute(Infinity) // failure
+v.number()
+	.isAtLeast(0)
+	.execute(Infinity) // success
+v.number()
+	.isFinite()
+	.isAtLeast(0)
+	.execute(Infinity) // failure
 ```
 
 ## Loose primitive input
@@ -97,10 +107,17 @@ Loose primitives accept TypeScript-compatible string representations, not unrest
 
 ```ts
 const user = v.object({
-	id: v.string().isNotEmpty(),
-	name: v.string().toTrimmed().isNotEmpty(),
-	email: v.string().toLowercase(),
-	age: [v.number().isFinite().isInteger().isAtLeast(0)],
+	id: v.string()
+		.isNotEmpty(),
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty(),
+	email: v.string()
+		.toLowercase(),
+	age: [v.number()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0)],
 })
 
 const result = user.execute({
@@ -116,7 +133,8 @@ A one-element tuple marks a field optional. The output includes the declared pro
 
 ```ts
 const shape = {
-	name: v.string().toTrimmed(),
+	name: v.string()
+		.toTrimmed(),
 }
 
 v.object(shape) // unknown properties omitted from output
@@ -129,11 +147,13 @@ Declared properties are read from own properties only.
 ## Array validation
 
 ```ts
-const tags = v.array(v.string().toLowercase())
+const tags = v.array(v.string()
+	.toLowercase())
 	.isNotEmpty()
 	.isLengthAtMost(10)
 
-const coordinates = v.array(v.number().isFinite())
+const coordinates = v.array(v.number()
+	.isFinite())
 	.isLengthAtLeast(2)
 	.isLengthAtMost(2)
 ```
@@ -141,9 +161,10 @@ const coordinates = v.array(v.number().isFinite())
 Array transformations remain available after validation:
 
 ```ts
-const positiveSorted = v.array(v.number().isFinite())
+const positiveSorted = v.array(v.number()
+	.isFinite())
 	.toFiltered(value => value > 0)
-	.toSorted((a, b) => a - b)
+	.toSorted({ compareFn: (a, b) => a - b })
 
 positiveSorted.execute([3, -1, 2])
 // { value: [2, 3] }
@@ -153,7 +174,8 @@ positiveSorted.execute([3, -1, 2])
 
 ```ts
 const orderItem = v.object({
-	productId: v.string().isNotEmpty(),
+	productId: v.string()
+		.isNotEmpty(),
 	quantity: v.number()
 		.isFinite()
 		.isInteger()
@@ -164,9 +186,13 @@ const orderItem = v.object({
 })
 
 const order = v.object({
-	id: v.string().isNotEmpty(),
-	items: v.array(orderItem).isNotEmpty(),
-	total: v.number().isFinite().isAtLeast(0),
+	id: v.string()
+		.isNotEmpty(),
+	items: v.array(orderItem)
+		.isNotEmpty(),
+	total: v.number()
+		.isFinite()
+		.isAtLeast(0),
 })
 ```
 
@@ -176,19 +202,26 @@ Nested failures prepend object keys and array indices to issue paths.
 
 ```ts
 const identifier = v.union([
-	v.string().isNotEmpty(),
-	v.number().isFinite().isInteger().isAtLeast(1),
+	v.string()
+		.isNotEmpty(),
+	v.number()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(1),
 ])
 
 const event = v.union([
 	v.object({
 		type: v.literal('click'),
-		x: v.number().isFinite(),
-		y: v.number().isFinite(),
+		x: v.number()
+			.isFinite(),
+		y: v.number()
+			.isFinite(),
 	}),
 	v.object({
 		type: v.literal('keypress'),
-		key: v.string().isNotEmpty(),
+		key: v.string()
+			.isNotEmpty(),
 	}),
 ])
 ```
@@ -231,12 +264,14 @@ Use named steps when they precisely describe the operation. Use the generic esca
 
 ```ts
 const passwordConfirmation = v.object({
-	password: v.string().isLengthAtLeast(8),
+	password: v.string()
+		.isLengthAtLeast(8),
 	confirmation: v.string(),
-}).check(value =>
-	value.password === value.confirmation
+})
+	.check(value =>
+		value.password === value.confirmation
 		|| 'Passwords must match',
-)
+	)
 
 const record = v.string()
 	.transform(value => ({ raw: value }))
@@ -247,8 +282,11 @@ const record = v.string()
 ```ts
 const schema = v.object({
 	id: v.looseBigint(),
-	name: v.string().toTrimmed().isNotEmpty(),
-	tags: [v.array(v.string()).isLengthAtMost(10)],
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty(),
+	tags: [v.array(v.string())
+		.isLengthAtMost(10)],
 })
 
 type Output = InferOutput<typeof schema>

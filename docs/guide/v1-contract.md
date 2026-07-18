@@ -31,8 +31,13 @@ The normal application package exports:
 import { v } from 'valchecker'
 
 const schema = v.object({
-	name: v.string().toTrimmed().isNotEmpty(),
-	age: v.number().isFinite().isInteger().isAtLeast(0),
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty(),
+	age: v.number()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0),
 })
 ```
 
@@ -55,6 +60,19 @@ Built-in APIs communicate their role through naming:
 - concrete value transformations use `toXxx`,
 - generic high-level operations retain direct names such as `check` and `transform`,
 - flow-control and type utilities use their most direct semantic name.
+
+### Step parameter contract
+
+A message-bearing built-in step accepts at most one required semantic operand positionally. Optional configuration and `message` are supplied through one trailing options object. Message-only steps accept an optional options object, and configuration-object steps include `message` in that object. Positional messages are not part of the 1.0 API.
+
+```ts
+v.number()
+	.isAtLeast(0, { message: 'Expected a non-negative number.' })
+v.string()
+	.isNotEmpty({ message: 'Required.' })
+v.array(v.number())
+	.toSorted({ compareFn: (left, right) => left - right })
+```
 
 Examples:
 
@@ -84,9 +102,12 @@ Consequently, `number()` accepts finite numbers, `NaN`, `Infinity`, and `-Infini
 Runtime number policies are explicit validation steps:
 
 ```ts
-v.number().isFinite()
-v.number().isNaN()
-v.number().isInteger()
+v.number()
+	.isFinite()
+v.number()
+	.isNaN()
+v.number()
+	.isInteger()
 ```
 
 A validation enforces only its stated condition. `isAtLeast(0)` uses numeric comparison and accepts positive infinity. Finite non-negative numbers require `isFinite().isAtLeast(0)`.
@@ -106,18 +127,28 @@ They do not perform unrestricted JavaScript coercion.
 Normative examples:
 
 ```ts
-v.looseNumber().execute('1e3') // { value: 1000 }
-v.looseNumber().execute('') // failure
-v.looseNumber().execute('Infinity') // failure
-v.looseNumber().execute(Infinity) // success
+v.looseNumber()
+	.execute('1e3') // { value: 1000 }
+v.looseNumber()
+	.execute('') // failure
+v.looseNumber()
+	.execute('Infinity') // failure
+v.looseNumber()
+	.execute(Infinity) // success
 
-v.looseBoolean().execute('false') // { value: false }
-v.looseBoolean().execute('TRUE') // failure
-v.looseBoolean().execute(1) // failure
+v.looseBoolean()
+	.execute('false') // { value: false }
+v.looseBoolean()
+	.execute('TRUE') // failure
+v.looseBoolean()
+	.execute(1) // failure
 
-v.looseBigint().execute('-0x10') // { value: -16n }
-v.looseBigint().execute('01') // failure
-v.looseBigint().execute('1.0') // failure
+v.looseBigint()
+	.execute('-0x10') // { value: -16n }
+v.looseBigint()
+	.execute('01') // failure
+v.looseBigint()
+	.execute('1.0') // failure
 ```
 
 ## Validation contract
@@ -173,7 +204,8 @@ Schemas may therefore be shared and extended independently.
 - a callback-driven pipeline may be maybe-async because an earlier synchronous failure can bypass later asynchronous work.
 
 ```ts
-const maybeAsync = v.string().check(async value => value.length > 0)
+const maybeAsync = v.string()
+	.check(async value => value.length > 0)
 
 maybeAsync.execute('value') // Promise<ExecutionResult<string>>
 maybeAsync.execute(42) // synchronous type failure
@@ -190,8 +222,8 @@ Use direct execution when preserving synchronous behavior matters. Use `await` w
 ## Result contract
 
 ```ts
-type ExecutionSuccessResult<T> = { value: T }
-type ExecutionFailureResult<Issue> = {
+interface ExecutionSuccessResult<T> { value: T }
+interface ExecutionFailureResult<Issue> {
 	issues: [Issue, ...Issue[]]
 }
 
@@ -295,7 +327,8 @@ Earlier synchronous failures can complete before later asynchronous element work
 
 ```ts
 const schema = v.union([
-	v.string().transform(value => value.length),
+	v.string()
+		.transform(value => value.length),
 	v.number(),
 ])
 

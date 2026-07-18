@@ -239,7 +239,7 @@ await schema.execute('abc')
 
 ```ts
 const configSchema = v.string()
-	.toJSONValue('Invalid JSON')
+	.toJSONValue({ message: 'Invalid JSON' })
 	.fallback(() => ({ port: 3000 }))
 	.use(v.object({
 		port: v.number().isInteger().isAtLeast(1).isAtMost(65535),

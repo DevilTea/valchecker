@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -38,10 +38,10 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends bigint
 				? never
-				: (message?: MessageHandler<Meta['SelfIssue']>) => Next<{
-					output: bigint
-					issue: Meta['SelfIssue']
-				}, This>
+				: (options?: StepOptions<Meta['SelfIssue']>) => Next<{
+						output: bigint
+						issue: Meta['SelfIssue']
+					}, This>
 			: never
 	>
 }
@@ -50,7 +50,7 @@ interface PluginDef extends TStepPluginDef {
 export const toBigint = implStepPlugin<PluginDef>({
 	toBigint: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep((value) => {
 			try {
@@ -60,7 +60,7 @@ export const toBigint = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'toBigint:conversion_failed',
 					payload: { value, error },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Expected a value convertible to bigint.',
 				}))
 			}

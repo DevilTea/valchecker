@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 
@@ -33,7 +33,7 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
-				? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+				? (options?: StepOptions<Meta['SelfIssue']>) => Next<
 						{ output: bigint, issue: Meta['SelfIssue'] },
 						this['CurrentValchecker']
 					>
@@ -42,7 +42,7 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-const BIGINT_STRING_RE = /^(?:-?(?:0|[1-9]\d*)|-?0[xX][\da-fA-F]+|-?0[bB][01]+|-?0[oO][0-7]+)$/
+const BIGINT_STRING_RE = /^(?:-?(?:0|[1-9]\d*)|-?0x[\da-f]+|-?0b[01]+|-?0o[0-7]+)$/i
 
 function parseLooseBigint(value: unknown): bigint | undefined {
 	if (typeof value === 'bigint') {
@@ -62,7 +62,7 @@ function parseLooseBigint(value: unknown): bigint | undefined {
 export const looseBigint = implStepPlugin<PluginDef>({
 	looseBigint: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep((value) => {
 			const parsed = parseLooseBigint(value)
@@ -72,7 +72,7 @@ export const looseBigint = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'looseBigint:expected_bigint',
 							payload: { value },
-							customMessage: message,
+							customMessage: options?.message,
 							defaultMessage: 'Expected a bigint or bigint string.',
 						}),
 					)

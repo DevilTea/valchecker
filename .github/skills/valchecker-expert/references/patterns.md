@@ -8,14 +8,12 @@ const form = v.object({
 		.toTrimmed()
 		.toLowercase()
 		.isNotEmpty()
-		.check(value => value.includes('@'), 'Invalid email'),
+		.check(value => value.includes('@'), { message: 'Invalid email' }),
 	password: v.string()
 		.isLengthAtLeast(8)
-		.check(value => /[A-Z]/.test(value), 'Must contain uppercase'),
+		.check(value => /[A-Z]/.test(value), { message: 'Must contain uppercase' }),
 	confirmation: v.string(),
-}).check(
-	value => value.password === value.confirmation,
-	'Passwords must match',
+}).check(value => value.password === value.confirmation, { message: 'Passwords must match' }
 )
 ```
 
@@ -101,7 +99,7 @@ Add a cross-property `check()` when maximum must be greater than minimum.
 
 ```ts
 const configFromJSON = v.string()
-	.toJSONValue('Invalid JSON')
+	.toJSONValue({ message: 'Invalid JSON' })
 	.use(config)
 ```
 
@@ -139,7 +137,7 @@ Array transforms operate on transformed element outputs:
 ```ts
 const sortedPositive = v.array(v.number().isFinite())
 	.toFiltered(value => value > 0)
-	.toSorted((a, b) => a - b)
+	.toSorted({ compareFn: (a, b) => a - b })
 ```
 
 ## Literal unions

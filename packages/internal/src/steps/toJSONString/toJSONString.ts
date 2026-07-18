@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -34,10 +34,10 @@ interface PluginDef extends TStepPluginDef {
 	toJSONString: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-			? (message?: MessageHandler<Internal.Issue<InferOutput<This>>>) => Next<
-				{ output: string, issue: Internal.Issue<InferOutput<This>> },
-				This
-			>
+			? (options?: StepOptions<Internal.Issue<InferOutput<This>>>) => Next<
+					{ output: string, issue: Internal.Issue<InferOutput<This>> },
+					This
+				>
 			: never
 	>
 }
@@ -120,7 +120,7 @@ function prepareJSON(value: unknown): Prepared {
 				ancestors.delete(identity)
 				return { ok: false, type: 'operation', at, error }
 			}
-			const output = new Array(length)
+			const output = Array.from({ length })
 			for (let index = 0; index < length; index++) {
 				if (!Object.hasOwn(current, index)) {
 					output[index] = null
@@ -184,7 +184,7 @@ function prepareJSON(value: unknown): Prepared {
 export const toJSONString = implStepPlugin<PluginDef>({
 	toJSONString: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep((value) => {
 			const prepared = prepareJSON(value)
@@ -194,7 +194,7 @@ export const toJSONString = implStepPlugin<PluginDef>({
 						code: 'toJSONString:serialization_failed',
 						category: 'operation',
 						payload: { value, at: prepared.at, error: prepared.error },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: 'JSON serialization failed.',
 					}))
 				}
@@ -204,7 +204,7 @@ export const toJSONString = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'toJSONString:unserializable',
 					payload,
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Value cannot be serialized to JSON.',
 				}))
 			}
@@ -216,7 +216,7 @@ export const toJSONString = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'toJSONString:unserializable',
 					payload: { reason: 'undefined_result', value, at: [] },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Value cannot be serialized to JSON.',
 				}))
 			}
@@ -225,7 +225,7 @@ export const toJSONString = implStepPlugin<PluginDef>({
 					code: 'toJSONString:serialization_failed',
 					category: 'operation',
 					payload: { value, at: [], error },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'JSON serialization failed.',
 				}))
 			}

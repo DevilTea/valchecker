@@ -52,17 +52,15 @@ describe('isAtLeast step plugin', () => {
 	})
 
 	it('uses a custom message', () => {
-		expect(v.number().isAtLeast(0, 'Must be non-negative').execute(-1))
+		expect(v.number().isAtLeast(0, { message: 'Must be non-negative' }).execute(-1))
 			.toMatchObject({
 				issues: [{ message: 'Must be non-negative' }],
 			})
 	})
 
 	it('passes the typed payload to message handlers', () => {
-		const schema = v.number().isAtLeast(
-			0,
-			({ payload }) =>
-				`Expected ${payload.minimum}; received ${payload.value}`,
+		const schema = v.number().isAtLeast(0, { message: ({ payload }) =>
+				`Expected ${payload.minimum}; received ${payload.value}` }
 		)
 
 		expect(schema.execute(-1)).toMatchObject({

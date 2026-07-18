@@ -56,7 +56,7 @@ For arrays, filter before sorting when discarded elements do not need ordering:
 ```ts
 const values = v.array(v.number().isFinite())
 	.toFiltered(value => value > 0)
-	.toSorted((a, b) => a - b)
+	.toSorted({ compareFn: (a, b) => a - b })
 ```
 
 ## Use loose primitives deliberately

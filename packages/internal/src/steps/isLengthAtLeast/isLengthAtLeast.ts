@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace LengthAtLeastInternal {
@@ -42,10 +42,10 @@ interface LengthAtLeastPluginDef extends TStepPluginDef {
 		LengthAtLeastMeta,
 		this['CurrentValchecker'] extends LengthAtLeastMeta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
-				? (minimum: number, message?: MessageHandler<LengthAtLeastInternal.Issue<CurrentOutput>>) => Next<
-					{ issue: LengthAtLeastInternal.Issue<CurrentOutput> },
-					this['CurrentValchecker']
-				>
+				? (minimum: number, options?: StepOptions<LengthAtLeastInternal.Issue<CurrentOutput>>) => Next<
+						{ issue: LengthAtLeastInternal.Issue<CurrentOutput> },
+						this['CurrentValchecker']
+					>
 				: never
 			: never
 	>
@@ -55,18 +55,18 @@ interface LengthAtLeastPluginDef extends TStepPluginDef {
 export const isLengthAtLeast = implStepPlugin<LengthAtLeastPluginDef>({
 	isLengthAtLeast: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [minimum, message],
+		params: [minimum, options],
 	}) => {
 		addSuccessStep((value) => {
 			const length = value.length
 			return length >= minimum
 				? success(value)
 				: failure(createIssue({
-					code: 'isLengthAtLeast:expected_length_at_least',
-					payload: { value, minimum, length },
-					customMessage: message,
-					defaultMessage: `Expected a length of at least ${minimum}.`,
-				}))
+						code: 'isLengthAtLeast:expected_length_at_least',
+						payload: { value, minimum, length },
+						customMessage: options?.message,
+						defaultMessage: `Expected a length of at least ${minimum}.`,
+					}))
 		})
 	},
 })

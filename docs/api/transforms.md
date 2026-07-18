@@ -9,7 +9,9 @@ Concrete transformation steps use the `toXxx` prefix and replace the successful 
 Trims whitespace from both ends.
 
 ```ts
-v.string().toTrimmed().execute('  hello  ')
+v.string()
+	.toTrimmed()
+	.execute('  hello  ')
 // { value: 'hello' }
 ```
 
@@ -30,7 +32,9 @@ Converts a string to uppercase.
 Converts a string to lowercase.
 
 ```ts
-v.string().toLowercase().execute('USER@EXAMPLE.COM')
+v.string()
+	.toLowercase()
+	.execute('USER@EXAMPLE.COM')
 // { value: 'user@example.com' }
 ```
 
@@ -39,10 +43,14 @@ v.string().toLowercase().execute('USER@EXAMPLE.COM')
 Delegates to `String.prototype.split` and outputs a string array.
 
 ```ts
-v.string().toSplit(',').execute('a,b,c')
+v.string()
+	.toSplit(',')
+	.execute('a,b,c')
 // { value: ['a', 'b', 'c'] }
 
-v.string().toSplit(',', 2).execute('a,b,c')
+v.string()
+	.toSplit(',', 2)
+	.execute('a,b,c')
 // { value: ['a', 'b'] }
 ```
 
@@ -73,7 +81,7 @@ The failure payload is `{ value, left, right, error }`.
 
 ```ts
 v.array(v.number())
-	.toSorted((a, b) => a - b)
+	.toSorted({ compareFn: (a, b) => a - b })
 	.execute([3, 1, 2])
 // { value: [1, 2, 3] }
 ```
@@ -87,7 +95,9 @@ Returns a sliced output and forwards the arguments to the current value's `slice
 Replaces a length-bearing value with its numeric length.
 
 ```ts
-v.array(v.string()).toLength().execute(['a', 'b'])
+v.array(v.string())
+	.toLength()
+	.execute(['a', 'b'])
 // { value: 2 }
 ```
 
@@ -116,7 +126,9 @@ The generic type parameter is an output assertion; use `use()` after parsing whe
 const config = v.string()
 	.toJSONValue()
 	.use(v.object({
-		port: v.number().isFinite().isInteger(),
+		port: v.number()
+			.isFinite()
+			.isInteger(),
 	}))
 ```
 
@@ -147,19 +159,29 @@ Native primitive conversion steps are available after any output that is not alr
 Delegates directly to JavaScript `Number(value)`. It does not add parsing, finite-number, or precision-safety policy.
 
 ```ts
-v.string().toNumber().execute('42')
+v.string()
+	.toNumber()
+	.execute('42')
 // { value: 42 }
 
-v.string().toNumber().execute('invalid')
+v.string()
+	.toNumber()
+	.execute('invalid')
 // { value: NaN }
 
-v.string().toNumber().execute('Infinity')
+v.string()
+	.toNumber()
+	.execute('Infinity')
 // { value: Infinity }
 
-v.bigint().toNumber().execute(9007199254740993n)
+v.bigint()
+	.toNumber()
+	.execute(9007199254740993n)
 // { value: 9007199254740992 }
 
-v.unknown().toNumber().execute(null)
+v.unknown()
+	.toNumber()
+	.execute(null)
 // { value: 0 }
 ```
 
@@ -170,7 +192,9 @@ Native `Number()` exceptions become structured issues.
 Use subsequent validation when a narrower numeric domain is required:
 
 ```ts
-v.string().toNumber().isFinite()
+v.string()
+	.toNumber()
+	.isFinite()
 ```
 
 ### `toBoolean()`
@@ -178,16 +202,24 @@ v.string().toNumber().isFinite()
 Delegates directly to JavaScript `Boolean(value)` truthiness coercion. It does not parse semantic boolean strings.
 
 ```ts
-v.string().toBoolean().execute('false')
+v.string()
+	.toBoolean()
+	.execute('false')
 // { value: true }
 
-v.string().toBoolean().execute('')
+v.string()
+	.toBoolean()
+	.execute('')
 // { value: false }
 
-v.number().toBoolean().execute(0)
+v.number()
+	.toBoolean()
+	.execute(0)
 // { value: false }
 
-v.unknown().toBoolean().execute({})
+v.unknown()
+	.toBoolean()
+	.execute({})
 // { value: true }
 ```
 
@@ -200,13 +232,19 @@ Delegates directly to JavaScript `BigInt(value)`. Native conversion exceptions b
 **Issue code:** `toBigint:conversion_failed`
 
 ```ts
-v.string().toBigint().execute('42')
+v.string()
+	.toBigint()
+	.execute('42')
 // { value: 42n }
 
-v.boolean().toBigint().execute(true)
+v.boolean()
+	.toBigint()
+	.execute(true)
 // { value: 1n }
 
-v.number().toBigint().execute(1.5)
+v.number()
+	.toBigint()
+	.execute(1.5)
 // failure with toBigint:conversion_failed
 ```
 
@@ -217,10 +255,14 @@ Converts a bigint only when it is between `Number.MIN_SAFE_INTEGER` and `Number.
 **Issue code:** `toSafeNumber:out_of_safe_integer_range`
 
 ```ts
-v.bigint().toSafeNumber().execute(42n)
+v.bigint()
+	.toSafeNumber()
+	.execute(42n)
 // { value: 42 }
 
-v.bigint().toSafeNumber().execute(9007199254740992n)
+v.bigint()
+	.toSafeNumber()
+	.execute(9007199254740992n)
 // failure with toSafeNumber:out_of_safe_integer_range
 ```
 
@@ -231,16 +273,20 @@ Use `toNumber()` when native bigint precision loss is acceptable.
 Maps configured values to booleans without implicit coercion, trimming, or case normalization.
 
 ```ts
-v.string().toMappedBoolean({
-	trueValues: ['Y', 'yes'],
-	falseValues: ['N', 'no'],
-}).execute('Y')
+v.string()
+	.toMappedBoolean({
+		trueValues: ['Y', 'yes'],
+		falseValues: ['N', 'no'],
+	})
+	.execute('Y')
 // { value: true }
 
-v.number().toMappedBoolean({
-	trueValues: [1],
-	falseValues: [0],
-}).execute(0)
+v.number()
+	.toMappedBoolean({
+		trueValues: [1],
+		falseValues: [0],
+	})
+	.execute(0)
 // { value: false }
 ```
 
@@ -275,7 +321,9 @@ Calls the current value's `toString` method and preserves its native parameters 
 The failure payload is `{ value, error }`. Because arguments belong to the native `toString` method, this step has no trailing per-step message parameter; global and code-map message handlers still receive the typed issue.
 
 ```ts
-v.number().toString(16).execute(255)
+v.number()
+	.toString(16)
+	.execute(255)
 // { value: 'ff' }
 ```
 

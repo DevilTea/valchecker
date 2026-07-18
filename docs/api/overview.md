@@ -38,6 +38,8 @@ const v = createValchecker({
 - Generic high-level steps retain `check()` and `transform()`.
 - Flow-control and type-level utilities use their most direct names.
 
+Message-bearing steps place their message and optional configuration in a trailing options object. A single required semantic operand remains positional. For example, use `isAtLeast(0, { message })`, `isFinite({ message })`, and `toFiltered(predicate, { thisArg, message })`.
+
 ## Primitive validators
 
 - `string()` — string values
@@ -171,9 +173,11 @@ else {
 `execute()` preserves synchronous and maybe-asynchronous completion:
 
 ```ts
-const synchronousResult = v.string().execute('value')
+const synchronousResult = v.string()
+	.execute('value')
 
-const maybeAsyncSchema = v.string().check(async value => value.length > 0)
+const maybeAsyncSchema = v.string()
+	.check(async value => value.length > 0)
 const reachedAsyncWork = maybeAsyncSchema.execute('value')
 const earlyFailure = maybeAsyncSchema.execute(42)
 ```
@@ -187,7 +191,7 @@ Every step returns a new immutable schema:
 ```ts
 const schema = v.string()
 	.toTrimmed()
-	.isNotEmpty('Required')
+	.isNotEmpty({ message: 'Required' })
 	.toLowercase()
 ```
 

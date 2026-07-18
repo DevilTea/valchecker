@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -14,10 +14,10 @@ declare namespace Internal {
 				: never
 	}> extends infer M
 		? [M] extends [never]
-			? 'sync'
-			: M extends OperationMode
-				? IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
-				: never
+				? 'sync'
+				: M extends OperationMode
+					? IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
+					: never
 		: never
 
 	export type Output<S extends Struct> = Simplify<
@@ -63,13 +63,13 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? <S extends Internal.Struct>(
-					struct: S,
-					message?: MessageHandler<Internal.Issue<NoInfer<S>>>,
-				) => Next<{
-					operationMode: Internal.OpMode<NoInfer<S>>
-					output: Internal.Output<NoInfer<S>>
-					issue: Internal.Issue<NoInfer<S>>
-				}, this['CurrentValchecker']>
+						struct: S,
+						options?: StepOptions<Internal.Issue<NoInfer<S>>>,
+					) => Next<{
+						operationMode: Internal.OpMode<NoInfer<S>>
+						output: Internal.Output<NoInfer<S>>
+						issue: Internal.Issue<NoInfer<S>>
+					}, this['CurrentValchecker']>
 				: never
 			: never
 	>
@@ -96,7 +96,7 @@ function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, valu
 export const looseObject = implStepPlugin<PluginDef>({
 	looseObject: ({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
-		params: [struct, message],
+		params: [struct, options],
 	}) => {
 		const keys: PropertyKey[] = Object.keys(struct)
 		const symbols = Object.getOwnPropertySymbols(struct)
@@ -121,7 +121,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'looseObject:expected_object',
 					payload: { value },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Expected an object.',
 				}))
 			}
@@ -135,14 +135,15 @@ export const looseObject = implStepPlugin<PluginDef>({
 			for (let i = 0; i < keysLen; i++) {
 				const { key, isOptional, execute } = propsMeta[i]!
 				if (!Object.hasOwn(value, key)) {
-					if (isOptional)
+					if (isOptional) {
 						setOutputValue(output, key, undefined)
+					}
 					else {
 						issues.push(createIssue({
 							code: 'looseObject:missing_key',
 							payload: { key },
 							path: [key],
-							customMessage: message,
+							customMessage: options?.message,
 							defaultMessage: 'Missing required object key.',
 						}))
 					}
@@ -159,14 +160,15 @@ export const looseObject = implStepPlugin<PluginDef>({
 								resolved = await result
 							}
 							else if (!Object.hasOwn(value, meta.key)) {
-								if (meta.isOptional)
+								if (meta.isOptional) {
 									setOutputValue(output, meta.key, undefined)
+								}
 								else {
 									issues.push(createIssue({
 										code: 'looseObject:missing_key',
 										payload: { key: meta.key },
 										path: [meta.key],
-										customMessage: message,
+										customMessage: options?.message,
 										defaultMessage: 'Missing required object key.',
 									}))
 								}
@@ -181,7 +183,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 								for (const issue of resolved.issues) {
 									if (issue.category === 'internal')
 										hasInternal = true
-									issues.push(prependIssuePath(issue, [meta.key], message))
+									issues.push(prependIssuePath(issue, [meta.key], options?.message))
 								}
 								if (hasInternal)
 									return failure(issues)
@@ -199,7 +201,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 					for (const issue of result.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
-						issues.push(prependIssuePath(issue, [key], message))
+						issues.push(prependIssuePath(issue, [key], options?.message))
 					}
 					if (hasInternal)
 						return failure(issues)

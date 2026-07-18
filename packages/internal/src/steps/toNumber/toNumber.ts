@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -35,7 +35,7 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends number
 				? never
-				: (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+				: (options?: StepOptions<Meta['SelfIssue']>) => Next<
 						{
 							output: number
 							issue: Meta['SelfIssue']
@@ -50,7 +50,7 @@ interface PluginDef extends TStepPluginDef {
 export const toNumber = implStepPlugin<PluginDef>({
 	toNumber: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep((value) => {
 			try {
@@ -61,7 +61,7 @@ export const toNumber = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'toNumber:conversion_failed',
 						payload: { value, error },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: 'Expected a value convertible to number.',
 					}),
 				)

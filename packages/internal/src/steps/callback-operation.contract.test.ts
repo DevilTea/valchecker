@@ -21,28 +21,34 @@ describe('callback operation family contracts', () => {
 		const syncError = new Error('sync')
 		const asyncError = new Error('async')
 
-		expect(v.transform(() => { throw syncError }).execute('value')).toMatchObject({
-			issues: [{
-				code: 'transform:callback_failed',
-				category: 'operation',
-				payload: { phase: 'throw', value: 'value', error: syncError },
-			}],
-		})
-		await expect(v.transform(async () => { throw asyncError }).execute('value')).resolves.toMatchObject({
+		expect(v.transform(() => { throw syncError })
+			.execute('value'))
+			.toMatchObject({
+				issues: [{
+					code: 'transform:callback_failed',
+					category: 'operation',
+					payload: { phase: 'throw', value: 'value', error: syncError },
+				}],
+			})
+		await expect(v.transform(async () => { throw asyncError })
+			.execute('value')).resolves.toMatchObject({
 			issues: [{
 				code: 'transform:callback_failed',
 				category: 'operation',
 				payload: { phase: 'reject', value: 'value', error: asyncError },
 			}],
 		})
-		expect(v.check(() => { throw syncError }).execute('value')).toMatchObject({
-			issues: [{
-				code: 'check:callback_failed',
-				category: 'operation',
-				payload: { phase: 'throw', value: 'value', error: syncError },
-			}],
-		})
-		await expect(v.check(async () => { throw asyncError }).execute('value')).resolves.toMatchObject({
+		expect(v.check(() => { throw syncError })
+			.execute('value'))
+			.toMatchObject({
+				issues: [{
+					code: 'check:callback_failed',
+					category: 'operation',
+					payload: { phase: 'throw', value: 'value', error: syncError },
+				}],
+			})
+		await expect(v.check(async () => { throw asyncError })
+			.execute('value')).resolves.toMatchObject({
 			issues: [{
 				code: 'check:callback_failed',
 				category: 'operation',
@@ -53,38 +59,44 @@ describe('callback operation family contracts', () => {
 
 	it('retains callback operands in filter and sort operation issues', () => {
 		const filterError = new Error('filter')
-		expect(v.array(v.any()).toFiltered((item: number, index) => {
-			if (index === 1)
-				throw filterError
-			return item > 0
-		}).execute([1, 2, 3])).toMatchObject({
-			issues: [{
-				code: 'toFiltered:callback_failed',
-				category: 'operation',
-				payload: {
-					value: [1, 2, 3],
-					item: 2,
-					index: 1,
-					error: filterError,
-				},
-			}],
-		})
+		expect(v.array(v.any())
+			.toFiltered((item: number, index) => {
+				if (index === 1)
+					throw filterError
+				return item > 0
+			})
+			.execute([1, 2, 3]))
+			.toMatchObject({
+				issues: [{
+					code: 'toFiltered:callback_failed',
+					category: 'operation',
+					payload: {
+						value: [1, 2, 3],
+						item: 2,
+						index: 1,
+						error: filterError,
+					},
+				}],
+			})
 
 		const sortError = new Error('sort')
-		expect(v.array(v.any()).toSorted((left: number, right: number) => {
-			throw sortError
-		}).execute([2, 1])).toMatchObject({
-			issues: [{
-				code: 'toSorted:callback_failed',
-				category: 'operation',
-				payload: {
-					value: [2, 1],
-					left: expect.any(Number),
-					right: expect.any(Number),
-					error: sortError,
-				},
-			}],
-		})
+		expect(v.array(v.any())
+			.toSorted({ compareFn: (left: number, right: number) => {
+				throw sortError
+			} })
+			.execute([2, 1]))
+			.toMatchObject({
+				issues: [{
+					code: 'toSorted:callback_failed',
+					category: 'operation',
+					payload: {
+						value: [2, 1],
+						left: expect.any(Number),
+						right: expect.any(Number),
+						error: sortError,
+					},
+				}],
+			})
 	})
 
 	it('keeps explicitly added check issues before a callback failure', async () => {

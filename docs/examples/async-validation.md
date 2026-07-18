@@ -10,12 +10,9 @@ import { v } from 'valchecker'
 const usernameSchema = v.string()
 	.toLowercase()
 	.toTrimmed()
-	.isLengthAtLeast(3, 'Username must be at least 3 characters')
-	.isLengthAtMost(32, 'Username must not exceed 32 characters')
-	.check(
-		value => /^[a-z0-9_-]+$/.test(value),
-		'Username can only contain lowercase letters, numbers, hyphens, and underscores',
-	)
+	.isLengthAtLeast(3, { message: 'Username must be at least 3 characters' })
+	.isLengthAtMost(32, { message: 'Username must not exceed 32 characters' })
+	.check(value => /^[a-z0-9_-]+$/.test(value), { message: 'Username can only contain lowercase letters, numbers, hyphens, and underscores' })
 	.check(async (value) => {
 		const exists = await db.users.exists({ username: value })
 		return exists ? 'Username is already taken' : true
@@ -42,7 +39,7 @@ const emailSchema = v.string()
 	.toLowercase()
 	.toTrimmed()
 	.isNotEmpty()
-	.check(value => value.includes('@'), 'Must be a valid email')
+	.check(value => value.includes('@'), { message: 'Must be a valid email' })
 	.check(async (value) => {
 		const [isDisposable, isBanned] = await Promise.all([
 			disposableEmailService.check(value),
@@ -62,7 +59,8 @@ const emailSchema = v.string()
 A callback-driven schema can be maybe-async:
 
 ```ts
-const schema = v.string().check(async value => value.length > 0)
+const schema = v.string()
+	.check(async value => value.length > 0)
 
 schema.execute('value')
 // Promise<ExecutionResult<string>> because the callback is reached
@@ -87,10 +85,11 @@ Callbacks may return supported `PromiseLike` values. Valchecker assimilates nati
 ### Keep checks idempotent
 
 ```ts
-const safe = v.string().check(async (value) => {
-	const exists = await db.users.exists({ email: value })
-	return exists ? 'Email already registered' : true
-})
+const safe = v.string()
+	.check(async (value) => {
+		const exists = await db.users.exists({ email: value })
+		return exists ? 'Email already registered' : true
+	})
 ```
 
 Do not use a validation callback as the only place that performs irreversible writes.
@@ -98,16 +97,17 @@ Do not use a validation callback as the only place that performs irreversible wr
 ### Handle infrastructure failure deliberately
 
 ```ts
-const schema = v.string().check(async (value) => {
-	try {
-		const exists = await db.users.exists({ username: value })
-		return exists ? 'Username taken' : true
-	}
-	catch (error) {
-		logger.error('Username availability check failed', error)
-		return 'Unable to verify username availability'
-	}
-})
+const schema = v.string()
+	.check(async (value) => {
+		try {
+			const exists = await db.users.exists({ username: value })
+			return exists ? 'Username taken' : true
+		}
+		catch (error) {
+			logger.error('Username availability check failed', error)
+			return 'Unable to verify username availability'
+		}
+	})
 ```
 
 Decide whether infrastructure failure should reject validation, use a fallback, or propagate through an application-specific boundary.
@@ -117,14 +117,15 @@ Decide whether infrastructure failure should reject validation, use a fallback, 
 ```ts
 const cache = new Map<string, boolean>()
 
-const schema = v.string().check(async (value) => {
-	if (cache.has(value))
-		return cache.get(value)! ? 'Email already exists' : true
+const schema = v.string()
+	.check(async (value) => {
+		if (cache.has(value))
+			return cache.get(value)! ? 'Email already exists' : true
 
-	const exists = await db.users.exists({ email: value })
-	cache.set(value, exists)
-	return exists ? 'Email already exists' : true
-})
+		const exists = await db.users.exists({ email: value })
+		cache.set(value, exists)
+		return exists ? 'Email already exists' : true
+	})
 ```
 
 Account for expiry and race conditions.

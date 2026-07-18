@@ -12,18 +12,17 @@ Built-in issues:
 - `check:callback_failed` — category `operation`; payload is `{ phase: 'throw' | 'reject', value, error }`.
 
 ```ts
-const positive = v.number().check(
-	value => value > 0,
-	'Must be positive',
-)
+const positive = v.number()
+	.check(value => value > 0, { message: 'Must be positive' })
 ```
 
 Type-guard overloads narrow the output type:
 
 ```ts
-const schema = v.unknown().check(
-	(value): value is string => typeof value === 'string',
-)
+const schema = v.unknown()
+	.check(
+		(value): value is string => typeof value === 'string',
+	)
 ```
 
 Declare `AddedIssue` when `addIssue()` introduces a domain issue. The added issue remains in the inferred issue union and in the message-handler union:
@@ -36,18 +35,19 @@ type ReservedIssue = ExecutionIssue<
 	{ value: string }
 >
 
-const username = v.string().check<ReservedIssue>((value, { addIssue }) => {
-	if (value === 'admin') {
-		addIssue({
-			code: 'domain:reserved_name',
-			category: 'validation',
-			payload: { value },
-			message: 'This name is reserved.',
-			path: [],
-		})
-	}
-	return true
-})
+const username = v.string()
+	.check<ReservedIssue>((value, { addIssue }) => {
+		if (value === 'admin') {
+			addIssue({
+				code: 'domain:reserved_name',
+				category: 'validation',
+				payload: { value },
+				message: 'This name is reserved.',
+				path: [],
+			})
+		}
+		return true
+	})
 ```
 
 If a callback throws or rejects after adding issues, Valchecker preserves those issues and appends `check:callback_failed`.
@@ -55,8 +55,12 @@ If a callback throws or rejects after adding issues, Valchecker preserves those 
 Use built-in named validations when available:
 
 ```ts
-v.string().isLengthAtLeast(3).isLengthAtMost(20)
-v.number().isFinite().isAtLeast(0)
+v.string()
+	.isLengthAtLeast(3)
+	.isLengthAtMost(20)
+v.number()
+	.isFinite()
+	.isAtLeast(0)
 ```
 
 ## `transform(fn, message?)`
@@ -101,7 +105,8 @@ const normalizedName = v.string()
 	.toLowercase()
 
 const user = v.object({
-	name: v.unknown().use(normalizedName),
+	name: v.unknown()
+		.use(normalizedName),
 })
 ```
 
@@ -115,7 +120,7 @@ const port = v.number()
 	.isAtMost(65535)
 
 const config = v.string()
-	.toJSONValue('Invalid JSON')
+	.toJSONValue({ message: 'Invalid JSON' })
 	.use(v.object({ port }))
 ```
 
@@ -124,7 +129,8 @@ const config = v.string()
 Changes only the compile-time output type. It performs no runtime validation or transformation.
 
 ```ts
-const schema = v.unknown().as<string>()
+const schema = v.unknown()
+	.as<string>()
 ```
 
 Use it only when an external invariant already guarantees the asserted type.
@@ -172,14 +178,20 @@ v.looseBigint() // bigint | `${bigint}` → bigint
 They accept only their documented TypeScript-compatible representations:
 
 ```ts
-v.looseNumber().execute('42') // { value: 42 }
-v.looseNumber().execute('') // failure
+v.looseNumber()
+	.execute('42') // { value: 42 }
+v.looseNumber()
+	.execute('') // failure
 
-v.looseBoolean().execute('false') // { value: false }
-v.looseBoolean().execute(1) // failure
+v.looseBoolean()
+	.execute('false') // { value: false }
+v.looseBoolean()
+	.execute(1) // failure
 
-v.looseBigint().execute('0x10') // { value: 16n }
-v.looseBigint().execute('1.0') // failure
+v.looseBigint()
+	.execute('0x10') // { value: 16n }
+v.looseBigint()
+	.execute('1.0') // failure
 ```
 
 ## `looseObject(shape)`
@@ -217,9 +229,9 @@ Message priority:
 4. `"Invalid value."`.
 
 ```ts
-v.number().isAtLeast(1, ({ payload }) =>
-	`Expected at least ${payload.minimum}, received ${payload.value}`,
-)
+v.number()
+	.isAtLeast(1, { message: ({ payload }) =>
+		`Expected at least ${payload.minimum}, received ${payload.value}` })
 ```
 
 ## Working with results

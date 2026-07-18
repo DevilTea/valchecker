@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { hasInternalIssue } from '../../core/core'
@@ -29,16 +29,16 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends infer CurrentOutput
 				? <Result extends MaybePromiseLike<CurrentOutput>>(
-					run: (issues: [InferIssue<This>, ...InferIssue<This>[]]) => Result,
-					message?: MessageHandler<Internal.Issue<InferIssue<This>>>,
-				) => Next<{
-					operationMode: IsEqual<IsPromise<Result>, true> extends true
-						? 'maybe-async'
-						: IsEqual<IsPromise<Result>, false> extends true
-							? 'sync'
-							: 'maybe-async'
-					issue: Internal.Issue<InferIssue<This>>
-				}, This>
+						run: (issues: [InferIssue<This>, ...InferIssue<This>[]]) => Result,
+						options?: StepOptions<Internal.Issue<InferIssue<This>>>,
+					) => Next<{
+						operationMode: IsEqual<IsPromise<Result>, true> extends true
+							? 'maybe-async'
+							: IsEqual<IsPromise<Result>, false> extends true
+								? 'sync'
+								: 'maybe-async'
+						issue: Internal.Issue<InferIssue<This>>
+					}, This>
 				: never
 			: never
 	>
@@ -62,7 +62,7 @@ function snapshotReceivedIssues<Issue extends AnyExecutionIssue>(
 export const fallback = implStepPlugin<PluginDef>({
 	fallback: ({
 		utils: { addFailureStep, success, createIssue, failure },
-		params: [run, message],
+		params: [run, options],
 	}) => {
 		addFailureStep((issues) => {
 			if (hasInternalIssue(issues))
@@ -75,7 +75,7 @@ export const fallback = implStepPlugin<PluginDef>({
 					code: 'fallback:failed',
 					category: 'operation',
 					payload: { receivedIssues: snapshotReceivedIssues(issues), error },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Fallback failed.',
 				})
 				return failure([...issues, fallbackIssue])
@@ -85,8 +85,8 @@ export const fallback = implStepPlugin<PluginDef>({
 				const result = run(callbackIssues)
 				return isPromiseLike(result)
 					? Promise.resolve(result)
-						.then(value => success(value))
-						.catch(handleError)
+							.then(value => success(value))
+							.catch(handleError)
 					: success(result)
 			}
 			catch (error) {

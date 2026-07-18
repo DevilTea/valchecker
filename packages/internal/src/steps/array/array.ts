@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, Next, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -42,7 +42,7 @@ interface PluginDef extends TStepPluginDef {
 			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				?	<Item extends Use<Valchecker>>(
 						item: Item,
-						message?: MessageHandler<Meta['SelfIssue']>,
+						options?: StepOptions<Meta['SelfIssue']>,
 					) => Next<
 						{
 							operationMode: Internal.OpMode<Item>
@@ -60,14 +60,14 @@ interface PluginDef extends TStepPluginDef {
 export const array = implStepPlugin<PluginDef>({
 	array: ({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
-		params: [item, message],
+		params: [item, options],
 	}) => {
 		addSuccessStep((value) => {
 			if (Array.isArray(value) === false) {
 				return failure(createIssue({
 					code: 'array:expected_array',
 					payload: { value },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Expected an array.',
 				}))
 			}

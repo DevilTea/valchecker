@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace LengthAtMostInternal {
@@ -42,10 +42,10 @@ interface LengthAtMostPluginDef extends TStepPluginDef {
 		LengthAtMostMeta,
 		this['CurrentValchecker'] extends LengthAtMostMeta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
-				? (maximum: number, message?: MessageHandler<LengthAtMostInternal.Issue<CurrentOutput>>) => Next<
-					{ issue: LengthAtMostInternal.Issue<CurrentOutput> },
-					this['CurrentValchecker']
-				>
+				? (maximum: number, options?: StepOptions<LengthAtMostInternal.Issue<CurrentOutput>>) => Next<
+						{ issue: LengthAtMostInternal.Issue<CurrentOutput> },
+						this['CurrentValchecker']
+					>
 				: never
 			: never
 	>
@@ -55,18 +55,18 @@ interface LengthAtMostPluginDef extends TStepPluginDef {
 export const isLengthAtMost = implStepPlugin<LengthAtMostPluginDef>({
 	isLengthAtMost: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [maximum, message],
+		params: [maximum, options],
 	}) => {
 		addSuccessStep((value) => {
 			const length = value.length
 			return length <= maximum
 				? success(value)
 				: failure(createIssue({
-					code: 'isLengthAtMost:expected_length_at_most',
-					payload: { value, maximum, length },
-					customMessage: message,
-					defaultMessage: `Expected a length of at most ${maximum}.`,
-				}))
+						code: 'isLengthAtMost:expected_length_at_most',
+						payload: { value, maximum, length },
+						customMessage: options?.message,
+						defaultMessage: `Expected a length of at most ${maximum}.`,
+					}))
 		})
 	},
 })

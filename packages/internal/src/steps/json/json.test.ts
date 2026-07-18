@@ -164,7 +164,7 @@ describe('json plugin', () => {
 		it('should use custom message for invalid input', () => {
 			const result = v
 				.string()
-				.json('Custom error message')
+				.json({ message: 'Custom error message' })
 				.execute('')
 			expect(result)
 				.toEqual({
