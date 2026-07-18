@@ -9,13 +9,16 @@ describe('isNonNull step plugin', () => {
 		const schema = v.union([v.string(), v.null(), v.undefined()]).isNonNull()
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string | undefined>()
 		expect(schema.execute(undefined)).toEqual({ value: undefined })
-		expect(schema.execute(null)).toMatchObject({ issues: [{ code: 'isNonNull:expected_non_null' }] })
+		expect(schema.execute(null)).toMatchObject({
+			issues: [{ code: 'isNonNull:expected_non_null', payload: { value: null } }],
+		})
 	})
 
-	it('supports unknown input and custom messages', () => {
-		expect(v.unknown().isNonNull({ message: 'Null forbidden' }).execute(null)).toMatchObject({
-			issues: [{ message: 'Null forbidden' }],
-		})
+	it('narrows unknown output and supports custom messages', () => {
+		const schema = v.unknown().isNonNull({ message: 'Null forbidden' })
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<NonNullable<unknown> | undefined>()
+		expect(schema.execute(undefined)).toEqual({ value: undefined })
+		expect(schema.execute(null)).toMatchObject({ issues: [{ message: 'Null forbidden' }] })
 	})
 
 	it('is hidden when null is impossible', () => {
