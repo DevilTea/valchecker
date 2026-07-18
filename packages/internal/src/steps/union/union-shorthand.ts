@@ -1,16 +1,12 @@
 import type { AnyExecutionIssue, OperationMode, TStepPluginDef } from '../../core'
 
-export interface UnionShorthandResult {
-	operationMode: OperationMode
-	output: unknown
-	issue: AnyExecutionIssue
-}
-
 /** Type-state carrier implemented by a step plugin that contributes union shorthand. */
 export interface TUnionShorthandDef {
 	branch: unknown
 	input: unknown
-	result: UnionShorthandResult
+	operationMode: OperationMode
+	output: unknown
+	issue: AnyExecutionIssue
 }
 
 type RegisteredUnionShorthandDef<
@@ -24,7 +20,13 @@ export type UnionShorthandInput<
 > = RegisteredUnionShorthandDef<Registered>['input']
 
 type ApplyUnionShorthand<Def, Branch> = Def extends TUnionShorthandDef
-	? (Def & { branch: Branch })['result']
+	? Def & { branch: Branch } extends infer Applied extends TUnionShorthandDef
+		? {
+			operationMode: Applied['operationMode']
+			output: Applied['output']
+			issue: Applied['issue']
+		}
+		: never
 	: never
 
 export type ResolveUnionShorthand<
