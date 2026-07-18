@@ -224,6 +224,20 @@ const scores = v.map({
 
 Collection child schemas run in insertion order and return new transformed collections. Map key/value failures use `[index, 'key']` and `[index, 'value']`; Set item failures use `[index]`. Transformed Map keys and Set items must remain unique under SameValueZero, so validation fails rather than silently losing data.
 
+```ts
+const requiredTags = tags
+	.isNotEmpty()
+	.isSizeAtMost(5)
+	.isIncluding('required')
+
+const scoreCount = scores
+	.isIncludingKey('primary')
+	.isIncludingValue(1)
+	.toSize()
+```
+
+Size validations preserve the collection and snapshot the observed `size` in failure payloads. `toSize()` replaces the collection with its numeric size. Set and Map membership follow SameValueZero equality.
+
 ## Composition
 
 ### Union
