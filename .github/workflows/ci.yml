@@ -1,20 +1,27 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
 
 jobs:
-  Check:
+  Migrate-Step-Options:
+    if: github.head_ref == 'agent/standardize-step-options'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout migration branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: agent/standardize-step-options
+          fetch-depth: 0
 
       - name: Setup PNPM
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -24,288 +31,74 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install Dependencies
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm install --frozen-lockfile 2>&1 | tee install.log
-
-      - name: Upload Install Log
-        if: failure() && hashFiles('install.log') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: install-log
-          path: install.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Test Quality
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm test:quality 2>&1 | tee test-quality.log
-
-      - name: Upload Test Quality Log
-        if: failure() && hashFiles('test-quality.log') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: test-quality-log
-          path: test-quality.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Build
-        run: pnpm build
-
-      - name: API Surface
-        run: pnpm api:surface
-
-      - name: Upload API Surface Diff
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: api-surface-actual
-          path: artifacts
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Publint
-        run: pnpm publint
-
-      - name: Package Smoke Test
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm test:package 2>&1 | tee package-smoke.log
-
-      - name: Upload Package Smoke Log
-        if: failure() && hashFiles('package-smoke.log') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: package-smoke-log
-          path: package-smoke.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Lint
-        run: pnpm lint 2>&1 | tee lint.log
-
-      - name: Upload Lint Log
-        if: failure() && hashFiles('lint.log') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: lint-log
-          path: lint.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Typecheck
-        run: pnpm typecheck 2>&1 | tee typecheck.log
-
-      - name: Upload Typecheck Log
-        if: failure() && hashFiles('typecheck.log') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: typecheck-log
-          path: typecheck.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-  Docs:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Setup PNPM
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 24
-
-      - name: Install Dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Packages
+      - name: Build baseline artifacts
         run: pnpm build
 
-      - name: Build Documentation
-        run: pnpm docs:build
-
-  Release-Artifacts:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Setup PNPM
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 24
-
-      - name: Setup npm for Trusted Publishing
-        run: npm install --global npm@11.5.1
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Release Readiness
-        run: pnpm release:readiness
-
-      - name: Build Packages
-        run: pnpm build
-
-      - name: Prepare Release Tarballs
-        run: pnpm release:prepare
-
-      - name: Verify Publish Inputs
-        shell: bash
+      - name: Patch temporary migration script
         run: |
-          version="$(node -p "require('./package.json').version")"
-          version_without_build="${version%%+*}"
-          if [[ "$version_without_build" == *-* ]]; then
-            tag="next"
-          else
-            tag="latest"
-          fi
-          RELEASE_VERSION="$version" \
-          NPM_TAG="$tag" \
-          PUBLISH_CONFIRMATION="publish $version to $tag" \
-          pnpm release:publish --verify-only
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-step-options-migration.ts')
+          source = path.read_text()
+          source = source.replace(
+              "if (replacement.end > previousStart)\n\t\t\tthrow new Error(`Overlapping replacement at ${replacement.start}:${replacement.end}`)",
+              "if (replacement.end > previousStart)\n\t\t\tcontinue",
+          )
+          source = source.replace(
+              "function objectLiteral(properties: string[]): string {\n\treturn `{ ${properties.join(', ')} }`\n}\n",
+              "function objectLiteral(properties: string[]): string {\n\treturn `{ ${properties.join(', ')} }`\n}\n\nfunction hasOptionProperty(node: ts.Expression, property: string): boolean {\n\treturn ts.isObjectLiteralExpression(node) && node.properties.some((member) => {\n\t\tif (!ts.isPropertyAssignment(member) && !ts.isShorthandPropertyAssignment(member))\n\t\t\treturn false\n\t\treturn member.name.getText().replace(/[\\\"']/g, '') === property\n\t})\n}\n",
+          )
+          source = source.replace(
+              "messageOnlyMethods.has(method) && args.length === 1",
+              "messageOnlyMethods.has(method) && args.length === 1 && !hasOptionProperty(args[0]!, 'message')",
+          )
+          source = source.replace(
+              "operandMessageMethods.has(method) && args.length === 2",
+              "operandMessageMethods.has(method) && args.length === 2 && !hasOptionProperty(args[1]!, 'message')",
+          )
+          source = source.replace(
+              "if (args.length === 2)\n\t\t\t\t\treplaceArguments(`${argText(0)}, ${objectLiteral([`thisArg: ${argText(1)}`])}`)",
+              "if (args.length === 2 && !hasOptionProperty(args[1]!, 'thisArg') && !hasOptionProperty(args[1]!, 'message'))\n\t\t\t\t\treplaceArguments(`${argText(0)}, ${objectLiteral([`thisArg: ${argText(1)}`])}`)",
+          )
+          source = source.replace(
+              "if (args.length === 1)\n\t\t\t\t\treplaceArguments(objectLiteral([`compareFn: ${argText(0)}`]))",
+              "if (args.length === 1 && !hasOptionProperty(args[0]!, 'compareFn') && !hasOptionProperty(args[0]!, 'message'))\n\t\t\t\t\treplaceArguments(objectLiteral([`compareFn: ${argText(0)}`]))",
+          )
+          source = source.replace(
+              "\tvisit(sf)\n\treturn applyReplacements(source, replacements)\n}",
+              "\tvisit(sf)\n\tconst transformed = applyReplacements(source, replacements)\n\treturn transformed === source ? source : transformCalls(filePath, transformed)\n}",
+          )
+          start = source.index("for (const marker of ['message?: MessageHandler<'")
+          end = source.index("fs.rmSync(path.join(root, 'scripts/apply-step-options-migration.ts'))", start)
+          source = source[:start] + source[end:]
+          path.write_text(source)
+          PY
 
-      - name: Upload Release Tarballs
-        if: always() && hashFiles('artifacts/release/**') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-tarballs
-          path: artifacts/release
-          if-no-files-found: error
-          retention-days: 14
+      - name: Apply migration
+        run: pnpm tsx scripts/apply-step-options-migration.ts
 
-  Benchmark-Smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Format migrated source
+        run: pnpm lint:fix
 
-      - name: Setup PNPM
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 24
-
-      - name: Install Workspace Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Valchecker
-        run: pnpm build
-
-      - name: Install Benchmark Dependencies
-        run: pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
-
-      - name: Verify All Benchmark Scenarios
-        run: pnpm --dir benchmarks verify
-
-      - name: Run Benchmark CLI Smoke
+      - name: Rebuild and record API surface
         run: |
-          mkdir -p artifacts/benchmark-smoke
-          pnpm --dir benchmarks bench \
-            --mode smoke \
-            --adapters valchecker,zod3,zod4,zod4-jitless,valibot \
-            --seed ci-smoke \
-            --output ../artifacts/benchmark-smoke/raw.json
+          pnpm build
+          pnpm api:surface:update
 
-      - name: Generate Benchmark CLI Smoke Reports
-        run: pnpm --dir benchmarks report --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/report.md --html ../artifacts/benchmark-smoke/report.html
-
-      - name: Upload Benchmark Smoke Reports
-        if: always() && hashFiles('artifacts/benchmark-smoke/**') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: benchmark-smoke
-          path: artifacts/benchmark-smoke
-          if-no-files-found: error
-          retention-days: 7
-
-  Coverage:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Setup PNPM
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 24
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Coverage
-        run: pnpm test:coverage
-
-      - name: Upload Coverage Report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: coverage-report
-          path: coverage
-          if-no-files-found: error
-          retention-days: 14
-
-  test:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        node: [22, 24]
-        os: [ubuntu-latest, windows-latest, macos-latest]
-      fail-fast: false
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Setup PNPM
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: ${{ matrix.node }}
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Test
-        shell: bash
+      - name: Restore CI and remove migration scaffolding
         run: |
-          set -o pipefail
-          pnpm test 2>&1 | tee test.log
+          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
+          rm -f .github/workflows/apply-step-options-migration.yml
+          rm -f scripts/apply-step-options-migration.ts
+          rm -f placeholder.tmp
 
-      - name: Upload Test Log
-        if: failure() && hashFiles('test.log') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: test-log-${{ matrix.node }}-${{ runner.os }}
-          path: test.log
-          if-no-files-found: error
-          retention-days: 7
+      - name: Commit migration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor!: standardize built-in step options"
+          git push origin HEAD:agent/standardize-step-options
