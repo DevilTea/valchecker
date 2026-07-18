@@ -19,6 +19,7 @@ function visitFile(filePath: string): void {
 				const parameters = [...current.parameters]
 				if (parameters.length > 2)
 					errors.push(`${path.relative(root, filePath)}: method has more than one operand plus options`)
+
 				parameters.forEach((parameter, index) => {
 					const name = ts.isIdentifier(parameter.name) ? parameter.name.text : parameter.name.getText(sf)
 					const optional = parameter.questionToken != null || parameter.initializer != null
@@ -28,6 +29,8 @@ function visitFile(filePath: string): void {
 						errors.push(`${path.relative(root, filePath)}: optional parameter ${name} must be grouped into options`)
 					if (index > 0 && name !== 'options')
 						errors.push(`${path.relative(root, filePath)}: only trailing options may follow the operand`)
+					if (name === 'options' && !parameter.type?.getText(sf).includes('Options'))
+						errors.push(`${path.relative(root, filePath)}: options must use a named options type`)
 				})
 				return
 			}
