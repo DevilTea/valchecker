@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, StepOptions, Next, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike, returnTrue } from '../../shared'
@@ -44,7 +44,7 @@ interface PluginDef extends TStepPluginDef {
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
 					? <AddedIssue extends AnyExecutionIssue = never, Output extends CurrentOutput = CurrentOutput>(
 						run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue | AddedIssue>) => value is Output,
-						message?: MessageHandler<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
+						options?: StepOptions<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
 					) => Next<{
 						operationMode: 'sync'
 						output: Output
@@ -59,7 +59,7 @@ interface PluginDef extends TStepPluginDef {
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
 					? <AddedIssue extends AnyExecutionIssue = never, Result extends Internal.RunCheckResult = Internal.RunCheckResult>(
 						run: Internal.RunCheck<CurrentOutput, CurrentIssue | AddedIssue, Result>,
-						message?: MessageHandler<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
+						options?: StepOptions<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
 					) => Next<{
 						operationMode: IsEqual<IsPromise<Result>, true> extends true
 							? 'maybe-async'
@@ -78,19 +78,19 @@ interface PluginDef extends TStepPluginDef {
 export const check = implStepPlugin<PluginDef>({
 	check: ({
 		utils: { addSuccessStep, success, createIssue, failure, prependIssuePath },
-		params: [run, message],
+		params: [run, options],
 	}) => {
 		addSuccessStep((value) => {
 			let issues: AnyExecutionIssue[] | undefined
 			const addIssue = (issue: AnyExecutionIssue) => {
-				(issues ??= []).push(prependIssuePath(issue, [], message))
+				(issues ??= []).push(prependIssuePath(issue, [], options?.message))
 			}
 			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => {
 				const issue = createIssue({
 					code: 'check:callback_failed',
 					category: 'operation',
 					payload: { phase, value, error },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Check callback failed.',
 				})
 				return failure(issues == null ? issue : [...issues, issue])
@@ -100,7 +100,7 @@ export const check = implStepPlugin<PluginDef>({
 					const issue = createIssue({
 						code: 'check:failed',
 						payload: { reason: 'returned_false', value },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: 'Check failed',
 					})
 					return failure(issues == null ? issue : [...issues, issue])
@@ -109,7 +109,7 @@ export const check = implStepPlugin<PluginDef>({
 					const issue = createIssue({
 						code: 'check:failed',
 						payload: { reason: 'returned_message', value, returnedMessage: result },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: result,
 					})
 					return failure(issues == null ? issue : [...issues, issue])

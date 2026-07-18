@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, StepOptions, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -31,7 +31,7 @@ interface PluginDef extends TStepPluginDef {
 	never: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			?	(message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			?	(options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{
 						output: never
 						issue: Meta['SelfIssue']
@@ -46,14 +46,14 @@ interface PluginDef extends TStepPluginDef {
 export const never = implStepPlugin<PluginDef>({
 	never: ({
 		utils: { addSuccessStep, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep(
 			value => failure(
 				createIssue({
 					code: 'never:expected_never',
 					payload: { value },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: 'Expected never.',
 				}),
 			),

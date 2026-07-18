@@ -83,6 +83,7 @@ Policy-bearing conversions require explicit names. `toSafeNumber()` enforces the
 Keep the direct semantic name: `check`, `transform`, `fallback`, `use`, `generic`, `as`, `toAsync`.
 
 `check()` and `transform()` are generic escape hatches and intentionally do not use artificial `isValid` or `toTransformed` names.
+- message-bearing steps keep one required operand positional and place all optional configuration plus `message` in one trailing options object; direct positional messages are forbidden;
 
 ## Step structure
 

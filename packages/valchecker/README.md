@@ -180,9 +180,7 @@ v.string().transform(value => ({ value }))
 Use `check()` as the generic validation escape hatch:
 
 ```ts
-const positive = v.number().check(
-	value => value > 0,
-	'Must be positive',
+const positive = v.number().check(value => value > 0, { message: 'Must be positive' }
 )
 ```
 

@@ -61,11 +61,11 @@ describe('issue message finalization', () => {
 		let receivedPath: PropertyKey[] | undefined
 		const v = createValchecker({ steps: [number, object] })
 		const schema = v.object({
-			age: v.number(({ path }) => {
+			age: v.number({ message: ({ path }) => {
 				calls++
 				receivedPath = path
 				return `Invalid ${String(path[0])}`
-			}),
+			} }),
 		})
 
 		expect(schema.execute({ age: 'wrong' })).toEqual({
@@ -89,12 +89,12 @@ describe('issue message finalization', () => {
 		const schema = v.object({
 			profile: v.object({
 				age: v.number(),
-			}, {
+			}, { message: {
 				'number:expected_number': ({ path }) => `inner:${path.join('.')}`,
-			}),
-		}, {
+			} }),
+		}, { message: {
 			'number:expected_number': () => 'outer',
-		})
+		} })
 
 		expect(schema.execute({ profile: { age: 'wrong' } })).toMatchObject({
 			issues: [{ message: 'inner:profile.age', path: ['profile', 'age'] }],
@@ -116,9 +116,9 @@ describe('issue message finalization', () => {
 			issues: [{ message: 'child:value', path: ['value'] }],
 		})
 
-		expect(outerV.object({ value: childV.number() }, {
+		expect(outerV.object({ value: childV.number() }, { message: {
 			'number:expected_number': () => 'outer-scope',
-		}).execute({ value: 'wrong' })).toMatchObject({
+		} }).execute({ value: 'wrong' })).toMatchObject({
 			issues: [{ message: 'outer-scope', path: ['value'] }],
 		})
 	})
@@ -126,10 +126,10 @@ describe('issue message finalization', () => {
 	it('resolves array child messages with their final item path', () => {
 		let receivedPath: PropertyKey[] | undefined
 		const v = createValchecker({ steps: [array, number] })
-		const schema = v.array(v.number(({ path }) => {
+		const schema = v.array(v.number({ message: ({ path }) => {
 			receivedPath = path
 			return `item:${String(path[0])}`
-		}))
+		} }))
 
 		expect(schema.execute(['wrong'])).toMatchObject({
 			issues: [{ message: 'item:0', path: [0] }],
@@ -143,9 +143,9 @@ describe('issue message finalization', () => {
 			message: () => 'global',
 		})
 
-		expect(v.number({
+		expect(v.number({ message: {
 			'number:expected_number': () => emptyMessage,
-		}).execute('wrong')).toMatchObject({
+		} }).execute('wrong')).toMatchObject({
 			issues: [{ message: 'global' }],
 		})
 	})
@@ -182,11 +182,11 @@ describe('issue message finalization', () => {
 
 	it('reports a throwing enclosing scope and copies the unresolved path', () => {
 		const v = createValchecker({ steps: [number, object] })
-		const result = v.object({ age: v.number() }, {
+		const result = v.object({ age: v.number() }, { message: {
 			'number:expected_number': () => {
 				throw new Error('context failure')
 			},
-		}).execute({ age: 'wrong' })
+		} }).execute({ age: 'wrong' })
 
 		expect(result).toMatchObject({
 			issues: [{
@@ -244,9 +244,9 @@ describe('issue message finalization', () => {
 
 	it('applies an enclosing scope to a frozen external issue without mutating or consuming it', () => {
 		const v = createValchecker({ steps: [messageFixturePlugin, object] }) as any
-		const schema = v.object({ value: v.external() }, {
+		const schema = v.object({ value: v.external() }, { message: {
 			'fixture:external': ({ path }: any) => `object:${path.join('.')}`,
-		})
+		} })
 
 		for (let i = 0; i < 2; i++) {
 			expect(schema.execute({ value: 'input' })).toEqual({
@@ -276,7 +276,7 @@ describe('issue message finalization', () => {
 		expect(staticGlobal.number().execute('wrong')).toMatchObject({
 			issues: [{ message: 'global string' }],
 		})
-		expect(staticGlobal.number(() => undefined).execute('wrong')).toMatchObject({
+		expect(staticGlobal.number({ message: () => undefined }).execute('wrong')).toMatchObject({
 			issues: [{ message: 'global string' }],
 		})
 
@@ -297,7 +297,7 @@ describe('issue message finalization', () => {
 		const cases = [
 			{
 				schema: v.object({
-					first: v.number(() => 'dynamic:first'),
+					first: v.number({ message: () => 'dynamic:first' }),
 					second: v.number(),
 				}),
 				messages: ['dynamic:first', 'Expected a number.'],
@@ -305,14 +305,14 @@ describe('issue message finalization', () => {
 			{
 				schema: v.object({
 					first: v.number(),
-					second: v.number(() => 'dynamic:second'),
+					second: v.number({ message: () => 'dynamic:second' }),
 				}),
 				messages: ['Expected a number.', 'dynamic:second'],
 			},
 			{
 				schema: v.object({
-					first: v.number(() => 'dynamic:first'),
-					second: v.number(() => 'dynamic:second'),
+					first: v.number({ message: () => 'dynamic:first' }),
+					second: v.number({ message: () => 'dynamic:second' }),
 				}),
 				messages: ['dynamic:first', 'dynamic:second'],
 			},
@@ -357,7 +357,7 @@ describe('issue message finalization', () => {
 			issues: [{
 				code: 'core:unknown_exception',
 				category: 'internal',
-				payload: { error: expect.any(TypeError) },
+				payload: { error: expect.any({ message: TypeError }) },
 			}],
 		})
 	})

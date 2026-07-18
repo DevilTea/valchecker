@@ -56,6 +56,16 @@ Built-in APIs communicate their role through naming:
 - generic high-level operations retain direct names such as `check` and `transform`,
 - flow-control and type utilities use their most direct semantic name.
 
+### Step parameter contract
+
+A message-bearing built-in step accepts at most one required semantic operand positionally. Optional configuration and `message` are supplied through one trailing options object. Message-only steps accept an optional options object, and configuration-object steps include `message` in that object. Positional messages are not part of the 1.0 API.
+
+```ts
+v.number().isAtLeast(0, { message: 'Expected a non-negative number.' })
+v.string().isNotEmpty({ message: 'Required.' })
+v.array(v.number()).toSorted({ compareFn: (left, right) => left - right })
+```
+
 Examples:
 
 ```ts

@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, StepOptions, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace AtMostInternal {
@@ -37,7 +37,7 @@ interface AtMostPluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			AtMostMeta<number>,
 			this['CurrentValchecker'] extends AtMostMeta<number>['ExpectedCurrentValchecker']
-				? (maximum: number, message?: MessageHandler<AtMostInternal.NumberIssue>) => Next<
+				? (maximum: number, options?: StepOptions<AtMostInternal.NumberIssue>) => Next<
 						{ issue: AtMostInternal.NumberIssue },
 						this['CurrentValchecker']
 					>
@@ -46,7 +46,7 @@ interface AtMostPluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			AtMostMeta<bigint>,
 			this['CurrentValchecker'] extends AtMostMeta<bigint>['ExpectedCurrentValchecker']
-				? (maximum: bigint, message?: MessageHandler<AtMostInternal.BigIntIssue>) => Next<
+				? (maximum: bigint, options?: StepOptions<AtMostInternal.BigIntIssue>) => Next<
 						{ issue: AtMostInternal.BigIntIssue },
 						this['CurrentValchecker']
 					>
@@ -58,7 +58,7 @@ interface AtMostPluginDef extends TStepPluginDef {
 export const isAtMost = implStepPlugin<AtMostPluginDef>({
 	isAtMost: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [maximum, message],
+		params: [maximum, options],
 	}) => {
 		addSuccessStep((value) => {
 			if (value <= maximum) {
@@ -69,7 +69,7 @@ export const isAtMost = implStepPlugin<AtMostPluginDef>({
 				createIssue({
 					code: 'isAtMost:expected_at_most',
 					payload: { target, value: value as any, maximum: maximum as any },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: `Expected a value of at most ${maximum}.`,
 				}),
 			)

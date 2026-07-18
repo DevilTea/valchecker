@@ -36,9 +36,7 @@ Every runtime issue created by `createIssue()` receives the declared category. I
 ## Use `check()` first
 
 ```ts
-const positive = v.number().check(
-	value => value > 0,
-	'Expected a positive number',
+const positive = v.number().check(value => value > 0, { message: 'Expected a positive number' }
 )
 ```
 

@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, StepOptions, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -31,7 +31,7 @@ interface PluginDef extends TStepPluginDef {
 	isEndingWith: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (suffix: string, message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? (suffix: string, options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{ issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
@@ -43,7 +43,7 @@ interface PluginDef extends TStepPluginDef {
 export const isEndingWith = implStepPlugin<PluginDef>({
 	isEndingWith: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [suffix, message],
+		params: [suffix, options],
 	}) => {
 		addSuccessStep(value => value.endsWith(suffix)
 			? success(value)
@@ -51,7 +51,7 @@ export const isEndingWith = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'isEndingWith:expected_ending_with',
 						payload: { value, suffix },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: `Expected the string to end with "${suffix}".`,
 					}),
 				))

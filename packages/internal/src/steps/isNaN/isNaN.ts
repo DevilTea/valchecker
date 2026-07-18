@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, StepOptions, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -30,7 +30,7 @@ interface PluginDef extends TStepPluginDef {
 	isNaN: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? (options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{ issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
@@ -42,15 +42,15 @@ interface PluginDef extends TStepPluginDef {
 export const isNaN = implStepPlugin<PluginDef>({
 	isNaN: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
-		addSuccessStep(value => Number.isNaN(value)
+		addSuccessStep(value => Number.isNaN({ message: value })
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isNaN:expected_nan',
 						payload: { value },
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: 'Expected NaN.',
 					}),
 				))

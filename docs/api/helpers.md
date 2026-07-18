@@ -12,9 +12,7 @@ Built-in issues:
 - `check:callback_failed` — category `operation`; payload is `{ phase: 'throw' | 'reject', value, error }`.
 
 ```ts
-const positive = v.number().check(
-	value => value > 0,
-	'Must be positive',
+const positive = v.number().check(value => value > 0, { message: 'Must be positive' }
 )
 ```
 
@@ -115,7 +113,7 @@ const port = v.number()
 	.isAtMost(65535)
 
 const config = v.string()
-	.toJSONValue('Invalid JSON')
+	.toJSONValue({ message: 'Invalid JSON' })
 	.use(v.object({ port }))
 ```
 
@@ -217,8 +215,8 @@ Message priority:
 4. `"Invalid value."`.
 
 ```ts
-v.number().isAtLeast(1, ({ payload }) =>
-	`Expected at least ${payload.minimum}, received ${payload.value}`,
+v.number().isAtLeast(1, { message: ({ payload }) =>
+	`Expected at least ${payload.minimum}, received ${payload.value}` }
 )
 ```
 

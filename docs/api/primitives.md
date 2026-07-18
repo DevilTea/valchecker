@@ -281,9 +281,9 @@ Every issue-producing step accepts a static message or message handler:
 
 ```ts
 const schema = v.string()
-	.isLengthAtLeast(3, 'Too short')
-	.isLengthAtMost(20, 'Too long')
-	.isStartingWith('http', ({ payload }) =>
-		`Expected ${payload.value} to start with ${payload.prefix}`,
+	.isLengthAtLeast(3, { message: 'Too short' })
+	.isLengthAtMost(20, { message: 'Too long' })
+	.isStartingWith('http', { message: ({ payload }) =>
+		`Expected ${payload.value} to start with ${payload.prefix}` }
 	)
 ```

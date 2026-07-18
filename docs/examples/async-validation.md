@@ -10,11 +10,9 @@ import { v } from 'valchecker'
 const usernameSchema = v.string()
 	.toLowercase()
 	.toTrimmed()
-	.isLengthAtLeast(3, 'Username must be at least 3 characters')
-	.isLengthAtMost(32, 'Username must not exceed 32 characters')
-	.check(
-		value => /^[a-z0-9_-]+$/.test(value),
-		'Username can only contain lowercase letters, numbers, hyphens, and underscores',
+	.isLengthAtLeast(3, { message: 'Username must be at least 3 characters' })
+	.isLengthAtMost(32, { message: 'Username must not exceed 32 characters' })
+	.check(value => /^[a-z0-9_-]+$/.test(value), { message: 'Username can only contain lowercase letters, numbers, hyphens, and underscores' }
 	)
 	.check(async (value) => {
 		const exists = await db.users.exists({ username: value })
@@ -42,7 +40,7 @@ const emailSchema = v.string()
 	.toLowercase()
 	.toTrimmed()
 	.isNotEmpty()
-	.check(value => value.includes('@'), 'Must be a valid email')
+	.check(value => value.includes('@'), { message: 'Must be a valid email' })
 	.check(async (value) => {
 		const [isDisposable, isBanned] = await Promise.all([
 			disposableEmailService.check(value),

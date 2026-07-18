@@ -372,6 +372,11 @@ export type MessageHandler<Issue extends AnyExecutionIssue = AnyExecutionIssue>
 		| ((issue: IssueMessageInput<Issue>) => string | undefined | null)
 		| MessageMap<Issue>
 
+/** Optional configuration shared by message-bearing built-in steps. */
+export interface StepOptions<Issue extends AnyExecutionIssue = AnyExecutionIssue> {
+	readonly message?: MessageHandler<Issue> | undefined
+}
+
 export type ResolveMessageFn = (param: {
 	data: IssueMessageInput<AnyExecutionIssue>
 	customMessage?: MessageHandler<any> | undefined

@@ -242,7 +242,7 @@ const portSchema = v.number()
 	.isAtMost(65535)
 
 const configSchema = v.string()
-	.toJSONValue('Invalid JSON')
+	.toJSONValue({ message: 'Invalid JSON' })
 	.use(v.object({ port: portSchema }))
 ```
 
@@ -274,7 +274,7 @@ Issue messages resolve in this order:
 
 ```ts
 const schema = v.number()
-	.isAtLeast(1, 'Quantity must be at least 1')
+	.isAtLeast(1, { message: 'Quantity must be at least 1' })
 ```
 
 ## Next steps

@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, StepOptions, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -31,7 +31,7 @@ interface PluginDef extends TStepPluginDef {
 	isInteger: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? (options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{ issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
@@ -43,16 +43,16 @@ interface PluginDef extends TStepPluginDef {
 export const isInteger = implStepPlugin<PluginDef>({
 	isInteger: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep(
-			value => Number.isInteger(value)
+			value => Number.isInteger({ message: value })
 				? success(value)
 				: failure(
 						createIssue({
 							code: 'isInteger:expected_integer',
 							payload: { value },
-							customMessage: message,
+							customMessage: options?.message,
 							defaultMessage: 'Expected an integer.',
 						}),
 					),

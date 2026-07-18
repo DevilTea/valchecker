@@ -123,19 +123,19 @@ describe('message type contracts', () => {
 	it('keeps step, structure-child, and custom-plugin handlers precise', () => {
 		const v = createValchecker({ steps: [custom, isAtLeast, number, object] })
 
-		v.number().isAtLeast(10, ({ payload }) => {
+		v.number().isAtLeast(10, { message: ({ payload }) => {
 			expectTypeOf(payload.target).toEqualTypeOf<'number'>()
 			expectTypeOf(payload.minimum).toEqualTypeOf<number>()
 			return null
-		})
+		} })
 
-		v.object({ value: v.number() }, {
+		v.object({ value: v.number() }, { message: {
 			'number:expected_number': ({ payload, path }) => {
 				expectTypeOf(payload.value).toEqualTypeOf<unknown>()
 				expectTypeOf(path).toEqualTypeOf<PropertyKey[]>()
 				return undefined
 			},
-		})
+		} })
 
 		createValchecker({
 			steps: [custom],

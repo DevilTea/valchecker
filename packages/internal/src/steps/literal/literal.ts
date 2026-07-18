@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, StepOptions, Next, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 
@@ -41,7 +41,7 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
-				? <L extends Internal.LiteralType>(value: L, message?: MessageHandler<Internal.Issue<L>>) => Next<{
+				? <L extends Internal.LiteralType>(value: L, options?: StepOptions<Internal.Issue<L>>) => Next<{
 					output: L
 					issue: Internal.Issue<L>
 				}, this['CurrentValchecker']>
@@ -54,14 +54,14 @@ interface PluginDef extends TStepPluginDef {
 export const literal = implStepPlugin<PluginDef>({
 	literal: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [literalValue, message],
+		params: [literalValue, options],
 	}) => {
 		addSuccessStep(value => Object.is(value, literalValue)
 			? success(value as typeof literalValue)
 			: failure(createIssue({
 				code: 'literal:expected_literal',
 				payload: { value, expected: literalValue },
-				customMessage: message,
+				customMessage: options?.message,
 				defaultMessage: `Expected literal value "${String(literalValue)}".`,
 			})))
 	},

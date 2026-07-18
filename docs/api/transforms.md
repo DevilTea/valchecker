@@ -73,7 +73,7 @@ The failure payload is `{ value, left, right, error }`.
 
 ```ts
 v.array(v.number())
-	.toSorted((a, b) => a - b)
+	.toSorted({ compareFn: (a, b) => a - b })
 	.execute([3, 1, 2])
 // { value: [1, 2, 3] }
 ```

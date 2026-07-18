@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, StepOptions, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace AtLeastInternal {
@@ -37,7 +37,7 @@ interface AtLeastPluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			AtLeastMeta<number>,
 			this['CurrentValchecker'] extends AtLeastMeta<number>['ExpectedCurrentValchecker']
-				? (minimum: number, message?: MessageHandler<AtLeastInternal.NumberIssue>) => Next<
+				? (minimum: number, options?: StepOptions<AtLeastInternal.NumberIssue>) => Next<
 						{ issue: AtLeastInternal.NumberIssue },
 						this['CurrentValchecker']
 					>
@@ -46,7 +46,7 @@ interface AtLeastPluginDef extends TStepPluginDef {
 		| DefineStepMethod<
 			AtLeastMeta<bigint>,
 			this['CurrentValchecker'] extends AtLeastMeta<bigint>['ExpectedCurrentValchecker']
-				? (minimum: bigint, message?: MessageHandler<AtLeastInternal.BigIntIssue>) => Next<
+				? (minimum: bigint, options?: StepOptions<AtLeastInternal.BigIntIssue>) => Next<
 						{ issue: AtLeastInternal.BigIntIssue },
 						this['CurrentValchecker']
 					>
@@ -58,7 +58,7 @@ interface AtLeastPluginDef extends TStepPluginDef {
 export const isAtLeast = implStepPlugin<AtLeastPluginDef>({
 	isAtLeast: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [minimum, message],
+		params: [minimum, options],
 	}) => {
 		addSuccessStep((value) => {
 			if (value >= minimum) {
@@ -69,7 +69,7 @@ export const isAtLeast = implStepPlugin<AtLeastPluginDef>({
 				createIssue({
 					code: 'isAtLeast:expected_at_least',
 					payload: { target, value: value as any, minimum: minimum as any },
-					customMessage: message,
+					customMessage: options?.message,
 					defaultMessage: `Expected a value of at least ${minimum}.`,
 				}),
 			)

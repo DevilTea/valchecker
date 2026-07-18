@@ -143,7 +143,7 @@ Array transformations remain available after validation:
 ```ts
 const positiveSorted = v.array(v.number().isFinite())
 	.toFiltered(value => value > 0)
-	.toSorted((a, b) => a - b)
+	.toSorted({ compareFn: (a, b) => a - b })
 
 positiveSorted.execute([3, -1, 2])
 // { value: [2, 3] }

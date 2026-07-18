@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, MessageHandler, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, StepOptions, Next, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER)
@@ -39,7 +39,7 @@ interface PluginDef extends TStepPluginDef {
 	toSafeNumber: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? (options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{
 						output: number
 						issue: Meta['SelfIssue']
@@ -54,7 +54,7 @@ interface PluginDef extends TStepPluginDef {
 export const toSafeNumber = implStepPlugin<PluginDef>({
 	toSafeNumber: ({
 		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		params: [options],
 	}) => {
 		addSuccessStep((value) => {
 			if (value < MIN_SAFE_BIGINT || value > MAX_SAFE_BIGINT) {
@@ -66,7 +66,7 @@ export const toSafeNumber = implStepPlugin<PluginDef>({
 							minimum: MIN_SAFE_BIGINT,
 							maximum: MAX_SAFE_BIGINT,
 						},
-						customMessage: message,
+						customMessage: options?.message,
 						defaultMessage: 'Expected the bigint to be within the safe integer range.',
 					}),
 				)

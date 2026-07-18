@@ -6,13 +6,11 @@ Every issue-producing step accepts a static message or message handler. Messages
 
 ```ts
 const payment = v.object({
-	currency: v.string().check(
-		value => SUPPORTED_CURRENCIES.includes(value),
-		'We only accept USD, EUR, and GBP',
+	currency: v.string().check(value => SUPPORTED_CURRENCIES.includes(value), { message: 'We only accept USD, EUR, and GBP' }
 	),
 	amount: v.number()
 		.isFinite()
-		.isAtLeast(1, 'Amount must be at least $1.00'),
+		.isAtLeast(1, { message: 'Amount must be at least $1.00' }),
 })
 ```
 
@@ -20,12 +18,12 @@ A handler receives the fully typed issue after its final path and context are kn
 
 ```ts
 const product = v.object({
-	sku: v.string(({ payload }) =>
-		`Expected a string, received ${typeof payload.value}`,
+	sku: v.string({ message: ({ payload }) =>
+		`Expected a string, received ${typeof payload.value}` }
 	),
 	price: v.number()
-		.isAtLeast(0, ({ payload }) =>
-			`Price ${payload.value} is below ${payload.minimum}`,
+		.isAtLeast(0, { message: ({ payload }) =>
+			`Price ${payload.value} is below ${payload.minimum}` }
 		),
 })
 ```
@@ -33,10 +31,8 @@ const product = v.object({
 Length constraints expose their own explicit payload:
 
 ```ts
-const username = v.string().isLengthAtLeast(
-	3,
-	({ payload }) =>
-		`Expected at least ${payload.minimum} characters; received ${payload.length}`,
+const username = v.string().isLengthAtLeast(3, { message: ({ payload }) =>
+		`Expected at least ${payload.minimum} characters; received ${payload.length}` }
 )
 ```
 
@@ -116,7 +112,7 @@ const v = createValchecker({
 })
 
 const schema = v.string()
-	.isLengthAtLeast(3, 'Per-step message')
+	.isLengthAtLeast(3, { message: 'Per-step message' })
 ```
 
 The per-step message takes precedence. Returning `null` or `undefined` continues to the next source.
@@ -150,13 +146,11 @@ Clients may localize `code` independently while logs retain the original structu
 ```ts
 const form = v.object({
 	email: v.string()
-		.check(value => value.includes('@'), 'Please enter a valid email'),
+		.check(value => value.includes('@'), { message: 'Please enter a valid email' }),
 	password: v.string()
-		.isLengthAtLeast(8, 'Password must be at least 8 characters'),
+		.isLengthAtLeast(8, { message: 'Password must be at least 8 characters' }),
 	confirmation: v.string(),
-}).check(
-	value => value.password === value.confirmation,
-	'Passwords must match',
+}).check(value => value.password === value.confirmation, { message: 'Passwords must match' }
 )
 ```
 

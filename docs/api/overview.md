@@ -38,6 +38,8 @@ const v = createValchecker({
 - Generic high-level steps retain `check()` and `transform()`.
 - Flow-control and type-level utilities use their most direct names.
 
+Message-bearing steps place their message and optional configuration in a trailing options object. A single required semantic operand remains positional. For example, use `isAtLeast(0, { message })`, `isFinite({ message })`, and `toFiltered(predicate, { thisArg, message })`.
+
 ## Primitive validators
 
 - `string()` — string values
@@ -187,7 +189,7 @@ Every step returns a new immutable schema:
 ```ts
 const schema = v.string()
 	.toTrimmed()
-	.isNotEmpty('Required')
+	.isNotEmpty({ message: 'Required' })
 	.toLowercase()
 ```
 

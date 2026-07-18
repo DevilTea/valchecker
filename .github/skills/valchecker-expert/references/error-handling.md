@@ -94,12 +94,12 @@ Object keys and numeric array indexes are preserved as separate path segments. S
 
 ```ts
 const age = v.number()
-	.isFinite('Age must be finite')
-	.isInteger('Age must be a whole number')
-	.isAtLeast(0, ({ payload }) =>
-		`Age must be at least ${payload.minimum}`,
+	.isFinite({ message: 'Age must be finite' })
+	.isInteger({ message: 'Age must be a whole number' })
+	.isAtLeast(0, { message: ({ payload }) =>
+		`Age must be at least ${payload.minimum}` }
 	)
-	.isAtMost(150, 'Age appears unrealistic')
+	.isAtMost(150, { message: 'Age appears unrealistic' })
 ```
 
 Message priority is:

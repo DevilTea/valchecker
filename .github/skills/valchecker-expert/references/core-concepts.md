@@ -167,9 +167,7 @@ const user = v.object({
 ## Messages
 
 ```ts
-const quantity = v.number().isAtLeast(
-	1,
-	({ payload }) => `Expected at least ${payload.minimum}, received ${payload.value}`,
+const quantity = v.number().isAtLeast(1, { message: ({ payload }) => `Expected at least ${payload.minimum}, received ${payload.value}` }
 )
 ```
 
