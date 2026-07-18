@@ -94,8 +94,11 @@ export const set = implStepPlugin<PluginDef>({
 
 				const transformedItem = result.value
 				if (output.has(transformedItem)) {
-					const first = firstItemMeta.get(transformedItem)!
-					(issues ??= []).push(createIssue({
+					const first = firstItemMeta.get(transformedItem)
+					if (first == null)
+						throw new Error('Missing transformed Set item metadata.')
+					const target = issues ??= []
+					target.push(createIssue({
 						code: 'set:duplicate_transformed_item',
 						payload: {
 							value,
