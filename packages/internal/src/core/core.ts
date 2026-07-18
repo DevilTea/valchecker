@@ -649,6 +649,7 @@ function createStepMethodContext({
 			return createInstance({
 				stepMethods,
 				resolveMessage,
+				context,
 				currentRuntimeSteps: runtimeSteps,
 			})
 		},
@@ -661,13 +662,13 @@ function createProxyHandler({
 	stepMethods,
 	resolveMessage,
 	runtimeSteps,
+	context,
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
 	runtimeSteps: RuntimeStep[]
+	context: StepMethodContext
 }) {
-	const context = createStepMethodContext({ stepMethods, resolveMessage })
-
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
 			if (Object.hasOwn(stepMethods, p) === false)
@@ -688,6 +689,7 @@ function createProxyHandler({
 				return createInstance({
 					stepMethods,
 					resolveMessage,
+					context,
 					currentRuntimeSteps: nextRuntimeSteps,
 				})
 			}
@@ -725,16 +727,18 @@ function createCoreProperties(
 function createInstance({
 	stepMethods,
 	resolveMessage,
+	context,
 	currentRuntimeSteps,
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
+	context: StepMethodContext
 	currentRuntimeSteps: RuntimeStep[]
 }): any {
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
 	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw)
 
-	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps }))
+	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps, context }))
 }
 
 const reservedStepMethodNames = new Set<PropertyKey>([
@@ -783,10 +787,12 @@ export function createValchecker<
 		}
 	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
+	const context = createStepMethodContext({ stepMethods, resolveMessage })
 
 	return createInstance({
 		stepMethods,
 		resolveMessage,
+		context,
 		currentRuntimeSteps: [],
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }
