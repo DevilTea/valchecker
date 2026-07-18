@@ -16,17 +16,30 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - name: Apply implementation patch
+      - name: Decode implementation patch
         shell: bash
         run: |
           cat .github/dev-patch/* | base64 --decode > /tmp/union-shorthand.patch
+          wc -c /tmp/union-shorthand.patch
+          sha256sum /tmp/union-shorthand.patch
+      - name: Apply implementation patch
+        shell: bash
+        run: |
           git apply --check /tmp/union-shorthand.patch
           git apply /tmp/union-shorthand.patch
+      - name: Remove development transport files
+        shell: bash
+        run: |
           rm -rf .github/dev-patch
           rm -f .github/workflows/dev-apply-patch.yml
           rm -f .github/workflows/dev-source-snapshot.yml
+      - name: Commit implementation
+        shell: bash
+        run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
           git commit -m 'feat: add registration-aware union shorthand'
-          git push origin HEAD:${{ github.head_ref }}
+      - name: Push implementation
+        shell: bash
+        run: git push origin HEAD:${{ github.head_ref }}
