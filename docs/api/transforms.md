@@ -96,6 +96,31 @@ v.set(v.string())
 // { value: 2 }
 ```
 
+### `toArray()`
+
+Replaces a Set with a new item array in insertion order.
+
+```ts
+v.set(v.string())
+	.toArray()
+	.execute(new Set(['b', 'a']))
+// { value: ['b', 'a'] }
+```
+
+### `toKeys()`, `toValues()`, and `toEntries()`
+
+Replace a Map with a new array of its keys, values, or mutable `[key, value]` tuples in insertion order.
+
+```ts
+const scores = v.map({ key: v.string(), value: v.number() })
+
+scores.toKeys() // string[]
+scores.toValues() // number[]
+scores.toEntries() // Array<[string, number]>
+```
+
+These representation transforms are synchronous, emit no new issue, and do not mutate the source collection. `toObject()` is intentionally not implied because object conversion requires a separate key/prototype/collision policy.
+
 ## JSON transforms
 
 ### `toJSONValue<T = unknown>(options?)`
