@@ -321,6 +321,18 @@ A declared `__proto__` key is created as an own enumerable data property without
 
 Earlier synchronous failures can complete before later asynchronous element work is started. Validation and operation issues are collected; an internal issue stops sibling element evaluation immediately and is returned without being hidden.
 
+## Map and Set schemas
+
+`set(itemSchema, options?)` accepts `Set` instances, snapshots items at execution start, validates and transforms them in insertion order, and returns a new Set. Child issues receive `[index]` paths.
+
+`map({ key, value, message? })` accepts `Map` instances, snapshots entries at execution start, and executes each entry's key schema before its value schema. Child paths are `[index, 'key']` and `[index, 'value']`. A recoverable key failure does not hide the corresponding value failure.
+
+Fully synchronous child schemas preserve synchronous collection execution. After a reached thenable, remaining items or entries continue sequentially. Validation and operation issues are collected; an internal child issue stops the current structural continuation and all later siblings. An internal Map key issue stops before the current value schema.
+
+Outputs are newly constructed collections and do not mutate the input. If successful source items or keys transform to duplicate SameValueZero values, `set:duplicate_transformed_item` or `map:duplicate_transformed_key` is returned instead of silently reducing Set cardinality or applying Map last-write-wins behavior.
+
+The collection-level message participates as an enclosing structure message for owned and nested child issues after paths are prepended.
+
 ## Union semantics
 
 `union(schemas)` evaluates branches in declaration order and returns the first successful branch's transformed output.

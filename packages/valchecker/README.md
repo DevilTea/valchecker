@@ -54,6 +54,19 @@ const schema = v.number().isFinite().isAtLeast(0)
 
 Use `allSteps` when a custom instance should include every built-in plugin.
 
+## Map and Set collections
+
+```ts
+const tags = v.set(v.string().toTrimmed().toLowercase())
+
+const scores = v.map({
+	key: v.string().toTrimmed(),
+	value: v.number().isFinite(),
+})
+```
+
+Both initial schemas preserve insertion order, return new transformed collections, and expose stable child paths. Duplicate transformed Set items or Map keys are validation failures rather than silent data loss.
+
 ## Step naming
 
 Valchecker separates API roles through naming:
