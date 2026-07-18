@@ -85,8 +85,11 @@ describe('toMappedBoolean step plugin', () => {
 	})
 
 	it('supports custom messages and one-sided mappings', () => {
-		const schema = v.string().toMappedBoolean({ trueValues: ['enabled'],
-			falseValues: [],, message: 'Custom mapping' })
+		const schema = v.string().toMappedBoolean({
+			trueValues: ['enabled'],
+			falseValues: [],
+			message: 'Custom mapping',
+		})
 		expect(schema.execute('enabled')).toEqual({ value: true })
 		expect(schema.execute('disabled')).toMatchObject({
 			issues: [{ message: 'Custom mapping' }],
