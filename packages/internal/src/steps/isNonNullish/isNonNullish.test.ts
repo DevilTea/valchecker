@@ -13,9 +13,13 @@ describe('isNonNullish step plugin', () => {
 		expect(schema.execute(undefined)).toMatchObject({ issues: [{ code: 'isNonNullish:expected_non_nullish' }] })
 	})
 
-	it('supports unknown input and custom messages', () => {
-		expect(v.unknown().isNonNullish({ message: 'Value required' }).execute(null)).toMatchObject({
-			issues: [{ message: 'Value required' }],
+	it('narrows unknown output and supports custom messages', () => {
+		const schema = v.unknown().isNonNullish({ message: 'Value required' })
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<NonNullable<unknown>>()
+		expect(schema.execute('value')).toEqual({ value: 'value' })
+		expect(schema.execute(null)).toMatchObject({ issues: [{ message: 'Value required' }] })
+		expect(schema.execute(undefined)).toMatchObject({
+			issues: [{ payload: { value: undefined } }],
 		})
 	})
 
