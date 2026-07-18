@@ -48,6 +48,26 @@ jobs:
               "if (replacement.end > previousStart)\n\t\t\tcontinue",
           )
           source = source.replace(
+              "function objectLiteral(properties: string[]): string {\n\treturn `{ ${properties.join(', ')} }`\n}\n",
+              "function objectLiteral(properties: string[]): string {\n\treturn `{ ${properties.join(', ')} }`\n}\n\nfunction hasOptionProperty(node: ts.Expression, property: string): boolean {\n\treturn ts.isObjectLiteralExpression(node) && node.properties.some((member) => {\n\t\tif (!ts.isPropertyAssignment(member) && !ts.isShorthandPropertyAssignment(member))\n\t\t\treturn false\n\t\treturn member.name.getText().replace(/[\\\"']/g, '') === property\n\t})\n}\n",
+          )
+          source = source.replace(
+              "messageOnlyMethods.has(method) && args.length === 1",
+              "messageOnlyMethods.has(method) && args.length === 1 && !hasOptionProperty(args[0]!, 'message')",
+          )
+          source = source.replace(
+              "operandMessageMethods.has(method) && args.length === 2",
+              "operandMessageMethods.has(method) && args.length === 2 && !hasOptionProperty(args[1]!, 'message')",
+          )
+          source = source.replace(
+              "if (args.length === 2)\n\t\t\t\t\treplaceArguments(`${argText(0)}, ${objectLiteral([`thisArg: ${argText(1)}`])}`)",
+              "if (args.length === 2 && !hasOptionProperty(args[1]!, 'thisArg') && !hasOptionProperty(args[1]!, 'message'))\n\t\t\t\t\treplaceArguments(`${argText(0)}, ${objectLiteral([`thisArg: ${argText(1)}`])}`)",
+          )
+          source = source.replace(
+              "if (args.length === 1)\n\t\t\t\t\treplaceArguments(objectLiteral([`compareFn: ${argText(0)}`]))",
+              "if (args.length === 1 && !hasOptionProperty(args[0]!, 'compareFn') && !hasOptionProperty(args[0]!, 'message'))\n\t\t\t\t\treplaceArguments(objectLiteral([`compareFn: ${argText(0)}`]))",
+          )
+          source = source.replace(
               "\tvisit(sf)\n\treturn applyReplacements(source, replacements)\n}",
               "\tvisit(sf)\n\tconst transformed = applyReplacements(source, replacements)\n\treturn transformed === source ? source : transformCalls(filePath, transformed)\n}",
           )
