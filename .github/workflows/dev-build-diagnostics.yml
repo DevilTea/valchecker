@@ -1,0 +1,38 @@
+name: Dev Build Diagnostics
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  build-log:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture build output
+        shell: bash
+        run: |
+          set +e
+          pnpm build > build.log 2>&1
+          status=$?
+          echo "$status" > build.status
+          cat build.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-build-diagnostics
+          path: |
+            build.log
+            build.status
+          retention-days: 1
