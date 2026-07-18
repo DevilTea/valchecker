@@ -7,13 +7,9 @@ type Issue = ExecutionIssue<'undefined:expected_undefined', { value: unknown }>
 
 interface UnionShorthandDef extends TUnionShorthandDef {
 	input: undefined
-	result: this['branch'] extends undefined
-		? {
-			operationMode: 'sync'
-			output: undefined
-			issue: Issue
-		}
-		: never
+	operationMode: 'sync'
+	output: undefined
+	issue: Issue
 }
 
 type Meta = DefineStepMethodMeta<{
