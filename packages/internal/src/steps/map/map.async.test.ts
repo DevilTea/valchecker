@@ -26,4 +26,19 @@ describe('map asynchronous value continuation', () => {
 			.resolves.toEqual({ value: new Map([['A', 10], ['B', 20]]) })
 		expect(order).toEqual(['key:a', 'value:1', 'key:b', 'value:2'])
 	})
+
+	it('does not append a synchronous key failure again when the value starts async continuation', async () => {
+		const value = v.number().transform(entryValue => Promise.resolve(entryValue))
+
+		await expect(v.map({ key: v.number(), value }).execute(new Map<unknown, number>([['bad', 1]])))
+			.resolves.toEqual({
+				issues: [{
+					code: 'number:expected_number',
+					category: 'validation',
+					message: 'Expected a number.',
+					path: [0, 'key'],
+					payload: { value: 'bad' },
+				}],
+			})
+	})
 })
