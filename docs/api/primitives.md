@@ -2,318 +2,253 @@
 
 Primitive initial steps check JavaScript and TypeScript primitive identities. Every returned schema participates in Valchecker's state-aware chaining API.
 
-## `string(message?)`
+All message-bearing methods use a trailing options object. For example, write `string({ message })`, `literal(value, { message })`, and `isAtLeast(minimum, { message })`.
+
+## Primitive initial schemas
+
+### `string(options?)`
 
 Validates a JavaScript string.
 
 **Issue code:** `string:expected_string`
 
-```ts
-v.string()
-	.execute('hello') // { value: 'hello' }
-v.string()
-	.execute(123) // failure
-```
+Common next steps include length checks, `isIncluding()`, `isMatching()`, `isEqualTo()`, `isOneOf()`, and string transformations.
 
-Common next steps include `isEmpty()`, `isNotEmpty()`, `isStartingWith()`, `isEndingWith()`, `isLengthAtLeast()`, `isLengthAtMost()`, and string transformations.
-
-## `number(message?)`
+### `number(options?)`
 
 Validates the TypeScript `number` primitive by checking `typeof value === 'number'`.
 
 **Issue code:** `number:expected_number`
 
-```ts
-v.number()
-	.execute(42) // { value: 42 }
-v.number()
-	.execute(Number.NaN) // { value: NaN }
-v.number()
-	.execute(Infinity) // { value: Infinity }
-v.number()
-	.execute('42') // failure
-```
-
-`number()` deliberately accepts `NaN`, `Infinity`, and `-Infinity` because all are JavaScript numbers and belong to the TypeScript `number` type.
-
-Use explicit constraints when a narrower runtime domain is required:
+`number()` deliberately accepts `NaN`, `Infinity`, and `-Infinity`. Use explicit steps such as `isFinite()`, `isInteger()`, or `isSafeInteger()` for narrower domains.
 
 ```ts
 const quantity = v.number()
 	.isFinite()
-	.isInteger()
-	.isAtLeast(1)
+	.isGreaterThan(0)
+	.isSafeInteger()
 ```
 
-## `boolean(message?)`
+### `boolean(options?)`
 
 Validates a JavaScript boolean.
 
 **Issue code:** `boolean:expected_boolean`
 
-```ts
-v.boolean()
-	.execute(true) // { value: true }
-v.boolean()
-	.execute('true') // failure
-```
-
-## `bigint(message?)`
+### `bigint(options?)`
 
 Validates a JavaScript bigint.
 
 **Issue code:** `bigint:expected_bigint`
 
-```ts
-const id = v.bigint()
-	.isAtLeast(0n)
-
-id.execute(42n) // { value: 42n }
-id.execute(42) // failure
-```
-
-## `symbol(message?)`
+### `symbol(options?)`
 
 Validates a JavaScript symbol.
 
 **Issue code:** `symbol:expected_symbol`
 
-## `literal(value, message?)`
+### `literal(value, options?)`
 
-Matches a single literal with `Object.is` semantics. `NaN` matches `NaN`, while `0` and `-0` are distinct.
+Matches one literal with `Object.is` semantics. `NaN` matches `NaN`, while positive and negative zero are distinct.
 
 **Issue code:** `literal:expected_literal`
 
-```ts
-const environment = v.literal('production')
-```
-
-## `unknown()` and `any()`
+### `unknown()` and `any()`
 
 Both accept any runtime value without validation:
 
 - `unknown()` outputs `unknown`.
 - `any()` outputs `any`.
 
-Use `unknown()` as the safer starting point for `use()`, `check()`, or transformations.
+Use `unknown()` as the safer starting point for narrowing, `use()`, `check()`, or transformations.
 
-## `never(message?)`
+### `never(options?)`
 
 Always fails.
 
 **Issue code:** `never:unexpected_value`
 
-## Nullish primitives
+### `null_(options?)` and `undefined_(options?)`
 
-### `null_(message?)`
+Accept only `null` or `undefined` respectively.
 
-Accepts only `null`.
-
-**Issue code:** `null:expected_null`
-
-### `undefined_(message?)`
-
-Accepts only `undefined`.
-
-**Issue code:** `undefined:expected_undefined`
+**Issue codes:** `null:expected_null`, `undefined:expected_undefined`
 
 # Loose primitives
 
-Loose primitives are initial steps that accept a primitive or its matching TypeScript template-literal string representation, then normalize successful output to the primitive.
+Loose primitives accept the primitive or its matching TypeScript template-literal string representation, then normalize successful output to the primitive. They do not implement unrestricted JavaScript coercion.
 
-They do not implement general JavaScript coercion.
+## `looseNumber(options?)`
 
-## `looseNumber(message?)`
-
-Input contract: `number | \`${number}\``  
+Input: `number | `${number}``  
 Output: `number`
 
 **Issue code:** `looseNumber:expected_number`
 
-```ts
-v.looseNumber()
-	.execute(42) // { value: 42 }
-v.looseNumber()
-	.execute('1e3') // { value: 1000 }
-v.looseNumber()
-	.execute('0x10') // { value: 16 }
-v.looseNumber()
-	.execute('   ') // { value: 0 }
-v.looseNumber()
-	.execute('NaN') // failure
-v.looseNumber()
-	.execute('Infinity') // failure
-v.looseNumber()
-	.execute('') // failure
-```
+Numeric inputs still include `NaN` and infinity. String inputs must represent finite values compatible with TypeScript's template-literal number type. A non-empty whitespace-only string normalizes to `0`; the empty string is invalid.
 
-Numeric inputs still include `NaN` and infinity because they belong to `number`. String inputs must represent finite values compatible with TypeScript's `\`${number}\`` type. TypeScript accepts non-empty whitespace-only number strings, so Valchecker normalizes them to `0`; the truly empty string remains invalid.
+## `looseBoolean(options?)`
 
-## `looseBoolean(message?)`
-
-Input contract: `boolean | \`${boolean}\``  
+Input: `boolean | `${boolean}``  
 Output: `boolean`
-
-**Issue code:** `looseBoolean:expected_boolean`
-
-```ts
-v.looseBoolean()
-	.execute(true) // { value: true }
-v.looseBoolean()
-	.execute('false') // { value: false }
-v.looseBoolean()
-	.execute('TRUE') // failure
-v.looseBoolean()
-	.execute(1) // failure
-```
 
 Only the exact strings `"true"` and `"false"` are accepted.
 
-## `looseBigint(message?)`
+**Issue code:** `looseBoolean:expected_boolean`
 
-Input contract: `bigint | \`${bigint}\``  
+## `looseBigint(options?)`
+
+Input: `bigint | `${bigint}``  
 Output: `bigint`
 
 **Issue code:** `looseBigint:expected_bigint`
 
-```ts
-v.looseBigint()
-	.execute(42n) // { value: 42n }
-v.looseBigint()
-	.execute('42') // { value: 42n }
-v.looseBigint()
-	.execute('-0x10') // { value: -16n }
-v.looseBigint()
-	.execute('01') // failure
-v.looseBigint()
-	.execute('1.0') // failure
-```
+# Numeric validation
 
-# Built-in validation steps
+Built-in validation methods preserve the successful value.
 
-Built-in validation methods use the `isXxx` prefix and preserve the successful value.
+## `isFinite(options?)`, `isNaN(options?)`, and `isInteger(options?)`
 
-## Numeric constraints
+Follow `Number.isFinite`, `Number.isNaN`, and `Number.isInteger`.
 
-### `isFinite(message?)`
+**Issue codes:** `isFinite:expected_finite`, `isNaN:expected_nan`, `isInteger:expected_integer`
 
-Checks `Number.isFinite(value)`.
+## `isSafeInteger(options?)`
 
-**Issue code:** `isFinite:expected_finite`
+Follows `Number.isSafeInteger`.
 
-### `isNaN(message?)`
+**Issue code:** `isSafeInteger:expected_safe_integer`
 
-Checks `Number.isNaN(value)`.
+## Inclusive and strict bounds
 
-**Issue code:** `isNaN:expected_nan`
+- `isAtLeast(minimum, options?)` checks `value >= minimum`.
+- `isAtMost(maximum, options?)` checks `value <= maximum`.
+- `isGreaterThan(minimum, options?)` checks `value > minimum`.
+- `isLessThan(maximum, options?)` checks `value < maximum`.
 
-### `isInteger(message?)`
+These steps apply to numbers or bigints and do not add a hidden finite-number requirement.
 
-Checks `Number.isInteger(value)`.
-
-**Issue code:** `isInteger:expected_integer`
-
-### `isAtLeast(minimum, message?)`
-
-Checks a number or bigint using `value >= minimum`.
-
-**Issue code:** `isAtLeast:expected_at_least`
-
-### `isAtMost(maximum, message?)`
-
-Checks a number or bigint using `value <= maximum`.
-
-**Issue code:** `isAtMost:expected_at_most`
-
-Numeric constraints do not add hidden finite-number requirements:
+**Issue codes:** `isAtLeast:expected_at_least`, `isAtMost:expected_at_most`, `isGreaterThan:expected_greater_than`, `isLessThan:expected_less_than`
 
 ```ts
 v.number()
-	.isAtLeast(0)
+	.isGreaterThan(0)
 	.execute(Infinity) // success
+
 v.number()
 	.isFinite()
-	.isAtLeast(0)
+	.isGreaterThan(0)
 	.execute(Infinity) // failure
 ```
 
-## Length constraints
+## `isMultipleOf(divisor, options?)`
 
-### `isLengthAtLeast(minimum, message?)`
-
-Checks `value.length >= minimum`.
-
-**Issue code:** `isLengthAtLeast:expected_length_at_least`
-
-Failure payload: `{ value, minimum, length }`, where `length` is the single runtime read used by validation.
-
-### `isLengthAtMost(maximum, message?)`
-
-Checks `value.length <= maximum`.
-
-**Issue code:** `isLengthAtMost:expected_length_at_most`
-
-Failure payload: `{ value, maximum, length }`.
+Checks bigint divisibility with exact remainder semantics. Number inputs first accept an exact zero remainder, then compare the quotient with its nearest integer using a small relative tolerance capped by an absolute maximum. This accepts ordinary floating-point decimal noise without allowing tolerance to grow unbounded for huge values.
 
 ```ts
-const username = v.string()
-	.isLengthAtLeast(3)
-	.isLengthAtMost(20)
+v.number()
+	.isMultipleOf(0.1)
+	.execute(0.1 + 0.2) // success
 ```
 
-### `isEmpty(message?)`
+Non-finite number inputs fail. A zero divisor, non-finite number divisor, or zero bigint divisor is rejected while constructing the schema.
 
-Checks `value.length === 0`.
+**Issue code:** `isMultipleOf:expected_multiple_of`
 
-**Issue code:** `isEmpty:expected_empty`
+# Length validation
 
-Failure payload: `{ value, length }`.
+## `isLengthAtLeast(minimum, options?)` and `isLengthAtMost(maximum, options?)`
 
-### `isNotEmpty(message?)`
+Check inclusive length bounds. Failure payloads include the single observed runtime `length`.
 
-Checks `value.length > 0`.
+**Issue codes:** `isLengthAtLeast:expected_length_at_least`, `isLengthAtMost:expected_length_at_most`
 
-**Issue code:** `isNotEmpty:expected_not_empty`
+## `isLengthExactly(expectedLength, options?)`
 
-Failure payload: `{ value, length }`.
+Checks one observed `length` read for exact equality.
 
-## String constraints
+**Issue code:** `isLengthExactly:expected_length_exactly`
 
-### `isStartingWith(prefix, message?)`
+Failure payload: `{ value, expectedLength, length }`.
 
-Checks `value.startsWith(prefix)`.
+## `isEmpty(options?)` and `isNotEmpty(options?)`
 
-**Issue code:** `isStartingWith:expected_starting_with`
+Check `length === 0` and `length > 0`.
 
-### `isEndingWith(suffix, message?)`
+**Issue codes:** `isEmpty:expected_empty`, `isNotEmpty:expected_not_empty`
 
-Checks `value.endsWith(suffix)`.
+# String and collection validation
 
-**Issue code:** `isEndingWith:expected_ending_with`
+## `isStartingWith(prefix, options?)` and `isEndingWith(suffix, options?)`
+
+Follow the corresponding string methods.
+
+**Issue codes:** `isStartingWith:expected_starting_with`, `isEndingWith:expected_ending_with`
+
+## `isIncluding(value, options?)`
+
+For strings, checks `String.prototype.includes` and accepts optional `position`. For arrays, checks `Array.prototype.includes` and accepts optional `fromIndex`.
+
+Array inclusion uses SameValueZero semantics, so `NaN` can match `NaN` and positive zero matches negative zero.
+
+**Issue code:** `isIncluding:expected_including`
+
+The issue payload includes `target: 'string' | 'array'` and the applicable configured and observed values.
+
+## `isMatching(pattern, options?)`
+
+Snapshots a `RegExp` source and flags when the schema is constructed. Each execution resets `lastIndex` before and after matching, so global and sticky expressions remain deterministic across repeated calls.
+
+A non-`RegExp` value supplied by a JavaScript caller is rejected while constructing the schema.
+
+**Issue code:** `isMatching:expected_matching`
+
+# Primitive equality and narrowing
+
+## `isEqualTo(expected, options?)`
+
+Available after every primitive initial schema, primitive-capable unions, `unknown()`, and `any()`. It is unavailable on the initial builder and on object-only output.
+
+The expected value must be a primitive: string, number, bigint, boolean, symbol, null, or undefined. Runtime comparison uses `Object.is`, and the successful output narrows to the configured value.
+
+**Issue code:** `isEqualTo:expected_equal_to`
+
+## `isOneOf(values, options?)`
+
+Checks a non-empty readonly tuple of primitive values with `Object.is` semantics. The tuple is copied and frozen when the schema is constructed, and the successful output narrows to the tuple member union.
+
+**Issue code:** `isOneOf:expected_one_of`
 
 ```ts
-const configFile = v.string()
-	.isStartingWith('config')
-	.isEndingWith('.json')
+const status = v.unknown()
+	.isOneOf(['draft', 'published'] as const)
+// output: 'draft' | 'published'
 ```
+
+## Nullish narrowing
+
+- `isDefined(options?)` removes `undefined` and preserves `null`.
+- `isNonNull(options?)` removes `null` and preserves `undefined`.
+- `isNonNullish(options?)` removes both.
+
+Each method is hidden once its excluded value is no longer possible. On `unknown()` or `any()`, the resulting output reflects the runtime exclusion instead of remaining wholly unknown.
+
+**Issue codes:** `isDefined:expected_defined`, `isNonNull:expected_non_null`, `isNonNullish:expected_non_nullish`
 
 # Generic validation
 
-`check(predicate, message?)` remains the generic high-level validation escape hatch rather than adopting an `isXxx` name:
-
-```ts
-const email = v.string()
-	.check(value => value.includes('@'))
-```
+`check(predicate, options?)` remains the generic validation escape hatch. It supports predicates, type guards, typed `addIssue()`, synchronous callbacks, and `PromiseLike` callbacks.
 
 # Custom messages
 
-Every issue-producing step accepts a static message or message handler:
+Every issue-producing step accepts a static message or typed message handler in its options object:
 
 ```ts
 const schema = v.string()
 	.isLengthAtLeast(3, { message: 'Too short' })
 	.isLengthAtMost(20, { message: 'Too long' })
-	.isStartingWith('http', { message: ({ payload }) =>
-		`Expected ${payload.value} to start with ${payload.prefix}` })
+	.isStartingWith('http', {
+		message: ({ payload }) =>
+			`Expected ${payload.value} to start with ${payload.prefix}`,
+	})
 ```

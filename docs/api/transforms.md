@@ -1,41 +1,30 @@
 # Transforms
 
-Concrete transformation steps use the `toXxx` prefix and replace the successful pipeline value with a transformed output. The generic `transform()` escape hatch keeps its direct name.
+Concrete transformation steps use the `toXxx` prefix and replace the successful pipeline value. The generic `transform()` escape hatch keeps its direct name.
+
+Message-bearing transformations use a trailing options object.
 
 ## String transforms
 
-### `toTrimmed()`
+### `toTrimmed()`, `toTrimmedStart()`, and `toTrimmedEnd()`
 
-Trims whitespace from both ends.
+Trim whitespace from both ends, the beginning, or the end.
 
-```ts
-v.string()
-	.toTrimmed()
-	.execute('  hello  ')
-// { value: 'hello' }
-```
+### `toUppercase()` and `toLowercase()`
 
-### `toTrimmedStart()`
+Convert a string to uppercase or lowercase.
 
-Trims whitespace from the beginning.
+### `toNormalized(options?)`
 
-### `toTrimmedEnd()`
+Normalizes a string with `String.prototype.normalize`. `form` may be `NFC`, `NFD`, `NFKC`, or `NFKD`; the default is `NFC`.
 
-Trims whitespace from the end.
-
-### `toUppercase()`
-
-Converts a string to uppercase.
-
-### `toLowercase()`
-
-Converts a string to lowercase.
+This pure transformation does not emit an issue. An unsupported form supplied by a JavaScript caller is rejected while constructing the schema.
 
 ```ts
 v.string()
-	.toLowercase()
-	.execute('USER@EXAMPLE.COM')
-// { value: 'user@example.com' }
+	.toNormalized({ form: 'NFC' })
+	.execute('e\u0301')
+// { value: 'é' }
 ```
 
 ### `toSplit(separator, limit?)`
@@ -44,11 +33,6 @@ Delegates to `String.prototype.split` and outputs a string array.
 
 ```ts
 v.string()
-	.toSplit(',')
-	.execute('a,b,c')
-// { value: ['a', 'b', 'c'] }
-
-v.string()
 	.toSplit(',', 2)
 	.execute('a,b,c')
 // { value: ['a', 'b'] }
@@ -56,259 +40,106 @@ v.string()
 
 ## Array transforms
 
-### `toFiltered(predicate, thisArg?, message?)`
+### `toFiltered(predicate, options?)`
 
-Keeps elements accepted by the predicate. Type-guard predicates narrow the output element type. The second parameter follows `Array.prototype.filter`; the optional third parameter is the step message.
+Keeps elements accepted by the predicate. Type-guard predicates narrow the output element type. Optional `thisArg` and `message` belong to the options object.
 
 **Issue code:** `toFiltered:callback_failed` (`operation`)
 
-The failure payload is `{ value, item, index, error }`.
+Failure payload: `{ value, item, index, error }`.
+
+### `toMapped(mapper, options?)`
+
+Maps each item without mutating the input. The mapper receives `(item, index, value)` and optional `thisArg`.
+
+Mapper return values are preserved exactly. A returned promise remains an array item and does not make the step asynchronous.
+
+Mapper exceptions emit an operation issue. Errors thrown by the underlying array `map` operation outside the mapper remain core internal failures.
+
+**Issue code:** `toMapped:callback_failed` (`operation`)
+
+Failure payload: `{ value, item, index, error }`.
 
 ```ts
 v.array(v.number())
-	.toFiltered(value => value > 0)
-	.execute([1, -2, 3])
+	.toMapped((value, index) => value + index)
+	.execute([1, 2])
 // { value: [1, 3] }
 ```
 
-### `toSorted(compare?, message?)`
+### `toSorted(options?)`
 
-Returns a sorted array output without mutating the input.
+Returns a sorted array without mutating the input. Supply `compareFn` and `message` in the options object.
 
 **Issue code:** `toSorted:callback_failed` (`operation`)
 
-The failure payload is `{ value, left, right, error }`.
-
-```ts
-v.array(v.number())
-	.toSorted({ compareFn: (a, b) => a - b })
-	.execute([3, 1, 2])
-// { value: [1, 2, 3] }
-```
+Failure payload: `{ value, left, right, error }`.
 
 ### `toSliced(start, end?)`
 
-Returns a sliced output and forwards the arguments to the current value's `slice` method.
+Forwards arguments to the current value's `slice` method.
 
 ### `toLength()`
 
 Replaces a length-bearing value with its numeric length.
 
-```ts
-v.array(v.string())
-	.toLength()
-	.execute(['a', 'b'])
-// { value: 2 }
-```
-
 ## JSON transforms
 
-### `toJSONValue<T = unknown>(message?)`
+### `toJSONValue<T = unknown>(options?)`
 
 Parses a JSON string with `JSON.parse`.
 
 **Issue code:** `toJSONValue:invalid_json`
 
-```ts
-const schema = v.string()
-	.toJSONValue<{ port: number }>()
+The generic type parameter is an output assertion. Use `use()` after parsing when the parsed structure must also be validated.
 
-schema.execute('{"port":8080}')
-// { value: { port: 8080 } }
-
-schema.execute('invalid')
-// failure with toJSONValue:invalid_json
-```
-
-The generic type parameter is an output assertion; use `use()` after parsing when the parsed structure must also be validated:
-
-```ts
-const config = v.string()
-	.toJSONValue()
-	.use(v.object({
-		port: v.number()
-			.isFinite()
-			.isInteger(),
-	}))
-```
-
-### `toJSONString(message?)`
+### `toJSONString(options?)`
 
 Serializes a supported value with JSON semantics after a single-read preflight. Inherited and symbol-keyed properties are ignored, sparse array holes become `null`, boxed string/number/boolean values are unboxed, and `NaN` or infinity serialize as `null`.
 
 Issue codes:
 
-- `toJSONString:unserializable` (`validation`) — payload `{ reason, value, at, valueType? }`; `reason` is `unsupported_type`, `circular_reference`, or `undefined_result`.
-- `toJSONString:serialization_failed` (`operation`) — payload `{ value, at, error }` for getter, Proxy, `toJSON`, or final serialization failures.
-
-`at` identifies the nested serialization location independently of the validation issue `path`.
-
-```ts
-v.object({ key: v.string() })
-	.toJSONString()
-	.execute({ key: 'value' })
-// { value: '{"key":"value"}' }
-```
+- `toJSONString:unserializable` (`validation`) — payload `{ reason, value, at, valueType? }`
+- `toJSONString:serialization_failed` (`operation`) — payload `{ value, at, error }`
 
 ## Primitive conversions
 
-Native primitive conversion steps are available after any output that is not already the target primitive type. Identity conversions such as `number().toNumber()` and `boolean().toBoolean()` are intentionally unavailable.
+Native conversions are available after outputs that are not already entirely the target primitive type. Identity conversions are hidden by the state-aware API.
 
-### `toNumber(message?)`
+### `toNumber(options?)`
 
-Delegates directly to JavaScript `Number(value)`. It does not add parsing, finite-number, or precision-safety policy.
-
-```ts
-v.string()
-	.toNumber()
-	.execute('42')
-// { value: 42 }
-
-v.string()
-	.toNumber()
-	.execute('invalid')
-// { value: NaN }
-
-v.string()
-	.toNumber()
-	.execute('Infinity')
-// { value: Infinity }
-
-v.bigint()
-	.toNumber()
-	.execute(9007199254740993n)
-// { value: 9007199254740992 }
-
-v.unknown()
-	.toNumber()
-	.execute(null)
-// { value: 0 }
-```
-
-Native `Number()` exceptions become structured issues.
-
-**Issue code:** `toNumber:conversion_failed`
-
-Use subsequent validation when a narrower numeric domain is required:
-
-```ts
-v.string()
-	.toNumber()
-	.isFinite()
-```
+Delegates to `Number(value)`. It does not add parsing, finite-number, or precision-safety policy. Native exceptions become `toNumber:conversion_failed`.
 
 ### `toBoolean()`
 
-Delegates directly to JavaScript `Boolean(value)` truthiness coercion. It does not parse semantic boolean strings.
+Delegates to `Boolean(value)` truthiness coercion. It does not parse semantic boolean strings.
 
-```ts
-v.string()
-	.toBoolean()
-	.execute('false')
-// { value: true }
+### `toBigint(options?)`
 
-v.string()
-	.toBoolean()
-	.execute('')
-// { value: false }
+Delegates to `BigInt(value)`. Native conversion exceptions become `toBigint:conversion_failed`.
 
-v.number()
-	.toBoolean()
-	.execute(0)
-// { value: false }
+### `bigint().toSafeNumber(options?)`
 
-v.unknown()
-	.toBoolean()
-	.execute({})
-// { value: true }
-```
-
-Use `looseBoolean()` for the specific ``boolean | `${boolean}``` boundary contract, or `toMappedBoolean()` for custom representations.
-
-### `toBigint(message?)`
-
-Delegates directly to JavaScript `BigInt(value)`. Native conversion exceptions become structured issues.
-
-**Issue code:** `toBigint:conversion_failed`
-
-```ts
-v.string()
-	.toBigint()
-	.execute('42')
-// { value: 42n }
-
-v.boolean()
-	.toBigint()
-	.execute(true)
-// { value: 1n }
-
-v.number()
-	.toBigint()
-	.execute(1.5)
-// failure with toBigint:conversion_failed
-```
-
-### `bigint().toSafeNumber(message?)`
-
-Converts a bigint only when it is between `Number.MIN_SAFE_INTEGER` and `Number.MAX_SAFE_INTEGER`, inclusive.
+Converts only values within JavaScript's safe integer range.
 
 **Issue code:** `toSafeNumber:out_of_safe_integer_range`
 
-```ts
-v.bigint()
-	.toSafeNumber()
-	.execute(42n)
-// { value: 42 }
+### `toMappedBoolean(options)`
 
-v.bigint()
-	.toSafeNumber()
-	.execute(9007199254740992n)
-// failure with toSafeNumber:out_of_safe_integer_range
-```
-
-Use `toNumber()` when native bigint precision loss is acceptable.
-
-### `toMappedBoolean(options, message?)`
-
-Maps configured values to booleans without implicit coercion, trimming, or case normalization.
+Maps configured string, number, or bigint values to booleans without coercion, trimming, or case normalization.
 
 ```ts
 v.string()
 	.toMappedBoolean({
 		trueValues: ['Y', 'yes'],
 		falseValues: ['N', 'no'],
+		message: 'Expected a configured boolean value.',
 	})
-	.execute('Y')
-// { value: true }
-
-v.number()
-	.toMappedBoolean({
-		trueValues: [1],
-		falseValues: [0],
-	})
-	.execute(0)
-// { value: false }
 ```
 
-Mappings use JavaScript `Set` SameValueZero equality. This means `NaN` matches `NaN`, and `0` matches `-0`.
+Mappings use SameValueZero equality. Configuration arrays are immutable schema-time snapshots. Both mappings may not be empty, and their values may not overlap.
 
 **Issue code:** `toMappedBoolean:unmapped_value`
-
-The failure payload contains `{ value, trueValues, falseValues }`. Both mapping arrays are immutable schema-time snapshots, so later mutations of the caller's arrays cannot rewrite diagnostics.
-
-A value outside both mappings fails. One mapping may be empty, but both mappings may not be empty. Values may not appear in both mappings; invalid mapping configurations throw when the schema is created.
-
-Compose normalization steps explicitly when required:
-
-```ts
-v.string()
-	.toTrimmed()
-	.toLowercase()
-	.toMappedBoolean({
-		trueValues: ['yes', 'y'],
-		falseValues: ['no', 'n'],
-	})
-```
 
 ## General conversion
 
@@ -318,33 +149,20 @@ Calls the current value's `toString` method and preserves its native parameters 
 
 **Issue code:** `toString:conversion_failed` (`operation`)
 
-The failure payload is `{ value, error }`. Because arguments belong to the native `toString` method, this step has no trailing per-step message parameter; global and code-map message handlers still receive the typed issue.
-
-```ts
-v.number()
-	.toString(16)
-	.execute(255)
-// { value: 'ff' }
-```
+Because arguments belong to the native method, this step does not accept a trailing per-step message object. Global and code-map handlers still receive the typed issue.
 
 ## Generic transform
 
-### `transform(fn)`
+### `transform(fn, options?)`
 
-`transform()` remains the high-level escape hatch for arbitrary output changes. The callback may return a direct value or a supported asynchronous result according to the step contract. Throwing or rejecting emits the operation issue `transform:callback_failed` with `{ phase, value, error }`.
-
-```ts
-const slug = v.string()
-	.toTrimmed()
-	.toLowercase()
-	.transform(value => value.replace(/[^a-z0-9-]+/g, '-'))
-```
+Remains the high-level escape hatch for arbitrary output changes. The callback may return a direct or supported asynchronous value. Throwing or rejecting emits `transform:callback_failed` with `{ phase, value, error }`.
 
 Type-changing transforms flow into subsequent state-aware methods:
 
 ```ts
 const tags = v.string()
 	.toSplit(',')
+	.toMapped(value => value.trim())
 	.toFiltered(value => value.length > 0)
 ```
 
@@ -352,27 +170,4 @@ const tags = v.string()
 
 ### `toAsync()`
 
-Forces every invocation of the complete schema to return a native `Promise`.
-
-```ts
-const schema = v.string()
-	.toUppercase()
-	.toAsync()
-
-const result = await schema.execute('hello')
-```
-
-`toAsync()` changes execution mode, not the successful value.
-
-## Transform versus validation
-
-Use a transformation when the successful output changes. Use a validation when the original successful value is preserved:
-
-```ts
-const name = v.string()
-	.toTrimmed()
-	.isNotEmpty()
-	.toLowercase()
-```
-
-Use `transform()` and `check()` only when no built-in named step expresses the operation precisely.
+Forces every invocation of the complete schema to return a native `Promise`, including otherwise synchronous successes and early failures.

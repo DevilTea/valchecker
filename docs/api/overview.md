@@ -87,20 +87,24 @@ const schema = v.object({
 
 ## Validation steps
 
-- `isAtLeast(value)` — minimum number or bigint value
-- `isAtMost(value)` — maximum number or bigint value
-- `isLengthAtLeast(length)` — minimum length
-- `isLengthAtMost(length)` — maximum length
-- `isInteger()` — integer numbers
-- `isFinite()` — finite numbers
-- `isNaN()` — `NaN`
-- `isEmpty()` — length equals zero
-- `isNotEmpty()` — length is greater than zero
-- `isStartingWith(prefix)` — string prefix
-- `isEndingWith(suffix)` — string suffix
+- `isAtLeast(value)` / `isAtMost(value)` — inclusive number or bigint bounds
+- `isGreaterThan(value)` / `isLessThan(value)` — strict number or bigint bounds
+- `isMultipleOf(divisor)` — number or bigint divisibility
+- `isInteger()` / `isSafeInteger()` / `isFinite()` / `isNaN()` — explicit number policies
+- `isLengthAtLeast(length)` / `isLengthAtMost(length)` / `isLengthExactly(length)` — length constraints
+- `isEmpty()` / `isNotEmpty()` — empty and non-empty length-bearing values
+- `isStartingWith(prefix)` / `isEndingWith(suffix)` — string prefix and suffix
+- `isIncluding(value, options?)` — native string or array inclusion semantics
+- `isMatching(pattern)` — regular-expression matching with deterministic state reset
+- `isEqualTo(value)` / `isOneOf(values)` — primitive `Object.is` checks with output narrowing
+- `isDefined()` / `isNonNull()` / `isNonNullish()` — nullish output narrowing
 - `check(predicate)` — generic custom validation escape hatch
 
-Each validation step checks only the condition expressed by its name. For example, `isAtLeast(0)` accepts positive infinity; use `isFinite().isAtLeast(0)` when both constraints are required.
+Each validation step checks only the condition expressed by its name. For example, `isGreaterThan(0)` accepts positive infinity; use `isFinite().isGreaterThan(0)` when both constraints are required.
+
+`isMultipleOf()` checks bigint remainder exactly. Number inputs use a small floating-point tolerance so ordinary decimal expressions such as `0.3` being a multiple of `0.1` are accepted. Non-finite number inputs fail, while zero and non-finite number divisors are rejected when the schema is constructed.
+
+`isEqualTo()` and `isOneOf()` accept primitive expectations only. They use `Object.is`, so `NaN` equals `NaN` and positive zero differs from negative zero. `isOneOf()` requires a non-empty tuple and snapshots its configured values.
 
 ## Transformations
 
@@ -110,24 +114,28 @@ Each validation step checks only the condition expressed by its name. For exampl
 - `toTrimmedEnd()` — trim the end
 - `toUppercase()` — uppercase string
 - `toLowercase()` — lowercase string
-- `toNumber(message?)` — native `Number(value)` conversion after any non-number output
+- `toNormalized(options?)` — Unicode normalization
+- `toNumber(options?)` — native `Number(value)` conversion after any non-number output
 - `toBoolean()` — native `Boolean(value)` conversion after any non-boolean output
-- `toBigint(message?)` — native `BigInt(value)` conversion after any non-bigint output
-- `toSafeNumber(message?)` — bigint to number only within the safe integer range
-- `toMappedBoolean(options, message?)` — explicit true/false value mappings for string, number, or bigint
+- `toBigint(options?)` — native `BigInt(value)` conversion after any non-bigint output
+- `toSafeNumber(options?)` — bigint to number only within the safe integer range
+- `toMappedBoolean(options)` — explicit true/false value mappings for string, number, or bigint
 - `toString()` — convert a supported value through its `toString` method
-- `toSorted(compare?)` — sorted array output
-- `toFiltered(predicate)` — filtered array output
+- `toSorted(options?)` — sorted array output
+- `toFiltered(predicate, options?)` — filtered array output
+- `toMapped(mapper, options?)` — mapped array output with structured callback failures
 - `toSliced(start, end?)` — sliced output
 - `toSplit(separator, limit?)` — split string output
 - `toLength()` — length output
-- `toJSONValue()` — parse a JSON string
-- `toJSONString()` — stringify a supported value
+- `toJSONValue(options?)` — parse a JSON string
+- `toJSONString(options?)` — stringify a supported value
 - `toAsync()` — force the complete schema to return a native promise
 
 Native coercion steps deliberately follow JavaScript semantics. For example, `string().toNumber()` may produce `NaN`, and `string().toBoolean()` converts the non-empty string `'false'` to `true`. Native exceptions from `Number()` and `BigInt()` become structured issues. Use explicit validation or policy conversions when a narrower contract is required.
 
 Identity conversions are not exposed: `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware API. A union or unknown output remains convertible when it is not already entirely the target primitive type.
+
+`toMapped()` follows synchronous `Array.prototype.map` semantics. A mapper's returned promise remains an array item; it is not awaited. Mapper exceptions become `toMapped:callback_failed` operation issues, while failures outside the mapper remain core internal failures.
 
 `json()` is an initial validator for JSON-compatible values, not a transformation.
 
@@ -192,13 +200,14 @@ Every step returns a new immutable schema:
 const schema = v.string()
 	.toTrimmed()
 	.isNotEmpty({ message: 'Required' })
+	.toNormalized()
 	.toLowercase()
 ```
 
 ## Detailed references
 
 - **[Valchecker 1.0 Contract](/guide/v1-contract)** — normative behavior and compatibility
-- **[Primitives](/api/primitives)** — primitive and loose primitive validators
+- **[Primitives](/api/primitives)** — primitive, numeric, string, and narrowing validators
 - **[Structures](/api/structures)** — object, array, union and intersection
 - **[Transforms](/api/transforms)** — output transformations
 - **[Helpers](/api/helpers)** — flow control and utilities
