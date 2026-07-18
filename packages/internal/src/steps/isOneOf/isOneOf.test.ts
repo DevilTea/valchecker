@@ -31,8 +31,10 @@ describe('isOneOf step plugin', () => {
 				payload: { value: 'c', expectedValues: ['a', 'b'] },
 			}],
 		})
-		// @ts-expect-error At least one configured value is required.
-		v.string().isOneOf([])
+		if (false) {
+			// @ts-expect-error At least one configured value is required.
+			v.string().isOneOf([])
+		}
 		expect(() => v.string().isOneOf([] as any)).toThrow('at least one')
 		expectTypeOf(v.object({}).isOneOf).toBeNever()
 	})
