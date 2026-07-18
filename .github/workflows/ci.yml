@@ -68,15 +68,54 @@ jobs:
           pnpm build
           pnpm api:surface:update
 
-      - name: Validate migrated repository
+      - name: Test quality
+        shell: bash
         run: |
-          pnpm test:quality
-          pnpm typecheck
-          pnpm test
-          pnpm docs:build
-          pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
-          pnpm --dir benchmarks verify
-          git diff --check
+          set -o pipefail
+          pnpm test:quality 2>&1 | tee test-quality.log
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm typecheck 2>&1 | tee typecheck.log
+
+      - name: Tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test.log
+
+      - name: Documentation
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm docs:build 2>&1 | tee docs.log
+
+      - name: Benchmark scenarios
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts 2>&1 | tee benchmark-install.log
+          pnpm --dir benchmarks verify 2>&1 | tee benchmark-verify.log
+
+      - name: Diff integrity
+        run: git diff --check
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: step-options-finalizer-logs
+          path: |
+            test-quality.log
+            typecheck.log
+            test.log
+            docs.log
+            benchmark-install.log
+            benchmark-verify.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Squash migration history and push
         shell: bash
