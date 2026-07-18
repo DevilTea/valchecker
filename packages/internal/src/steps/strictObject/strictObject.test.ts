@@ -183,14 +183,15 @@ describe('strictObject step plugin', () => {
 
 	it('uses custom messages for each owned structural issue', () => {
 		const message = (issue: { code: string }) => `Custom: ${issue.code}`
+		const options = { message: message as any }
 
-		expect(v.strictObject({}, message as any).execute('wrong')).toMatchObject({
+		expect(v.strictObject({}, options).execute('wrong')).toMatchObject({
 			issues: [{ message: 'Custom: strictObject:expected_object' }],
 		})
-		expect(v.strictObject({ value: v.string() }, message as any).execute({})).toMatchObject({
+		expect(v.strictObject({ value: v.string() }, options).execute({})).toMatchObject({
 			issues: [{ message: 'Custom: strictObject:missing_key' }],
 		})
-		expect(v.strictObject({ value: v.string() }, message as any)
+		expect(v.strictObject({ value: v.string() }, options)
 			.execute({ value: 'ok', extra: true })).toMatchObject({
 			issues: [{ message: 'Custom: strictObject:unexpected_keys' }],
 		})
