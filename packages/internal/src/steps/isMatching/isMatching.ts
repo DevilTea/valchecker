@@ -21,6 +21,9 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isMatching = implStepPlugin<PluginDef>({
 	isMatching: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [pattern, options] }) => {
+		if (!(pattern instanceof RegExp))
+			throw new TypeError('isMatching() requires a RegExp pattern.')
+
 		const patternSnapshot = Object.freeze({ source: pattern.source, flags: pattern.flags })
 		const regex = new RegExp(patternSnapshot.source, patternSnapshot.flags)
 		addSuccessStep((value) => {
