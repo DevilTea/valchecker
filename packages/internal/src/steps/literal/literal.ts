@@ -10,13 +10,9 @@ declare namespace Internal {
 interface LiteralUnionShorthandDef {
 	branch: unknown
 	input: Internal.LiteralType
-	result: this['branch'] extends Internal.LiteralType
-		? {
-			operationMode: 'sync'
-			output: this['branch']
-			issue: Internal.Issue<this['branch']>
-		}
-		: never
+	operationMode: 'sync'
+	output: this['branch'] extends Internal.LiteralType ? this['branch'] : never
+	issue: this['branch'] extends Internal.LiteralType ? Internal.Issue<this['branch']> : never
 }
 
 type Meta = DefineStepMethodMeta<{
