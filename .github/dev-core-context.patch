@@ -1,0 +1,64 @@
+diff --git a/packages/internal/src/core/core.ts b/packages/internal/src/core/core.ts
+--- a/packages/internal/src/core/core.ts
++++ b/packages/internal/src/core/core.ts
+@@ -659,6 +659,7 @@ function createStepMethodContext({
+ 			return createInstance({
+ 				stepMethods,
+ 				resolveMessage,
++				context,
+ 				currentRuntimeSteps: runtimeSteps,
+ 			})
+ 		},
+@@ -670,14 +671,14 @@ function createProxyHandler({
+ 	stepMethods,
+ 	resolveMessage,
+ 	runtimeSteps,
++	context,
+ }: {
+ 	stepMethods: Record<PropertyKey, unknown>
+ 	resolveMessage: ResolveMessageFn
+ 	runtimeSteps: RuntimeStep[]
++	context: StepMethodContext
+ }) {
+-	const context = createStepMethodContext({ stepMethods, resolveMessage })
+-
+ 	return {
+ 		get: (target: any, p: PropertyKey, receiver: any) => {
+ 			if (Object.hasOwn(stepMethods, p) === false)
+@@ -700,6 +701,7 @@ function createProxyHandler({
+ 				return createInstance({
+ 					stepMethods,
+ 					resolveMessage,
++					context,
+ 					currentRuntimeSteps: nextRuntimeSteps,
+ 				})
+ 			}
+@@ -740,17 +742,19 @@ function createInstance({
+ 	stepMethods,
+ 	resolveMessage,
++	context,
+ 	currentRuntimeSteps,
+ }: {
+ 	stepMethods: Record<PropertyKey, unknown>
+ 	resolveMessage: ResolveMessageFn
++	context: StepMethodContext
+ 	currentRuntimeSteps: RuntimeStep[]
+ }): any {
+ 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
+ 	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw)
+ 
+-	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps }))
++	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps, context }))
+ }
+@@ -798,10 +802,12 @@ export function createValchecker<
+ 	}
+ 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
++	const context = createStepMethodContext({ stepMethods, resolveMessage })
+ 
+ 	return createInstance({
+ 		stepMethods,
+ 		resolveMessage,
++		context,
+ 		currentRuntimeSteps: [],
+ 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
+ }
