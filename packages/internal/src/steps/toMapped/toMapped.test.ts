@@ -8,8 +8,11 @@ describe('toMapped step plugin', () => {
 	it('maps items with index, source array, and thisArg', () => {
 		const context = { offset: 10 }
 		const input = [1, 2]
+		let callbackArray: readonly number[] | undefined
 		const schema = v.array(v.number()).toMapped(function (item, index, value) {
-			expect(value).toBe(input)
+			callbackArray ??= value
+			expect(value).toBe(callbackArray)
+			expect(value).toEqual(input)
 			return item + index + this.offset
 		}, { thisArg: context })
 		expect(schema.execute(input)).toEqual({ value: [11, 13] })
