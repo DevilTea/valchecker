@@ -24,6 +24,7 @@ const unionFixture = implStepPlugin<any>({
 const v = createValchecker({
 	steps: [literal, null_, number, string, transform, undefined_, union, unionFixture, unknown],
 })
+const symbolShorthand = Symbol('shorthand')
 
 describe('union step plugin', () => {
 	it.each([
@@ -47,6 +48,7 @@ describe('union step plugin', () => {
 		['literal number', v.union([42]), 42],
 		['literal bigint', v.union([42n]), 42n],
 		['literal boolean', v.union([true]), true],
+		['literal symbol', v.union([symbolShorthand]), symbolShorthand],
 		['null', v.union([null]), null],
 		['undefined', v.union([undefined]), undefined],
 	] as const)('normalizes the %s shorthand through its registered provider', (_case, schema, input) => {
