@@ -71,6 +71,10 @@ jobs:
               "\tvisit(sf)\n\treturn applyReplacements(source, replacements)\n}",
               "\tvisit(sf)\n\tconst transformed = applyReplacements(source, replacements)\n\treturn transformed === source ? source : transformCalls(filePath, transformed)\n}",
           )
+          source = source.replace(
+              "'- concrete transformations use `toXxx`, except generic `transform()`;\\n'",
+              "'`check()` and `transform()` are generic escape hatches and intentionally do not use artificial `isValid` or `toTransformed` names.\\n'",
+          )
           start = source.index("for (const marker of ['message?: MessageHandler<'")
           end = source.index("fs.rmSync(path.join(root, 'scripts/apply-step-options-migration.ts'))", start)
           path.write_text(source[:start] + source[end:])
