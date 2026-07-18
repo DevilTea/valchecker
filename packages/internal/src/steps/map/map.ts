@@ -140,11 +140,12 @@ export const map = implStepPlugin<PluginDef>({
 			): Promise<ExecutionResult> => {
 				for (let index = startIndex; index < entries.length; index++) {
 					const [sourceKey, sourceValue] = entries[index]!
+					const keyWasProcessed = index === startIndex && phase === 'value'
 					const keyResult = index === startIndex
 						? phase === 'key' ? await pending : resolvedKey!
 						: await keyExecute(sourceKey)
 					const keyFailed = isFailure(keyResult)
-					if (keyFailed && appendChildIssues(keyResult, [index, 'key']))
+					if (!keyWasProcessed && keyFailed && appendChildIssues(keyResult, [index, 'key']))
 						return failure(issues!)
 
 					const valueResult = index === startIndex && phase === 'value'
