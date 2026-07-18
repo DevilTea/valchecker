@@ -1,11 +1,22 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
-import type { HasRegisteredPlugin } from '../union/union-shorthand'
+import type { TUnionShorthandDef } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
 	export type LiteralType = bigint | boolean | number | string | symbol
 	export type Issue<L extends LiteralType = LiteralType> = ExecutionIssue<'literal:expected_literal', { value: unknown, expected: L }>
+
+	export interface UnionShorthandDef extends TUnionShorthandDef {
+		input: LiteralType
+		result: this['branch'] extends LiteralType
+			? {
+				operationMode: 'sync'
+				output: this['branch']
+				issue: Issue<this['branch']>
+			}
+			: never
+	}
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -13,11 +24,8 @@ type Meta = DefineStepMethodMeta<{
 	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: Internal.Issue
 }>
-
-declare const literalPluginDefBrand: unique symbol
-
 interface PluginDef extends TStepPluginDef {
-	readonly [literalPluginDefBrand]: true
+	UnionShorthand: Internal.UnionShorthandDef
 	/**
 	 * ### Description:
 	 * Checks that the value matches the specified literal with `Object.is`.
@@ -70,23 +78,3 @@ export const literal = implStepPlugin<PluginDef>({
 				})))
 	},
 })
-
-declare module '../union/union-shorthand' {
-	interface UnionShorthandInputRegistry<Registered extends TStepPluginDef> {
-		literal: HasRegisteredPlugin<Registered, PluginDef> extends true
-			? Internal.LiteralType
-			: never
-	}
-
-	interface UnionShorthandResultRegistry<Registered extends TStepPluginDef, Branch> {
-		literal: HasRegisteredPlugin<Registered, PluginDef> extends true
-			? Branch extends Internal.LiteralType
-				? {
-					operationMode: 'sync'
-					output: Branch
-					issue: Internal.Issue<Branch>
-				}
-				: never
-			: never
-	}
-}
