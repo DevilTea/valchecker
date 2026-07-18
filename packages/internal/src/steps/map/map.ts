@@ -108,8 +108,11 @@ export const map = implStepPlugin<PluginDef>({
 				transformedValue: unknown,
 			): void => {
 				if (output.has(transformedKey)) {
-					const first = firstKeyMeta.get(transformedKey)!
-					(issues ??= []).push(createIssue({
+					const first = firstKeyMeta.get(transformedKey)
+					if (first == null)
+						throw new Error('Missing transformed Map key metadata.')
+					const target = issues ??= []
+					target.push(createIssue({
 						code: 'map:duplicate_transformed_key',
 						payload: {
 							value,
