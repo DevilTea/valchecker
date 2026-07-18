@@ -102,7 +102,7 @@ await tags.execute(['JS', 'TS', 'NODE'])
 
 Common array steps include `isEmpty`, `isNotEmpty`, `isLengthAtLeast`, `isLengthAtMost`, `toFiltered`, `toSorted`, `toSliced`, and `toLength`.
 
-## `union(schemas)`
+## `union(branches)`
 
 Evaluates branches in declaration order and returns the first successful branch's transformed output.
 
@@ -117,6 +117,43 @@ identifier.execute(' abc ')
 ```
 
 If every branch fails, the result contains collected branch issues. Branch order can affect output and performance.
+
+### Registration-aware shorthand
+
+Initial-schema steps can extend the values accepted directly by `union()` when they are registered in the same Valchecker instance:
+
+| Registered step | Enabled shorthand |
+| --- | --- |
+| `literal` | `string`, `number`, `bigint`, `boolean`, and `symbol` literal values |
+| `null_` | `null` |
+| `undefined_` | `undefined` |
+
+```ts
+const v = createValchecker({
+	steps: [union, literal, null_, undefined_, number],
+})
+
+const value = v.union([
+	'auto',
+	0,
+	null,
+	undefined,
+	v.number().isGreaterThan(0),
+])
+```
+
+The shorthand form is normalized during schema construction through the registered provider step. For example, `'auto'`, `null`, and `undefined` are equivalent to `v.literal('auto')`, `v.null()`, and `v.undefined()` respectively. They retain the provider's output, issue code, payload, message resolution, and equality semantics; `union()` does not implement a second primitive validator.
+
+Shorthand availability follows the steps registered on that specific instance. Importing a provider without registering it does not enable its shorthand. Registration order does not matter.
+
+Use an explicit provider schema when a branch needs provider-specific options such as a custom message:
+
+```ts
+const value = v.union([
+	v.literal('auto', { message: 'Expected automatic mode.' }),
+	v.null({ message: 'Expected null.' }),
+])
+```
 
 ### Discriminated unions
 

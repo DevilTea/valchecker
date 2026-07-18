@@ -1,14 +1,24 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
+import type { TUnionShorthandDef } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
+
+type Issue = ExecutionIssue<'null:expected_null', { value: unknown }>
+
+interface UnionShorthandDef extends TUnionShorthandDef {
+	input: null
+	operationMode: 'sync'
+	output: null
+	issue: Issue
+}
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'null'
 	ExpectedCurrentValchecker: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'null:expected_null', { value: unknown }>
+	SelfIssue: Issue
 }>
-
 interface PluginDef extends TStepPluginDef {
+	UnionShorthand: UnionShorthandDef
 	/**
 	 * ### Description:
 	 * Checks that the value is null.

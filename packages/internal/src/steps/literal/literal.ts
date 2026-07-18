@@ -7,13 +7,21 @@ declare namespace Internal {
 	export type Issue<L extends LiteralType = LiteralType> = ExecutionIssue<'literal:expected_literal', { value: unknown, expected: L }>
 }
 
+interface LiteralUnionShorthandDef {
+	branch: unknown
+	input: Internal.LiteralType
+	operationMode: 'sync'
+	output: this['branch'] extends Internal.LiteralType ? this['branch'] : never
+	issue: this['branch'] extends Internal.LiteralType ? Internal.Issue<this['branch']> : never
+}
+
 type Meta = DefineStepMethodMeta<{
 	Name: 'literal'
 	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: Internal.Issue
 }>
-
 interface PluginDef extends TStepPluginDef {
+	UnionShorthand: LiteralUnionShorthandDef
 	/**
 	 * ### Description:
 	 * Checks that the value matches the specified literal with `Object.is`.

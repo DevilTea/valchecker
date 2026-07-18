@@ -286,6 +286,9 @@ export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToInter
 								Def[M]['Meta']['SelfIssue']
 							>
 							params: MethodTuple[0]
+							context: {
+								createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
+							}
 						},
 					) => void
 				: never

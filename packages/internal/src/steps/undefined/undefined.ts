@@ -1,14 +1,24 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
+import type { TUnionShorthandDef } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
+
+type Issue = ExecutionIssue<'undefined:expected_undefined', { value: unknown }>
+
+interface UnionShorthandDef extends TUnionShorthandDef {
+	input: undefined
+	operationMode: 'sync'
+	output: undefined
+	issue: Issue
+}
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'undefined'
 	ExpectedCurrentValchecker: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'undefined:expected_undefined', { value: unknown }>
+	SelfIssue: Issue
 }>
-
 interface PluginDef extends TStepPluginDef {
+	UnionShorthand: UnionShorthandDef
 	/**
 	 * ### Description:
 	 * Checks that the value is undefined.

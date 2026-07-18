@@ -1,8 +1,10 @@
 import type { InferIssue, InferOperationMode, InferOutput } from '../../core'
 import { describe, expectTypeOf, it } from 'vitest'
-import { createValchecker, number, string, transform, union } from '../..'
+import { createValchecker, literal, null_, number, string, transform, undefined_, union } from '../..'
 
-const v = createValchecker({ steps: [number, string, transform, union] })
+const v = createValchecker({
+	steps: [literal, null_, number, string, transform, undefined_, union],
+})
 
 describe('union type-state contracts', () => {
 	it('infers the union of branch outputs and issues for synchronous branches', () => {
@@ -22,5 +24,55 @@ describe('union type-state contracts', () => {
 
 		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'maybe-async'>()
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string | number>()
+	})
+
+	it('infers registered shorthand outputs, issues, and sync mode', () => {
+		const marker = Symbol('marker')
+		const schema = v.union([
+			'draft',
+			1,
+			true,
+			1n,
+			marker,
+			null,
+			undefined,
+			v.number(),
+		])
+
+		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'sync'>()
+		expectTypeOf<InferOutput<typeof schema>>()
+			.toEqualTypeOf<'draft' | 1 | true | 1n | typeof marker | null | undefined | number>()
+		expectTypeOf<InferIssue<typeof schema>['code']>()
+			.toEqualTypeOf<
+				| 'literal:expected_literal'
+				| 'null:expected_null'
+				| 'undefined:expected_undefined'
+				| 'number:expected_number'
+			>()
+	})
+
+	it('enables only shorthands backed by registered provider steps', () => {
+		const schemaOnly = createValchecker({ steps: [string, union] })
+		const literalOnly = createValchecker({ steps: [literal, union] })
+		const nullOnly = createValchecker({ steps: [null_, union] })
+		const undefinedOnly = createValchecker({ steps: [undefined_, union] })
+
+		schemaOnly.union([schemaOnly.string()])
+		literalOnly.union(['value'])
+		nullOnly.union([null])
+		undefinedOnly.union([undefined])
+
+		if (false) {
+			// @ts-expect-error literal shorthand requires the literal step
+			schemaOnly.union(['value'])
+			// @ts-expect-error null shorthand requires the null step
+			schemaOnly.union([null])
+			// @ts-expect-error undefined shorthand requires the undefined step
+			schemaOnly.union([undefined])
+			// @ts-expect-error null shorthand is independent from literal
+			literalOnly.union([null])
+			// @ts-expect-error undefined shorthand is independent from null
+			nullOnly.union([undefined])
+		}
 	})
 })

@@ -22,6 +22,10 @@ import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
 
+interface StepMethodContext {
+	createInitialSchema: (method: string, params?: readonly unknown[]) => any
+}
+
 type MessageData = {
 	code: string
 	category?: IssueCategory | undefined
@@ -619,14 +623,51 @@ function createExecutionStepMethodUtils(
 }
 
 /* @__NO_SIDE_EFFECTS__ */
+function createStepMethodContext({
+	stepMethods,
+	resolveMessage,
+}: {
+	stepMethods: Record<PropertyKey, unknown>
+	resolveMessage: ResolveMessageFn
+}): StepMethodContext {
+	const context: StepMethodContext = {
+		createInitialSchema: (method, params = []) => {
+			const stepMethod = stepMethods[method]
+			if (typeof stepMethod !== 'function')
+				throw new TypeError(`Required step method is not registered: ${method}`)
+
+			const runtimeSteps: RuntimeStep[] = []
+			stepMethod({
+				utils: createExecutionStepMethodUtils(
+					method,
+					runtimeSteps,
+					resolveMessage,
+				),
+				params: [...params],
+				context,
+			})
+			return createInstance({
+				stepMethods,
+				resolveMessage,
+				context,
+				currentRuntimeSteps: runtimeSteps,
+			})
+		},
+	}
+	return context
+}
+
+/* @__NO_SIDE_EFFECTS__ */
 function createProxyHandler({
 	stepMethods,
 	resolveMessage,
 	runtimeSteps,
+	context,
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
 	runtimeSteps: RuntimeStep[]
+	context: StepMethodContext
 }) {
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
@@ -643,10 +684,12 @@ function createProxyHandler({
 						resolveMessage,
 					),
 					params,
+					context,
 				})
 				return createInstance({
 					stepMethods,
 					resolveMessage,
+					context,
 					currentRuntimeSteps: nextRuntimeSteps,
 				})
 			}
@@ -684,16 +727,18 @@ function createCoreProperties(
 function createInstance({
 	stepMethods,
 	resolveMessage,
+	context,
 	currentRuntimeSteps,
 }: {
 	stepMethods: Record<PropertyKey, unknown>
 	resolveMessage: ResolveMessageFn
+	context: StepMethodContext
 	currentRuntimeSteps: RuntimeStep[]
 }): any {
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
 	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw)
 
-	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps }))
+	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps, context }))
 }
 
 const reservedStepMethodNames = new Set<PropertyKey>([
@@ -742,10 +787,12 @@ export function createValchecker<
 		}
 	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
+	const context = createStepMethodContext({ stepMethods, resolveMessage })
 
 	return createInstance({
 		stepMethods,
 		resolveMessage,
+		context,
 		currentRuntimeSteps: [],
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }
