@@ -12,6 +12,16 @@ type Meta<T extends number | bigint> = DefineStepMethodMeta<{
 	SelfIssue: T extends number ? Internal.NumberIssue : Internal.BigIntIssue
 }>
 
+function isNumberMultipleOf(value: number, divisor: number): boolean {
+	if (!Number.isFinite(value))
+		return false
+
+	const remainder = value % divisor
+	const tolerance = Number.EPSILON * Math.max(1, Math.abs(value), Math.abs(divisor)) * 8
+	return Math.abs(remainder) <= tolerance
+		|| Math.abs(Math.abs(remainder) - Math.abs(divisor)) <= tolerance
+}
+
 interface PluginDef extends TStepPluginDef {
 	isMultipleOf:
 		| DefineStepMethod<Meta<number>, this['CurrentValchecker'] extends Meta<number>['ExpectedCurrentValchecker']
@@ -33,13 +43,18 @@ export const isMultipleOf = implStepPlugin<PluginDef>({
 			throw new TypeError('isMultipleOf() number divisor must be finite and non-zero.')
 		}
 
-		addSuccessStep((value) => value % divisor === (typeof value === 'bigint' ? 0n : 0)
-			? success(value)
-			: failure(createIssue({
-					code: 'isMultipleOf:expected_multiple_of',
-					payload: { target: typeof value === 'bigint' ? 'bigint' : 'number', value, divisor } as any,
-					customMessage: options?.message,
-					defaultMessage: `Expected a multiple of ${divisor}.`,
-				})))
+		addSuccessStep((value) => {
+			const matches = typeof value === 'bigint'
+				? value % (divisor as bigint) === 0n
+				: isNumberMultipleOf(value, divisor as number)
+			return matches
+				? success(value)
+				: failure(createIssue({
+						code: 'isMultipleOf:expected_multiple_of',
+						payload: { target: typeof value === 'bigint' ? 'bigint' : 'number', value, divisor } as any,
+						customMessage: options?.message,
+						defaultMessage: `Expected a multiple of ${divisor}.`,
+					}))
+		})
 	},
 })
