@@ -10,9 +10,6 @@ declare namespace Internal {
 	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
 		readonly compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined
 	}
-	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
-		readonly compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined
-	}
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -55,14 +52,14 @@ export const toSorted = implStepPlugin<PluginDef>({
 			if (compareFn == null)
 				return success(value.toSorted())
 			try {
-				return success(value.toSorted({ compareFn: (left: unknown, right: unknown) => {
+				return success(value.toSorted((left: unknown, right: unknown) => {
 					try {
 						return compareFn(left, right)
 					}
 					catch (error) {
 						throw new SortCallbackError(left, right, error)
 					}
-				} }))
+				}))
 			}
 			catch (error) {
 				if (!(error instanceof SortCallbackError))
