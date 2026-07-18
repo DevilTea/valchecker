@@ -55,14 +55,14 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	union: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? <const B extends Internal.Branches<this['CurrentValchecker']>>(
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? <const B extends Internal.Branches<This>>(
 				branches: B,
 			) => Next<{
-				operationMode: Internal.OpMode<this['CurrentValchecker'], B>
-				output: Internal.Output<this['CurrentValchecker'], B>
-				issue: Internal.Issue<this['CurrentValchecker'], B>
-			}, this['CurrentValchecker']>
+				operationMode: Internal.OpMode<This, B>
+				output: Internal.Output<This, B>
+				issue: Internal.Issue<This, B>
+			}, This>
 			: never
 	>
 }
