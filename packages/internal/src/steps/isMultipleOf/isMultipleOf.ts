@@ -12,14 +12,23 @@ type Meta<T extends number | bigint> = DefineStepMethodMeta<{
 	SelfIssue: T extends number ? Internal.NumberIssue : Internal.BigIntIssue
 }>
 
+const MAX_QUOTIENT_TOLERANCE = 1e-10
+
 function isNumberMultipleOf(value: number, divisor: number): boolean {
 	if (!Number.isFinite(value))
 		return false
 
 	const remainder = value % divisor
-	const tolerance = Number.EPSILON * Math.max(1, Math.abs(value), Math.abs(divisor)) * 8
-	return Math.abs(remainder) <= tolerance
-		|| Math.abs(Math.abs(remainder) - Math.abs(divisor)) <= tolerance
+	if (remainder === 0)
+		return true
+
+	const quotient = value / divisor
+	const nearestInteger = Math.round(quotient)
+	const tolerance = Math.min(
+		MAX_QUOTIENT_TOLERANCE,
+		Number.EPSILON * Math.max(1, Math.abs(quotient)) * 8,
+	)
+	return Math.abs(quotient - nearestInteger) <= tolerance
 }
 
 interface PluginDef extends TStepPluginDef {
