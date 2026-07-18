@@ -27,6 +27,10 @@ function visitFile(filePath: string): void {
 					if (index > 0 && name !== 'options')
 						errors.push(`${path.relative(root, filePath)}: only a trailing options parameter may follow the operand`)
 				})
+
+				// Callback parameters may themselves be function types. They are operands,
+				// not additional step-method parameters, so do not recurse into them.
+				return
 			}
 			ts.forEachChild(current, visit)
 		}
