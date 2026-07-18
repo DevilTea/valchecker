@@ -120,15 +120,15 @@ type PatchExecutionContext<Current extends TExecutionContext, Patch extends TExe
 
 type IsStepMethodDef<M> = [IsEqual<M, any>, IsEqual<M, unknown>, IsEqual<M, never>] extends [false, false, false]
 	// If one of the checks is true, then true
-	?	IsEqual<
+	? IsEqual<
 		M extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
-			?	IsEqual<M['Method'], never> extends true ? false : true
-			:	false,
+			? IsEqual<M['Method'], never> extends true ? false : true
+			: false,
 		false
 	> extends true
-		?	false
-		:	true
-	:	false
+		? false
+		: true
+	: false
 
 type ResolveStepMethodDefs<Instance extends TValchecker, This = Instance> = UnionToIntersection<InferRegisteredStepPluginDefs<Instance>> & { CurrentValchecker: This }
 
@@ -270,9 +270,9 @@ type ResolveExpectedThis<Def extends TStepPluginDef> = UnionToIntersection<Def> 
 
 export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToIntersection<StepPluginDef> & { CurrentValchecker: Valchecker<any, StepPluginDef> }) extends infer Def extends TStepPluginDef
 	? {
-		[M in keyof Def as IsStepMethodDef<Def[M]> extends true ? M : never]: Def[M]extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
+		[M in keyof Def as IsStepMethodDef<Def[M]> extends true ? M : never]: Def[M] extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
 			? OverloadParametersAndReturnType<UnionToIntersection<Def[M]['Method']> extends infer Method extends AnyFn ? Method : never> extends infer MethodTuple extends [params: any[], ret: Use<Valchecker>]
-				?	(
+				? (
 						payload: {
 							utils: StepMethodUtils<
 								InferOutput<Def[M]['Meta']['ExpectedCurrentValchecker']>,
@@ -372,7 +372,13 @@ export type MessageHandler<Issue extends AnyExecutionIssue = AnyExecutionIssue>
 		| ((issue: IssueMessageInput<Issue>) => string | undefined | null)
 		| MessageMap<Issue>
 
-/** Optional configuration shared by message-bearing built-in steps. */
+/**
+ * Optional configuration shared by message-bearing built-in steps.
+ *
+ * Built-in APIs may keep one required semantic operand positional. Every
+ * optional configuration field, including the custom issue message, belongs
+ * in one trailing options object.
+ */
 export interface StepOptions<Issue extends AnyExecutionIssue = AnyExecutionIssue> {
 	readonly message?: MessageHandler<Issue> | undefined
 }
