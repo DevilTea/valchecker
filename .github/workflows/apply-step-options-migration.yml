@@ -37,8 +37,31 @@ jobs:
       - name: Build Baseline Artifacts
         run: pnpm build
 
+      - name: Patch Temporary Migration Guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-step-options-migration.ts')
+          source = path.read_text()
+          start = source.index("for (const marker of ['message?: MessageHandler<'")
+          end = source.index("fs.rmSync(path.join(root, 'scripts/apply-step-options-migration.ts'))", start)
+          path.write_text(source[:start] + source[end:])
+          PY
+
       - name: Apply Migration
-        run: pnpm tsx scripts/apply-step-options-migration.ts
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm tsx scripts/apply-step-options-migration.ts 2>&1 | tee migration.log
+
+      - name: Upload Migration Log
+        if: failure() && hashFiles('migration.log') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: step-options-migration-log
+          path: migration.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Format
         run: pnpm lint:fix
@@ -57,6 +80,7 @@ jobs:
 
       - name: Commit Migration
         run: |
+          rm -f placeholder.tmp
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
