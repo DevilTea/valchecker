@@ -5,15 +5,13 @@ on:
     branches:
       - main
     types:
-      - opened
       - synchronize
-      - reopened
 
 permissions:
   contents: write
 
 jobs:
-  Migrate-Step-Options:
+  Finalize-Step-Options-Migration:
     if: github.head_ref == 'agent/standardize-step-options'
     runs-on: ubuntu-latest
     steps:
@@ -34,52 +32,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build baseline artifacts
-        run: pnpm build
-
-      - name: Patch temporary migration script
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('scripts/apply-step-options-migration.ts')
-          source = path.read_text()
-          source = source.replace(
-              "if (replacement.end > previousStart)\n\t\t\tthrow new Error(`Overlapping replacement at ${replacement.start}:${replacement.end}`)",
-              "if (replacement.end > previousStart)\n\t\t\tcontinue",
-          )
-          source = source.replace(
-              "function objectLiteral(properties: string[]): string {\n\treturn `{ ${properties.join(', ')} }`\n}\n",
-              "function objectLiteral(properties: string[]): string {\n\treturn `{ ${properties.join(', ')} }`\n}\n\nfunction hasOptionProperty(node: ts.Expression, property: string): boolean {\n\treturn ts.isObjectLiteralExpression(node) && node.properties.some((member) => {\n\t\tif (!ts.isPropertyAssignment(member) && !ts.isShorthandPropertyAssignment(member))\n\t\t\treturn false\n\t\treturn member.name.getText().replace(/[\\\"']/g, '') === property\n\t})\n}\n",
-          )
-          source = source.replace(
-              "messageOnlyMethods.has(method) && args.length === 1",
-              "messageOnlyMethods.has(method) && args.length === 1 && !hasOptionProperty(args[0]!, 'message')",
-          )
-          source = source.replace(
-              "operandMessageMethods.has(method) && args.length === 2",
-              "operandMessageMethods.has(method) && args.length === 2 && !hasOptionProperty(args[1]!, 'message')",
-          )
-          source = source.replace(
-              "if (args.length === 2)\n\t\t\t\t\treplaceArguments(`${argText(0)}, ${objectLiteral([`thisArg: ${argText(1)}`])}`)",
-              "if (args.length === 2 && !hasOptionProperty(args[1]!, 'thisArg') && !hasOptionProperty(args[1]!, 'message'))\n\t\t\t\t\treplaceArguments(`${argText(0)}, ${objectLiteral([`thisArg: ${argText(1)}`])}`)",
-          )
-          source = source.replace(
-              "if (args.length === 1)\n\t\t\t\t\treplaceArguments(objectLiteral([`compareFn: ${argText(0)}`]))",
-              "if (args.length === 1 && !hasOptionProperty(args[0]!, 'compareFn') && !hasOptionProperty(args[0]!, 'message'))\n\t\t\t\t\treplaceArguments(objectLiteral([`compareFn: ${argText(0)}`]))",
-          )
-          source = source.replace(
-              "\tvisit(sf)\n\treturn applyReplacements(source, replacements)\n}",
-              "\tvisit(sf)\n\tconst transformed = applyReplacements(source, replacements)\n\treturn transformed === source ? source : transformCalls(filePath, transformed)\n}",
-          )
-          start = source.index("for (const marker of ['message?: MessageHandler<'")
-          end = source.index("fs.rmSync(path.join(root, 'scripts/apply-step-options-migration.ts'))", start)
-          source = source[:start] + source[end:]
-          path.write_text(source)
-          PY
-
-      - name: Apply migration
-        run: pnpm tsx scripts/apply-step-options-migration.ts
-
       - name: Format migrated source
         run: pnpm lint:fix
 
@@ -88,17 +40,13 @@ jobs:
           pnpm build
           pnpm api:surface:update
 
-      - name: Restore CI and remove migration scaffolding
-        run: |
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm -f .github/workflows/apply-step-options-migration.yml
-          rm -f scripts/apply-step-options-migration.ts
-          rm -f placeholder.tmp
+      - name: Restore permanent CI
+        run: git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
 
-      - name: Commit migration
+      - name: Commit finalized migration
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
-          git commit -m "refactor!: standardize built-in step options"
+          git commit -m "chore: finalize step options migration"
           git push origin HEAD:agent/standardize-step-options
