@@ -85,7 +85,6 @@ Keep the direct semantic name: `check`, `transform`, `fallback`, `use`, `generic
 `check()` and `transform()` are generic escape hatches and intentionally do not use artificial `isValid` or `toTransformed` names.
 
 Message-bearing steps keep at most one required semantic operand positional. All optional configuration and `message` belong to one trailing options object; direct positional messages are forbidden.
-- message-bearing steps keep one required operand positional and place all optional configuration plus `message` in one trailing options object; direct positional messages are forbidden;
 
 ## Step structure
 

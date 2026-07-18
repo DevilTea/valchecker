@@ -6,36 +6,13 @@ All built-in positional message parameters have been removed before 1.0. Keep on
 
 ```ts
 // Before
-v.number()
-	.isAtLeast(0, { message: 'Must be non-negative.' })
-v.array(v.string())
-	.toFiltered(predicate, { message: 'Filter failed.' })
+v.number().isAtLeast(0, 'Must be non-negative.')
+v.array(v.string()).toFiltered(predicate, undefined, 'Filter failed.')
 
 // After
-v.number()
-	.isAtLeast(0, { message: 'Must be non-negative.' })
-v.array(v.string())
-	.toFiltered(predicate, { message: 'Filter failed.' })
+v.number().isAtLeast(0, { message: 'Must be non-negative.' })
+v.array(v.string()).toFiltered(predicate, { message: 'Filter failed.' })
 ```
-
-## Step messages now use options objects
-
-All built-in positional message parameters have been removed before 1.0. Keep a single required semantic operand positional and move the message into the trailing options object. Callback configuration such as `thisArg` and `compareFn` belongs to that object as well.
-
-```ts
-// Before
-v.number()
-	.isAtLeast(0, { message: 'Must be non-negative.' })
-v.array(v.string())
-	.toFiltered(predicate, { message: 'Filter failed.' })
-
-// After
-v.number()
-	.isAtLeast(0, { message: 'Must be non-negative.' })
-v.array(v.string())
-	.toFiltered(predicate, { message: 'Filter failed.' })
-```
-
 This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases.
 
 Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative post-migration behavior.
