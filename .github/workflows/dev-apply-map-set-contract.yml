@@ -1,0 +1,212 @@
+name: Dev Apply Map Set Contract
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Apply collection contract updates
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              file.write_text(text.replace(old, new))
+
+          replace_once(
+              'docs/guide/v1-contract.md',
+              """## Arrays
+
+          `array(schema)` validates elements in index order and returns their transformed outputs. Nested issues receive numeric indices in their paths.
+
+          Earlier synchronous failures can complete before later asynchronous element work is started. Validation and operation issues are collected; an internal issue stops sibling element evaluation immediately and is returned without being hidden.
+
+          ## Union semantics
+          """.replace('          ', ''),
+              """## Arrays
+
+          `array(schema)` validates elements in index order and returns their transformed outputs. Nested issues receive numeric indices in their paths.
+
+          Earlier synchronous failures can complete before later asynchronous element work is started. Validation and operation issues are collected; an internal issue stops sibling element evaluation immediately and is returned without being hidden.
+
+          ## Map and Set schemas
+
+          `set(itemSchema, options?)` accepts `Set` instances, snapshots items at execution start, validates and transforms them in insertion order, and returns a new Set. Child issues receive `[index]` paths.
+
+          `map({ key, value, message? })` accepts `Map` instances, snapshots entries at execution start, and executes each entry's key schema before its value schema. Child paths are `[index, 'key']` and `[index, 'value']`. A recoverable key failure does not hide the corresponding value failure.
+
+          Fully synchronous child schemas preserve synchronous collection execution. After a reached thenable, remaining items or entries continue sequentially. Validation and operation issues are collected; an internal child issue stops the current structural continuation and all later siblings. An internal Map key issue stops before the current value schema.
+
+          Outputs are newly constructed collections and do not mutate the input. If successful source items or keys transform to duplicate SameValueZero values, `set:duplicate_transformed_item` or `map:duplicate_transformed_key` is returned instead of silently reducing Set cardinality or applying Map last-write-wins behavior.
+
+          The collection-level message participates as an enclosing structure message for owned and nested child issues after paths are prepended.
+
+          ## Union semantics
+          """.replace('          ', ''),
+          )
+
+          replace_once(
+              'README.md',
+              """Declared `__proto__` fields are materialized as safe own data properties and do not mutate the output prototype.
+
+          ## Composition
+          """.replace('          ', ''),
+              """Declared `__proto__` fields are materialized as safe own data properties and do not mutate the output prototype.
+
+          ## Map and Set collections
+
+          ```ts
+          const tags = v.set(v.string().toTrimmed().toLowercase())
+
+          const scores = v.map({
+          	key: v.string().toTrimmed(),
+          	value: v.number().isFinite(),
+          })
+          ```
+
+          Collection child schemas run in insertion order and return new transformed collections. Map key/value failures use `[index, 'key']` and `[index, 'value']`; Set item failures use `[index]`. Transformed Map keys and Set items must remain unique under SameValueZero, so validation fails rather than silently losing data.
+
+          ## Composition
+          """.replace('          ', ''),
+          )
+
+          replace_once(
+              'packages/valchecker/README.md',
+              """Use `allSteps` when a custom instance should include every built-in plugin.
+
+          ## Step naming
+          """.replace('          ', ''),
+              """Use `allSteps` when a custom instance should include every built-in plugin.
+
+          ## Map and Set collections
+
+          ```ts
+          const tags = v.set(v.string().toTrimmed().toLowercase())
+
+          const scores = v.map({
+          	key: v.string().toTrimmed(),
+          	value: v.number().isFinite(),
+          })
+          ```
+
+          Both initial schemas preserve insertion order, return new transformed collections, and expose stable child paths. Duplicate transformed Set items or Map keys are validation failures rather than silent data loss.
+
+          ## Step naming
+          """.replace('          ', ''),
+          )
+
+          replace_once(
+              'benchmarks/src/treeshake.mjs',
+              """\tscenario('valchecker-union-shorthand', 'Valchecker', 'Union with shorthand providers', 'Union shorthand isolation', `
+          import { createValchecker, literal, null_, number, undefined_, union } from 'valchecker'
+          const v = createValchecker({ steps: [literal, null_, number, undefined_, union] })
+          export const schema = v.union(['auto', null, undefined, v.number()])
+          export const result = schema.execute('auto')
+          `, {
+          \t\trequiredMarkers: ['literal:expected_literal', 'null:expected_null', 'undefined:expected_undefined'],
+          \t}),
+          \t...[
+          """.replace('          ', ''),
+              """\tscenario('valchecker-union-shorthand', 'Valchecker', 'Union with shorthand providers', 'Union shorthand isolation', `
+          import { createValchecker, literal, null_, number, undefined_, union } from 'valchecker'
+          const v = createValchecker({ steps: [literal, null_, number, undefined_, union] })
+          export const schema = v.union(['auto', null, undefined, v.number()])
+          export const result = schema.execute('auto')
+          `, {
+          \t\trequiredMarkers: ['literal:expected_literal', 'null:expected_null', 'undefined:expected_undefined'],
+          \t}),
+          \tscenario('valchecker-collection-free', 'Valchecker', 'Selective chain without collections', 'Map and Set isolation', `
+          import { createValchecker, string } from 'valchecker'
+          const v = createValchecker({ steps: [string] })
+          export const schema = v.string()
+          export const result = schema.execute('value')
+          `, {
+          \t\tforbiddenMarkers: ['map:expected_map', 'map:duplicate_transformed_key', 'set:expected_set', 'set:duplicate_transformed_item'],
+          \t}),
+          \tscenario('valchecker-map-set-selective', 'Valchecker', 'Selective Map and Set schemas', 'Map and Set isolation', `
+          import { createValchecker, map, number, set, string } from 'valchecker'
+          const v = createValchecker({ steps: [map, number, set, string] })
+          export const mapSchema = v.map({ key: v.string(), value: v.number() })
+          export const setSchema = v.set(v.string())
+          export const result = {
+          \tmap: mapSchema.execute(new Map([['a', 1]])),
+          \tset: setSchema.execute(new Set(['a'])),
+          }
+          `, {
+          \t\trequiredMarkers: ['map:expected_map', 'map:duplicate_transformed_key', 'set:expected_set', 'set:duplicate_transformed_item'],
+          \t}),
+          \t...[
+          """.replace('          ', ''),
+          )
+
+          replace_once(
+              'benchmarks/src/treeshake.mjs',
+              """\tconst unionSchemaOnly = byId(results, 'valchecker-union-schema-only')
+          \tconst unionShorthand = byId(results, 'valchecker-union-shorthand')
+          \tconst comparisons = [
+          """.replace('          ', ''),
+              """\tconst unionSchemaOnly = byId(results, 'valchecker-union-schema-only')
+          \tconst unionShorthand = byId(results, 'valchecker-union-shorthand')
+          \tconst collectionFree = byId(results, 'valchecker-collection-free')
+          \tconst mapSetSelective = byId(results, 'valchecker-map-set-selective')
+          \tconst comparisons = [
+          """.replace('          ', ''),
+          )
+
+          replace_once(
+              'benchmarks/src/treeshake.mjs',
+              """\tconst unionProviderMarkersAbsent = unionSchemaOnly.retainedForbiddenMarkers.length === 0
+          \tconst unionProviderMarkersPresent = unionShorthand.retainedRequiredMarkers.length === unionShorthand.requiredMarkers.length
+          \tconst checks = [
+          """.replace('          ', ''),
+              """\tconst unionProviderMarkersAbsent = unionSchemaOnly.retainedForbiddenMarkers.length === 0
+          \tconst unionProviderMarkersPresent = unionShorthand.retainedRequiredMarkers.length === unionShorthand.requiredMarkers.length
+          \tconst collectionMarkersAbsent = collectionFree.retainedForbiddenMarkers.length === 0
+          \tconst collectionMarkersPresent = mapSetSelective.retainedRequiredMarkers.length === mapSetSelective.requiredMarkers.length
+          \tconst checks = [
+          """.replace('          ', ''),
+          )
+
+          replace_once(
+              'benchmarks/src/treeshake.mjs',
+              """\t\t{ name: 'Union shorthand retains every registered provider marker', passed: unionProviderMarkersPresent, value: unionProviderMarkersPresent ? unionShorthand.retainedRequiredMarkers.join(', ') : `${unionShorthand.retainedRequiredMarkers.length}/${unionShorthand.requiredMarkers.length} retained` },
+          \t]
+          """.replace('          ', ''),
+              """\t\t{ name: 'Union shorthand retains every registered provider marker', passed: unionProviderMarkersPresent, value: unionProviderMarkersPresent ? unionShorthand.retainedRequiredMarkers.join(', ') : `${unionShorthand.retainedRequiredMarkers.length}/${unionShorthand.requiredMarkers.length} retained` },
+          \t\t{ name: 'Selective builds without Map and Set exclude collection issue markers', passed: collectionMarkersAbsent, value: collectionMarkersAbsent ? 'none retained' : collectionFree.retainedForbiddenMarkers.join(', ') },
+          \t\t{ name: 'Selective Map and Set schemas retain every collection issue marker', passed: collectionMarkersPresent, value: collectionMarkersPresent ? mapSetSelective.retainedRequiredMarkers.join(', ') : `${mapSetSelective.retainedRequiredMarkers.length}/${mapSetSelective.requiredMarkers.length} retained` },
+          \t]
+          """.replace('          ', ''),
+          )
+
+          replace_once(
+              'benchmarks/src/treeshake.mjs',
+              """\t\t: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Full-library reference']
+          """.replace('          ', ''),
+              """\t\t: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Map and Set isolation', 'Full-library reference']
+          """.replace('          ', ''),
+          )
+          PY
+          rm -f .github/workflows/dev-apply-map-set-contract.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'docs: complete Map and Set public contracts'
+          git push origin HEAD:${{ github.head_ref }}
