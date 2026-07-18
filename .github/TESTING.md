@@ -136,8 +136,9 @@ Combinators must cover branch order, selected output, recoverable issue aggregat
 
 Coverage identifies untested code and accidental erosion. It does not define the test plan.
 
-- Thresholds have one source of truth in `vitest.config.ts`.
-- Global thresholds protect the repository baseline.
+- Threshold numbers have one source of truth in `scripts/coverage-policy.ts`.
+- Vitest applies the aggregate repository thresholds from that policy.
+- `scripts/check-coverage.ts` applies the default and overridden per-file floors from the same policy to the generated summary.
 - Per-file floors prevent large untested islands.
 - Critical core and combinator areas may have higher thresholds.
 - An uncovered line must be investigated, but it does not automatically justify a test.
