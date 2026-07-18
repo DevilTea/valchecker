@@ -1,21 +1,10 @@
-/**
- * Test plan for null step:
- * - Functions tested: null validation with optional custom messages.
- * - Valid inputs: null.
- * - Invalid inputs: non-null types (number, string, boolean, undefined, object, array, bigint, symbol).
- * - Edge cases: none specific.
- * - Expected behaviors: Success returns { value: null }; failure returns { issues: [{ code: 'null:expected_null', payload: { value }, message }] }.
- * - Error handling: No exceptions; all errors via issues.
- * - Coverage goals: 100% statement, branch, and function coverage.
- */
-
 import { describe, expect, it } from 'vitest'
 import { check, createValchecker, null_ } from '../..'
 
 const v = createValchecker({ steps: [null_, check] })
 
 describe('null plugin', () => {
-	describe('valid inputs', () => {
+	describe('valid values', () => {
 		it('should pass for null', () => {
 			const result = v.null()
 				.execute(null)
@@ -24,7 +13,7 @@ describe('null plugin', () => {
 		})
 	})
 
-	describe('invalid inputs', () => {
+	describe('invalid values', () => {
 		it('should fail for number', () => {
 			const result = v.null()
 				.execute(42)
@@ -42,7 +31,7 @@ describe('null plugin', () => {
 
 		it('should fail for string', () => {
 			const result = v.null()
-				.execute('hello')
+				.execute('null')
 			expect(result)
 				.toEqual({
 					issues: [{
@@ -50,14 +39,14 @@ describe('null plugin', () => {
 						category: 'validation',
 						message: 'Expected null.',
 						path: [],
-						payload: { value: 'hello' },
+						payload: { value: 'null' },
 					}],
 				})
 		})
 
 		it('should fail for boolean', () => {
 			const result = v.null()
-				.execute(true)
+				.execute(false)
 			expect(result)
 				.toEqual({
 					issues: [{
@@ -65,7 +54,7 @@ describe('null plugin', () => {
 						category: 'validation',
 						message: 'Expected null.',
 						path: [],
-						payload: { value: true },
+						payload: { value: false },
 					}],
 				})
 		})
@@ -86,8 +75,9 @@ describe('null plugin', () => {
 		})
 
 		it('should fail for object', () => {
+			const obj = {}
 			const result = v.null()
-				.execute({})
+				.execute(obj)
 			expect(result)
 				.toEqual({
 					issues: [{
@@ -95,14 +85,15 @@ describe('null plugin', () => {
 						category: 'validation',
 						message: 'Expected null.',
 						path: [],
-						payload: { value: {} },
+						payload: { value: obj },
 					}],
 				})
 		})
 
 		it('should fail for array', () => {
+			const arr: unknown[] = []
 			const result = v.null()
-				.execute([])
+				.execute(arr)
 			expect(result)
 				.toEqual({
 					issues: [{
@@ -110,7 +101,7 @@ describe('null plugin', () => {
 						category: 'validation',
 						message: 'Expected null.',
 						path: [],
-						payload: { value: [] },
+						payload: { value: arr },
 					}],
 				})
 		})
@@ -149,7 +140,7 @@ describe('null plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.null('Custom error message')
+			const result = v.null({ message: 'Custom error message' })
 				.execute(42)
 			expect(result)
 				.toEqual({
@@ -167,7 +158,7 @@ describe('null plugin', () => {
 	describe('chaining', () => {
 		it('should chain with check', () => {
 			const result = v.null()
-				.check(n => n === null)
+				.check(value => value === null)
 				.execute(null)
 			expect(result)
 				.toEqual({ value: null })
@@ -175,7 +166,7 @@ describe('null plugin', () => {
 
 		it('should fail chaining with check', () => {
 			const result = v.null()
-				.check(n => n !== null)
+				.check(() => false)
 				.execute(null)
 			expect(result)
 				.toEqual({
