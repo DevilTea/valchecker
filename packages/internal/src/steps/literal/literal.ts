@@ -1,6 +1,5 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
-import type { TUnionShorthandDef } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -8,7 +7,8 @@ declare namespace Internal {
 	export type Issue<L extends LiteralType = LiteralType> = ExecutionIssue<'literal:expected_literal', { value: unknown, expected: L }>
 }
 
-interface LiteralUnionShorthandDef extends TUnionShorthandDef {
+interface LiteralUnionShorthandDef {
+	branch: unknown
 	input: Internal.LiteralType
 	result: this['branch'] extends Internal.LiteralType
 		? {
