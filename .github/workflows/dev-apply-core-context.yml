@@ -19,8 +19,109 @@ jobs:
       - name: Share step composition context across immutable chains
         shell: bash
         run: |
-          git apply --check .github/dev-core-context.patch
-          git apply .github/dev-core-context.patch
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('packages/internal/src/core/core.ts')
+          source = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global source
+              if source.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one source match, found {source.count(old)}:\n{old}')
+              source = source.replace(old, new, 1)
+
+          replace_once(
+              """\t\t\treturn createInstance({
+          \t\t\t\tstepMethods,
+          \t\t\t\tresolveMessage,
+          \t\t\t\tcurrentRuntimeSteps: runtimeSteps,
+          \t\t\t})""",
+              """\t\t\treturn createInstance({
+          \t\t\t\tstepMethods,
+          \t\t\t\tresolveMessage,
+          \t\t\t\tcontext,
+          \t\t\t\tcurrentRuntimeSteps: runtimeSteps,
+          \t\t\t})""",
+          )
+          replace_once(
+              """\tstepMethods,
+          \tresolveMessage,
+          \truntimeSteps,
+          }: {
+          \tstepMethods: Record<PropertyKey, unknown>
+          \tresolveMessage: ResolveMessageFn
+          \truntimeSteps: RuntimeStep[]
+          }) {
+          \tconst context = createStepMethodContext({ stepMethods, resolveMessage })
+
+          \treturn {""",
+              """\tstepMethods,
+          \tresolveMessage,
+          \truntimeSteps,
+          \tcontext,
+          }: {
+          \tstepMethods: Record<PropertyKey, unknown>
+          \tresolveMessage: ResolveMessageFn
+          \truntimeSteps: RuntimeStep[]
+          \tcontext: StepMethodContext
+          }) {
+          \treturn {""",
+          )
+          replace_once(
+              """\t\t\t\treturn createInstance({
+          \t\t\t\t\tstepMethods,
+          \t\t\t\t\tresolveMessage,
+          \t\t\t\t\tcurrentRuntimeSteps: nextRuntimeSteps,
+          \t\t\t\t})""",
+              """\t\t\t\treturn createInstance({
+          \t\t\t\t\tstepMethods,
+          \t\t\t\t\tresolveMessage,
+          \t\t\t\t\tcontext,
+          \t\t\t\t\tcurrentRuntimeSteps: nextRuntimeSteps,
+          \t\t\t\t})""",
+          )
+          replace_once(
+              """\tstepMethods,
+          \tresolveMessage,
+          \tcurrentRuntimeSteps,
+          }: {
+          \tstepMethods: Record<PropertyKey, unknown>
+          \tresolveMessage: ResolveMessageFn
+          \tcurrentRuntimeSteps: RuntimeStep[]""",
+              """\tstepMethods,
+          \tresolveMessage,
+          \tcontext,
+          \tcurrentRuntimeSteps,
+          }: {
+          \tstepMethods: Record<PropertyKey, unknown>
+          \tresolveMessage: ResolveMessageFn
+          \tcontext: StepMethodContext
+          \tcurrentRuntimeSteps: RuntimeStep[]""",
+          )
+          replace_once(
+              "return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps }))",
+              "return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps, context }))",
+          )
+          replace_once(
+              """\tconst resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
+
+          \treturn createInstance({
+          \t\tstepMethods,
+          \t\tresolveMessage,
+          \t\tcurrentRuntimeSteps: [],""",
+              """\tconst resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
+          \tconst context = createStepMethodContext({ stepMethods, resolveMessage })
+
+          \treturn createInstance({
+          \t\tstepMethods,
+          \t\tresolveMessage,
+          \t\tcontext,
+          \t\tcurrentRuntimeSteps: [],""",
+          )
+
+          path.write_text(source)
+          PY
           rm -f .github/dev-core-context.patch
           rm -f .github/workflows/dev-apply-core-context.yml
           git config user.name github-actions[bot]
