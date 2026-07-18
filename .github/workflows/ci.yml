@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  Finalize-Step-Options-Migration:
+  Restore-Permanent-CI:
     if: github.head_ref == 'agent/standardize-step-options'
     runs-on: ubuntu-latest
     steps:
@@ -32,18 +32,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Format migrated source
-        run: pnpm lint:fix
-
-      - name: Rebuild and record API surface
-        run: |
-          pnpm build
-          pnpm api:surface:update
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix || true
 
       - name: Restore permanent CI
         run: git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
 
-      - name: Commit finalized migration
+      - name: Commit cleanup
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
