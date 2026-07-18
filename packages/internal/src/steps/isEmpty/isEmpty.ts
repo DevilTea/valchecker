@@ -2,45 +2,38 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<'isEmpty:expected_empty', { value: T, length: number }>
+	export type LengthValue = { length: number }
+	export type SizeValue = { size: number }
+	export type Value = LengthValue | SizeValue
+	export type LengthIssue<T extends LengthValue = LengthValue> = ExecutionIssue<'isEmpty:expected_empty', { value: T, length: number }>
+	export type SizeIssue<T extends SizeValue = SizeValue> = ExecutionIssue<'isEmpty:expected_empty', { value: T, size: number }>
+	export type Issue<T extends Value = Value> = T extends LengthValue
+		? LengthIssue<T>
+		: T extends SizeValue
+			? SizeIssue<T>
+			: never
 }
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isEmpty'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: { length: number } }>
-	SelfIssue: Internal.Issue
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: Internal.Value }>
+	SelfIssue: Internal.LengthIssue | Internal.SizeIssue
 }>
 
 interface PluginDef extends TStepPluginDef {
 	/**
-	 * ### Description:
-	 * Checks that the value is empty (`length === 0`). The runtime reads
-	 * `length` once and snapshots it in the failure payload.
+	 * Checks that the observed `length` or `size` equals zero. The runtime reads
+	 * the relevant property once and snapshots it in the failure payload.
 	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, isEmpty, string } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [string, isEmpty] })
-	 * const schema = v.string().isEmpty()
-	 * schema.execute('') // { value: '' }
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'isEmpty:expected_empty'`: The observed length is not zero.
-	 *   Payload: `{ value, length }`.
+	 * @issues `isEmpty:expected_empty`
 	 */
 	isEmpty: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? InferOutput<This> extends infer CurrentOutput extends Internal.Value
 				? (options?: StepOptions<Internal.Issue<CurrentOutput>>) => Next<
 						{ issue: Internal.Issue<CurrentOutput> },
-						this['CurrentValchecker']
+						This
 					>
 				: never
 			: never
@@ -55,11 +48,23 @@ export const isEmpty = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep((value) => {
 			const length = value.length
-			return length === 0
+			if (typeof length === 'number') {
+				return length === 0
+					? success(value)
+					: failure(createIssue({
+							code: 'isEmpty:expected_empty',
+							payload: { value, length },
+							customMessage: options?.message,
+							defaultMessage: 'Expected an empty value.',
+						}))
+			}
+
+			const size = value.size
+			return size === 0
 				? success(value)
 				: failure(createIssue({
 						code: 'isEmpty:expected_empty',
-						payload: { value, length },
+						payload: { value, size },
 						customMessage: options?.message,
 						defaultMessage: 'Expected an empty value.',
 					}))
