@@ -102,6 +102,59 @@ await tags.execute(['JS', 'TS', 'NODE'])
 
 Common array steps include `isEmpty`, `isNotEmpty`, `isLengthAtLeast`, `isLengthAtMost`, `toFiltered`, `toSorted`, `toSliced`, and `toLength`.
 
+## `set(itemSchema, options?)`
+
+Validates Set items in insertion order and returns their transformed outputs in a new Set. The input Set is not mutated.
+
+**Issues:**
+
+- `set:expected_set`
+- `set:duplicate_transformed_item`
+- item-schema issues with `[index]` prepended to their paths
+
+```ts
+const tags = v.set(
+	v.string().toTrimmed().toLowercase(),
+)
+
+tags.execute(new Set([' TS ', 'Vue']))
+// { value: new Set(['ts', 'vue']) }
+```
+
+Items are snapshotted at execution start. Fully synchronous child schemas keep the Set schema synchronous; after a reached thenable, remaining items continue sequentially in insertion order. Recoverable child issues are collected, while an internal child issue stops later items.
+
+If two source items transform to the same value under the native Set SameValueZero comparison, `set:duplicate_transformed_item` is returned instead of silently reducing Set cardinality.
+
+## `map({ key, value, message? })`
+
+Validates Map keys and values in insertion order and returns a new Map containing their transformed outputs. The key schema, value schema, and optional enclosing message are supplied through one configuration object.
+
+**Issues:**
+
+- `map:expected_map`
+- `map:duplicate_transformed_key`
+- key-schema issues with `[index, 'key']` prepended to their paths
+- value-schema issues with `[index, 'value']` prepended to their paths
+
+```ts
+const scores = v.map({
+	key: v.string().toTrimmed(),
+	value: v.number().isFinite(),
+})
+
+scores.execute(new Map([
+	[' Alice ', 100],
+	[' Bob ', 90],
+]))
+// { value: new Map([['Alice', 100], ['Bob', 90]]) }
+```
+
+For each entry, the key schema executes before the value schema. A recoverable key failure does not hide a value failure from the same entry, so both can be reported. An internal key issue stops before the current value schema; any internal child issue stops later entries.
+
+Entries are snapshotted at execution start. Fully synchronous key and value schemas keep the Map schema synchronous; reached thenables continue sequentially. If two successful source keys transform to the same value under the native Map SameValueZero comparison, `map:duplicate_transformed_key` is returned instead of applying last-write-wins data loss.
+
+The enclosing `message` on `map()` and the options message on `set()` participate in normal structure message resolution for both owned and nested child issues after their collection paths are prepended.
+
 ## `union(branches)`
 
 Evaluates branches in declaration order and returns the first successful branch's transformed output.
