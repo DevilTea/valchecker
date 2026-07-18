@@ -1,8 +1,8 @@
 import type { InferIssue, InferOutput } from '../core'
+import { createValchecker } from '../core'
 import { describe, expectTypeOf, it } from 'vitest'
 import {
 	array,
-	createValchecker,
 	isEmpty,
 	isIncluding,
 	isIncludingKey,
