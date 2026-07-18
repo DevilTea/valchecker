@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, StepOptions, Next, TStepPluginDef } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike, returnTrue } from '../../shared'
@@ -42,34 +42,34 @@ interface PluginDef extends TStepPluginDef {
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
-					? <AddedIssue extends AnyExecutionIssue = never, Output extends CurrentOutput = CurrentOutput>(
-						run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue | AddedIssue>) => value is Output,
-						options?: StepOptions<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
-					) => Next<{
-						operationMode: 'sync'
-						output: Output
-						issue: Internal.Issue<CurrentOutput> | AddedIssue
-					}, This>
-					: never
+						? <AddedIssue extends AnyExecutionIssue = never, Output extends CurrentOutput = CurrentOutput>(
+								run: (value: CurrentOutput, utils: Internal.RunCheckUtils<CurrentOutput, CurrentIssue | AddedIssue>) => value is Output,
+								options?: StepOptions<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
+							) => Next<{
+								operationMode: 'sync'
+								output: Output
+								issue: Internal.Issue<CurrentOutput> | AddedIssue
+							}, This>
+						: never
 				: never
 		>
 		| DefineStepMethod<
 			Meta,
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 				? [InferOutput<This>, InferIssue<This>] extends [infer CurrentOutput, infer CurrentIssue extends AnyExecutionIssue]
-					? <AddedIssue extends AnyExecutionIssue = never, Result extends Internal.RunCheckResult = Internal.RunCheckResult>(
-						run: Internal.RunCheck<CurrentOutput, CurrentIssue | AddedIssue, Result>,
-						options?: StepOptions<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
-					) => Next<{
-						operationMode: IsEqual<IsPromise<Result>, true> extends true
-							? 'maybe-async'
-							: IsEqual<IsPromise<Result>, false> extends true
-								? 'sync'
-								: 'maybe-async'
-						output: Awaited<Result> extends (Internal.True<infer T> | false) ? T : CurrentOutput
-						issue: Internal.Issue<CurrentOutput> | AddedIssue
-					}, This>
-					: never
+						? <AddedIssue extends AnyExecutionIssue = never, Result extends Internal.RunCheckResult = Internal.RunCheckResult>(
+								run: Internal.RunCheck<CurrentOutput, CurrentIssue | AddedIssue, Result>,
+								options?: StepOptions<Internal.Issue<CurrentOutput> | CurrentIssue | AddedIssue>,
+							) => Next<{
+								operationMode: IsEqual<IsPromise<Result>, true> extends true
+									? 'maybe-async'
+									: IsEqual<IsPromise<Result>, false> extends true
+										? 'sync'
+										: 'maybe-async'
+								output: Awaited<Result> extends (Internal.True<infer T> | false) ? T : CurrentOutput
+								issue: Internal.Issue<CurrentOutput> | AddedIssue
+							}, This>
+						: never
 				: never
 		>
 }
@@ -123,7 +123,8 @@ export const check = implStepPlugin<PluginDef>({
 					addIssue,
 				})
 				return isPromiseLike(result)
-					? Promise.resolve(result).then(process, error => callbackFailure('reject', error))
+					? Promise.resolve(result)
+							.then(process, error => callbackFailure('reject', error))
 					: process(result)
 			}
 			catch (error) {

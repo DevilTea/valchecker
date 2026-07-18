@@ -10,6 +10,9 @@ declare namespace Internal {
 	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
 		readonly thisArg?: any
 	}
+	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
+		readonly thisArg?: any
+	}
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -29,9 +32,9 @@ interface PluginDef extends TStepPluginDef {
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 				? InferOutput<This> extends infer Input extends any[]
 					? <Narrowed extends Input[number]>(
-						predicate: (item: Input[number], index: number, value: Input) => item is Narrowed,
-						options?: Internal.Options<Input>,
-					) => Next<{ output: Narrowed[], issue: Internal.Issue<Input> }, This>
+							predicate: (item: Input[number], index: number, value: Input) => item is Narrowed,
+							options?: Internal.Options<Input>,
+						) => Next<{ output: Narrowed[], issue: Internal.Issue<Input> }, This>
 					: never
 				: never
 		>
@@ -40,9 +43,9 @@ interface PluginDef extends TStepPluginDef {
 			this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 				? InferOutput<This> extends infer Input extends any[]
 					? (
-						predicate: (item: Input[number], index: number, value: Input) => unknown,
-						options?: Internal.Options<Input>,
-					) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, This>
+							predicate: (item: Input[number], index: number, value: Input) => unknown,
+							options?: Internal.Options<Input>,
+						) => Next<{ output: Input[number][], issue: Internal.Issue<Input> }, This>
 					: never
 				: never
 		>

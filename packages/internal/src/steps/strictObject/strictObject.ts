@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, StepOptions, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -14,10 +14,10 @@ declare namespace Internal {
 				: never
 	}> extends infer M
 		? [M] extends [never]
-			? 'sync'
-			: M extends OperationMode
-				? IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
-				: never
+				? 'sync'
+				: M extends OperationMode
+					? IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
+					: never
 		: never
 
 	export type Output<S extends Struct> = Simplify<
@@ -64,19 +64,19 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? <S extends Internal.Struct>(
-					struct: S,
-					options?: StepOptions<Internal.Issue<NoInfer<S>>>,
-				) => Next<{
-					operationMode: Internal.OpMode<NoInfer<S>>
-					output: Internal.Output<NoInfer<S>>
-					issue: Internal.Issue<NoInfer<S>>
-				}, this['CurrentValchecker']>
+						struct: S,
+						options?: StepOptions<Internal.Issue<NoInfer<S>>>,
+					) => Next<{
+						operationMode: Internal.OpMode<NoInfer<S>>
+						output: Internal.Output<NoInfer<S>>
+						issue: Internal.Issue<NoInfer<S>>
+					}, this['CurrentValchecker']>
 				: never
 			: never
 	>
 }
 
-type PropMeta = {
+interface PropMeta {
 	key: PropertyKey
 	isOptional: boolean
 	execute: Use<Valchecker>['~execute']

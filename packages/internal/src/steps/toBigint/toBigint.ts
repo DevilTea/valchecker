@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, StepOptions, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
@@ -39,9 +39,9 @@ interface PluginDef extends TStepPluginDef {
 			? InferOutput<This> extends bigint
 				? never
 				: (options?: StepOptions<Meta['SelfIssue']>) => Next<{
-					output: bigint
-					issue: Meta['SelfIssue']
-				}, This>
+						output: bigint
+						issue: Meta['SelfIssue']
+					}, This>
 			: never
 	>
 }

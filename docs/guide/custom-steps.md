@@ -36,8 +36,8 @@ Every runtime issue created by `createIssue()` receives the declared category. I
 ## Use `check()` first
 
 ```ts
-const positive = v.number().check(value => value > 0, { message: 'Expected a positive number' }
-)
+const positive = v.number()
+	.check(value => value > 0, { message: 'Expected a positive number' })
 ```
 
 Create a plugin when the operation needs reusable parameters, typed issue payloads, optimized runtime logic, or first-class editor discovery.
@@ -122,8 +122,12 @@ const v = createValchecker({
 	steps: [number, isPositive],
 })
 
-v.number().isPositive().execute(5) // { value: 5 }
-v.number().isPositive().execute(0) // failure
+v.number()
+	.isPositive()
+	.execute(5) // { value: 5 }
+v.number()
+	.isPositive()
+	.execute(0) // failure
 ```
 
 ## Parameters and typed payloads
@@ -145,12 +149,12 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (
-				divisor: number,
-				message?: MessageHandler<Meta['SelfIssue']>,
-			) => Next<
-				{ issue: Meta['SelfIssue'] },
-				this['CurrentValchecker']
-			>
+					divisor: number,
+					message?: MessageHandler<Meta['SelfIssue']>,
+				) => Next<
+					{ issue: Meta['SelfIssue'] },
+					this['CurrentValchecker']
+				>
 			: never
 	>
 }
@@ -203,9 +207,9 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? () => Next<
-				{ output: number[] },
-				this['CurrentValchecker']
-			>
+					{ output: number[] },
+					this['CurrentValchecker']
+				>
 			: never
 	>
 }
@@ -238,10 +242,10 @@ addSuccessStep(async (value) => {
 	return available
 		? success(value)
 		: failure(createIssue({
-			code: 'isAvailable:unavailable',
-			payload: { value },
-			defaultMessage: 'Value is unavailable.',
-		}))
+				code: 'isAvailable:unavailable',
+				payload: { value },
+				defaultMessage: 'Value is unavailable.',
+			}))
 })
 ```
 
@@ -296,12 +300,16 @@ const v = createValchecker({ steps: [number, isPositive] })
 
 describe('isPositive', () => {
 	it('accepts positive numbers', () => {
-		expect(v.number().isPositive().execute(1))
+		expect(v.number()
+			.isPositive()
+			.execute(1))
 			.toEqual({ value: 1 })
 	})
 
 	it('returns a structured issue', () => {
-		expect(v.number().isPositive().execute(0))
+		expect(v.number()
+			.isPositive()
+			.execute(0))
 			.toEqual({
 				issues: [{
 					code: 'isPositive:expected_positive',

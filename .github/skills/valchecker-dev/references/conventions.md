@@ -93,6 +93,27 @@ Examples:
 
 ```ts
 v.number().isAtLeast(0, { message: 'Expected a non-negative number.' })
+v.number().isFinite({ message: 'Expected a finite number.' })
+v.array(v.string()).toFiltered(predicate, { thisArg, message })
+v.array(v.number()).toSorted({ compareFn, message })
+```
+
+Built-in step definitions are checked by `pnpm test:quality`. Steps without message support may preserve a native positional signature when it is semantically clearer.
+
+## Step parameters
+
+Message-bearing built-in steps use one consistent parameter contract:
+
+- a single required semantic operand may remain positional;
+- every optional configuration field and the step message belong to one trailing options object;
+- a step with no required operand accepts only an optional options object;
+- a step that already requires a named configuration object includes `message` in that same object;
+- direct positional messages are forbidden.
+
+Examples:
+
+```ts
+v.number().isAtLeast(0, { message: 'Expected a non-negative number.' })
 v.string().isFinite({ message: 'Invalid value.' }) // unavailable because the state is not numeric
 v.array(v.string()).toFiltered(predicate, { thisArg, message })
 v.array(v.number()).toSorted({ compareFn, message })

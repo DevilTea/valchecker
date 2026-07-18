@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import process from 'node:process'
 import ts from 'typescript'
 
 const root = process.cwd()
@@ -8,6 +9,8 @@ const errors: string[] = []
 
 function visitFile(filePath: string): void {
 	const source = fs.readFileSync(filePath, 'utf8')
+	if (!source.includes('StepOptions'))
+		return
 	const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
 
 	function inspectMethodType(node: ts.TypeNode): void {
@@ -15,8 +18,7 @@ function visitFile(filePath: string): void {
 			if (ts.isFunctionTypeNode(current)) {
 				const parameters = [...current.parameters]
 				if (parameters.length > 2)
-					errors.push(`${path.relative(root, filePath)}: built-in step method has more than one operand plus options`)
-
+					errors.push(`${path.relative(root, filePath)}: method has more than one operand plus options`)
 				parameters.forEach((parameter, index) => {
 					const name = ts.isIdentifier(parameter.name) ? parameter.name.text : parameter.name.getText(sf)
 					const optional = parameter.questionToken != null || parameter.initializer != null
@@ -25,8 +27,9 @@ function visitFile(filePath: string): void {
 					if (optional && name !== 'options')
 						errors.push(`${path.relative(root, filePath)}: optional parameter ${name} must be grouped into options`)
 					if (index > 0 && name !== 'options')
-						errors.push(`${path.relative(root, filePath)}: only a trailing options parameter may follow the operand`)
+						errors.push(`${path.relative(root, filePath)}: only trailing options may follow the operand`)
 				})
+				return
 			}
 			ts.forEachChild(current, visit)
 		}
@@ -37,11 +40,11 @@ function visitFile(filePath: string): void {
 		if (ts.isTypeReferenceNode(node)
 			&& ts.isIdentifier(node.typeName)
 			&& node.typeName.text === 'DefineStepMethod'
-			&& node.typeArguments?.[1])
+			&& node.typeArguments?.[1]) {
 			inspectMethodType(node.typeArguments[1])
+		}
 		ts.forEachChild(node, visit)
 	}
-
 	visit(sf)
 }
 

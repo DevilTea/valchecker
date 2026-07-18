@@ -28,9 +28,9 @@ interface PluginDef extends TStepPluginDef {
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends infer CurrentOutput
 				? (options: Internal.Options<CurrentOutput>) => Next<{
-					output: boolean
-					issue: Internal.Issue<CurrentOutput>
-				}, This>
+						output: boolean
+						issue: Internal.Issue<CurrentOutput>
+					}, This>
 				: never
 			: never
 	>

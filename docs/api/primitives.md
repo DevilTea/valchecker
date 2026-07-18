@@ -9,8 +9,10 @@ Validates a JavaScript string.
 **Issue code:** `string:expected_string`
 
 ```ts
-v.string().execute('hello') // { value: 'hello' }
-v.string().execute(123) // failure
+v.string()
+	.execute('hello') // { value: 'hello' }
+v.string()
+	.execute(123) // failure
 ```
 
 Common next steps include `isEmpty()`, `isNotEmpty()`, `isStartingWith()`, `isEndingWith()`, `isLengthAtLeast()`, `isLengthAtMost()`, and string transformations.
@@ -22,10 +24,14 @@ Validates the TypeScript `number` primitive by checking `typeof value === 'numbe
 **Issue code:** `number:expected_number`
 
 ```ts
-v.number().execute(42) // { value: 42 }
-v.number().execute(Number.NaN) // { value: NaN }
-v.number().execute(Infinity) // { value: Infinity }
-v.number().execute('42') // failure
+v.number()
+	.execute(42) // { value: 42 }
+v.number()
+	.execute(Number.NaN) // { value: NaN }
+v.number()
+	.execute(Infinity) // { value: Infinity }
+v.number()
+	.execute('42') // failure
 ```
 
 `number()` deliberately accepts `NaN`, `Infinity`, and `-Infinity` because all are JavaScript numbers and belong to the TypeScript `number` type.
@@ -46,8 +52,10 @@ Validates a JavaScript boolean.
 **Issue code:** `boolean:expected_boolean`
 
 ```ts
-v.boolean().execute(true) // { value: true }
-v.boolean().execute('true') // failure
+v.boolean()
+	.execute(true) // { value: true }
+v.boolean()
+	.execute('true') // failure
 ```
 
 ## `bigint(message?)`
@@ -57,7 +65,8 @@ Validates a JavaScript bigint.
 **Issue code:** `bigint:expected_bigint`
 
 ```ts
-const id = v.bigint().isAtLeast(0n)
+const id = v.bigint()
+	.isAtLeast(0n)
 
 id.execute(42n) // { value: 42n }
 id.execute(42) // failure
@@ -122,13 +131,20 @@ Output: `number`
 **Issue code:** `looseNumber:expected_number`
 
 ```ts
-v.looseNumber().execute(42) // { value: 42 }
-v.looseNumber().execute('1e3') // { value: 1000 }
-v.looseNumber().execute('0x10') // { value: 16 }
-v.looseNumber().execute('   ') // { value: 0 }
-v.looseNumber().execute('NaN') // failure
-v.looseNumber().execute('Infinity') // failure
-v.looseNumber().execute('') // failure
+v.looseNumber()
+	.execute(42) // { value: 42 }
+v.looseNumber()
+	.execute('1e3') // { value: 1000 }
+v.looseNumber()
+	.execute('0x10') // { value: 16 }
+v.looseNumber()
+	.execute('   ') // { value: 0 }
+v.looseNumber()
+	.execute('NaN') // failure
+v.looseNumber()
+	.execute('Infinity') // failure
+v.looseNumber()
+	.execute('') // failure
 ```
 
 Numeric inputs still include `NaN` and infinity because they belong to `number`. String inputs must represent finite values compatible with TypeScript's `\`${number}\`` type. TypeScript accepts non-empty whitespace-only number strings, so Valchecker normalizes them to `0`; the truly empty string remains invalid.
@@ -141,10 +157,14 @@ Output: `boolean`
 **Issue code:** `looseBoolean:expected_boolean`
 
 ```ts
-v.looseBoolean().execute(true) // { value: true }
-v.looseBoolean().execute('false') // { value: false }
-v.looseBoolean().execute('TRUE') // failure
-v.looseBoolean().execute(1) // failure
+v.looseBoolean()
+	.execute(true) // { value: true }
+v.looseBoolean()
+	.execute('false') // { value: false }
+v.looseBoolean()
+	.execute('TRUE') // failure
+v.looseBoolean()
+	.execute(1) // failure
 ```
 
 Only the exact strings `"true"` and `"false"` are accepted.
@@ -157,11 +177,16 @@ Output: `bigint`
 **Issue code:** `looseBigint:expected_bigint`
 
 ```ts
-v.looseBigint().execute(42n) // { value: 42n }
-v.looseBigint().execute('42') // { value: 42n }
-v.looseBigint().execute('-0x10') // { value: -16n }
-v.looseBigint().execute('01') // failure
-v.looseBigint().execute('1.0') // failure
+v.looseBigint()
+	.execute(42n) // { value: 42n }
+v.looseBigint()
+	.execute('42') // { value: 42n }
+v.looseBigint()
+	.execute('-0x10') // { value: -16n }
+v.looseBigint()
+	.execute('01') // failure
+v.looseBigint()
+	.execute('1.0') // failure
 ```
 
 # Built-in validation steps
@@ -203,8 +228,13 @@ Checks a number or bigint using `value <= maximum`.
 Numeric constraints do not add hidden finite-number requirements:
 
 ```ts
-v.number().isAtLeast(0).execute(Infinity) // success
-v.number().isFinite().isAtLeast(0).execute(Infinity) // failure
+v.number()
+	.isAtLeast(0)
+	.execute(Infinity) // success
+v.number()
+	.isFinite()
+	.isAtLeast(0)
+	.execute(Infinity) // failure
 ```
 
 ## Length constraints
@@ -272,7 +302,8 @@ const configFile = v.string()
 `check(predicate, message?)` remains the generic high-level validation escape hatch rather than adopting an `isXxx` name:
 
 ```ts
-const email = v.string().check(value => value.includes('@'))
+const email = v.string()
+	.check(value => value.includes('@'))
 ```
 
 # Custom messages
@@ -284,6 +315,5 @@ const schema = v.string()
 	.isLengthAtLeast(3, { message: 'Too short' })
 	.isLengthAtMost(20, { message: 'Too long' })
 	.isStartingWith('http', { message: ({ payload }) =>
-		`Expected ${payload.value} to start with ${payload.prefix}` }
-	)
+		`Expected ${payload.value} to start with ${payload.prefix}` })
 ```

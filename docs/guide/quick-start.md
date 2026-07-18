@@ -96,17 +96,25 @@ else {
 `number()` follows the TypeScript `number` type and accepts every JavaScript number:
 
 ```ts
-v.number().execute(Number.NaN) // success
-v.number().execute(Infinity) // success
-v.number().execute(-Infinity) // success
+v.number()
+	.execute(Number.NaN) // success
+v.number()
+	.execute(Infinity) // success
+v.number()
+	.execute(-Infinity) // success
 ```
 
 Runtime domain constraints are explicit:
 
 ```ts
-v.number().isFinite()
-v.number().isInteger()
-v.number().isFinite().isAtLeast(0).isAtMost(100)
+v.number()
+	.isFinite()
+v.number()
+	.isInteger()
+v.number()
+	.isFinite()
+	.isAtLeast(0)
+	.isAtMost(100)
 ```
 
 A named validation checks only its stated condition. `isAtLeast(0)` therefore accepts positive infinity; combine it with `isFinite()` when finite values are required.
@@ -116,9 +124,12 @@ A named validation checks only its stated condition. `isAtLeast(0)` therefore ac
 Loose primitives accept a primitive or its TypeScript template-literal string representation and normalize the output:
 
 ```ts
-v.looseNumber().execute('1e3') // { value: 1000 }
-v.looseBoolean().execute('false') // { value: false }
-v.looseBigint().execute('-0x10') // { value: -16n }
+v.looseNumber()
+	.execute('1e3') // { value: 1000 }
+v.looseBoolean()
+	.execute('false') // { value: false }
+v.looseBigint()
+	.execute('-0x10') // { value: -16n }
 ```
 
 They are not unrestricted JavaScript coercion. For example, `looseBoolean()` rejects `1`, `'TRUE'`, and arbitrary truthy strings.
@@ -128,7 +139,8 @@ They are not unrestricted JavaScript coercion. For example, `looseBoolean()` rej
 ### Synchronous pipeline
 
 ```ts
-const schema = v.string().toTrimmed()
+const schema = v.string()
+	.toTrimmed()
 const result = schema.execute(' value ')
 // { value: 'value' }
 ```
@@ -136,7 +148,8 @@ const result = schema.execute(' value ')
 ### Maybe-async pipeline
 
 ```ts
-const schema = v.string().check(async value => value.length > 0)
+const schema = v.string()
+	.check(async value => value.length > 0)
 
 const reachedCallback = schema.execute('value')
 // Promise<ExecutionResult<string>>
@@ -227,7 +240,8 @@ Union branches run in declaration order and return the first successful branch's
 
 ```ts
 const schema = v.union([
-	v.string().transform(value => value.length),
+	v.string()
+		.transform(value => value.length),
 	v.number(),
 ])
 ```
@@ -253,7 +267,8 @@ import type { InferInput, InferOutput } from '@valchecker/internal'
 import { v } from 'valchecker'
 
 const schema = v.object({
-	count: v.looseNumber().isFinite(),
+	count: v.looseNumber()
+		.isFinite(),
 	tags: [v.array(v.string())],
 })
 

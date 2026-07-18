@@ -13,7 +13,9 @@ const payloadSchema = v.string()
 	.use(v.object({
 		items: v.array(
 			v.object({
-				id: v.string().toTrimmed().isNotEmpty(),
+				id: v.string()
+					.toTrimmed()
+					.isNotEmpty(),
 				quantity: v.number()
 					.isFinite()
 					.isInteger()
@@ -100,10 +102,9 @@ const schema = v.string()
 	.toJSONValue({ message: 'Step 1: Invalid JSON' })
 	.fallback(() => ({}))
 	.check((value): value is { items: unknown } =>
-			typeof value === 'object'
-			&& value !== null
-			&& 'items' in value, { message: 'Step 2: Missing items' }
-	)
+		typeof value === 'object'
+		&& value !== null
+		&& 'items' in value, { message: 'Step 2: Missing items' })
 	.fallback(() => ({ items: [] }))
 ```
 

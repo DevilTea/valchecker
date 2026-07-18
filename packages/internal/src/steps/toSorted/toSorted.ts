@@ -10,6 +10,9 @@ declare namespace Internal {
 	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
 		readonly compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined
 	}
+	export interface Options<Input extends any[] = any[]> extends StepOptions<Issue<Input>> {
+		readonly compareFn?: ((left: Input[number], right: Input[number]) => number) | undefined
+	}
 }
 
 type Meta = DefineStepMethodMeta<{

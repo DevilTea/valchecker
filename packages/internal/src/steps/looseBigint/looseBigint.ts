@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, StepOptions, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 
@@ -42,7 +42,7 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-const BIGINT_STRING_RE = /^(?:-?(?:0|[1-9]\d*)|-?0[xX][\da-fA-F]+|-?0[bB][01]+|-?0[oO][0-7]+)$/
+const BIGINT_STRING_RE = /^(?:-?(?:0|[1-9]\d*)|-?0x[\da-f]+|-?0b[01]+|-?0o[0-7]+)$/i
 
 function parseLooseBigint(value: unknown): bigint | undefined {
 	if (typeof value === 'bigint') {

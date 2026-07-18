@@ -173,9 +173,11 @@ else {
 `execute()` preserves synchronous and maybe-asynchronous completion:
 
 ```ts
-const synchronousResult = v.string().execute('value')
+const synchronousResult = v.string()
+	.execute('value')
 
-const maybeAsyncSchema = v.string().check(async value => value.length > 0)
+const maybeAsyncSchema = v.string()
+	.check(async value => value.length > 0)
 const reachedAsyncWork = maybeAsyncSchema.execute('value')
 const earlyFailure = maybeAsyncSchema.execute(42)
 ```

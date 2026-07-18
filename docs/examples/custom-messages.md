@@ -6,8 +6,8 @@ Every issue-producing step accepts a static message or message handler. Messages
 
 ```ts
 const payment = v.object({
-	currency: v.string().check(value => SUPPORTED_CURRENCIES.includes(value), { message: 'We only accept USD, EUR, and GBP' }
-	),
+	currency: v.string()
+		.check(value => SUPPORTED_CURRENCIES.includes(value), { message: 'We only accept USD, EUR, and GBP' }),
 	amount: v.number()
 		.isFinite()
 		.isAtLeast(1, { message: 'Amount must be at least $1.00' }),
@@ -23,17 +23,16 @@ const product = v.object({
 	),
 	price: v.number()
 		.isAtLeast(0, { message: ({ payload }) =>
-			`Price ${payload.value} is below ${payload.minimum}` }
-		),
+			`Price ${payload.value} is below ${payload.minimum}` }),
 })
 ```
 
 Length constraints expose their own explicit payload:
 
 ```ts
-const username = v.string().isLengthAtLeast(3, { message: ({ payload }) =>
-		`Expected at least ${payload.minimum} characters; received ${payload.length}` }
-)
+const username = v.string()
+	.isLengthAtLeast(3, { message: ({ payload }) =>
+		`Expected at least ${payload.minimum} characters; received ${payload.length}` })
 ```
 
 ## Global message resolver
@@ -150,8 +149,8 @@ const form = v.object({
 	password: v.string()
 		.isLengthAtLeast(8, { message: 'Password must be at least 8 characters' }),
 	confirmation: v.string(),
-}).check(value => value.password === value.confirmation, { message: 'Passwords must match' }
-)
+})
+	.check(value => value.password === value.confirmation, { message: 'Passwords must match' })
 ```
 
 Use `issue.path` to map nested failures to fields. A root-level cross-field `check()` issue has an empty path unless a custom step supplies a different path.

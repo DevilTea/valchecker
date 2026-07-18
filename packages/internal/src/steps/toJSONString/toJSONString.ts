@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, StepOptions, Next, TStepPluginDef } from '../../core'
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -35,9 +35,9 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? (options?: StepOptions<Internal.Issue<InferOutput<This>>>) => Next<
-				{ output: string, issue: Internal.Issue<InferOutput<This>> },
-				This
-			>
+					{ output: string, issue: Internal.Issue<InferOutput<This>> },
+					This
+				>
 			: never
 	>
 }
@@ -120,7 +120,7 @@ function prepareJSON(value: unknown): Prepared {
 				ancestors.delete(identity)
 				return { ok: false, type: 'operation', at, error }
 			}
-			const output = new Array(length)
+			const output = Array.from({ length })
 			for (let index = 0; index < length; index++) {
 				if (!Object.hasOwn(current, index)) {
 					output[index] = null
