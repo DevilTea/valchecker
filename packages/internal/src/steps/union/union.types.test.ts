@@ -62,15 +62,17 @@ describe('union type-state contracts', () => {
 		nullOnly.union([null])
 		undefinedOnly.union([undefined])
 
-		// @ts-expect-error literal shorthand requires the literal step
-		schemaOnly.union(['value'])
-		// @ts-expect-error null shorthand requires the null step
-		schemaOnly.union([null])
-		// @ts-expect-error undefined shorthand requires the undefined step
-		schemaOnly.union([undefined])
-		// @ts-expect-error null shorthand is independent from literal
-		literalOnly.union([null])
-		// @ts-expect-error undefined shorthand is independent from null
-		nullOnly.union([undefined])
+		if (false) {
+			// @ts-expect-error literal shorthand requires the literal step
+			schemaOnly.union(['value'])
+			// @ts-expect-error null shorthand requires the null step
+			schemaOnly.union([null])
+			// @ts-expect-error undefined shorthand requires the undefined step
+			schemaOnly.union([undefined])
+			// @ts-expect-error null shorthand is independent from literal
+			literalOnly.union([null])
+			// @ts-expect-error undefined shorthand is independent from null
+			nullOnly.union([undefined])
+		}
 	})
 })
