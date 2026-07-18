@@ -211,6 +211,19 @@ Declared fields are read from own properties only.
 
 Declared `__proto__` fields are materialized as safe own data properties and do not mutate the output prototype.
 
+## Map and Set collections
+
+```ts
+const tags = v.set(v.string().toTrimmed().toLowercase())
+
+const scores = v.map({
+	key: v.string().toTrimmed(),
+	value: v.number().isFinite(),
+})
+```
+
+Collection child schemas run in insertion order and return new transformed collections. Map key/value failures use `[index, 'key']` and `[index, 'value']`; Set item failures use `[index]`. Transformed Map keys and Set items must remain unique under SameValueZero, so validation fails rather than silently losing data.
+
 ## Composition
 
 ### Union

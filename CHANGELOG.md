@@ -10,6 +10,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Added
 
+- `map()` and `set()` initial schemas with insertion-ordered child validation and transformation, stable collection paths, sync/maybe-async preservation, and explicit transformed-key/item collision diagnostics.
 - Exact length, string/array inclusion, regular-expression, strict numeric-bound, divisibility, and safe-integer validation steps.
 - Primitive equality and tuple membership through `isEqualTo()` and `isOneOf()` with `Object.is` semantics and state-aware output narrowing.
 - Defined, non-null, and non-nullish narrowing steps that disappear once their excluded values are impossible.
@@ -65,7 +66,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - Message maps preserve same-code payload variants and allow callbacks to return `null` or `undefined` to continue resolution.
 - Combinators now treat internal issues as fatal: union cannot skip them, fallback cannot recover them, and object/array sibling traversal stops immediately.
 - `intersection:conflicting_outputs` reports precise conflict paths, branch indices, values, and reason codes.
-- Fallback callback failures retain the original issues and append an `operation`-category `fallback:failed` issue with a required error.
+- Fallback callback failures retain the original received issues and append an `operation`-category `fallback:failed` issue with a required error.
 - `check:failed` now discriminates returned-false and returned-message payloads; callback exceptions use `check:callback_failed`.
 - `transform`, `toFiltered`, and `toSorted` callback exceptions now preserve phase or operand context in operation issues.
 - `toJSONString()` reports stable reason/path payloads, performs a single-read preflight, preserves boxed primitive semantics, and classifies getter, Proxy, and `toJSON` failures as operations.
