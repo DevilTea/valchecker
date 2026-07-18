@@ -12,7 +12,7 @@ describe('structural step family contracts', () => {
 		Object.defineProperty(struct, '__proto__', {
 			configurable: true,
 			enumerable: true,
-			value: v.unknown().transform(async value => value),
+			value: v.unknown().transform(value => value),
 			writable: true,
 		})
 
