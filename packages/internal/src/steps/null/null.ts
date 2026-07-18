@@ -7,13 +7,9 @@ type Issue = ExecutionIssue<'null:expected_null', { value: unknown }>
 
 interface UnionShorthandDef extends TUnionShorthandDef {
 	input: null
-	result: this['branch'] extends null
-		? {
-			operationMode: 'sync'
-			output: null
-			issue: Issue
-		}
-		: never
+	operationMode: 'sync'
+	output: null
+	issue: Issue
 }
 
 type Meta = DefineStepMethodMeta<{
