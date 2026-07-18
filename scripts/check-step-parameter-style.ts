@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import process from 'node:process'
 import ts from 'typescript'
 
 const root = process.cwd()
@@ -41,8 +42,9 @@ function visitFile(filePath: string): void {
 		if (ts.isTypeReferenceNode(node)
 			&& ts.isIdentifier(node.typeName)
 			&& node.typeName.text === 'DefineStepMethod'
-			&& node.typeArguments?.[1])
+			&& node.typeArguments?.[1]) {
 			inspectMethodType(node.typeArguments[1])
+		}
 		ts.forEachChild(node, visit)
 	}
 
