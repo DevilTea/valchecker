@@ -1,10 +1,4 @@
 import type { AnyExecutionIssue, OperationMode, TStepPluginDef } from '../../core'
-import type { ValueOf } from '../../shared'
-
-export type HasRegisteredPlugin<
-	Registered extends TStepPluginDef,
-	Provider extends TStepPluginDef,
-> = [Extract<Registered, Provider>] extends [never] ? false : true
 
 export interface UnionShorthandResult {
 	operationMode: OperationMode
@@ -12,33 +6,28 @@ export interface UnionShorthandResult {
 	issue: AnyExecutionIssue
 }
 
-/**
- * Open type-level registry for union shorthand inputs. Provider steps augment
- * this interface and condition each entry on the provider PluginDef being
- * present in the current Valchecker instance.
- */
-export interface UnionShorthandInputRegistry<
-	Registered extends TStepPluginDef,
-> { }
+/** Type-state carrier implemented by a step plugin that contributes union shorthand. */
+export interface TUnionShorthandDef {
+	branch: unknown
+	input: unknown
+	result: UnionShorthandResult
+}
 
-/**
- * Open type-level registry that resolves an enabled shorthand branch to the
- * same operation mode, output, and issue contract as its provider schema.
- */
-export interface UnionShorthandResultRegistry<
+type RegisteredUnionShorthandDef<
 	Registered extends TStepPluginDef,
-	Branch,
-> { }
+> = Registered extends { UnionShorthand: infer Def extends TUnionShorthandDef }
+	? Def
+	: never
 
 export type UnionShorthandInput<
 	Registered extends TStepPluginDef,
-> = ValueOf<UnionShorthandInputRegistry<Registered>>
+> = RegisteredUnionShorthandDef<Registered>['input']
+
+type ApplyUnionShorthand<Def, Branch> = Def extends TUnionShorthandDef
+	? (Def & { branch: Branch })['result']
+	: never
 
 export type ResolveUnionShorthand<
 	Registered extends TStepPluginDef,
 	Branch,
-> = ValueOf<UnionShorthandResultRegistry<Registered, Branch>> extends infer Result
-	? Result extends UnionShorthandResult
-		? Result
-		: never
-	: never
+> = ApplyUnionShorthand<RegisteredUnionShorthandDef<Registered>, Branch>
