@@ -1,10 +1,11 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolvePerFileThresholds } from './coverage-policy'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const summaryPath = resolve(root, 'coverage/coverage-summary.json')
+const policyLogPath = resolve(root, 'coverage/policy.log')
 
 interface CoverageMetric {
 	total: number
@@ -46,13 +47,17 @@ export async function checkPerFileCoverage(): Promise<boolean> {
 		}
 	}
 
+	const lines = failures.length > 0
+		? ['Per-file coverage policy failed:', ...failures.map(failure => `- ${failure}`)]
+		: ['Per-file coverage policy passed.']
+	const output = `${lines.join('\n')}\n`
+	await writeFile(policyLogPath, output)
+
 	if (failures.length > 0) {
-		console.error('Per-file coverage policy failed:')
-		for (const failure of failures)
-			console.error(`- ${failure}`)
+		console.error(output.trimEnd())
 		return false
 	}
 
-	console.log('Per-file coverage policy passed.')
+	console.log(output.trimEnd())
 	return true
 }
