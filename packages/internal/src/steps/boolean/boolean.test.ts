@@ -156,7 +156,7 @@ describe('boolean plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.boolean('Custom error message')
+			const result = v.boolean({ message: 'Custom error message' })
 				.execute(42)
 			expect(result)
 				.toEqual({

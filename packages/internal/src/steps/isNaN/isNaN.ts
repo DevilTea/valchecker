@@ -44,7 +44,7 @@ export const isNaN = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep(value => Number.isNaN({ message: value })
+		addSuccessStep(value => Number.isNaN(value)
 			? success(value)
 			: failure(
 					createIssue({

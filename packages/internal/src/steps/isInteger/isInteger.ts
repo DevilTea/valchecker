@@ -46,7 +46,7 @@ export const isInteger = implStepPlugin<PluginDef>({
 		params: [options],
 	}) => {
 		addSuccessStep(
-			value => Number.isInteger({ message: value })
+			value => Number.isInteger(value)
 				? success(value)
 				: failure(
 						createIssue({

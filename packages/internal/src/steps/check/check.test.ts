@@ -18,50 +18,58 @@ function addDomainIssue(value: unknown, addIssue: (issue: DomainIssue) => void):
 
 describe('check step plugin', () => {
 	it('preserves the value when the predicate passes', () => {
-		expect(v.check(value => value === 'pass').execute('pass')).toEqual({ value: 'pass' })
+		expect(v.check(value => value === 'pass')
+			.execute('pass'))
+			.toEqual({ value: 'pass' })
 	})
 
 	it('reports the complete returned-false failure contract', () => {
-		expect(v.check(value => value === 'pass').execute('fail')).toEqual({
-			issues: [{
-				code: 'check:failed',
-				category: 'validation',
-				message: 'Check failed',
-				path: [],
-				payload: { reason: 'returned_false', value: 'fail' },
-			}],
-		})
+		expect(v.check(value => value === 'pass')
+			.execute('fail'))
+			.toEqual({
+				issues: [{
+					code: 'check:failed',
+					category: 'validation',
+					message: 'Check failed',
+					path: [],
+					payload: { reason: 'returned_false', value: 'fail' },
+				}],
+			})
 	})
 
 	it('uses a returned string as the failure message and payload reason', () => {
-		expect(v.check(value => value !== 'fail' || 'Custom error').execute('fail')).toEqual({
-			issues: [{
-				code: 'check:failed',
-				category: 'validation',
-				message: 'Custom error',
-				path: [],
-				payload: {
-					reason: 'returned_message',
-					returnedMessage: 'Custom error',
-					value: 'fail',
-				},
-			}],
-		})
+		expect(v.check(value => value !== 'fail' || 'Custom error')
+			.execute('fail'))
+			.toEqual({
+				issues: [{
+					code: 'check:failed',
+					category: 'validation',
+					message: 'Custom error',
+					path: [],
+					payload: {
+						reason: 'returned_message',
+						returnedMessage: 'Custom error',
+						value: 'fail',
+					},
+				}],
+			})
 	})
 
 	it('returns explicitly added issues even when the predicate otherwise passes', () => {
 		expect(v.check<DomainIssue>((value, { addIssue }) => {
 			addDomainIssue(value, addIssue)
 			return true
-		}).execute('blocked')).toEqual({
-			issues: [{
-				code: 'domain:blocked',
-				category: 'validation',
-				payload: { value: 'blocked' },
-				message: 'Blocked by domain policy.',
-				path: [],
-			}],
 		})
+			.execute('blocked'))
+			.toEqual({
+				issues: [{
+					code: 'domain:blocked',
+					category: 'validation',
+					payload: { value: 'blocked' },
+					message: 'Blocked by domain policy.',
+					path: [],
+				}],
+			})
 	})
 
 	it.each([
@@ -75,20 +83,24 @@ describe('check step plugin', () => {
 		const result = v.check<DomainIssue>((value, { addIssue }) => {
 			addDomainIssue(value, addIssue)
 			return returned
-		}).execute('fail')
-
-		expect(result).toMatchObject({
-			issues: [
-				{ code: 'domain:blocked' },
-				{ code: 'check:failed', payload },
-			],
 		})
+			.execute('fail')
+
+		expect(result)
+			.toMatchObject({
+				issues: [
+					{ code: 'domain:blocked' },
+					{ code: 'check:failed', payload },
+				],
+			})
 	})
 
 	it('supports asynchronous predicate success and failure', async () => {
-		await expect(v.check(async value => value === 'pass').execute('pass'))
+		await expect(v.check(async value => value === 'pass')
+			.execute('pass'))
 			.resolves.toEqual({ value: 'pass' })
-		await expect(v.check(async value => value === 'pass').execute('fail'))
+		await expect(v.check(async value => value === 'pass')
+			.execute('fail'))
 			.resolves.toMatchObject({
 				issues: [{
 					code: 'check:failed',
@@ -99,20 +111,23 @@ describe('check step plugin', () => {
 
 	it('reports a synchronous callback throw as an operation issue', () => {
 		const error = new Error('Thrown error')
-		expect(v.check(() => { throw error }).execute('value')).toEqual({
-			issues: [{
-				code: 'check:callback_failed',
-				category: 'operation',
-				message: 'Check callback failed.',
-				path: [],
-				payload: { phase: 'throw', value: 'value', error },
-			}],
-		})
+		expect(v.check(() => { throw error })
+			.execute('value'))
+			.toEqual({
+				issues: [{
+					code: 'check:callback_failed',
+					category: 'operation',
+					message: 'Check callback failed.',
+					path: [],
+					payload: { phase: 'throw', value: 'value', error },
+				}],
+			})
 	})
 
 	it('reports an asynchronous callback rejection as an operation issue', async () => {
 		const error = new Error('Rejected error')
-		await expect(v.check(async () => { throw error }).execute('value')).resolves.toEqual({
+		await expect(v.check(async () => { throw error })
+			.execute('value')).resolves.toEqual({
 			issues: [{
 				code: 'check:callback_failed',
 				category: 'operation',
@@ -124,14 +139,14 @@ describe('check step plugin', () => {
 	})
 
 	it('uses a custom message handler for owned failures', () => {
-		expect(v.check(
-			() => false,
-			issue => `Custom: ${issue.payload.value}`,
-		).execute('value')).toMatchObject({
-			issues: [{
-				code: 'check:failed',
-				message: 'Custom: value',
-			}],
-		})
+		expect(v.check(() => false, { message: issue => `Custom: ${issue.payload.value}` },
+		)
+			.execute('value'))
+			.toMatchObject({
+				issues: [{
+					code: 'check:failed',
+					message: 'Custom: value',
+				}],
+			})
 	})
 })

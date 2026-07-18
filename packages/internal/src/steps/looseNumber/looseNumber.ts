@@ -56,7 +56,7 @@ function parseLooseNumber(value: unknown): number | undefined {
 		return undefined
 	}
 	const parsed = Number(value)
-	return Number.isFinite({ message: parsed }) ? parsed : undefined
+	return Number.isFinite(parsed) ? parsed : undefined
 }
 
 /* @__NO_SIDE_EFFECTS__ */

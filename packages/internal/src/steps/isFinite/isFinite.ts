@@ -44,7 +44,7 @@ export const isFinite = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep(value => Number.isFinite({ message: value })
+		addSuccessStep(value => Number.isFinite(value)
 			? success(value)
 			: failure(
 					createIssue({

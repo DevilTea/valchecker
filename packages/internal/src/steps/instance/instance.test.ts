@@ -158,9 +158,7 @@ describe('instance step plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message handler', () => {
-			const result = v.instance(
-				Date,
-				() => 'Custom error message',
+			const result = v.instance(Date, { message: () => 'Custom error message' },
 			)
 				.execute('not a date')
 			expect(result)

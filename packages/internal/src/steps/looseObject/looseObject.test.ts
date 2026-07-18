@@ -11,93 +11,107 @@ describe('looseObject step plugin', () => {
 		['null', null],
 		['undefined', undefined],
 	] as const)('rejects %s input as a non-object', (_kind, value) => {
-		expect(v.looseObject({}).execute(value)).toEqual({
-			issues: [{
-				code: 'looseObject:expected_object',
-				category: 'validation',
-				message: 'Expected an object.',
-				path: [],
-				payload: { value },
-			}],
-		})
+		expect(v.looseObject({})
+			.execute(value))
+			.toEqual({
+				issues: [{
+					code: 'looseObject:expected_object',
+					category: 'validation',
+					message: 'Expected an object.',
+					path: [],
+					payload: { value },
+				}],
+			})
 	})
 
 	it('preserves extra own properties while replacing declared outputs', () => {
 		expect(v.looseObject({
-			name: v.string().transform(value => value.toUpperCase()),
+			name: v.string()
+				.transform(value => value.toUpperCase()),
 			age: v.number(),
-		}).execute({
-			name: 'Ada',
-			age: 37,
-			extra: true,
-		})).toEqual({
-			value: {
-				name: 'ADA',
+		})
+			.execute({
+				name: 'Ada',
 				age: 37,
 				extra: true,
-			},
-		})
+			}))
+			.toEqual({
+				value: {
+					name: 'ADA',
+					age: 37,
+					extra: true,
+				},
+			})
 	})
 
 	it('materializes a missing optional field as undefined', () => {
 		expect(v.looseObject({
 			name: v.string(),
 			age: [v.number()],
-		}).execute({ name: 'Ada', extra: true })).toEqual({
-			value: {
-				name: 'Ada',
-				age: undefined,
-				extra: true,
-			},
 		})
+			.execute({ name: 'Ada', extra: true }))
+			.toEqual({
+				value: {
+					name: 'Ada',
+					age: undefined,
+					extra: true,
+				},
+			})
 	})
 
 	it('reports the complete missing-key issue contract', () => {
 		expect(v.looseObject({
 			name: v.string(),
 			age: v.number(),
-		}).execute({ name: 'Ada' })).toEqual({
-			issues: [{
-				code: 'looseObject:missing_key',
-				category: 'validation',
-				message: 'Missing required object key.',
-				path: ['age'],
-				payload: { key: 'age' },
-			}],
 		})
+			.execute({ name: 'Ada' }))
+			.toEqual({
+				issues: [{
+					code: 'looseObject:missing_key',
+					category: 'validation',
+					message: 'Missing required object key.',
+					path: ['age'],
+					payload: { key: 'age' },
+				}],
+			})
 	})
 
 	it('validates an own undefined value instead of treating the key as missing', () => {
-		expect(v.looseObject({ value: v.string() }).execute({
-			value: undefined,
-			extra: true,
-		})).toMatchObject({
-			issues: [{
-				code: 'string:expected_string',
-				path: ['value'],
-				payload: { value: undefined },
-			}],
-		})
+		expect(v.looseObject({ value: v.string() })
+			.execute({
+				value: undefined,
+				extra: true,
+			}))
+			.toMatchObject({
+				issues: [{
+					code: 'string:expected_string',
+					path: ['value'],
+					payload: { value: undefined },
+				}],
+			})
 	})
 
 	it('prefixes nested child issue paths', () => {
 		expect(v.looseObject({
 			profile: v.looseObject({ age: v.number() }),
-		}).execute({
-			profile: { age: 'old', extra: true },
-			topLevelExtra: true,
-		})).toMatchObject({
-			issues: [{
-				code: 'number:expected_number',
-				path: ['profile', 'age'],
-				payload: { value: 'old' },
-			}],
 		})
+			.execute({
+				profile: { age: 'old', extra: true },
+				topLevelExtra: true,
+			}))
+			.toMatchObject({
+				issues: [{
+					code: 'number:expected_number',
+					path: ['profile', 'age'],
+					payload: { value: 'old' },
+				}],
+			})
 	})
 
 	it('continues declared fields after asynchronous work and preserves extras', async () => {
 		const schema = v.looseObject({
-			value: v.number().transform(async value => value * 2),
+			value: v.number()
+				.transform(async value => value * 2),
 			name: v.string(),
 			count: v.number(),
 		})
@@ -119,7 +133,8 @@ describe('looseObject step plugin', () => {
 
 	it('continues after a recoverable asynchronous child failure', async () => {
 		const schema = v.looseObject({
-			first: v.string().transform(async () => { throw new Error('recoverable') }),
+			first: v.string()
+				.transform(async () => { throw new Error('recoverable') }),
 			optional: [v.number()],
 			last: v.string(),
 		})
@@ -138,14 +153,18 @@ describe('looseObject step plugin', () => {
 	})
 
 	it('uses custom messages for owned structural issues', () => {
-		expect(v.looseObject({}, 'Custom object').execute('wrong')).toMatchObject({
-			issues: [{ message: 'Custom object' }],
-		})
-		expect(v.looseObject({ value: v.string() }, 'Custom key').execute({})).toMatchObject({
-			issues: [{
-				code: 'looseObject:missing_key',
-				message: 'Custom key',
-			}],
-		})
+		expect(v.looseObject({}, { message: 'Custom object' })
+			.execute('wrong'))
+			.toMatchObject({
+				issues: [{ message: 'Custom object' }],
+			})
+		expect(v.looseObject({ value: v.string() }, { message: 'Custom key' })
+			.execute({}))
+			.toMatchObject({
+				issues: [{
+					code: 'looseObject:missing_key',
+					message: 'Custom key',
+				}],
+			})
 	})
 })

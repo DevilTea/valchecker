@@ -29,8 +29,10 @@ function visitFile(filePath: string): void {
 						errors.push(`${path.relative(root, filePath)}: optional parameter ${name} must be grouped into options`)
 					if (index > 0 && name !== 'options')
 						errors.push(`${path.relative(root, filePath)}: only trailing options may follow the operand`)
-					if (name === 'options' && !parameter.type?.getText(sf).includes('Options'))
+					if (name === 'options' && !parameter.type?.getText(sf)
+						.includes('Options')) {
 						errors.push(`${path.relative(root, filePath)}: options must use a named options type`)
+					}
 				})
 				return
 			}

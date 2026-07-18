@@ -7,9 +7,9 @@ All built-in positional message parameters have been removed before 1.0. Keep on
 ```ts
 // Before
 v.number()
-	.isAtLeast(0, 'Must be non-negative.')
+	.isAtLeast(0, { message: 'Must be non-negative.' })
 v.array(v.string())
-	.toFiltered(predicate, undefined, 'Filter failed.')
+	.toFiltered(predicate, { message: 'Filter failed.' })
 
 // After
 v.number()

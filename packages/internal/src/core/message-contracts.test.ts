@@ -396,7 +396,7 @@ describe('issue message finalization', () => {
 				issues: [{
 					code: 'core:unknown_exception',
 					category: 'internal',
-					payload: { error: expect.any({ message: TypeError }) },
+					payload: { error: expect.any(TypeError) },
 				}],
 			})
 	})

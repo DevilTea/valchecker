@@ -14,24 +14,30 @@ describe('looseBigint step plugin', () => {
 		['0B10', 2n],
 		['-0o10', -8n],
 	])('normalizes %p to %p', (input, output) => {
-		expect(v.looseBigint().execute(input)).toEqual({ value: output })
+		expect(v.looseBigint()
+			.execute(input))
+			.toEqual({ value: output })
 	})
 
 	it.each(['+1', '01', ' 1 ', '', '1.0', '1e3', '1n', true, 1])('rejects %p', (value) => {
-		expect(v.looseBigint().execute(value)).toEqual({
-			issues: [{
-				code: 'looseBigint:expected_bigint',
-				category: 'validation',
-				message: 'Expected a bigint or bigint string.',
-				path: [],
-				payload: { value },
-			}],
-		})
+		expect(v.looseBigint()
+			.execute(value))
+			.toEqual({
+				issues: [{
+					code: 'looseBigint:expected_bigint',
+					category: 'validation',
+					message: 'Expected a bigint or bigint string.',
+					path: [],
+					payload: { value },
+				}],
+			})
 	})
 
 	it('supports custom messages', () => {
-		expect(v.looseBigint('Custom bigint').execute('01')).toMatchObject({
-			issues: [{ message: 'Custom bigint' }],
-		})
+		expect(v.looseBigint({ message: 'Custom bigint' })
+			.execute('01'))
+			.toMatchObject({
+				issues: [{ message: 'Custom bigint' }],
+			})
 	})
 })

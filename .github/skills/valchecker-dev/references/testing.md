@@ -159,7 +159,7 @@ const schema = v.string().toAsync()
 const result = schema.execute(42)
 
 expect(result).toBeInstanceOf(Promise)
-await expect(result).resolves.toMatchObject({ issues: expect.any({ message: Array }) })
+await expect(result).resolves.toMatchObject({ issues: expect.any(Array) })
 ```
 
 Use `execute()`; there is no `runAsync()` method.
