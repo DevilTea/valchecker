@@ -1,4 +1,4 @@
-name: Finalize Step Options Migration
+name: Probe Typecheck Baseline
 
 on:
   pull_request:
@@ -8,10 +8,10 @@ on:
       - synchronize
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  Finalize:
+  Probe:
     if: github.head_ref == 'agent/standardize-step-options-v2'
     runs-on: ubuntu-24.04
     steps:
@@ -29,100 +29,41 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Apply call-site and native-call migration
-        run: pnpm build
-
-      - name: Normalize generated call syntax
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          for path in Path('.').rglob('*'):
-              if not path.is_file() or path.suffix not in {'.ts', '.tsx', '.mts', '.cts', '.md'}:
-                  continue
-              source = path.read_text()
-              normalized = source.replace('[],, message:', '[], message:')
-              if normalized != source:
-                  path.write_text(normalized)
-          PY
-
-      - name: Remove migration scaffolding
+      - name: Typecheck current branch before codemod
         shell: bash
         run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path('package.json')
-          data = json.loads(path.read_text())
-          data['scripts']['build'] = "pnpm -r --filter='./packages/*' build"
-          path.write_text(json.dumps(data, ensure_ascii=False, indent='\t') + '\n')
-          PY
-          rm -f scripts/generate-step-option-call-migration.ts
-          rm -rf artifacts/step-option-call-migration
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
+          set +e
+          pnpm install --frozen-lockfile > branch-install.log 2>&1
+          pnpm typecheck > branch-typecheck.log 2>&1
+          echo $? > branch-status.txt
 
-      - name: Record public API
-        run: |
-          pnpm build
-          pnpm api:surface:update
-
-      - name: Test quality
+      - name: Typecheck main with same environment
         shell: bash
         run: |
-          set -o pipefail
-          pnpm test:quality 2>&1 | tee test-quality.log
+          set +e
+          git worktree add /tmp/valchecker-main origin/main
+          cd /tmp/valchecker-main
+          pnpm install --frozen-lockfile > "$GITHUB_WORKSPACE/main-install.log" 2>&1
+          pnpm typecheck > "$GITHUB_WORKSPACE/main-typecheck.log" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/main-status.txt"
 
-      - name: Typecheck
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm typecheck 2>&1 | tee typecheck.log
-
-      - name: Tests
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm test 2>&1 | tee test.log
-
-      - name: Documentation
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm docs:build 2>&1 | tee docs.log
-
-      - name: Benchmark scenarios
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts 2>&1 | tee benchmark-install.log
-          pnpm --dir benchmarks verify 2>&1 | tee benchmark-verify.log
-
-      - name: Diff integrity
-        run: git diff --check
-
-      - name: Upload validation logs
+      - name: Upload baseline comparison
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: step-options-finalizer-logs
+          name: typecheck-baseline-probe
           path: |
-            test-quality.log
-            typecheck.log
-            test.log
-            docs.log
-            benchmark-install.log
-            benchmark-verify.log
-          if-no-files-found: ignore
+            branch-install.log
+            branch-typecheck.log
+            branch-status.txt
+            main-install.log
+            main-typecheck.log
+            main-status.txt
+          if-no-files-found: error
           retention-days: 7
 
-      - name: Squash migration history and push
-        shell: bash
+      - name: Report result
         run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git reset --soft origin/main
-          git add -A
-          git commit -m "refactor!: standardize built-in step options"
-          git push --force origin HEAD:agent/standardize-step-options-v2
+          echo "branch=$(cat branch-status.txt)"
+          echo "main=$(cat main-status.txt)"
+          test "$(cat main-status.txt)" = "0"
