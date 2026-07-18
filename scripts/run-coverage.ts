@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { checkPerFileCoverage } from './check-coverage'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
@@ -50,5 +51,13 @@ printTail(vitest.output)
 await mkdir(new URL('../coverage', import.meta.url), { recursive: true })
 await writeFile(new URL('../coverage/vitest.log', import.meta.url), vitest.output)
 
-if (vitest.exitCode !== 0)
+let perFilePassed = false
+try {
+	perFilePassed = await checkPerFileCoverage()
+}
+catch (error) {
+	console.error(error)
+}
+
+if (vitest.exitCode !== 0 || !perFilePassed)
 	process.exitCode = 1
