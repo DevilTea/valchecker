@@ -9,13 +9,16 @@ describe('isDefined step plugin', () => {
 		const schema = v.union([v.string(), v.null(), v.undefined()]).isDefined()
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string | null>()
 		expect(schema.execute(null)).toEqual({ value: null })
-		expect(schema.execute(undefined)).toMatchObject({ issues: [{ code: 'isDefined:expected_defined' }] })
+		expect(schema.execute(undefined)).toMatchObject({
+			issues: [{ code: 'isDefined:expected_defined', payload: { value: undefined } }],
+		})
 	})
 
-	it('supports unknown input and custom messages', () => {
-		expect(v.unknown().isDefined({ message: 'Required' }).execute(undefined)).toMatchObject({
-			issues: [{ message: 'Required' }],
-		})
+	it('narrows unknown output and supports custom messages', () => {
+		const schema = v.unknown().isDefined({ message: 'Required' })
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<NonNullable<unknown> | null>()
+		expect(schema.execute(null)).toEqual({ value: null })
+		expect(schema.execute(undefined)).toMatchObject({ issues: [{ message: 'Required' }] })
 	})
 
 	it('is hidden when undefined is impossible', () => {
