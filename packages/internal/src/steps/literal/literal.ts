@@ -6,17 +6,17 @@ import { implStepPlugin } from '../../core'
 declare namespace Internal {
 	export type LiteralType = bigint | boolean | number | string | symbol
 	export type Issue<L extends LiteralType = LiteralType> = ExecutionIssue<'literal:expected_literal', { value: unknown, expected: L }>
+}
 
-	export interface UnionShorthandDef extends TUnionShorthandDef {
-		input: LiteralType
-		result: this['branch'] extends LiteralType
-			? {
-				operationMode: 'sync'
-				output: this['branch']
-				issue: Issue<this['branch']>
-			}
-			: never
-	}
+interface LiteralUnionShorthandDef extends TUnionShorthandDef {
+	input: Internal.LiteralType
+	result: this['branch'] extends Internal.LiteralType
+		? {
+			operationMode: 'sync'
+			output: this['branch']
+			issue: Internal.Issue<this['branch']>
+		}
+		: never
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -25,7 +25,7 @@ type Meta = DefineStepMethodMeta<{
 	SelfIssue: Internal.Issue
 }>
 interface PluginDef extends TStepPluginDef {
-	UnionShorthand: Internal.UnionShorthandDef
+	UnionShorthand: LiteralUnionShorthandDef
 	/**
 	 * ### Description:
 	 * Checks that the value matches the specified literal with `Object.is`.
