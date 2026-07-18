@@ -1,6 +1,9 @@
 import type { AnyExecutionIssue, OperationMode, TStepPluginDef } from '../../core'
 
-/** Type-state carrier implemented by a step plugin that contributes union shorthand. */
+/**
+ * Type-state-only capability carried by a provider PluginDef. These fields do
+ * not match DefineStepMethod, so they never become runtime Valchecker methods.
+ */
 export interface TUnionShorthandDef {
 	branch: unknown
 	input: unknown
