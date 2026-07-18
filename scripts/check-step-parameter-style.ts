@@ -9,8 +9,15 @@ const errors: string[] = []
 
 function visitFile(filePath: string): void {
 	const source = fs.readFileSync(filePath, 'utf8')
-	if (!source.includes('StepOptions'))
+	const usesStepOptions = source.includes('StepOptions')
+	const usesDirectMessageHandler = source.includes('MessageHandler<')
+	if (!usesStepOptions && !usesDirectMessageHandler)
 		return
+
+	if (usesDirectMessageHandler) {
+		errors.push(`${path.relative(root, filePath)}: message-bearing steps must use StepOptions instead of MessageHandler directly`)
+	}
+
 	const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
 
 	function inspectMethodType(node: ts.TypeNode): void {
@@ -29,10 +36,8 @@ function visitFile(filePath: string): void {
 						errors.push(`${path.relative(root, filePath)}: optional parameter ${name} must be grouped into options`)
 					if (index > 0 && name !== 'options')
 						errors.push(`${path.relative(root, filePath)}: only trailing options may follow the operand`)
-					if (name === 'options' && !parameter.type?.getText(sf)
-						.includes('Options')) {
+					if (name === 'options' && !parameter.type?.getText(sf).includes('Options'))
 						errors.push(`${path.relative(root, filePath)}: options must use a named options type`)
-					}
 				})
 				return
 			}
