@@ -155,6 +155,24 @@ Entries are snapshotted at execution start. Fully synchronous key and value sche
 
 The enclosing `message` on `map()` and the options message on `set()` participate in normal structure message resolution for both owned and nested child issues after their collection paths are prepended.
 
+### Collection size and membership
+
+Map and Set outputs expose `isEmpty()`, `isNotEmpty()`, `isSizeAtLeast()`, `isSizeAtMost()`, `isSizeExactly()`, and `toSize()`. Size-validation failures snapshot the single observed `size` value. Existing string and array emptiness failures retain their `length` payloads.
+
+Set membership uses `isIncluding(item)`. Map membership is explicit about the searched domain through `isIncludingKey(key)` and `isIncludingValue(value)`. All three membership forms use SameValueZero equality, so `NaN` matches `NaN` and `0` matches `-0`.
+
+```ts
+const tags = v.set(v.string())
+	.isNotEmpty()
+	.isSizeAtMost(5)
+	.isIncluding('required')
+
+const scoreCount = v.map({ key: v.string(), value: v.number() })
+	.isIncludingKey('primary')
+	.isIncludingValue(1)
+	.toSize()
+```
+
 ## `union(branches)`
 
 Evaluates branches in declaration order and returns the first successful branch's transformed output.

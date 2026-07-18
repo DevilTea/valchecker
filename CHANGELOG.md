@@ -10,6 +10,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Added
 
+- Map and Set size/membership steps: size-aware `isEmpty()`/`isNotEmpty()`, `isSizeAtLeast()`, `isSizeAtMost()`, `isSizeExactly()`, `toSize()`, Set `isIncluding()`, and Map `isIncludingKey()`/`isIncludingValue()`.
 - `map()` and `set()` initial schemas with insertion-ordered child validation and transformation, stable collection paths, sync/maybe-async preservation, and explicit transformed-key/item collision diagnostics.
 - Exact length, string/array inclusion, regular-expression, strict numeric-bound, divisibility, and safe-integer validation steps.
 - Primitive equality and tuple membership through `isEqualTo()` and `isOneOf()` with `Object.is` semantics and state-aware output narrowing.

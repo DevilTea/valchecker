@@ -58,14 +58,22 @@ Use `allSteps` when a custom instance should include every built-in plugin.
 
 ```ts
 const tags = v.set(v.string().toTrimmed().toLowercase())
+	.isNotEmpty()
+	.isSizeAtMost(5)
+	.isIncluding('required')
 
-const scores = v.map({
+const scoreCount = v.map({
 	key: v.string().toTrimmed(),
 	value: v.number().isFinite(),
 })
+	.isIncludingKey('primary')
+	.isIncludingValue(1)
+	.toSize()
 ```
 
 Both initial schemas preserve insertion order, return new transformed collections, and expose stable child paths. Duplicate transformed Set items or Map keys are validation failures rather than silent data loss.
+
+Map and Set schemas expose size-aware emptiness checks, `isSizeAtLeast()`, `isSizeAtMost()`, `isSizeExactly()`, and `toSize()`. Set membership uses `isIncluding()`, while Map membership is explicit through `isIncludingKey()` and `isIncludingValue()`.
 
 ## Step naming
 
@@ -132,7 +140,7 @@ v.number().isInteger()
 v.number().isAtLeast(0).isAtMost(100)
 ```
 
-`isAtLeast()` and `isAtMost()` apply to numbers and bigints. Length constraints are intentionally separate and explicit.
+`isAtLeast()` and `isAtMost()` apply to numbers and bigints. Length and size constraints are intentionally separate and explicit.
 
 ## Primitive conversions
 
@@ -180,6 +188,7 @@ v.string().toSplit(',')
 v.string().toJSONValue()
 v.unknown().toJSONString()
 v.array(v.number()).toSorted()
+v.set(v.string()).toSize()
 ```
 
 Use `transform()` for arbitrary output transformations:

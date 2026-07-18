@@ -83,6 +83,19 @@ Forwards arguments to the current value's `slice` method.
 
 Replaces a length-bearing value with its numeric length.
 
+## Collection transforms
+
+### `toSize()`
+
+Replaces a size-bearing value such as a Map or Set with its numeric size. This pure transformation emits no issue.
+
+```ts
+v.set(v.string())
+	.toSize()
+	.execute(new Set(['a', 'b']))
+// { value: 2 }
+```
+
 ## JSON transforms
 
 ### `toJSONValue<T = unknown>(options?)`
