@@ -149,7 +149,7 @@ describe('undefined plugin', () => {
 
 	describe('custom messages', () => {
 		it('should use custom message for invalid input', () => {
-			const result = v.undefined('Custom error message')
+			const result = v.undefined({ message: 'Custom error message' })
 				.execute(42)
 			expect(result)
 				.toEqual({
