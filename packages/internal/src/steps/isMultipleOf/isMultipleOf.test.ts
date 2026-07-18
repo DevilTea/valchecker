@@ -1,15 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { bigint, createValchecker, isMultipleOf, number } from '../..'
+
 const v = createValchecker({ steps: [bigint, isMultipleOf, number] })
+
 describe('isMultipleOf step plugin', () => {
-	it('accepts number and bigint multiples using JavaScript remainder semantics', () => {
-		expect(v.number().isMultipleOf(0.5).execute(1.5)).toEqual({ value: 1.5 })
+	it('accepts exact integer, bigint, negative, and ordinary decimal multiples', () => {
+		expect(v.number().isMultipleOf(3).execute(12)).toEqual({ value: 12 })
+		expect(v.number().isMultipleOf(0.1).execute(0.3)).toEqual({ value: 0.3 })
+		expect(v.number().isMultipleOf(-2).execute(6)).toEqual({ value: 6 })
 		expect(v.bigint().isMultipleOf(3n).execute(9n)).toEqual({ value: 9n })
 	})
-	it('reports non-multiples and supports custom messages', () => {
-		expect(v.number().isMultipleOf(2).execute(3)).toMatchObject({ issues: [{ payload: { target: 'number', value: 3, divisor: 2 } }] })
-		expect(v.bigint().isMultipleOf(2n, { message: 'Even bigint required' }).execute(3n)).toMatchObject({ issues: [{ message: 'Even bigint required', payload: { target: 'bigint' } }] })
+
+	it('rejects non-multiples and non-finite values', () => {
+		expect(v.number().isMultipleOf(2).execute(3)).toMatchObject({
+			issues: [{ payload: { target: 'number', value: 3, divisor: 2 } }],
+		})
+		expect(v.number().isMultipleOf(0.1).execute(0.31)).toMatchObject({
+			issues: [{ code: 'isMultipleOf:expected_multiple_of' }],
+		})
+		expect(v.number().isMultipleOf(2).execute(Infinity)).toMatchObject({
+			issues: [{ payload: { target: 'number', value: Infinity, divisor: 2 } }],
+		})
+		expect(v.bigint().isMultipleOf(2n, { message: 'Even bigint required' }).execute(3n)).toMatchObject({
+			issues: [{ message: 'Even bigint required', payload: { target: 'bigint' } }],
+		})
 	})
+
 	it('rejects invalid divisors at schema construction', () => {
 		expect(() => v.number().isMultipleOf(0)).toThrow('finite and non-zero')
 		expect(() => v.number().isMultipleOf(Infinity)).toThrow('finite and non-zero')
