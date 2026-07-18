@@ -10,6 +10,11 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Added
 
+- Exact length, string/array inclusion, regular-expression, strict numeric-bound, divisibility, and safe-integer validation steps.
+- Primitive equality and tuple membership through `isEqualTo()` and `isOneOf()` with `Object.is` semantics and state-aware output narrowing.
+- Defined, non-null, and non-nullish narrowing steps that disappear once their excluded values are impossible.
+- Unicode string normalization through `toNormalized()`.
+- Array mapping through `toMapped()` with typed output and structured callback-operation diagnostics.
 - Standard Schema V1 support on every schema through `~standard`.
 - Native `PromiseLike` assimilation for callback-driven validation and transformation steps.
 - `.toAsync()` for callers that require every execution to return a native promise.
@@ -38,7 +43,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 ### Changed
 
 - Standardized all message-bearing built-in step parameters around trailing options objects and removed positional messages.
-
+- Number `isMultipleOf()` accepts ordinary decimal multiples using a documented floating-point tolerance, while bigint divisibility remains exact.
 - The supported runtime is Node.js 22 or newer.
 - Published packages are ESM-only. CommonJS consumers must use dynamic `import()`.
 - `execute()` now has a documented sync/maybe-async contract instead of being described as universally asynchronous.
@@ -97,25 +102,3 @@ The following accidental implementation exports are no longer part of the public
 - `handleMessage`
 - `prependIssuePath`
 - `resolveMessagePriority`
-
-The release workflow no longer:
-
-- bumps package versions,
-- commits or pushes changes,
-- creates or pushes Git tags,
-- executes unpinned release-note tooling,
-- publishes directly from workspace directories,
-- uses a long-lived npm token.
-
-### Security
-
-- npm publication is restricted to a manually dispatched workflow on `main`, protected by the `npm` GitHub environment.
-- Publication uses job-scoped OIDC and rejects `NPM_TOKEN` and `NODE_AUTH_TOKEN`.
-- Exact tarball paths, sizes, SHA-256 checksums, package order, commit identity, npm tag, and typed confirmation are verified immediately before publication.
-- CI rejects source files, tests, benchmarks, TypeScript configuration, and unresolved workspace/catalog dependency protocols in published tarballs.
-
-## Pre-1.0 history
-
-Versions before `1.0.0-rc.0` were development releases and did not provide the full compatibility guarantees documented for the 1.0 line. Refer to Git history and merged pull requests for detailed pre-1.0 changes.
-
-[1.0.0-rc.0]: https://github.com/DevilTea/valchecker/releases/tag/v1.0.0-rc.0
