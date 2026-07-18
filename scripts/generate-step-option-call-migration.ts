@@ -16,8 +16,8 @@ interface Replacement {
 const messageOnlyMethods = new Set([
 	'any', 'bigint', 'boolean', 'isEmpty', 'isFinite', 'isInteger', 'isNaN',
 	'isNotEmpty', 'json', 'looseBigint', 'looseBoolean', 'looseNumber', 'never',
-	'null_', 'number', 'string', 'symbol', 'toBigint', 'toJSONString',
-	'toJSONValue', 'toNumber', 'toSafeNumber', 'undefined_',
+	'null', 'null_', 'number', 'string', 'symbol', 'toBigint', 'toJSONString',
+	'toJSONValue', 'toNumber', 'toSafeNumber', 'undefined', 'undefined_',
 ])
 
 const operandMessageMethods = new Set([
@@ -42,8 +42,31 @@ function rootIdentifier(expression: ts.Expression): string | undefined {
 	return ts.isIdentifier(current) ? current.text : undefined
 }
 
+function unwrap(node: ts.Expression): ts.Expression {
+	let current = node
+	while (ts.isAsExpression(current)
+		|| ts.isTypeAssertionExpression(current)
+		|| ts.isParenthesizedExpression(current)
+		|| ts.isSatisfiesExpression(current))
+		current = current.expression
+	return current
+}
+
+function messageInitializer(node: ts.Expression): ts.Expression | undefined {
+	const current = unwrap(node)
+	if (!ts.isObjectLiteralExpression(current) || current.properties.length !== 1)
+		return undefined
+	const property = current.properties[0]
+	if (!property || !ts.isPropertyAssignment(property))
+		return undefined
+	if (property.name.getText().replace(/["']/g, '') !== 'message')
+		return undefined
+	return property.initializer
+}
+
 function hasProperty(node: ts.Expression, name: string): boolean {
-	return ts.isObjectLiteralExpression(node) && node.properties.some((property) => {
+	const current = unwrap(node)
+	return ts.isObjectLiteralExpression(current) && current.properties.some((property) => {
 		if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property))
 			return false
 		return property.name.getText().replace(/["']/g, '') === name
@@ -51,16 +74,17 @@ function hasProperty(node: ts.Expression, name: string): boolean {
 }
 
 function looksLikeMessage(node: ts.Expression): boolean {
-	if (ts.isStringLiteralLike(node)
-		|| ts.isNoSubstitutionTemplateLiteral(node)
-		|| ts.isArrowFunction(node)
-		|| ts.isFunctionExpression(node)
-		|| ts.isObjectLiteralExpression(node))
+	const current = unwrap(node)
+	if (ts.isStringLiteralLike(current)
+		|| ts.isNoSubstitutionTemplateLiteral(current)
+		|| ts.isArrowFunction(current)
+		|| ts.isFunctionExpression(current)
+		|| ts.isObjectLiteralExpression(current))
 		return true
-	if (ts.isIdentifier(node))
-		return /message|handler/i.test(node.text)
-	if (ts.isPropertyAccessExpression(node))
-		return /message|handler/i.test(node.name.text)
+	if (ts.isIdentifier(current))
+		return /message|handler/i.test(current.text)
+	if (ts.isPropertyAccessExpression(current))
+		return /message|handler/i.test(current.name.text)
 	return false
 }
 
@@ -89,17 +113,24 @@ function transformCallsOnce(filePath: string, source: string): string {
 			const method = node.expression.name.text
 			const args = [...node.arguments]
 			const rootName = rootIdentifier(node.expression.expression)
-			if (rootName != null && excludedRoots.has(rootName)) {
-				ts.forEachChild(node, visit)
-				return
-			}
-
 			const argText = (index: number) => args[index]!.getText(sf)
 			const replaceArguments = (text: string) => replacements.push({
 				start: node.arguments.pos,
 				end: node.arguments.end,
 				text,
 			})
+
+			if (rootName != null && excludedRoots.has(rootName)) {
+				if (args.length === 1) {
+					const initializer = messageInitializer(args[0]!)
+					if (initializer != null) {
+						replaceArguments(initializer.getText(sf))
+						return
+					}
+				}
+				ts.forEachChild(node, visit)
+				return
+			}
 
 			if (messageOnlyMethods.has(method)
 				&& args.length === 1
@@ -147,7 +178,8 @@ function transformCallsOnce(filePath: string, source: string): string {
 
 			if (method === 'toMappedBoolean' && args.length === 2) {
 				const first = argText(0)
-				if (ts.isObjectLiteralExpression(args[0]!)) {
+				const unwrappedFirst = unwrap(args[0]!)
+				if (ts.isObjectLiteralExpression(unwrappedFirst)) {
 					const inner = first.slice(1, -1).trim()
 					replaceArguments(`{ ${inner}${inner === '' ? '' : ','} message: ${argText(1)} }`)
 				}
