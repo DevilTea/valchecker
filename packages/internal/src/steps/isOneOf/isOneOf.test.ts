@@ -10,21 +10,30 @@ describe('isOneOf step plugin', () => {
 		expect(v.number().isOneOf([-0]).execute(0)).toMatchObject({ issues: [{ code: 'isOneOf:expected_one_of' }] })
 	})
 
-	it('narrows output to the configured literal union and snapshots values', () => {
-		const values = ['draft', 'published'] as const
+	it('narrows output and snapshots configured values', () => {
+		const values: ['draft', 'published'] = ['draft', 'published']
 		const schema = v.unknown().isOneOf(values)
+		values[0] = 'published'
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<'draft' | 'published'>()
 		expect(schema.execute('draft')).toEqual({ value: 'draft' })
+
+		const failure = schema.execute('other') as any
+		expect(failure).toMatchObject({
+			issues: [{ payload: { expectedValues: ['draft', 'published'] } }],
+		})
+		expect(() => failure.issues[0].payload.expectedValues.push('other')).toThrow()
 	})
 
-	it('reports configured values, custom messages, and invalid empty configuration', () => {
+	it('reports custom messages and enforces non-empty primitive tuples', () => {
 		expect(v.string().isOneOf(['a', 'b'], { message: 'Allowed value required' }).execute('c')).toMatchObject({
 			issues: [{
 				message: 'Allowed value required',
 				payload: { value: 'c', expectedValues: ['a', 'b'] },
 			}],
 		})
-		expect(() => v.string().isOneOf([])).toThrow('at least one')
+		// @ts-expect-error At least one configured value is required.
+		v.string().isOneOf([])
+		expect(() => v.string().isOneOf([] as any)).toThrow('at least one')
 		expectTypeOf(v.object({}).isOneOf).toBeNever()
 	})
 })
