@@ -19,7 +19,8 @@ jobs:
       - name: Decode implementation patch
         shell: bash
         run: |
-          cat .github/dev-patch/* | base64 --decode > /tmp/union-shorthand.patch
+          cat .github/dev-patch/* | tr -d '\r\n' > /tmp/union-shorthand.patch.b64
+          base64 --decode --ignore-garbage /tmp/union-shorthand.patch.b64 > /tmp/union-shorthand.patch
           wc -c /tmp/union-shorthand.patch
           sha256sum /tmp/union-shorthand.patch
       - name: Apply implementation patch
