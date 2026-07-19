@@ -75,10 +75,11 @@ export const toMappedKeys = implStepPlugin<PluginDef>({
 		params: [mapper, options],
 	}) => {
 		addSuccessStep((value) => {
+			const entries = [...value.entries()]
 			const output = new Map<unknown, unknown>()
 			const firstKeys = new Map<unknown, { sourceKey: unknown, index: number }>()
-			let index = 0
-			for (const [key, entryValue] of value) {
+			for (let index = 0; index < entries.length; index++) {
+				const [key, entryValue] = entries[index]!
 				let mappedKey: unknown
 				try {
 					mappedKey = mapper.call(options?.thisArg, key, entryValue, index, value)
@@ -114,7 +115,6 @@ export const toMappedKeys = implStepPlugin<PluginDef>({
 
 				output.set(mappedKey, entryValue)
 				firstKeys.set(mappedKey, { sourceKey: key, index })
-				index++
 			}
 			return success(output)
 		})
