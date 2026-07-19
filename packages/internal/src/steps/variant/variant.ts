@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, MessageHandler, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -34,10 +34,11 @@ declare namespace Internal {
 	>
 	export type SelfIssue<D extends PropertyKey = PropertyKey> = ExpectedObjectIssue | InvalidDiscriminatorIssue<D>
 	export type Issue<D extends PropertyKey, V extends Variants> = SelfIssue<D> | ChildIssue<V>
-	export interface Options<D extends PropertyKey, V extends Variants> {
+	export interface Options<D extends PropertyKey, V extends Variants> extends StepOptions<
+		Issue<NoInfer<D>, NoInfer<V>>
+	> {
 		readonly discriminator: D
 		readonly variants: keyof V extends never ? never : V
-		readonly message?: MessageHandler<Issue<NoInfer<D>, NoInfer<V>>> | undefined
 	}
 }
 
