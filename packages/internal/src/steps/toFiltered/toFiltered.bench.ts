@@ -1,35 +1,40 @@
 /**
  * Benchmark plan for toFiltered:
- * - Operations benchmarked: toFiltered validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
+ * - Operations benchmarked: array and Set filtering
+ * - Input scenarios: small/large success and callback failure
+ * - Comparison baselines: collection traversal cost is represented by the existing transforms
  */
 
 import { bench, describe } from 'vitest'
-import { any, array, createValchecker, toFiltered } from '../..'
+import { any, array, createValchecker, set, toFiltered } from '../..'
 
-const v = createValchecker({ steps: [toFiltered, array, any] })
+const v = createValchecker({ steps: [toFiltered, array, set, any] })
+const arraySmall = v.array(v.any()).toFiltered(() => true)
+const arrayLarge = v.array(v.any()).toFiltered((_item, index) => index % 2 === 0)
+const setSmall = v.set(v.any()).toFiltered(() => true)
+const setLarge = v.set(v.any()).toFiltered((_item, index) => index % 2 === 0)
+const setFailure = v.set(v.any()).toFiltered(() => { throw new Error('x') })
+const largeArray = Array.from({ length: 1000 }, (_, index) => index)
+const largeSet = new Set(largeArray)
 
 describe('toFiltered benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.array(v.any())
-				.toFiltered(() => true)
-				.execute([1, 2, 3])
-		})
-
-		bench('valid input - large', () => {
-			v.array(v.any())
-				.toFiltered(() => true)
-				.execute(Array.from({ length: 1000 }, (_, i) => i))
-		})
+	bench('array success - small', () => {
+		arraySmall.execute([1, 2, 3])
 	})
 
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.array(v.any())
-				.toFiltered(() => true)
-				.execute('string')
-		})
+	bench('array success - large', () => {
+		arrayLarge.execute(largeArray)
+	})
+
+	bench('Set success - small', () => {
+		setSmall.execute(new Set([1, 2, 3]))
+	})
+
+	bench('Set success - large', () => {
+		setLarge.execute(largeSet)
+	})
+
+	bench('Set callback failure', () => {
+		setFailure.execute(new Set([1]))
 	})
 })

@@ -35,6 +35,12 @@ describe('default valchecker instance', () => {
 			scoreKeys: v.map({ key: v.string(), value: v.number() }).toKeys(),
 			scoreValues: v.map({ key: v.string(), value: v.number() }).toValues(),
 			scoreEntries: v.map({ key: v.string(), value: v.number() }).toEntries(),
+			mappedTags: v.set(v.string()).toMapped(value => value.length),
+			filteredTags: v.set(v.string()).toFiltered(value => value.length > 1),
+			mappedScoreKeys: v.map({ key: v.string(), value: v.number() })
+				.toMappedKeys(key => key.toUpperCase()),
+			mappedScoreValues: v.map({ key: v.string(), value: v.number() })
+				.toMappedValues(value => value * 2),
 		}).execute({
 			name: '  Ada  ',
 			age: '37',
@@ -50,6 +56,10 @@ describe('default valchecker instance', () => {
 			scoreKeys: new Map([['a', 1], ['b', 2]]),
 			scoreValues: new Map([['a', 1], ['b', 2]]),
 			scoreEntries: new Map([['a', 1], ['b', 2]]),
+			mappedTags: new Set(['a', 'bb']),
+			filteredTags: new Set(['a', 'bb', 'ccc']),
+			mappedScoreKeys: new Map([['a', 1], ['b', 2]]),
+			mappedScoreValues: new Map([['a', 1], ['b', 2]]),
 		})
 
 		expect(result).toEqual({
@@ -68,6 +78,10 @@ describe('default valchecker instance', () => {
 				scoreKeys: ['a', 'b'],
 				scoreValues: [1, 2],
 				scoreEntries: [['a', 1], ['b', 2]],
+				mappedTags: new Set([1, 2]),
+				filteredTags: new Set(['bb', 'ccc']),
+				mappedScoreKeys: new Map([['A', 1], ['B', 2]]),
+				mappedScoreValues: new Map([['a', 2], ['b', 4]]),
 			},
 		})
 	})

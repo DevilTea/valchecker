@@ -238,6 +238,28 @@ export const result = {
 `, {
 		requiredMarkers: ['toArray', 'toKeys', 'toValues', 'toEntries'],
 	}),
+	scenario('valchecker-collection-callbacks-free', 'Valchecker', 'Collections without callback transforms', 'Collection callback isolation', `
+import { createValchecker, map, number, set, string } from 'valchecker'
+const v = createValchecker({ steps: [map, number, set, string] })
+export const result = {
+	map: v.map({ key: v.string(), value: v.number() }).execute(new Map([['a', 1]])),
+	set: v.set(v.string()).execute(new Set(['a'])),
+}
+`, {
+		forbiddenMarkers: ['toMapped:callback_failed', 'toMapped:duplicate_mapped_item', 'toFiltered:callback_failed', 'toMappedKeys:callback_failed', 'toMappedKeys:duplicate_mapped_key', 'toMappedValues:callback_failed'],
+	}),
+	scenario('valchecker-collection-callbacks', 'Valchecker', 'Selective collection callback transforms', 'Collection callback isolation', `
+import { createValchecker, map, number, set, string, toFiltered, toMapped, toMappedKeys, toMappedValues } from 'valchecker'
+const v = createValchecker({ steps: [map, number, set, string, toFiltered, toMapped, toMappedKeys, toMappedValues] })
+export const result = {
+	mappedItems: v.set(v.string()).toMapped(value => value.length).execute(new Set(['a'])),
+	filteredItems: v.set(v.string()).toFiltered(value => value.length > 1).execute(new Set(['a', 'bb'])),
+	mappedKeys: v.map({ key: v.string(), value: v.number() }).toMappedKeys(key => key.toUpperCase()).execute(new Map([['a', 1]])),
+	mappedValues: v.map({ key: v.string(), value: v.number() }).toMappedValues(value => value * 2).execute(new Map([['a', 1]])),
+}
+`, {
+		requiredMarkers: ['toMapped:callback_failed', 'toMapped:duplicate_mapped_item', 'toFiltered:callback_failed', 'toMappedKeys:callback_failed', 'toMappedKeys:duplicate_mapped_key', 'toMappedValues:callback_failed'],
+	}),
 	...[
 		['valchecker-full', 'Valchecker', 'valchecker'],
 		['zod3-full', 'Zod 3', 'zod3'],
@@ -324,6 +346,8 @@ function analyze(results) {
 	const collectionCapabilities = byId(results, 'valchecker-collection-capabilities')
 	const collectionRepresentationsFree = byId(results, 'valchecker-collection-representations-free')
 	const collectionRepresentations = byId(results, 'valchecker-collection-representations')
+	const collectionCallbacksFree = byId(results, 'valchecker-collection-callbacks-free')
+	const collectionCallbacks = byId(results, 'valchecker-collection-callbacks')
 	const comparisons = [
 		comparison(selectiveString, byId(results, 'zod4-string'), 'string pipeline'),
 		comparison(selectiveObject, byId(results, 'zod4-object'), 'object schema'),
@@ -344,6 +368,8 @@ function analyze(results) {
 	const collectionCapabilityMarkersPresent = collectionCapabilities.retainedRequiredMarkers.length === collectionCapabilities.requiredMarkers.length
 	const collectionRepresentationMarkersAbsent = collectionRepresentationsFree.retainedForbiddenMarkers.length === 0
 	const collectionRepresentationMarkersPresent = collectionRepresentations.retainedRequiredMarkers.length === collectionRepresentations.requiredMarkers.length
+	const collectionCallbackMarkersAbsent = collectionCallbacksFree.retainedForbiddenMarkers.length === 0
+	const collectionCallbackMarkersPresent = collectionCallbacks.retainedRequiredMarkers.length === collectionCallbacks.requiredMarkers.length
 	const checks = [
 		{ name: 'Selective minimal chain is materially smaller than default v', passed: stringReduction >= 0.2, value: percent(stringReduction) },
 		{ name: 'Selective object schema is materially smaller than default v', passed: objectReduction >= 0.2, value: percent(objectReduction) },
@@ -357,6 +383,8 @@ function analyze(results) {
 		{ name: 'Selective collection size/membership retains every issue marker', passed: collectionCapabilityMarkersPresent, value: collectionCapabilityMarkersPresent ? collectionCapabilities.retainedRequiredMarkers.join(', ') : `${collectionCapabilities.retainedRequiredMarkers.length}/${collectionCapabilities.requiredMarkers.length} retained` },
 		{ name: 'Collections without representation transforms exclude their method markers', passed: collectionRepresentationMarkersAbsent, value: collectionRepresentationMarkersAbsent ? 'none retained' : collectionRepresentationsFree.retainedForbiddenMarkers.join(', ') },
 		{ name: 'Selective collection representations retain every method marker', passed: collectionRepresentationMarkersPresent, value: collectionRepresentationMarkersPresent ? collectionRepresentations.retainedRequiredMarkers.join(', ') : `${collectionRepresentations.retainedRequiredMarkers.length}/${collectionRepresentations.requiredMarkers.length} retained` },
+		{ name: 'Collections without callback transforms exclude their issue markers', passed: collectionCallbackMarkersAbsent, value: collectionCallbackMarkersAbsent ? 'none retained' : collectionCallbacksFree.retainedForbiddenMarkers.join(', ') },
+		{ name: 'Selective collection callbacks retain every issue marker', passed: collectionCallbackMarkersPresent, value: collectionCallbackMarkersPresent ? collectionCallbacks.retainedRequiredMarkers.join(', ') : `${collectionCallbacks.retainedRequiredMarkers.length}/${collectionCallbacks.requiredMarkers.length} retained` },
 	]
 	return {
 		status: checks.every(check => check.passed) ? 'healthy' : 'needs-attention',
@@ -380,7 +408,7 @@ function markdown(report, concise = false) {
 	const context = `Generated with Rollup ${report.environment.rollup}, Terser ${report.environment.terser}, Node.js ${report.environment.node}. Brotli is the primary comparison metric.`
 	const body = concise
 		? table(report.results.filter(result => result.group === 'Minimal string pipeline'))
-		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Map and Set isolation', 'Collection capability isolation', 'Collection representation isolation', 'Full-library reference']
+		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Map and Set isolation', 'Collection capability isolation', 'Collection representation isolation', 'Collection callback isolation', 'Full-library reference']
 			.map(group => `## ${group}\n\n${table(report.results.filter(result => result.group === group))}`)
 			.join('\n\n')
 	return `# Tree-shaking ${concise ? 'summary' : 'report'}\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${body}\n\n${context}\n`

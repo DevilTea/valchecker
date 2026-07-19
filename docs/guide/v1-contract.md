@@ -342,6 +342,10 @@ Set membership uses `isIncluding(item)`. Map membership is explicit through `isI
 
 `toArray()` replaces a Set with a new item array. `toKeys()`, `toValues()`, and `toEntries()` replace a Map with new key, value, or mutable entry-tuple arrays. All four preserve insertion order, remain synchronous, add no issue, and do not mutate the source collection. Map-to-object conversion is outside this contract because it requires explicit key canonicalization, prototype, and collision policy.
 
+Set `toMapped()` and `toFiltered()` snapshot the current pipeline Set's items when the step begins. Map `toMappedKeys()` and `toMappedValues()` likewise snapshot entries. Callbacks receive the current transformed collection and a stable reference across the reached snapshot, while callback mutations do not extend traversal. Return values are consumed synchronously; returned promises remain ordinary mapped values or truthy predicate results.
+
+Callback exceptions produce operation issues with the current item or entry and index. Set item mapping rejects duplicate SameValueZero outputs with `toMapped:duplicate_mapped_item`. Map key mapping rejects duplicate SameValueZero outputs with `toMappedKeys:duplicate_mapped_key`. Both collision payloads preserve first/current source provenance. Map filtering remains intentionally absent.
+
 ## Union semantics
 
 `union(schemas)` evaluates branches in declaration order and returns the first successful branch's transformed output.

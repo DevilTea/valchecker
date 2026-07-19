@@ -1,11 +1,11 @@
 import type { InferOutput } from '../..'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { any, array, createValchecker, toFiltered, transform } from '../..'
+import { any, array, createValchecker, set, toFiltered, transform } from '../..'
 
-const v = createValchecker({ steps: [array, any, toFiltered, transform] })
+const v = createValchecker({ steps: [array, any, set, toFiltered, transform] })
 
 describe('toFiltered step plugin', () => {
-	it('filters with item and index while leaving the input unchanged', () => {
+	it('filters arrays with item and index while leaving the input unchanged', () => {
 		const input = [1, 2, 3, 4, 5]
 		const schema = v.array(v.any())
 			.toFiltered((item: number, index) => item > 2 && index % 2 === 0)
@@ -25,7 +25,7 @@ describe('toFiltered step plugin', () => {
 		['empty', [], []],
 		['none', [1, 2, 3], []],
 		['all', [1, 2, 3], [1, 2, 3]],
-	] as const)('handles the %s-result boundary', (mode, input, expected) => {
+	] as const)('handles the array %s-result boundary', (mode, input, expected) => {
 		const predicate = mode === 'all' ? () => true : () => false
 		expect(v.array(v.any())
 			.toFiltered(predicate)
@@ -33,7 +33,7 @@ describe('toFiltered step plugin', () => {
 			.toEqual({ value: expected })
 	})
 
-	it('reports predicate exceptions with the current item and index', () => {
+	it('reports array predicate exceptions with the current item and index', () => {
 		const error = new Error('predicate')
 		const result = v.array(v.any())
 			.toFiltered((_item: number, index) => {
@@ -55,7 +55,7 @@ describe('toFiltered step plugin', () => {
 			})
 	})
 
-	it('leaves failures outside the predicate callback to the core boundary', () => {
+	it('leaves failures outside the array predicate callback to the core boundary', () => {
 		const error = new Error('filter method')
 		const value = [] as any[] & { filter: typeof Array.prototype.filter }
 		value.filter = () => { throw error }
@@ -70,5 +70,58 @@ describe('toFiltered step plugin', () => {
 					payload: { error },
 				}],
 			})
+	})
+
+	it('filters a snapshot of the current Set pipeline value with index and thisArg', () => {
+		const context = { minimum: 2 }
+		const input = new Set([1, 2, 3])
+		const visited: number[] = []
+		let callbackSet: Set<any> | undefined
+		const schema = v.set(v.any()).toFiltered(function (item: number, index, value) {
+			visited.push(item)
+			callbackSet ??= value
+			expect(value).toBe(callbackSet)
+			if (index === 0)
+				value.add(4)
+			return item >= this.minimum
+		}, { thisArg: context })
+
+		expect(schema.execute(input)).toEqual({ value: new Set([2, 3]) })
+		expect(input).toEqual(new Set([1, 2, 3]))
+		expect(callbackSet).toEqual(new Set([1, 2, 3, 4]))
+		expect(visited).toEqual([1, 2, 3])
+	})
+
+	it('narrows filtered Set item types through a predicate type guard', () => {
+		const schema = v.set(v.any()).toFiltered((item): item is string => typeof item === 'string')
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<Set<string>>()
+		expect(schema.execute(new Set<unknown>(['a', 1, 'b']))).toEqual({ value: new Set(['a', 'b']) })
+	})
+
+	it('reports Set predicate exceptions with the current item and index', () => {
+		const error = new Error('set predicate')
+		const input = new Set([1, 2, 3])
+		expect(v.set(v.any()).toFiltered((_item: number, index) => {
+			if (index === 1)
+				throw error
+			return true
+		}, { message: 'Set filter failed' }).execute(input)).toEqual({
+			issues: [{
+				code: 'toFiltered:callback_failed',
+				category: 'operation',
+				message: 'Set filter failed',
+				path: [],
+				payload: { value: input, item: 2, index: 1, error },
+			}],
+		})
+	})
+
+	it('treats returned promises as synchronous truthy predicate results', () => {
+		const input = new Set([1, 2])
+		const result = v.set(v.any()).toFiltered(async () => false).execute(input)
+		expect(result).not.toBeInstanceOf(Promise)
+		expect(result).toEqual({ value: input })
+		if (v.isSuccess(result))
+			expect(result.value).not.toBe(input)
 	})
 })

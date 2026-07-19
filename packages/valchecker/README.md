@@ -77,6 +77,8 @@ Map and Set schemas expose size-aware emptiness checks, `isSizeAtLeast()`, `isSi
 
 Use `toArray()` for Set items and `toKeys()`, `toValues()`, or `toEntries()` for explicit Map representations. Each transform returns a new insertion-ordered array and emits no new issue.
 
+Set schemas expose `toMapped()` and `toFiltered()`. Map schemas expose explicit `toMappedKeys()` and `toMappedValues()` transforms. These callbacks traverse a step-start snapshot synchronously; mapped Set items and Map keys must remain unique under SameValueZero.
+
 ## Step naming
 
 Valchecker separates API roles through naming:
