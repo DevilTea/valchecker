@@ -109,10 +109,11 @@ export const toMapped = implStepPlugin<PluginDef>({
 				}
 			}
 
+			const items = [...value]
 			const output = new Set<unknown>()
 			const firstItems = new Map<unknown, { item: unknown, index: number }>()
-			let index = 0
-			for (const item of value) {
+			for (let index = 0; index < items.length; index++) {
+				const item = items[index]
 				let mappedItem: unknown
 				try {
 					mappedItem = mapper.call(options?.thisArg, item, index, value)
@@ -148,7 +149,6 @@ export const toMapped = implStepPlugin<PluginDef>({
 
 				output.add(mappedItem)
 				firstItems.set(mappedItem, { item, index })
-				index++
 			}
 			return success(output)
 		})
