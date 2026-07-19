@@ -150,7 +150,7 @@ const status = v.union([
 ])
 ```
 
-For object variants, combine `object()` branches with literal discriminator fields.
+For ordered fallback across object shapes, combine `union()` branches with literal discriminator fields. When an own discriminator can select one branch directly, use `variant({ discriminator, variants })` so unselected branches are not executed.
 
 ## Reusable schemas
 

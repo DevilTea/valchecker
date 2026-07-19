@@ -279,6 +279,22 @@ await schema.execute('abc')
 // { value: 3 }
 ```
 
+### Variant
+
+`variant()` performs direct discriminated-union dispatch and executes only the selected branch:
+
+```ts
+const event = v.variant({
+	discriminator: 'type',
+	variants: {
+		click: v.object({ type: v.literal('click'), x: v.number(), y: v.number() }),
+		keypress: v.object({ type: v.literal('keypress'), key: v.string() }),
+	},
+})
+```
+
+The discriminator must be an own property. Child issue paths are preserved, selected-branch provenance is recorded in issue context, and unselected branches are not executed.
+
 ### Intersection
 
 `intersection()` recursively composes compatible plain-object outputs, including enumerable symbol keys, cycles, and aliases. Equal primitive values and the same non-plain object reference are preserved. Incompatible outputs fail with `intersection:conflicting_outputs`; distinct class, `Date`, or `Map` instances are not spread into plain objects.
