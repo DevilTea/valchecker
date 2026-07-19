@@ -72,19 +72,23 @@ describe('toFiltered step plugin', () => {
 			})
 	})
 
-	it('filters a snapshot of Set items with index, source Set, and thisArg', () => {
+	it('filters a snapshot of the current Set pipeline value with index and thisArg', () => {
 		const context = { minimum: 2 }
 		const input = new Set([1, 2, 3])
 		const visited: number[] = []
+		let callbackSet: Set<any> | undefined
 		const schema = v.set(v.any()).toFiltered(function (item: number, index, value) {
 			visited.push(item)
-			expect(value).toBe(input)
+			callbackSet ??= value
+			expect(value).toBe(callbackSet)
 			if (index === 0)
-				input.add(4)
+				value.add(4)
 			return item >= this.minimum
 		}, { thisArg: context })
 
 		expect(schema.execute(input)).toEqual({ value: new Set([2, 3]) })
+		expect(input).toEqual(new Set([1, 2, 3]))
+		expect(callbackSet).toEqual(new Set([1, 2, 3, 4]))
 		expect(visited).toEqual([1, 2, 3])
 	})
 
@@ -117,5 +121,7 @@ describe('toFiltered step plugin', () => {
 		const result = v.set(v.any()).toFiltered(async () => false).execute(input)
 		expect(result).not.toBeInstanceOf(Promise)
 		expect(result).toEqual({ value: input })
+		if (v.isSuccess(result))
+			expect(result.value).not.toBe(input)
 	})
 })
