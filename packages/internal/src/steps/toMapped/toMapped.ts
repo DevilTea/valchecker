@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
@@ -18,7 +18,7 @@ declare namespace Internal {
 			index: number
 		}
 	>
-	export interface Options<Issue extends ExecutionIssue = ExecutionIssue> extends StepOptions<Issue> {
+	export interface Options<Issue extends AnyExecutionIssue = AnyExecutionIssue> extends StepOptions<Issue> {
 		readonly thisArg?: any
 	}
 }
@@ -129,9 +129,7 @@ export const toMapped = implStepPlugin<PluginDef>({
 				}
 
 				if (output.has(mappedItem)) {
-					const first = firstItems.get(mappedItem)
-					if (first == null)
-						throw new Error('Missing mapped Set item metadata.')
+					const first = firstItems.get(mappedItem)!
 					return failure(createIssue({
 						code: 'toMapped:duplicate_mapped_item',
 						payload: {
