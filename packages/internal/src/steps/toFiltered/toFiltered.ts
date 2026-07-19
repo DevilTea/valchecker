@@ -126,9 +126,10 @@ export const toFiltered = implStepPlugin<PluginDef>({
 				}
 			}
 
+			const items = [...value]
 			const output = new Set<unknown>()
-			let index = 0
-			for (const item of value) {
+			for (let index = 0; index < items.length; index++) {
+				const item = items[index]
 				let included: unknown
 				try {
 					included = predicate.call(options?.thisArg, item, index, value)
@@ -144,7 +145,6 @@ export const toFiltered = implStepPlugin<PluginDef>({
 				}
 				if (included)
 					output.add(item)
-				index++
 			}
 			return success(output)
 		})
