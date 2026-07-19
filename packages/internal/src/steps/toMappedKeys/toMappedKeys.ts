@@ -95,9 +95,7 @@ export const toMappedKeys = implStepPlugin<PluginDef>({
 				}
 
 				if (output.has(mappedKey)) {
-					const first = firstKeys.get(mappedKey)
-					if (first == null)
-						throw new Error('Missing mapped Map key metadata.')
+					const first = firstKeys.get(mappedKey)!
 					return failure(createIssue({
 						code: 'toMappedKeys:duplicate_mapped_key',
 						payload: {
