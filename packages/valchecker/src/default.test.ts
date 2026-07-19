@@ -41,6 +41,13 @@ describe('default valchecker instance', () => {
 				.toMappedKeys(key => key.toUpperCase()),
 			mappedScoreValues: v.map({ key: v.string(), value: v.number() })
 				.toMappedValues(value => value * 2),
+			event: v.variant({
+				discriminator: 'type',
+				variants: {
+					click: v.object({ type: v.literal('click'), x: v.number(), y: v.number() }),
+					keypress: v.object({ type: v.literal('keypress'), key: v.string() }),
+				},
+			}),
 		}).execute({
 			name: '  Ada  ',
 			age: '37',
@@ -60,6 +67,7 @@ describe('default valchecker instance', () => {
 			filteredTags: new Set(['a', 'bb', 'ccc']),
 			mappedScoreKeys: new Map([['a', 1], ['b', 2]]),
 			mappedScoreValues: new Map([['a', 1], ['b', 2]]),
+			event: { type: 'click', x: 1, y: 2 },
 		})
 
 		expect(result).toEqual({
@@ -82,6 +90,7 @@ describe('default valchecker instance', () => {
 				filteredTags: new Set(['bb', 'ccc']),
 				mappedScoreKeys: new Map([['A', 1], ['B', 2]]),
 				mappedScoreValues: new Map([['a', 2], ['b', 4]]),
+				event: { type: 'click', x: 1, y: 2 },
 			},
 		})
 	})

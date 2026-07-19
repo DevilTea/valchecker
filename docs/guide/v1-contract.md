@@ -362,6 +362,16 @@ schema.execute('abc') // { value: 3 }
 
 If every branch fails, union returns collected branch issues. Each issue receives `{ type: 'union', branchIndex }` in `context`; the data `path` is unchanged. Validation and operation failures continue to the next branch, while an internal failure stops evaluation immediately, discards issues from earlier alternative branches, and cannot be hidden by a later successful branch. Branch order is normative.
 
+## Variant semantics
+
+`variant({ discriminator, variants, message? })` accepts non-null, non-array objects and requires the discriminator to be an own property. Its value must be a configured string, number, or symbol property key. Number and string discriminator values use JavaScript property-key canonicalization.
+
+Configuration is snapshotted at schema construction and must contain at least one Valchecker schema. Runtime selection performs direct lookup and executes only one branch. Selected child issue paths remain unchanged and receive `{ type: 'variant', discriminator, discriminatorValue }` context. The variant message is an enclosing structure scope and does not override an originating child-step message.
+
+`variant:expected_object` reports invalid containers. `variant:invalid_discriminator` reports `{ value, discriminator, received, expected }` at path `[discriminator]`. Selected branch validation, operation, and internal issues pass through without trying another branch.
+
+A variant is synchronous only when every configured branch is synchronous. Otherwise it is maybe-async because container and discriminator failures can complete synchronously before branch execution.
+
 ## Intersection semantics
 
 `intersection(schemas)` executes all branches and composes compatible outputs.

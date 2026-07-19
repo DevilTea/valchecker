@@ -90,7 +90,8 @@
 			"undefined_",
 			"union",
 			"unknown",
-			"use"
+			"use",
+			"variant"
 		],
 		"declaredValues": [
 			"any",
@@ -182,7 +183,8 @@
 			"undefined_",
 			"union",
 			"unknown",
-			"use"
+			"use",
+			"variant"
 		],
 		"typeOnly": [
 			"AnyExecutionIssue",
@@ -339,7 +341,8 @@
 			"union",
 			"unknown",
 			"use",
-			"v"
+			"v",
+			"variant"
 		],
 		"declaredValues": [
 			"allSteps",
@@ -433,7 +436,8 @@
 			"union",
 			"unknown",
 			"use",
-			"v"
+			"v",
+			"variant"
 		],
 		"typeOnly": [
 			"AllSteps",

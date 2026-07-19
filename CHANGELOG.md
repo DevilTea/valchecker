@@ -10,6 +10,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Added
 
+- Direct discriminated-union dispatch through `variant({ discriminator, variants, message? })`, with own-property selection, selected-branch issue context, and precise sync/maybe-async inference.
 - Collection callback transforms: Set `toMapped()`/`toFiltered()` and Map `toMappedKeys()`/`toMappedValues()` with step-start snapshots, typed operation issues, and explicit SameValueZero collision diagnostics.
 - Explicit collection representation transforms: Set `toArray()` and Map `toKeys()`, `toValues()`, and `toEntries()`.
 - Map and Set size/membership steps: size-aware `isEmpty()`/`isNotEmpty()`, `isSizeAtLeast()`, `isSizeAtMost()`, `isSizeExactly()`, `toSize()`, Set `isIncluding()`, and Map `isIncludingKey()`/`isIncludingValue()`.

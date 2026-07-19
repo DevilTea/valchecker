@@ -79,6 +79,20 @@ Use `toArray()` for Set items and `toKeys()`, `toValues()`, or `toEntries()` for
 
 Set schemas expose `toMapped()` and `toFiltered()`. Map schemas expose explicit `toMappedKeys()` and `toMappedValues()` transforms. These callbacks traverse a step-start snapshot synchronously; mapped Set items and Map keys must remain unique under SameValueZero.
 
+## Direct variant dispatch
+
+```ts
+const event = v.variant({
+	discriminator: 'type',
+	variants: {
+		click: v.object({ type: v.literal('click'), x: v.number(), y: v.number() }),
+		keypress: v.object({ type: v.literal('keypress'), key: v.string() }),
+	},
+})
+```
+
+`variant()` reads an own discriminator, uses JavaScript property-key semantics, and executes only the selected branch. Use `union()` when branch selection itself requires ordered validation.
+
 ## Step naming
 
 Valchecker separates API roles through naming:

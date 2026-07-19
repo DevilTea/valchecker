@@ -176,6 +176,25 @@ export const result = schema.execute('auto')
 `, {
 		requiredMarkers: ['literal:expected_literal', 'null:expected_null', 'undefined:expected_undefined'],
 	}),
+	scenario('valchecker-variant-free', 'Valchecker', 'Selective object schema without variant', 'Variant isolation', `
+import { createValchecker, object, string } from 'valchecker'
+const v = createValchecker({ steps: [object, string] })
+export const schema = v.object({ type: v.string() })
+export const result = schema.execute({ type: 'value' })
+`, {
+		forbiddenMarkers: ['variant:expected_object', 'variant:invalid_discriminator'],
+	}),
+	scenario('valchecker-variant-selective', 'Valchecker', 'Selective direct variant schema', 'Variant isolation', `
+import { createValchecker, literal, number, object, variant } from 'valchecker'
+const v = createValchecker({ steps: [literal, number, object, variant] })
+export const schema = v.variant({ discriminator: 'type', variants: {
+	circle: v.object({ type: v.literal('circle'), radius: v.number() }),
+	square: v.object({ type: v.literal('square'), size: v.number() }),
+} })
+export const result = schema.execute({ type: 'square', size: 2 })
+`, {
+		requiredMarkers: ['variant:expected_object', 'variant:invalid_discriminator'],
+	}),
 	scenario('valchecker-collection-free', 'Valchecker', 'Selective chain without collections', 'Map and Set isolation', `
 import { createValchecker, string } from 'valchecker'
 const v = createValchecker({ steps: [string] })
@@ -340,6 +359,8 @@ function analyze(results) {
 	const full = byId(results, 'valchecker-full')
 	const unionSchemaOnly = byId(results, 'valchecker-union-schema-only')
 	const unionShorthand = byId(results, 'valchecker-union-shorthand')
+	const variantFree = byId(results, 'valchecker-variant-free')
+	const variantSelective = byId(results, 'valchecker-variant-selective')
 	const collectionFree = byId(results, 'valchecker-collection-free')
 	const mapSetSelective = byId(results, 'valchecker-map-set-selective')
 	const collectionCapabilitiesFree = byId(results, 'valchecker-collection-capabilities-free')
@@ -362,6 +383,8 @@ function analyze(results) {
 	const markersAbsent = selectiveString.retainedMarkers.length === 0
 	const unionProviderMarkersAbsent = unionSchemaOnly.retainedForbiddenMarkers.length === 0
 	const unionProviderMarkersPresent = unionShorthand.retainedRequiredMarkers.length === unionShorthand.requiredMarkers.length
+	const variantMarkersAbsent = variantFree.retainedForbiddenMarkers.length === 0
+	const variantMarkersPresent = variantSelective.retainedRequiredMarkers.length === variantSelective.requiredMarkers.length
 	const collectionMarkersAbsent = collectionFree.retainedForbiddenMarkers.length === 0
 	const collectionMarkersPresent = mapSetSelective.retainedRequiredMarkers.length === mapSetSelective.requiredMarkers.length
 	const collectionCapabilityMarkersAbsent = collectionCapabilitiesFree.retainedForbiddenMarkers.length === 0
@@ -377,6 +400,8 @@ function analyze(results) {
 		{ name: 'Unselected Valchecker step markers are absent from the minimal selective bundle', passed: markersAbsent, value: markersAbsent ? 'none retained' : selectiveString.retainedMarkers.join(', ') },
 		{ name: 'Union without shorthand providers excludes provider issue markers', passed: unionProviderMarkersAbsent, value: unionProviderMarkersAbsent ? 'none retained' : unionSchemaOnly.retainedForbiddenMarkers.join(', ') },
 		{ name: 'Union shorthand retains every registered provider marker', passed: unionProviderMarkersPresent, value: unionProviderMarkersPresent ? unionShorthand.retainedRequiredMarkers.join(', ') : `${unionShorthand.retainedRequiredMarkers.length}/${unionShorthand.requiredMarkers.length} retained` },
+		{ name: 'Selective builds without variant exclude variant issue markers', passed: variantMarkersAbsent, value: variantMarkersAbsent ? 'none retained' : variantFree.retainedForbiddenMarkers.join(', ') },
+		{ name: 'Selective variant retains every owned issue marker', passed: variantMarkersPresent, value: variantMarkersPresent ? variantSelective.retainedRequiredMarkers.join(', ') : `${variantSelective.retainedRequiredMarkers.length}/${variantSelective.requiredMarkers.length} retained` },
 		{ name: 'Selective builds without Map and Set exclude collection issue markers', passed: collectionMarkersAbsent, value: collectionMarkersAbsent ? 'none retained' : collectionFree.retainedForbiddenMarkers.join(', ') },
 		{ name: 'Selective Map and Set schemas retain every collection issue marker', passed: collectionMarkersPresent, value: collectionMarkersPresent ? mapSetSelective.retainedRequiredMarkers.join(', ') : `${mapSetSelective.retainedRequiredMarkers.length}/${mapSetSelective.requiredMarkers.length} retained` },
 		{ name: 'Collections without size/membership plugins exclude their issue markers', passed: collectionCapabilityMarkersAbsent, value: collectionCapabilityMarkersAbsent ? 'none retained' : collectionCapabilitiesFree.retainedForbiddenMarkers.join(', ') },
@@ -408,7 +433,7 @@ function markdown(report, concise = false) {
 	const context = `Generated with Rollup ${report.environment.rollup}, Terser ${report.environment.terser}, Node.js ${report.environment.node}. Brotli is the primary comparison metric.`
 	const body = concise
 		? table(report.results.filter(result => result.group === 'Minimal string pipeline'))
-		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Map and Set isolation', 'Collection capability isolation', 'Collection representation isolation', 'Collection callback isolation', 'Full-library reference']
+		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Variant isolation', 'Map and Set isolation', 'Collection capability isolation', 'Collection representation isolation', 'Collection callback isolation', 'Full-library reference']
 			.map(group => `## ${group}\n\n${table(report.results.filter(result => result.group === group))}`)
 			.join('\n\n')
 	return `# Tree-shaking ${concise ? 'summary' : 'report'}\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${body}\n\n${context}\n`
