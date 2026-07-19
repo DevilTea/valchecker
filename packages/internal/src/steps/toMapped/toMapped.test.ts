@@ -56,19 +56,23 @@ describe('toMapped step plugin', () => {
 		})
 	})
 
-	it('maps a snapshot of Set items with index, source Set, and thisArg', () => {
+	it('maps a snapshot of the current Set pipeline value with index and thisArg', () => {
 		const context = { offset: 10 }
 		const input = new Set([1, 2])
 		const visited: number[] = []
+		let callbackSet: Set<number> | undefined
 		const schema = v.set(v.number()).toMapped(function (item, index, value) {
 			visited.push(item)
-			expect(value).toBe(input)
+			callbackSet ??= value
+			expect(value).toBe(callbackSet)
 			if (index === 0)
-				input.add(3)
+				value.add(3)
 			return item + index + this.offset
 		}, { thisArg: context })
 
 		expect(schema.execute(input)).toEqual({ value: new Set([11, 13]) })
+		expect(input).toEqual(new Set([1, 2]))
+		expect(callbackSet).toEqual(new Set([1, 2, 3]))
 		expect(visited).toEqual([1, 2])
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<Set<number>>()
 	})
