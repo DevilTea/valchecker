@@ -5,20 +5,24 @@ import { createValchecker, map, number, string, toMappedValues } from '../..'
 const v = createValchecker({ steps: [map, number, string, toMappedValues] })
 
 describe('toMappedValues step plugin', () => {
-	it('maps a snapshot of values with key, index, source Map, and thisArg', () => {
+	it('maps a snapshot of the current Map pipeline value with key, index, and thisArg', () => {
 		const context = { offset: 10 }
 		const input = new Map([['a', 1], ['b', 2]])
 		const visited: string[] = []
+		let callbackMap: Map<string, number> | undefined
 		const schema = v.map({ key: v.string(), value: v.number() })
 			.toMappedValues(function (entryValue, key, index, value) {
 				visited.push(key)
-				expect(value).toBe(input)
+				callbackMap ??= value
+				expect(value).toBe(callbackMap)
 				if (index === 0)
-					input.set('c', 3)
+					value.set('c', 3)
 				return entryValue + index + this.offset
 			}, { thisArg: context })
 
 		expect(schema.execute(input)).toEqual({ value: new Map([['a', 11], ['b', 13]]) })
+		expect(input).toEqual(new Map([['a', 1], ['b', 2]]))
+		expect(callbackMap).toEqual(new Map([['a', 1], ['b', 2], ['c', 3]]))
 		expect(visited).toEqual(['a', 'b'])
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<Map<string, number>>()
 		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'sync'>()
