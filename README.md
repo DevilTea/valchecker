@@ -249,6 +249,20 @@ scores.toEntries() // Array<[string, number]>
 
 These transformations return new arrays and do not mutate the source collection. Map-to-object conversion is intentionally not implied because it requires separate key, prototype, and collision policies.
 
+Callback transforms preserve the same state-aware collection APIs:
+
+```ts
+const mappedTags = tags
+	.toMapped((item, index) => `${index}:${item}`)
+	.toFiltered(item => item.length > 2)
+
+const normalizedScores = scores
+	.toMappedKeys(key => key.toLowerCase())
+	.toMappedValues(value => value * 2)
+```
+
+Collection callbacks are synchronous and receive the current transformed collection. Traversal uses a step-start snapshot. Set item and Map key mapping reject SameValueZero collisions rather than silently losing data.
+
 ## Composition
 
 ### Union

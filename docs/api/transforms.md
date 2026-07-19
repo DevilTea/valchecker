@@ -121,6 +121,40 @@ scores.toEntries() // Array<[string, number]>
 
 These representation transforms are synchronous, emit no new issue, and do not mutate the source collection. `toObject()` is intentionally not implied because object conversion requires a separate key/prototype/collision policy.
 
+### Collection callback transforms
+
+Collection callbacks receive the current transformed pipeline collection, not the caller's original Map or Set. Map entries and Set items are snapshotted when the callback step begins, so callback mutations do not extend the current traversal. The callback receives a stable collection reference for every reached item.
+
+Callback return values are consumed synchronously. Returned promises remain Set items, Map keys, or Map values and do not make these steps asynchronous.
+
+#### Set `toMapped(mapper, options?)`
+
+Maps Set items through `(item, index, value)` and returns `Set<Mapped>`. Callback exceptions emit `toMapped:callback_failed`. Mapped items must remain unique under SameValueZero; collisions emit `toMapped:duplicate_mapped_item` with both source items and indices.
+
+#### Set `toFiltered(predicate, options?)`
+
+Filters Set items through `(item, index, value)` and returns a new Set. Type-guard predicates narrow the output item type. Callback exceptions emit `toFiltered:callback_failed`. A returned promise is an ordinary truthy predicate result.
+
+#### Map `toMappedValues(mapper, options?)`
+
+Maps values through `(entryValue, key, index, value)` while preserving keys and insertion order. Callback exceptions emit `toMappedValues:callback_failed`.
+
+#### Map `toMappedKeys(mapper, options?)`
+
+Maps keys through `(key, entryValue, index, value)` while preserving values and insertion order. Callback exceptions emit `toMappedKeys:callback_failed`. Mapped keys must remain unique under SameValueZero; collisions emit `toMappedKeys:duplicate_mapped_key` with both source keys and indices.
+
+```ts
+const tags = v.set(v.string())
+	.toMapped((item, index) => `${index}:${item}`)
+	.toFiltered(item => item.length > 2)
+
+const scores = v.map({ key: v.string(), value: v.number() })
+	.toMappedKeys(key => key.toLowerCase())
+	.toMappedValues(value => value * 2)
+```
+
+Map filtering and Map-to-object conversion remain outside this contract.
+
 ## JSON transforms
 
 ### `toJSONValue<T = unknown>(options?)`

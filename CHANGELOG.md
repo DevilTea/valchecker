@@ -10,6 +10,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Added
 
+- Collection callback transforms: Set `toMapped()`/`toFiltered()` and Map `toMappedKeys()`/`toMappedValues()` with step-start snapshots, typed operation issues, and explicit SameValueZero collision diagnostics.
 - Explicit collection representation transforms: Set `toArray()` and Map `toKeys()`, `toValues()`, and `toEntries()`.
 - Map and Set size/membership steps: size-aware `isEmpty()`/`isNotEmpty()`, `isSizeAtLeast()`, `isSizeAtMost()`, `isSizeExactly()`, `toSize()`, Set `isIncluding()`, and Map `isIncludingKey()`/`isIncludingValue()`.
 - `map()` and `set()` initial schemas with insertion-ordered child validation and transformation, stable collection paths, sync/maybe-async preservation, and explicit transformed-key/item collision diagnostics.
