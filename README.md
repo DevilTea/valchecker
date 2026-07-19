@@ -238,6 +238,17 @@ const scoreCount = scores
 
 Size validations preserve the collection and snapshot the observed `size` in failure payloads. `toSize()` replaces the collection with its numeric size. Set and Map membership follow SameValueZero equality.
 
+Collection representations remain explicit and preserve insertion order:
+
+```ts
+tags.toArray() // string[]
+scores.toKeys() // string[]
+scores.toValues() // number[]
+scores.toEntries() // Array<[string, number]>
+```
+
+These transformations return new arrays and do not mutate the source collection. Map-to-object conversion is intentionally not implied because it requires separate key, prototype, and collision policies.
+
 ## Composition
 
 ### Union

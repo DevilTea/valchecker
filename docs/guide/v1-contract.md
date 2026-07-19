@@ -173,7 +173,7 @@ Concrete transformations use `toXxx` and replace the successful output value:
 - `toTrimmed()`, `toTrimmedStart()`, `toTrimmedEnd()`,
 - `toUppercase()`, `toLowercase()`,
 - `toSplit()`, `toSliced()`, `toSorted()`, `toFiltered()`,
-- `toLength()`, `toSize()`, `toString()`,
+- `toLength()`, `toSize()`, `toArray()`, `toKeys()`, `toValues()`, `toEntries()`, `toString()`,
 - `toJSONValue()`, `toJSONString()`.
 
 `transform()` remains the generic arbitrary-output escape hatch. Callback exceptions use the operation issue `transform:callback_failed`. Array filter/sort callbacks and `toString()` similarly expose step-specific operation issues.
@@ -339,6 +339,8 @@ Map and Set outputs support size-aware `isEmpty()` and `isNotEmpty()`. String an
 `isSizeAtLeast()`, `isSizeAtMost()`, and `isSizeExactly()` preserve the successful collection and compare only the named condition against its numeric `size`. They do not add implicit finite, integer, or non-negative policy to the configured operand. `toSize()` replaces the successful collection with its numeric size and emits no issue.
 
 Set membership uses `isIncluding(item)`. Map membership is explicit through `isIncludingKey(key)` and `isIncludingValue(value)`, avoiding key/value ambiguity. Membership uses SameValueZero semantics: `NaN` matches `NaN`, and `0` matches `-0`.
+
+`toArray()` replaces a Set with a new item array. `toKeys()`, `toValues()`, and `toEntries()` replace a Map with new key, value, or mutable entry-tuple arrays. All four preserve insertion order, remain synchronous, add no issue, and do not mutate the source collection. Map-to-object conversion is outside this contract because it requires explicit key canonicalization, prototype, and collision policy.
 
 ## Union semantics
 

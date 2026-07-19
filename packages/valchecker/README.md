@@ -75,6 +75,8 @@ Both initial schemas preserve insertion order, return new transformed collection
 
 Map and Set schemas expose size-aware emptiness checks, `isSizeAtLeast()`, `isSizeAtMost()`, `isSizeExactly()`, and `toSize()`. Set membership uses `isIncluding()`, while Map membership is explicit through `isIncludingKey()` and `isIncludingValue()`.
 
+Use `toArray()` for Set items and `toKeys()`, `toValues()`, or `toEntries()` for explicit Map representations. Each transform returns a new insertion-ordered array and emits no new issue.
+
 ## Step naming
 
 Valchecker separates API roles through naming:

@@ -31,6 +31,10 @@ describe('default valchecker instance', () => {
 				key: v.string(),
 				value: v.number(),
 			}).toSize(),
+			tagArray: v.set(v.string()).toArray(),
+			scoreKeys: v.map({ key: v.string(), value: v.number() }).toKeys(),
+			scoreValues: v.map({ key: v.string(), value: v.number() }).toValues(),
+			scoreEntries: v.map({ key: v.string(), value: v.number() }).toEntries(),
 		}).execute({
 			name: '  Ada  ',
 			age: '37',
@@ -42,6 +46,10 @@ describe('default valchecker instance', () => {
 			tags: new Set(['TS', 'JS']),
 			scores: new Map([['a', 1]]),
 			scoreCount: new Map([['a', 1], ['b', 2]]),
+			tagArray: new Set(['a', 'b']),
+			scoreKeys: new Map([['a', 1], ['b', 2]]),
+			scoreValues: new Map([['a', 1], ['b', 2]]),
+			scoreEntries: new Map([['a', 1], ['b', 2]]),
 		})
 
 		expect(result).toEqual({
@@ -56,6 +64,10 @@ describe('default valchecker instance', () => {
 				tags: new Set(['ts', 'js']),
 				scores: new Map([['A', 1]]),
 				scoreCount: 2,
+				tagArray: ['a', 'b'],
+				scoreKeys: ['a', 'b'],
+				scoreValues: [1, 2],
+				scoreEntries: [['a', 1], ['b', 2]],
 			},
 		})
 	})
