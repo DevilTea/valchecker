@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { hasIssueDraftMetadata, markFailureIssueDraftState } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -76,6 +77,7 @@ export const set = implStepPlugin<PluginDef>({
 			const output = new Set<unknown>()
 			const firstItemIndex = new Map<unknown, number>()
 			let issues: AnyExecutionIssue[] | undefined
+			let hasDraft = false
 
 			const processResult = (result: ExecutionResult, item: unknown, index: number): boolean => {
 				if (isFailure(result)) {
@@ -84,7 +86,10 @@ export const set = implStepPlugin<PluginDef>({
 					for (const issue of result.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
-						target.push(prependIssuePath(issue, [index], options?.message))
+						const scopedIssue = prependIssuePath(issue, [index], options?.message)
+						if (hasIssueDraftMetadata(scopedIssue))
+							hasDraft = true
+						target.push(scopedIssue)
 					}
 					return hasInternal
 				}
@@ -95,7 +100,7 @@ export const set = implStepPlugin<PluginDef>({
 					if (firstIndex == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
-					target.push(createIssue({
+					const collisionIssue = createIssue({
 						code: 'set:duplicate_transformed_item',
 						payload: {
 							value,
@@ -108,7 +113,10 @@ export const set = implStepPlugin<PluginDef>({
 						path: [index],
 						customMessage: options?.message,
 						defaultMessage: 'Expected transformed Set items to be unique.',
-					}))
+					})
+					if (hasIssueDraftMetadata(collisionIssue))
+						hasDraft = true
+					target.push(collisionIssue)
 					return false
 				}
 
@@ -125,9 +133,9 @@ export const set = implStepPlugin<PluginDef>({
 					const item = items[index]
 					const result = index === startIndex ? await firstResult : await execute(item)
 					if (processResult(result, item, index))
-						return failure(issues!)
+						return failure(markFailureIssueDraftState(issues!, hasDraft))
 				}
-				return issues == null ? success(output) : failure(issues)
+				return issues == null ? success(output) : failure(markFailureIssueDraftState(issues, hasDraft))
 			}
 
 			for (let index = 0; index < items.length; index++) {
@@ -136,10 +144,10 @@ export const set = implStepPlugin<PluginDef>({
 				if (!childIsSynchronous && isPromiseLike(result))
 					return continueAsync(index, result)
 				if (processResult(result as ExecutionResult, item, index))
-					return failure(issues!)
+					return failure(markFailureIssueDraftState(issues!, hasDraft))
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output) : failure(markFailureIssueDraftState(issues, hasDraft))
 		}, operationMode)
 	},
 })

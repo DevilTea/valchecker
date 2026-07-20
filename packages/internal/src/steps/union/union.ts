@@ -1,6 +1,7 @@
 import type { IsEqual } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
+import { hasIssueDraftMetadata, markFailureIssueDraftState } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
 
@@ -124,6 +125,7 @@ export const union = implStepPlugin<PluginDef>({
 
 		addSuccessStep((value) => {
 			let issues: AnyExecutionIssue[] | undefined
+			let hasDraft = false
 
 			for (let i = 0; i < len; i++) {
 				const branchResult = branchExecutors[i]!(value)
@@ -139,18 +141,26 @@ export const union = implStepPlugin<PluginDef>({
 							const collected = issues ??= []
 							const branchStart = collected.length
 							let hasInternal = false
+							let branchHasDraft = false
 							for (const issue of result.issues) {
 								if (issue.category === 'internal')
 									hasInternal = true
-								collected.push(appendIssueContext(issue, {
+								const contextualIssue = appendIssueContext(issue, {
 									type: 'union',
 									branchIndex: j,
-								}))
+								})
+								if (hasIssueDraftMetadata(contextualIssue)) {
+									hasDraft = true
+									branchHasDraft = true
+								}
+								collected.push(contextualIssue)
 							}
-							if (hasInternal)
-								return failure(collected.slice(branchStart))
+							if (hasInternal) {
+								const branchIssues = collected.slice(branchStart)
+								return failure(markFailureIssueDraftState(branchIssues, branchHasDraft))
+							}
 						}
-						return failure(issues!)
+						return failure(markFailureIssueDraftState(issues!, hasDraft))
 					})()
 				}
 
@@ -161,19 +171,27 @@ export const union = implStepPlugin<PluginDef>({
 				const collected = issues ??= []
 				const branchStart = collected.length
 				let hasInternal = false
+				let branchHasDraft = false
 				for (const issue of syncBranchResult.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					collected.push(appendIssueContext(issue, {
+					const contextualIssue = appendIssueContext(issue, {
 						type: 'union',
 						branchIndex: i,
-					}))
+					})
+					if (hasIssueDraftMetadata(contextualIssue)) {
+						hasDraft = true
+						branchHasDraft = true
+					}
+					collected.push(contextualIssue)
 				}
-				if (hasInternal)
-					return failure(collected.slice(branchStart))
+				if (hasInternal) {
+					const branchIssues = collected.slice(branchStart)
+					return failure(markFailureIssueDraftState(branchIssues, branchHasDraft))
+				}
 			}
 
-			return failure(issues!)
+			return failure(markFailureIssueDraftState(issues!, hasDraft))
 		}, operationMode)
 	},
 })

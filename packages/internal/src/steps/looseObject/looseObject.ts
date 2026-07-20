@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { hasIssueDraftMetadata, markFailureIssueDraftState } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -132,6 +133,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 			}
 
 			const issues: AnyExecutionIssue[] = []
+			let hasDraft = false
 			const descriptors = Object.getOwnPropertyDescriptors(value)
 			for (let i = 0; i < keysLen; i++)
 				delete descriptors[keys[i] as keyof typeof descriptors]
@@ -144,13 +146,16 @@ export const looseObject = implStepPlugin<PluginDef>({
 						setOutputValue(output, key, undefined)
 					}
 					else {
-						issues.push(createIssue({
+						const missingIssue = createIssue({
 							code: 'looseObject:missing_key',
 							payload: { key },
 							path: [key],
 							customMessage: options?.message,
 							defaultMessage: 'Missing required object key.',
-						}))
+						})
+						if (hasIssueDraftMetadata(missingIssue))
+							hasDraft = true
+						issues.push(missingIssue)
 					}
 					continue
 				}
@@ -169,13 +174,16 @@ export const looseObject = implStepPlugin<PluginDef>({
 									setOutputValue(output, meta.key, undefined)
 								}
 								else {
-									issues.push(createIssue({
+									const missingIssue = createIssue({
 										code: 'looseObject:missing_key',
 										payload: { key: meta.key },
 										path: [meta.key],
 										customMessage: options?.message,
 										defaultMessage: 'Missing required object key.',
-									}))
+									})
+									if (hasIssueDraftMetadata(missingIssue))
+										hasDraft = true
+									issues.push(missingIssue)
 								}
 								continue
 							}
@@ -188,16 +196,19 @@ export const looseObject = implStepPlugin<PluginDef>({
 								for (const issue of resolved.issues) {
 									if (issue.category === 'internal')
 										hasInternal = true
-									issues.push(prependIssuePath(issue, [meta.key], options?.message))
+									const scopedIssue = prependIssuePath(issue, [meta.key], options?.message)
+									if (hasIssueDraftMetadata(scopedIssue))
+										hasDraft = true
+									issues.push(scopedIssue)
 								}
 								if (hasInternal)
-									return failure(issues)
+									return failure(markFailureIssueDraftState(issues, hasDraft))
 							}
 							else {
 								setOutputValue(output, meta.key, resolved.value)
 							}
 						}
-						return issues.length > 0 ? failure(issues) : success(output)
+						return issues.length > 0 ? failure(markFailureIssueDraftState(issues, hasDraft)) : success(output)
 					})()
 				}
 
@@ -207,17 +218,20 @@ export const looseObject = implStepPlugin<PluginDef>({
 					for (const issue of syncResult.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
-						issues.push(prependIssuePath(issue, [key], options?.message))
+						const scopedIssue = prependIssuePath(issue, [key], options?.message)
+						if (hasIssueDraftMetadata(scopedIssue))
+							hasDraft = true
+						issues.push(scopedIssue)
 					}
 					if (hasInternal)
-						return failure(issues)
+						return failure(markFailureIssueDraftState(issues, hasDraft))
 				}
 				else {
 					setOutputValue(output, key, syncResult.value)
 				}
 			}
 
-			return issues.length > 0 ? failure(issues) : success(output)
+			return issues.length > 0 ? failure(markFailureIssueDraftState(issues, hasDraft)) : success(output)
 		}, operationMode)
 	},
 })

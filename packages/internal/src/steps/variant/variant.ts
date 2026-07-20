@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { hasIssueDraftMetadata, markFailureIssueDraftState } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 function canonicalPropertyKey(value: string | number | symbol): string | symbol {
@@ -111,15 +112,19 @@ export const variant = implStepPlugin<PluginDef>({
 			if (!isFailure(result))
 				return result
 			const issues = new Array<AnyExecutionIssue>(result.issues.length)
+			let hasDraft = false
 			for (let index = 0; index < result.issues.length; index++) {
 				const scoped = prependIssuePath(result.issues[index]!, [], message)
-				issues[index] = appendIssueContext(scoped, {
+				const contextualIssue = appendIssueContext(scoped, {
 					type: 'variant',
 					discriminator,
 					discriminatorValue: received,
 				})
+				if (hasIssueDraftMetadata(contextualIssue))
+					hasDraft = true
+				issues[index] = contextualIssue
 			}
-			return failure(issues)
+			return failure(markFailureIssueDraftState(issues, hasDraft))
 		}
 
 		addSuccessStep((value) => {

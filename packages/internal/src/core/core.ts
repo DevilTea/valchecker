@@ -102,9 +102,14 @@ class MessageResolutionError {
 }
 
 const issueDraftMetadata = Symbol('valchecker.issueDraftMetadata')
+const failureIssueDraftState = Symbol('valchecker.failureIssueDraftState')
 
 type IssueWithDraftMetadata = AnyExecutionIssue & {
 	[issueDraftMetadata]?: IssueDraftMetadata | undefined
+}
+
+type IssuesWithDraftState = readonly AnyExecutionIssue[] & {
+	[failureIssueDraftState]?: boolean | undefined
 }
 
 function getIssueDraftMetadata(issue: AnyExecutionIssue): IssueDraftMetadata | undefined {
@@ -116,6 +121,45 @@ function setIssueDraftMetadata(
 	metadata: IssueDraftMetadata,
 ): void {
 	Object.defineProperty(issue, issueDraftMetadata, { value: metadata })
+}
+
+/* @__NO_SIDE_EFFECTS__ */
+export function hasIssueDraftMetadata(issue: AnyExecutionIssue): boolean {
+	return (issue as IssueWithDraftMetadata)[issueDraftMetadata] != null
+}
+
+/* @__NO_SIDE_EFFECTS__ */
+export function markFailureIssueDraftState<Issues extends readonly AnyExecutionIssue[]>(
+	issues: Issues,
+	hasDraft: boolean,
+): Issues {
+	if (issues.length > 1) {
+		const trackedIssues = issues as IssuesWithDraftState
+		if (Object.hasOwn(trackedIssues, failureIssueDraftState)) {
+			trackedIssues[failureIssueDraftState] = hasDraft
+		}
+		else {
+			Object.defineProperty(trackedIssues, failureIssueDraftState, {
+				value: hasDraft,
+				writable: true,
+				configurable: true,
+			})
+		}
+	}
+	return issues
+}
+
+function clearFailureIssueDraftState(issues: readonly AnyExecutionIssue[]): void {
+	if (issues.length > 1 && Object.hasOwn(issues, failureIssueDraftState))
+		Reflect.deleteProperty(issues, failureIssueDraftState)
+}
+
+function getFailureIssueDraftState(
+	issues: readonly AnyExecutionIssue[],
+): boolean | undefined {
+	if (issues.length === 1)
+		return hasIssueDraftMetadata(issues[0]!)
+	return (issues as IssuesWithDraftState)[failureIssueDraftState]
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -561,14 +605,20 @@ function finalizeFailureResult(
 
 function hasIssueDraft(issues: readonly AnyExecutionIssue[]): boolean {
 	for (let i = 0; i < issues.length; i++) {
-		if ((issues[i] as IssueWithDraftMetadata)[issueDraftMetadata] != null)
+		if (hasIssueDraftMetadata(issues[i]!))
 			return true
 	}
 	return false
 }
 
+function failureNeedsFinalization(
+	result: ExecutionFailureResult<AnyExecutionIssue>,
+): boolean {
+	return getFailureIssueDraftState(result.issues) ?? hasIssueDraft(result.issues)
+}
+
 function finalizeAsyncResult(result: ExecutionResult): ExecutionResult {
-	return 'issues' in result && hasIssueDraft(result.issues)
+	return 'issues' in result && failureNeedsFinalization(result)
 		? finalizeFailureResult(result)
 		: result
 }
@@ -590,7 +640,7 @@ function createPublicExecutor(
 		const result = executeRaw(value)
 		if (isPromiseLike(result))
 			return Promise.resolve(result).then(finalizeAsyncResult)
-		return 'issues' in result && hasIssueDraft(result.issues)
+		return 'issues' in result && failureNeedsFinalization(result)
 			? finalizeFailureResult(result)
 			: result
 	}
@@ -654,7 +704,11 @@ function createExecutionStepMethodUtils(
 
 	return {
 		addStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(fn, operationMode))
+			runtimeExecutions.push(wrapWithErrorHandling((result) => {
+				if ('issues' in result)
+					clearFailureIssueDraftState(result.issues)
+				return fn(result)
+			}, operationMode))
 			if (operationMode !== 'sync')
 				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
 		},
@@ -664,7 +718,13 @@ function createExecutionStepMethodUtils(
 				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
 		},
 		addFailureStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result, operationMode))
+			runtimeExecutions.push(wrapWithErrorHandling((result) => {
+				if ('issues' in result) {
+					clearFailureIssueDraftState(result.issues)
+					return fn(result.issues)
+				}
+				return result
+			}, operationMode))
 			if (operationMode !== 'sync')
 				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
 		},

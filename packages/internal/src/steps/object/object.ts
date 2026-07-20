@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { hasIssueDraftMetadata, markFailureIssueDraftState } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -133,6 +134,7 @@ export const object = implStepPlugin<PluginDef>({
 			firstResult: PromiseLike<ExecutionResult>,
 			output: Record<PropertyKey, any>,
 			issues: AnyExecutionIssue[] | undefined,
+			hasDraft: boolean,
 		): Promise<ExecutionResult> => {
 			for (let i = startIndex; i < keysLen; i++) {
 				const meta = propsMeta[i]!
@@ -145,13 +147,17 @@ export const object = implStepPlugin<PluginDef>({
 						setOutputValue(output, meta.key, undefined)
 					}
 					else {
-						(issues ??= []).push(createIssue({
+						const missingIssue = createIssue({
 							code: 'object:missing_key',
 							payload: { key: meta.key },
 							path: [meta.key],
 							customMessage: options?.message,
 							defaultMessage: 'Missing required object key.',
-						}))
+						})
+						if (hasIssueDraftMetadata(missingIssue)) {
+							hasDraft = true
+						}
+						(issues ??= []).push(missingIssue)
 					}
 					continue
 				}
@@ -165,16 +171,19 @@ export const object = implStepPlugin<PluginDef>({
 					for (const issue of result.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
-						target.push(prependIssuePath(issue, [meta.key], options?.message))
+						const scopedIssue = prependIssuePath(issue, [meta.key], options?.message)
+						if (hasIssueDraftMetadata(scopedIssue))
+							hasDraft = true
+						target.push(scopedIssue)
 					}
 					if (hasInternal)
-						return failure(target)
+						return failure(markFailureIssueDraftState(target, hasDraft))
 				}
 				else {
 					setOutputValue(output, meta.key, result.value)
 				}
 			}
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output) : failure(markFailureIssueDraftState(issues, hasDraft))
 		}
 
 		addSuccessStep((value) => {
@@ -188,6 +197,7 @@ export const object = implStepPlugin<PluginDef>({
 			}
 
 			let issues: AnyExecutionIssue[] | undefined
+			let hasDraft = false
 			const output: Record<PropertyKey, any> = {}
 
 			for (let i = 0; i < keysLen; i++) {
@@ -198,20 +208,24 @@ export const object = implStepPlugin<PluginDef>({
 						setOutputValue(output, key, undefined)
 					}
 					else {
-						(issues ??= []).push(createIssue({
+						const missingIssue = createIssue({
 							code: 'object:missing_key',
 							payload: { key },
 							path: [key],
 							customMessage: options?.message,
 							defaultMessage: 'Missing required object key.',
-						}))
+						})
+						if (hasIssueDraftMetadata(missingIssue)) {
+							hasDraft = true
+						}
+						(issues ??= []).push(missingIssue)
 					}
 					continue
 				}
 
 				const result = meta.execute(getOwnValue(value, key))
 				if (!childrenAreSynchronous && isPromiseLike(result))
-					return continueAsync(value, i, result, output, issues)
+					return continueAsync(value, i, result, output, issues, hasDraft)
 
 				const syncResult = result as ExecutionResult
 				if (isFailure(syncResult)) {
@@ -220,17 +234,20 @@ export const object = implStepPlugin<PluginDef>({
 					for (const issue of syncResult.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
-						target.push(prependIssuePath(issue, [key], options?.message))
+						const scopedIssue = prependIssuePath(issue, [key], options?.message)
+						if (hasIssueDraftMetadata(scopedIssue))
+							hasDraft = true
+						target.push(scopedIssue)
 					}
 					if (hasInternal)
-						return failure(target)
+						return failure(markFailureIssueDraftState(target, hasDraft))
 				}
 				else {
 					setOutputValue(output, key, syncResult.value)
 				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output) : failure(markFailureIssueDraftState(issues, hasDraft))
 		}, operationMode)
 	},
 })

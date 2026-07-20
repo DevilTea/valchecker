@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { hasIssueDraftMetadata, markFailureIssueDraftState } from '../../core/core'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -87,6 +88,7 @@ export const map = implStepPlugin<PluginDef>({
 			const output = new Map<unknown, unknown>()
 			const firstKeyIndex = new Map<unknown, number>()
 			let issues: AnyExecutionIssue[] | undefined
+			let hasDraft = false
 
 			const appendChildIssues = (result: ExecutionResult, path: PropertyKey[]): boolean => {
 				if (!isFailure(result))
@@ -96,7 +98,10 @@ export const map = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, path, options.message))
+					const scopedIssue = prependIssuePath(issue, path, options.message)
+					if (hasIssueDraftMetadata(scopedIssue))
+						hasDraft = true
+					target.push(scopedIssue)
 				}
 				return hasInternal
 			}
@@ -112,7 +117,7 @@ export const map = implStepPlugin<PluginDef>({
 					if (firstIndex == null)
 						throw new Error('Missing transformed Map key metadata.')
 					const target = issues ??= []
-					target.push(createIssue({
+					const collisionIssue = createIssue({
 						code: 'map:duplicate_transformed_key',
 						payload: {
 							value,
@@ -125,7 +130,10 @@ export const map = implStepPlugin<PluginDef>({
 						path: [index, 'key'],
 						customMessage: options.message,
 						defaultMessage: 'Expected transformed Map keys to be unique.',
-					}))
+					})
+					if (hasIssueDraftMetadata(collisionIssue))
+						hasDraft = true
+					target.push(collisionIssue)
 					return
 				}
 				output.set(transformedKey, transformedValue)
@@ -146,19 +154,19 @@ export const map = implStepPlugin<PluginDef>({
 						: await keyExecute(sourceKey)
 					const keyFailed = isFailure(keyResult)
 					if (!keyWasProcessed && keyFailed && appendChildIssues(keyResult, [index, 'key']))
-						return failure(issues!)
+						return failure(markFailureIssueDraftState(issues!, hasDraft))
 
 					const valueResult = index === startIndex && phase === 'value'
 						? await pending
 						: await valueExecute(sourceValue)
 					const valueFailed = isFailure(valueResult)
 					if (valueFailed && appendChildIssues(valueResult, [index, 'value']))
-						return failure(issues!)
+						return failure(markFailureIssueDraftState(issues!, hasDraft))
 
 					if (!keyFailed && !valueFailed)
 						commitEntry(sourceKey, index, keyResult.value, valueResult.value)
 				}
-				return issues == null ? success(output) : failure(issues)
+				return issues == null ? success(output) : failure(markFailureIssueDraftState(issues, hasDraft))
 			}
 
 			for (let index = 0; index < entries.length; index++) {
@@ -170,7 +178,7 @@ export const map = implStepPlugin<PluginDef>({
 				const syncKeyResult = keyResult as ExecutionResult
 				const keyFailed = isFailure(syncKeyResult)
 				if (keyFailed && appendChildIssues(syncKeyResult, [index, 'key']))
-					return failure(issues!)
+					return failure(markFailureIssueDraftState(issues!, hasDraft))
 
 				const valueResult = valueExecute(sourceValue)
 				if (!childrenAreSynchronous && isPromiseLike(valueResult))
@@ -179,13 +187,13 @@ export const map = implStepPlugin<PluginDef>({
 				const syncValueResult = valueResult as ExecutionResult
 				const valueFailed = isFailure(syncValueResult)
 				if (valueFailed && appendChildIssues(syncValueResult, [index, 'value']))
-					return failure(issues!)
+					return failure(markFailureIssueDraftState(issues!, hasDraft))
 
 				if (!keyFailed && !valueFailed)
 					commitEntry(sourceKey, index, syncKeyResult.value, syncValueResult.value)
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output) : failure(markFailureIssueDraftState(issues, hasDraft))
 		}, operationMode)
 	},
 })
