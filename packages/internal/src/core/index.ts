@@ -1,5 +1,5 @@
+export { createValchecker } from './persistentCore'
 export {
-	createValchecker,
 	implStepPlugin,
 	isFailure,
 	isSuccess,
