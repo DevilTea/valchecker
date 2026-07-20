@@ -72,7 +72,7 @@ export const array = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const issues: AnyExecutionIssue[] = []
+			let issues: AnyExecutionIssue[] | undefined
 			const len = value.length
 			// eslint-disable-next-line unicorn/no-new-array
 			const output = new Array(len)
@@ -86,38 +86,40 @@ export const array = implStepPlugin<PluginDef>({
 							const resolved = j === i ? await result : await execute(value[j])
 							if (isFailure(resolved)) {
 								let hasInternal = false
+								const target = issues ??= []
 								for (const issue of resolved.issues) {
 									if (issue.category === 'internal')
 										hasInternal = true
-									issues.push(prependIssuePath(issue, [j]))
+									target.push(prependIssuePath(issue, [j]))
 								}
 								if (hasInternal)
-									return failure(issues)
+									return failure(target)
 							}
 							else {
 								output[j] = resolved.value
 							}
 						}
-						return issues.length > 0 ? failure(issues) : success(output)
+						return issues == null ? success(output) : failure(issues)
 					})()
 				}
 
 				if (isFailure(result)) {
 					let hasInternal = false
+					const target = issues ??= []
 					for (const issue of result.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
-						issues.push(prependIssuePath(issue, [i]))
+						target.push(prependIssuePath(issue, [i]))
 					}
 					if (hasInternal)
-						return failure(issues)
+						return failure(target)
 				}
 				else {
 					output[i] = result.value
 				}
 			}
 
-			return issues.length > 0 ? failure(issues) : success(output)
+			return issues == null ? success(output) : failure(issues)
 		})
 	},
 })
