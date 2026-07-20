@@ -23,51 +23,42 @@ import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
 
-const runtimeOperationMode = Symbol('valchecker.runtimeOperationMode')
 const stepPluginDefaultOperationMode = Symbol.for('valchecker.stepPluginDefaultOperationMode')
 
-type RuntimeSteps = RuntimeStep[] & {
-	[runtimeOperationMode]?: OperationMode | undefined
+const syncOperationMode = 0
+const maybeAsyncOperationMode = 1
+const asyncOperationMode = 2
+
+type RuntimeOperationMode =
+	| typeof syncOperationMode
+	| typeof maybeAsyncOperationMode
+	| typeof asyncOperationMode
+
+type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
+	'~operationMode': RuntimeOperationMode
 }
 
 interface RegisteredStepMethod {
 	run: AnyFn
-	defaultOperationMode: OperationMode
+	defaultOperationMode: RuntimeOperationMode
 }
 
 type RegisteredStepMethods = Record<PropertyKey, RegisteredStepMethod>
 
-function getRuntimeOperationMode(runtimeSteps: RuntimeSteps): OperationMode {
-	return runtimeSteps[runtimeOperationMode] ?? 'sync'
+function toRuntimeOperationMode(operationMode: OperationMode): RuntimeOperationMode {
+	return operationMode === 'sync'
+		? syncOperationMode
+		: operationMode === 'async'
+			? asyncOperationMode
+			: maybeAsyncOperationMode
 }
 
-function mergeRuntimeOperationMode(
-	runtimeSteps: RuntimeSteps,
-	next: OperationMode,
-): void {
-	const current = getRuntimeOperationMode(runtimeSteps)
-	const merged = current === 'async' || next === 'async'
-		? 'async'
-		: current === 'maybe-async' || next === 'maybe-async'
-			? 'maybe-async'
-			: 'sync'
-	if (merged === current)
-		return
-	if (Object.hasOwn(runtimeSteps, runtimeOperationMode)) {
-		runtimeSteps[runtimeOperationMode] = merged
-	}
-	else {
-		Object.defineProperty(runtimeSteps, runtimeOperationMode, {
-			value: merged,
-			writable: true,
-		})
-	}
-}
-
-function copyRuntimeOperationMode(source: RuntimeSteps, target: RuntimeSteps): void {
-	const operationMode = getRuntimeOperationMode(source)
-	if (operationMode !== 'sync')
-		mergeRuntimeOperationMode(target, operationMode)
+function toOperationMode(operationMode: RuntimeOperationMode): OperationMode {
+	return operationMode === syncOperationMode
+		? 'sync'
+		: operationMode === asyncOperationMode
+			? 'async'
+			: 'maybe-async'
 }
 
 interface StepMethodContext {
@@ -125,7 +116,7 @@ export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
 ): StepPluginImpl<StepPluginDef> {
 	(stepImpl as any)[runtimeExecutionStepDefMarker] = true
 	Object.defineProperty(stepImpl, stepPluginDefaultOperationMode, {
-		value: defaultOperationMode,
+		value: toRuntimeOperationMode(defaultOperationMode),
 	})
 	return stepImpl
 }
@@ -601,17 +592,18 @@ function createUnknownExceptionFailure(
 /* @__NO_SIDE_EFFECTS__ */
 function createExecutionStepMethodUtils(
 	method: string,
-	runtimeExecutions: RuntimeSteps,
+	runtimeExecutions: RuntimeStep[],
 	resolveMessage: ResolveMessageFn,
-	defaultOperationMode: OperationMode,
-): StepMethodUtils<any, any, any, any> {
+	currentOperationMode: RuntimeOperationMode,
+	defaultOperationMode: RuntimeOperationMode,
+): RuntimeStepMethodUtils {
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
-		operationMode: OperationMode,
+		operationMode: RuntimeOperationMode,
 	) => (lastResult: ExecutionResult) => {
 		try {
 			const result = fn(lastResult)
-			if (operationMode === 'sync')
+			if (operationMode === syncOperationMode)
 				return result as ExecutionResult
 			return isPromiseLike(result)
 				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
@@ -622,21 +614,31 @@ function createExecutionStepMethodUtils(
 		}
 	}
 
-	return {
-		addStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(fn, operationMode))
-			if (operationMode !== 'sync')
-				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
+	const utils: RuntimeStepMethodUtils = {
+		'~operationMode': currentOperationMode,
+		addStep: (fn, operationMode) => {
+			const runtimeOperationMode = operationMode == null
+				? defaultOperationMode
+				: toRuntimeOperationMode(operationMode)
+			runtimeExecutions.push(wrapWithErrorHandling(fn, runtimeOperationMode))
+			if (runtimeOperationMode > utils['~operationMode'])
+				utils['~operationMode'] = runtimeOperationMode
 		},
-		addSuccessStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result, operationMode))
-			if (operationMode !== 'sync')
-				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
+		addSuccessStep: (fn, operationMode) => {
+			const runtimeOperationMode = operationMode == null
+				? defaultOperationMode
+				: toRuntimeOperationMode(operationMode)
+			runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result, runtimeOperationMode))
+			if (runtimeOperationMode > utils['~operationMode'])
+				utils['~operationMode'] = runtimeOperationMode
 		},
-		addFailureStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result, operationMode))
-			if (operationMode !== 'sync')
-				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
+		addFailureStep: (fn, operationMode) => {
+			const runtimeOperationMode = operationMode == null
+				? defaultOperationMode
+				: toRuntimeOperationMode(operationMode)
+			runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result, runtimeOperationMode))
+			if (runtimeOperationMode > utils['~operationMode'])
+				utils['~operationMode'] = runtimeOperationMode
 		},
 		isSuccess,
 		isFailure,
@@ -690,6 +692,7 @@ function createExecutionStepMethodUtils(
 		},
 		issue: i => i,
 	}
+	return utils
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -706,14 +709,16 @@ function createStepMethodContext({
 			if (registeredStepMethod == null)
 				throw new TypeError(`Required step method is not registered: ${method}`)
 
-			const runtimeSteps = [] as RuntimeSteps
+			const runtimeSteps: RuntimeStep[] = []
+			const utils = createExecutionStepMethodUtils(
+				method,
+				runtimeSteps,
+				resolveMessage,
+				syncOperationMode,
+				registeredStepMethod.defaultOperationMode,
+			)
 			registeredStepMethod.run({
-				utils: createExecutionStepMethodUtils(
-					method,
-					runtimeSteps,
-					resolveMessage,
-					registeredStepMethod.defaultOperationMode,
-				),
+				utils,
 				params: [...params],
 				context,
 			})
@@ -722,6 +727,7 @@ function createStepMethodContext({
 				resolveMessage,
 				context,
 				currentRuntimeSteps: runtimeSteps,
+				currentOperationMode: utils['~operationMode'],
 			})
 		},
 	}
@@ -733,11 +739,13 @@ function createProxyHandler({
 	stepMethods,
 	resolveMessage,
 	runtimeSteps,
+	operationMode,
 	context,
 }: {
 	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
-	runtimeSteps: RuntimeSteps
+	runtimeSteps: RuntimeStep[]
+	operationMode: RuntimeOperationMode
 	context: StepMethodContext
 }) {
 	return {
@@ -747,15 +755,16 @@ function createProxyHandler({
 
 			const registeredStepMethod = stepMethods[p]!
 			return (...params: any[]) => {
-				const nextRuntimeSteps = [...runtimeSteps] as RuntimeSteps
-				copyRuntimeOperationMode(runtimeSteps, nextRuntimeSteps)
+				const nextRuntimeSteps = [...runtimeSteps]
+				const utils = createExecutionStepMethodUtils(
+					p as string,
+					nextRuntimeSteps,
+					resolveMessage,
+					operationMode,
+					registeredStepMethod.defaultOperationMode,
+				)
 				registeredStepMethod.run({
-					utils: createExecutionStepMethodUtils(
-						p as string,
-						nextRuntimeSteps,
-						resolveMessage,
-						registeredStepMethod.defaultOperationMode,
-					),
+					utils,
 					params,
 					context,
 				})
@@ -764,6 +773,7 @@ function createProxyHandler({
 					resolveMessage,
 					context,
 					currentRuntimeSteps: nextRuntimeSteps,
+					currentOperationMode: utils['~operationMode'],
 				})
 			}
 		},
@@ -772,8 +782,9 @@ function createProxyHandler({
 
 /* @__NO_SIDE_EFFECTS__ */
 function createCoreProperties(
-	runtimeSteps: RuntimeSteps,
+	runtimeSteps: RuntimeStep[],
 	executeRaw: PipeExecutor,
+	operationMode: RuntimeOperationMode,
 ) {
 	const execute = createPublicExecutor(executeRaw)
 	return {
@@ -788,7 +799,7 @@ function createCoreProperties(
 			get runtimeSteps() {
 				return runtimeSteps
 			},
-			operationMode: getRuntimeOperationMode(runtimeSteps),
+			operationMode: toOperationMode(operationMode),
 		},
 		'~execute': executeRaw,
 		execute,
@@ -803,16 +814,24 @@ function createInstance({
 	resolveMessage,
 	context,
 	currentRuntimeSteps,
+	currentOperationMode,
 }: {
 	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 	context: StepMethodContext
-	currentRuntimeSteps: RuntimeSteps
+	currentRuntimeSteps: RuntimeStep[]
+	currentOperationMode: RuntimeOperationMode
 }): any {
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
-	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw)
+	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw, currentOperationMode)
 
-	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps, context }))
+	return new Proxy(coreProperties, createProxyHandler({
+		stepMethods,
+		resolveMessage,
+		runtimeSteps: currentRuntimeSteps,
+		operationMode: currentOperationMode,
+		context,
+	}))
 }
 
 const reservedStepMethodNames = new Set<PropertyKey>([
@@ -845,7 +864,7 @@ export function createValchecker<
 }) {
 	const stepMethods = Object.create(null) as RegisteredStepMethods
 	for (const def of steps) {
-		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? 'maybe-async'
+		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? maybeAsyncOperationMode
 		for (const method of Reflect.ownKeys(def)) {
 			if (method === runtimeExecutionStepDefMarker || method === stepPluginDefaultOperationMode)
 				continue
@@ -869,6 +888,7 @@ export function createValchecker<
 		stepMethods,
 		resolveMessage,
 		context,
-		currentRuntimeSteps: [] as RuntimeSteps,
+		currentRuntimeSteps: [],
+		currentOperationMode: syncOperationMode,
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }
