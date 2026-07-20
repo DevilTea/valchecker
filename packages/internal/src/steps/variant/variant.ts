@@ -151,6 +151,8 @@ export const variant = implStepPlugin<PluginDef>({
 			}
 
 			const result = execute(value)
+			if (operationMode === 'sync')
+				return finishBranch(result as ExecutionResult, received as string | number | symbol)
 			return isPromiseLike(result)
 				? Promise.resolve(result).then(resolved => finishBranch(resolved, received as string | number | symbol))
 				: finishBranch(result, received as string | number | symbol)

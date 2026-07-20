@@ -451,6 +451,7 @@ export const intersection = implStepPlugin<PluginDef>({
 			? 'sync'
 			: 'maybe-async'
 		const len = branchExecutors.length
+		const branchesAreSynchronous = operationMode === 'sync'
 
 		addSuccessStep((value) => {
 			const outputs: unknown[] = []
@@ -494,15 +495,16 @@ export const intersection = implStepPlugin<PluginDef>({
 
 			for (let i = 0; i < len; i++) {
 				const branchResult = branchExecutors[i]!(value)
-				if (isPromiseLike(branchResult)) {
+				if (!branchesAreSynchronous && isPromiseLike(branchResult)) {
 					const pending: Promise<ExecutionResult>[] = [Promise.resolve(branchResult)]
 					for (let j = i + 1; j < len; j++)
 						pending.push(Promise.resolve(branchExecutors[j]!(value)))
 					return Promise.all(pending).then(processResults)
 				}
-				if (isFailure(branchResult))
-					return branchResult
-				outputs.push(branchResult.value)
+				const syncBranchResult = branchResult as ExecutionResult
+				if (isFailure(syncBranchResult))
+					return syncBranchResult
+				outputs.push(syncBranchResult.value)
 			}
 
 			return mergeOutputs()

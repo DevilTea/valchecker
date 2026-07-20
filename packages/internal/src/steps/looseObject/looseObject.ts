@@ -119,6 +119,8 @@ export const looseObject = implStepPlugin<PluginDef>({
 				operationMode = 'maybe-async'
 		}
 
+		const childrenAreSynchronous = operationMode === 'sync'
+
 		addSuccessStep((value) => {
 			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
 				return failure(createIssue({
@@ -154,7 +156,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				}
 
 				const result = execute(getOwnValue(value, key))
-				if (isPromiseLike(result)) {
+				if (!childrenAreSynchronous && isPromiseLike(result)) {
 					return (async () => {
 						for (let j = i; j < keysLen; j++) {
 							const meta = propsMeta[j]!
@@ -199,9 +201,10 @@ export const looseObject = implStepPlugin<PluginDef>({
 					})()
 				}
 
-				if (isFailure(result)) {
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult)) {
 					let hasInternal = false
-					for (const issue of result.issues) {
+					for (const issue of syncResult.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
 						issues.push(prependIssuePath(issue, [key], options?.message))
@@ -210,7 +213,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 						return failure(issues)
 				}
 				else {
-					setOutputValue(output, key, result.value)
+					setOutputValue(output, key, syncResult.value)
 				}
 			}
 
