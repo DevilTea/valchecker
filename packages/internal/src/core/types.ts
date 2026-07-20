@@ -196,7 +196,7 @@ export interface Valchecker<
 	readonly '~core': {
 		executionStepContext: CurrentExecutionContext
 		registeredExecutionStepPlugins: RegisteredStepPlugins
-		runtimeSteps: RuntimeStep[]
+		readonly runtimeSteps: readonly RuntimeStep[]
 	}
 
 	'~execute': (value: unknown) => MaybePromise<ExecutionResult<unknown, AnyExecutionIssue>>
