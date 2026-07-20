@@ -241,10 +241,28 @@ export function createPipeExecutor({
 	return value => executeRuntimeSteps(runtimeSteps, value)
 }
 
-function createFinalizedPipeExecutor(runtimeSteps: RuntimeStep[]): PipeExecutor {
+function createFinalizedPipeExecutor(runtimeSteps: RuntimeSteps): PipeExecutor {
 	const len = runtimeSteps.length
 	if (len === 0)
 		return value => ({ value })
+
+	if (getRuntimeOperationMode(runtimeSteps) === 'sync') {
+		const first = runtimeSteps[0]!
+		if (len === 1)
+			return value => first({ value }) as ExecutionResult
+
+		if (len === 2) {
+			const second = runtimeSteps[1]!
+			return value => second(first({ value }) as ExecutionResult) as ExecutionResult
+		}
+
+		return (value) => {
+			let result: ExecutionResult = { value }
+			for (let i = 0; i < len; i++)
+				result = runtimeSteps[i]!(result) as ExecutionResult
+			return result
+		}
+	}
 
 	const first = runtimeSteps[0]!
 	if (len === 1)
@@ -555,7 +573,19 @@ function finalizeAsyncResult(result: ExecutionResult): ExecutionResult {
 		: result
 }
 
-function createPublicExecutor(executeRaw: PipeExecutor): PipeExecutor {
+function createPublicExecutor(
+	executeRaw: PipeExecutor,
+	operationMode: OperationMode,
+): PipeExecutor {
+	if (operationMode === 'sync') {
+		return (value) => {
+			const result = executeRaw(value) as ExecutionResult
+			return 'issues' in result && hasIssueDraft(result.issues)
+				? finalizeFailureResult(result)
+				: result
+		}
+	}
+
 	return (value) => {
 		const result = executeRaw(value)
 		if (isPromiseLike(result))
@@ -607,9 +637,12 @@ function createExecutionStepMethodUtils(
 ): StepMethodUtils<any, any, any, any> {
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
+		operationMode: OperationMode,
 	) => (lastResult: ExecutionResult) => {
 		try {
 			const result = fn(lastResult)
+			if (operationMode === 'sync')
+				return result as ExecutionResult
 			return isPromiseLike(result)
 				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
 				: result
@@ -621,17 +654,17 @@ function createExecutionStepMethodUtils(
 
 	return {
 		addStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(fn))
+			runtimeExecutions.push(wrapWithErrorHandling(fn, operationMode))
 			if (operationMode !== 'sync')
 				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
 		},
 		addSuccessStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result))
+			runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result, operationMode))
 			if (operationMode !== 'sync')
 				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
 		},
 		addFailureStep: (fn, operationMode = defaultOperationMode) => {
-			runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result))
+			runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result, operationMode))
 			if (operationMode !== 'sync')
 				mergeRuntimeOperationMode(runtimeExecutions, operationMode)
 		},
@@ -772,7 +805,8 @@ function createCoreProperties(
 	runtimeSteps: RuntimeSteps,
 	executeRaw: PipeExecutor,
 ) {
-	const execute = createPublicExecutor(executeRaw)
+	const operationMode = getRuntimeOperationMode(runtimeSteps)
+	const execute = createPublicExecutor(executeRaw, operationMode)
 	return {
 		'~standard': {
 			version: 1,
@@ -785,7 +819,7 @@ function createCoreProperties(
 			get runtimeSteps() {
 				return runtimeSteps
 			},
-			operationMode: getRuntimeOperationMode(runtimeSteps),
+			operationMode,
 		},
 		'~execute': executeRaw,
 		execute,

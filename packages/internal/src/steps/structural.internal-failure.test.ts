@@ -14,7 +14,7 @@ const structuralFailureFixture = implStepPlugin<any>({
 			return utils.success(value)
 		})
 	},
-})
+}, 'sync')
 
 const v = createValchecker({
 	steps: [looseObject, strictObject, structuralFailureFixture, unknown],

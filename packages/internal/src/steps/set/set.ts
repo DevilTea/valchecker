@@ -60,6 +60,7 @@ export const set = implStepPlugin<PluginDef>({
 	}) => {
 		const execute = itemSchema['~execute']
 		const operationMode = itemSchema['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
+		const childIsSynchronous = operationMode === 'sync'
 
 		addSuccessStep((value) => {
 			if (!(value instanceof Set)) {
@@ -132,9 +133,9 @@ export const set = implStepPlugin<PluginDef>({
 			for (let index = 0; index < items.length; index++) {
 				const item = items[index]
 				const result = execute(item)
-				if (isPromiseLike(result))
+				if (!childIsSynchronous && isPromiseLike(result))
 					return continueAsync(index, result)
-				if (processResult(result, item, index))
+				if (processResult(result as ExecutionResult, item, index))
 					return failure(issues!)
 			}
 
