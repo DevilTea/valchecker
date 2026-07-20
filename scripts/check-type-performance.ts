@@ -93,12 +93,6 @@ function createTsconfig(): string {
 			composite: false,
 			noEmit: true,
 			skipLibCheck: true,
-			baseUrl: '../../..',
-			paths: {
-				valchecker: ['packages/valchecker/src/index.ts'],
-				'@valchecker/all-steps': ['packages/all-steps/src/index.ts'],
-				'@valchecker/internal': ['packages/internal/src/index.ts'],
-			},
 		},
 		files: ['fixture.ts'],
 	}, null, 2)}\n`
