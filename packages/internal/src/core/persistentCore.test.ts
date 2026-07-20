@@ -11,6 +11,9 @@ const arithmeticPlugin = implStepPlugin({
 		utils.addSuccessStep((value: number) => utils.success(value + first))
 		utils.addSuccessStep((value: number) => utils.success(value + second))
 	},
+	incrementAsync: ({ utils, params: [amount = 1] }: any) => {
+		utils.addSuccessStep(async (value: number) => utils.success(value + amount))
+	},
 } as any) as StepPluginImpl<TStepPluginDef>
 
 it('materializes persistent pipeline segments in order without mutating parent schemas', () => {
@@ -44,4 +47,23 @@ it('caches specialized raw and public executors while preserving Standard Schema
 	expect(schema['~standard'].validate).toBe(validate)
 	expect(executeRaw(1)).toEqual({ value: 10 })
 	expect(execute(1)).toEqual({ value: 10 })
+})
+
+it('continues two-step and longer pipelines after an async first step', async () => {
+	const v = createValchecker({ steps: [arithmeticPlugin] }) as any
+
+	await expect(v.incrementAsync(2).increment(3).execute(1)).resolves.toEqual({ value: 6 })
+	await expect(v.incrementAsync(2).incrementTwice(3, 4).execute(1)).resolves.toEqual({ value: 10 })
+})
+
+it('avoids collisions with a registered internal finalizer method name', () => {
+	const finalizerName = '\0valchecker.finalizePipeline'
+	const collisionPlugin = implStepPlugin({
+		[finalizerName]: ({ utils }: any) => {
+			utils.addSuccessStep((value: unknown) => utils.success(value))
+		},
+	} as any) as StepPluginImpl<TStepPluginDef>
+	const v = createValchecker({ steps: [collisionPlugin] }) as any
+
+	expect(Reflect.get(v, finalizerName)().execute('value')).toEqual({ value: 'value' })
 })
