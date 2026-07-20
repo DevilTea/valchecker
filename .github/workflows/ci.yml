@@ -111,6 +111,58 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  Type-Performance:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile --silent
+
+      - name: Measure Type Performance
+        id: measure
+        shell: bash
+        run: |
+          set +e
+          pnpm typeperf
+          status=$?
+          diagnostic=""
+          if [[ -f artifacts/type-performance/compiler-output.log ]]; then
+            diagnostic="$(grep -E 'error TS[0-9]+: .*' artifacts/type-performance/compiler-output.log | head -n 1 || true)"
+          fi
+          if [[ -z "$diagnostic" ]]; then
+            if [[ "$status" -eq 0 ]]; then
+              diagnostic="success"
+            else
+              diagnostic="failed-without-typescript-diagnostic"
+            fi
+          fi
+          artifact_key="$(printf '%s' "$diagnostic" | tr -cs '[:alnum:]._-' '-' | cut -c 1-200)"
+          echo "artifact-key=$artifact_key" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Publish Type Performance Summary
+        if: always() && hashFiles('artifacts/type-performance/summary.md') != ''
+        run: cat artifacts/type-performance/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Type Performance Report
+        if: always() && hashFiles('artifacts/type-performance/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: type-performance-${{ steps.measure.outputs.artifact-key }}
+          path: artifacts/type-performance
+          if-no-files-found: error
+          retention-days: 30
+
   Docs:
     runs-on: ubuntu-latest
     steps:
