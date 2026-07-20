@@ -137,7 +137,7 @@ jobs:
           status=$?
           diagnostic=""
           if [[ -f artifacts/type-performance/compiler-output.log ]]; then
-            diagnostic="$(grep -oE 'error TS[0-9]+: .*' artifacts/type-performance/compiler-output.log | head -n 1 || true)"
+            diagnostic="$(grep -E 'error TS[0-9]+: .*' artifacts/type-performance/compiler-output.log | head -n 1 || true)"
           fi
           if [[ -z "$diagnostic" ]]; then
             if [[ "$status" -eq 0 ]]; then
@@ -146,7 +146,7 @@ jobs:
               diagnostic="failed-without-typescript-diagnostic"
             fi
           fi
-          artifact_key="$(printf '%s' "$diagnostic" | tr -cs '[:alnum:]._-' '-' | cut -c 1-100)"
+          artifact_key="$(printf '%s' "$diagnostic" | tr -cs '[:alnum:]._-' '-' | cut -c 1-200)"
           echo "artifact-key=$artifact_key" >> "$GITHUB_OUTPUT"
           exit "$status"
 
