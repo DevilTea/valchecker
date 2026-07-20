@@ -88,12 +88,9 @@ void [objectInput, objectOutput, objectIssue, unionOutput, variantOutput, deepOu
 
 function createTsconfig(): string {
 	return `${JSON.stringify({
+		extends: '@deviltea/tsconfig/base',
 		compilerOptions: {
-			target: 'ES2023',
-			module: 'ESNext',
-			moduleResolution: 'Bundler',
-			strict: true,
-			exactOptionalPropertyTypes: true,
+			composite: false,
 			noEmit: true,
 			skipLibCheck: true,
 			baseUrl: '../../..',
