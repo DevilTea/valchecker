@@ -1,6 +1,6 @@
 import type { StepPluginImpl, TStepPluginDef } from './types'
 import { expect, it } from 'vitest'
-import { implStepPlugin } from './core'
+import { createValchecker as createLegacyValchecker, implStepPlugin } from './core'
 import { createValchecker } from './persistentCore'
 
 const arithmeticPlugin = implStepPlugin({
@@ -54,6 +54,13 @@ it('continues two-step and longer pipelines after an async first step', async ()
 
 	await expect(v.incrementAsync(2).increment(3).execute(1)).resolves.toEqual({ value: 6 })
 	await expect(v.incrementAsync(2).incrementTwice(3, 4).execute(1)).resolves.toEqual({ value: 10 })
+})
+
+it('preserves legacy continuation when a later step becomes async', async () => {
+	const v = createLegacyValchecker({ steps: [arithmeticPlugin] }) as any
+	const schema = v.increment(1).incrementAsync(2).increment(3)
+
+	await expect(schema.execute(1)).resolves.toEqual({ value: 7 })
 })
 
 it('avoids collisions with a registered internal finalizer method name', () => {
