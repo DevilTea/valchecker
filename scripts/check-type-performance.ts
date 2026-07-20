@@ -19,10 +19,12 @@ interface TypePerformanceBudget {
 }
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const generatedRoot = join(root, 'artifacts', 'type-performance', 'generated')
+const artifactRoot = join(root, 'artifacts', 'type-performance')
+const generatedRoot = join(artifactRoot, 'generated')
 const budgetPath = join(root, 'type-performance', 'budget.json')
-const summaryPath = join(root, 'artifacts', 'type-performance', 'summary.md')
-const metricsPath = join(root, 'artifacts', 'type-performance', 'metrics.json')
+const summaryPath = join(artifactRoot, 'summary.md')
+const metricsPath = join(artifactRoot, 'metrics.json')
+const compilerOutputPath = join(artifactRoot, 'compiler-output.log')
 
 function createFixture(): string {
 	const requiredFields = Array.from({ length: 80 }, (_, index) => {
@@ -166,7 +168,18 @@ const result = spawnSync(process.execPath, [
 	encoding: 'utf8',
 })
 const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
-if (result.status !== 0) {
+await mkdir(artifactRoot, { recursive: true })
+await writeFile(compilerOutputPath, output)
+
+if (result.error != null) {
+	const message = result.error instanceof Error ? result.error.stack ?? result.error.message : String(result.error)
+	await writeFile(summaryPath, `# Type performance\n\n**FAILED** before TypeScript completed.\n\nSee \`compiler-output.log\`.\n\n\`\`\`text\n${message}\n\`\`\`\n`)
+	process.stderr.write(`${message}\n`)
+	process.exitCode = 1
+}
+else if (result.status !== 0) {
+	const diagnosticPreview = output.split(/\r?\n/).filter(Boolean).slice(0, 40).join('\n')
+	await writeFile(summaryPath, `# Type performance\n\n**FAILED** while compiling the generated fixture with TypeScript ${typescriptPackage.version}.\n\nSee \`compiler-output.log\` for complete diagnostics.\n\n\`\`\`text\n${diagnosticPreview}\n\`\`\`\n`)
 	process.stderr.write(output)
 	process.exitCode = result.status ?? 1
 }
@@ -183,7 +196,6 @@ else {
 		}
 	}
 
-	await mkdir(join(root, 'artifacts', 'type-performance'), { recursive: true })
 	await writeFile(metricsPath, `${JSON.stringify({ typescript: typescriptPackage.version, metrics }, null, 2)}\n`)
 	await writeFile(summaryPath, markdown(metrics, budget, typescriptPackage.version, failures))
 	process.stdout.write(await readFile(summaryPath, 'utf8'))
