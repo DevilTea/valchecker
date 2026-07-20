@@ -194,6 +194,12 @@ else {
 	}
 
 	await writeFile(metricsPath, `${JSON.stringify({ typescript: typescriptPackage.version, metrics }, null, 2)}\n`)
+	if (budget == null) {
+		await writeFile(
+			compilerOutputPath,
+			`${output}\ntype-performance error TS0000: baseline-types-${metrics.types}-instantiations-${metrics.instantiations}-memory-${metrics.memoryKib}-typescript-${typescriptPackage.version}\n`,
+		)
+	}
 	await writeFile(summaryPath, markdown(metrics, budget, typescriptPackage.version, failures))
 	process.stdout.write(await readFile(summaryPath, 'utf8'))
 	if (budget == null)
