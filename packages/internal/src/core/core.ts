@@ -735,7 +735,6 @@ function createInstance({
 	context: StepMethodContext
 	currentRuntimeSteps: RuntimeStep[]
 }): any {
-	Object.freeze(currentRuntimeSteps)
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
 	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw)
 
