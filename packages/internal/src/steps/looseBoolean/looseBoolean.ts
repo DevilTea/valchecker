@@ -68,4 +68,4 @@ export const looseBoolean = implStepPlugin<PluginDef>({
 			)
 		})
 	},
-})
+}, 'sync')

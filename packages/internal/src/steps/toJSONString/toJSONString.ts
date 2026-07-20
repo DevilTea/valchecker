@@ -231,4 +231,4 @@ export const toJSONString = implStepPlugin<PluginDef>({
 			}
 		})
 	},
-})
+}, 'sync')

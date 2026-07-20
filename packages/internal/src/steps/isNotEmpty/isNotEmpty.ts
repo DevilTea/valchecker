@@ -71,4 +71,4 @@ export const isNotEmpty = implStepPlugin<PluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

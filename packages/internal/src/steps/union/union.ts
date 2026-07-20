@@ -110,10 +110,14 @@ export const union = implStepPlugin<PluginDef>({
 			throw new TypeError('union() requires at least one branch.')
 
 		const branchExecutors = new Array(branches.length)
+		let operationMode: OperationMode = 'sync'
 		for (let index = 0; index < branches.length; index++) {
 			if (!Object.hasOwn(branches, index))
 				throw new TypeError(`union() branch at index ${index} is missing.`)
-			branchExecutors[index] = normalizeBranch(branches[index], index, context)['~execute']
+			const branch = normalizeBranch(branches[index], index, context)
+			branchExecutors[index] = branch['~execute']
+			if (branch['~core']?.operationMode !== 'sync')
+				operationMode = 'maybe-async'
 		}
 		const len = branchExecutors.length
 
@@ -168,6 +172,6 @@ export const union = implStepPlugin<PluginDef>({
 			}
 
 			return failure(issues!)
-		})
+		}, operationMode)
 	},
 })

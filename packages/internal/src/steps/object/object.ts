@@ -112,6 +112,7 @@ export const object = implStepPlugin<PluginDef>({
 				keys.push(key)
 		}
 		const keysLen = keys.length
+		let operationMode: OperationMode = 'sync'
 		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -120,6 +121,8 @@ export const object = implStepPlugin<PluginDef>({
 			const isOptional = Array.isArray(prop)
 			const schema = isOptional ? prop[0]! : prop
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
+			if (schema['~core']?.operationMode !== 'sync')
+				operationMode = 'maybe-async'
 		}
 
 		const continueAsync = async (
@@ -225,6 +228,6 @@ export const object = implStepPlugin<PluginDef>({
 			}
 
 			return issues == null ? success(output) : failure(issues)
-		})
+		}, operationMode)
 	},
 })

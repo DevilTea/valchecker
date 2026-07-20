@@ -34,4 +34,4 @@ export const isSizeExactly = implStepPlugin<PluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

@@ -51,4 +51,4 @@ export const isEqualTo = implStepPlugin<PluginDef>({
 					defaultMessage: `Expected a value equal to ${String(expected)}.`,
 				})))
 	},
-})
+}, 'sync')

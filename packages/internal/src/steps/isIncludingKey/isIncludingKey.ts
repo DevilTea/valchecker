@@ -37,4 +37,4 @@ export const isIncludingKey = implStepPlugin<PluginDef>({
 					defaultMessage: 'Expected the Map to include the configured key.',
 				})))
 	},
-})
+}, 'sync')

@@ -43,4 +43,4 @@ export const toTrimmedEnd = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep(value => success(value.trimEnd()))
 	},
-})
+}, 'sync')

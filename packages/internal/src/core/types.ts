@@ -63,6 +63,8 @@ export interface TValchecker {
 	'~core': {
 		executionStepContext: TExecutionContext
 		registeredExecutionStepPlugins: TStepPluginDef
+		/** Conservative runtime execution mode used for executor specialization. */
+		readonly operationMode: OperationMode
 	}
 }
 
@@ -197,6 +199,8 @@ export interface Valchecker<
 		executionStepContext: CurrentExecutionContext
 		registeredExecutionStepPlugins: RegisteredStepPlugins
 		readonly runtimeSteps: readonly RuntimeStep[]
+		/** Conservative runtime execution mode used for executor specialization. */
+		readonly operationMode: OperationMode
 	}
 
 	'~execute': (value: unknown) => MaybePromise<ExecutionResult<unknown, AnyExecutionIssue>>
@@ -236,9 +240,21 @@ export interface StepMethodUtils<
 	Issue extends AnyExecutionIssue,
 	SelfIssue extends AnyExecutionIssue = Issue,
 > {
-	addStep: (fn: (lastResult: ExecutionResult<Input, Issue>) => MaybePromiseLike<ExecutionResult<Output, Issue>>) => void
-	addSuccessStep: (fn: (value: Input) => MaybePromiseLike<ExecutionResult<Output, Issue>>) => void
-	addFailureStep: (fn: (issues: [AnyExecutionIssue, ...AnyExecutionIssue[]]) => MaybePromiseLike<ExecutionResult<Output, Issue>>) => void
+	/** Registers a general step. Unspecified mode uses the plugin-level conservative default. */
+	addStep: (
+		fn: (lastResult: ExecutionResult<Input, Issue>) => MaybePromiseLike<ExecutionResult<Output, Issue>>,
+		operationMode?: OperationMode,
+	) => void
+	/** Registers a success-only step. Unspecified mode uses the plugin-level conservative default. */
+	addSuccessStep: (
+		fn: (value: Input) => MaybePromiseLike<ExecutionResult<Output, Issue>>,
+		operationMode?: OperationMode,
+	) => void
+	/** Registers a failure-only step. Unspecified mode uses the plugin-level conservative default. */
+	addFailureStep: (
+		fn: (issues: [AnyExecutionIssue, ...AnyExecutionIssue[]]) => MaybePromiseLike<ExecutionResult<Output, Issue>>,
+		operationMode?: OperationMode,
+	) => void
 
 	isSuccess: (result: ExecutionResult) => result is ExecutionSuccessResult<any>
 	isFailure: (result: ExecutionResult) => result is ExecutionFailureResult<any>

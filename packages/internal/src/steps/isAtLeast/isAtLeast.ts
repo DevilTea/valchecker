@@ -75,4 +75,4 @@ export const isAtLeast = implStepPlugin<AtLeastPluginDef>({
 			)
 		})
 	},
-})
+}, 'sync')

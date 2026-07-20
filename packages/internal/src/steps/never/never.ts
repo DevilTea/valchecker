@@ -59,4 +59,4 @@ export const never = implStepPlugin<PluginDef>({
 			),
 		)
 	},
-})
+}, 'sync')

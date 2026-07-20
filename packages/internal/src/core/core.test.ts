@@ -30,7 +30,7 @@ function validationIssue(
 
 const flowPlugin = implStepPlugin({
 	increment: ({ utils, params: [amount = 1] }: any) => {
-		utils.addSuccessStep((value: number) => utils.success(value + amount))
+		utils.addSuccessStep((value: number) => utils.success(value + amount), 'sync')
 	},
 	fail: ({ utils, params: [message] }: any) => {
 		utils.addSuccessStep((value: unknown) => utils.failure(utils.createIssue({
@@ -38,20 +38,20 @@ const flowPlugin = implStepPlugin({
 			payload: { value },
 			customMessage: message,
 			defaultMessage: 'Test failure.',
-		})))
+		})), 'sync')
 	},
 	recover: ({ utils }: any) => {
-		utils.addFailureStep((issues: ExecutionIssue[]) => utils.success(`recovered:${issues[0]!.code}`))
+		utils.addFailureStep((issues: ExecutionIssue[]) => utils.success(`recovered:${issues[0]!.code}`), 'sync')
 	},
 	throwSync: ({ utils }: any) => {
 		utils.addStep(() => {
 			throw new Error('sync error')
-		})
+		}, 'sync')
 	},
 	rejectAsync: ({ utils }: any) => {
 		utils.addStep(async () => {
 			throw new Error('async error')
-		})
+		}, 'async')
 	},
 	inspectResult: ({ utils }: any) => {
 		utils.addStep((result: ExecutionResult) => {
@@ -60,11 +60,11 @@ const flowPlugin = implStepPlugin({
 			if (utils.isFailure(result))
 				return utils.failure(result.issues)
 			throw new Error('unreachable')
-		})
+		}, 'sync')
 	},
 	composeInitialIncrement: ({ utils, params: [amount], context }: any) => {
 		const schema = context.createInitialSchema('increment', [amount])
-		utils.addSuccessStep((value: unknown) => schema['~execute'](value))
+		utils.addSuccessStep((value: unknown) => schema['~execute'](value), 'sync')
 	},
 	contextFailure: ({ utils }: any) => {
 		utils.addSuccessStep(() => {
@@ -73,7 +73,16 @@ const flowPlugin = implStepPlugin({
 				utils.prependIssuePath(issue, ['root']),
 				{ type: 'test', marker: true },
 			))
-		})
+		}, 'sync')
+	},
+	unannotated: ({ utils }: any) => {
+		utils.addStep((result: ExecutionResult) => result)
+	},
+	maybeAsync: ({ utils }: any) => {
+		utils.addStep((result: ExecutionResult) => result, 'maybe-async')
+	},
+	asyncMode: ({ utils }: any) => {
+		utils.addStep(async (result: ExecutionResult) => result, 'async')
 	},
 } as any) as StepPluginImpl<TStepPluginDef>
 
@@ -285,6 +294,7 @@ describe('Valchecker instance contracts', () => {
 		expect(v.execute('value')).toEqual({ value: 'value' })
 		expect(v['~execute']('value')).toEqual({ value: 'value' })
 		expect(v['~core'].runtimeSteps).toEqual([])
+		expect(v['~core'].operationMode).toBe('sync')
 		expect(v['~standard']).toEqual({
 			version: 1,
 			vendor: 'valchecker',
@@ -303,6 +313,15 @@ describe('Valchecker instance contracts', () => {
 		expect(v['~core'].runtimeSteps).toHaveLength(0)
 		expect(incremented['~core'].runtimeSteps).toHaveLength(1)
 		expect(chained['~core'].runtimeSteps).toHaveLength(3)
+		expect(v['~core'].operationMode).toBe('sync')
+		expect(incremented['~core'].operationMode).toBe('sync')
+		expect(chained['~core'].operationMode).toBe('sync')
+		expect(v.unannotated()['~core'].operationMode).toBe('maybe-async')
+		expect(v.unannotated().execute(1)).toEqual({ value: 1 })
+		expect(v.maybeAsync()['~core'].operationMode).toBe('maybe-async')
+		expect(v.maybeAsync().increment()['~core'].operationMode).toBe('maybe-async')
+		expect(v.asyncMode()['~core'].operationMode).toBe('async')
+		expect(v.asyncMode().maybeAsync()['~core'].operationMode).toBe('async')
 	})
 
 	it('composes an initial schema from the same registry without inheriting the current chain', () => {

@@ -59,6 +59,7 @@ export const set = implStepPlugin<PluginDef>({
 		params: [itemSchema, options],
 	}) => {
 		const execute = itemSchema['~execute']
+		const operationMode = itemSchema['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
 
 		addSuccessStep((value) => {
 			if (!(value instanceof Set)) {
@@ -138,6 +139,6 @@ export const set = implStepPlugin<PluginDef>({
 			}
 
 			return issues == null ? success(output) : failure(issues)
-		})
+		}, operationMode)
 	},
 })

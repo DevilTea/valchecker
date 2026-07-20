@@ -62,4 +62,4 @@ export const isOneOf = implStepPlugin<PluginDef>({
 			}))
 		})
 	},
-})
+}, 'sync')

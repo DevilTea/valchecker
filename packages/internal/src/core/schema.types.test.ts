@@ -12,6 +12,7 @@ describe('schema type-state contracts', () => {
 		const schema = v.string().transform(async value => value.toUpperCase())
 
 		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'maybe-async'>()
+		expect(schema['~core'].operationMode).toBe('maybe-async')
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string>()
 
 		const syncFailure = schema.execute(42 as any)
@@ -24,6 +25,7 @@ describe('schema type-state contracts', () => {
 
 		const alwaysAsync = schema.toAsync()
 		expectTypeOf<InferOperationMode<typeof alwaysAsync>>().toEqualTypeOf<'async'>()
+		expect(alwaysAsync['~core'].operationMode).toBe('async')
 		const promised: Promise<unknown> = alwaysAsync.execute(42 as any)
 		expect(promised).toBeInstanceOf(Promise)
 		await expect(promised).resolves.toMatchObject({ issues: [{ code: 'string:expected_string' }] })
@@ -36,10 +38,13 @@ describe('schema type-state contracts', () => {
 		const looseSchema = v.looseObject({ value: child })
 
 		expectTypeOf<InferOperationMode<typeof objectSchema>>().toEqualTypeOf<'maybe-async'>()
+		expect(objectSchema['~core'].operationMode).toBe('maybe-async')
 		expectTypeOf<InferOutput<typeof objectSchema>>().toEqualTypeOf<{ value: string }>()
 		expectTypeOf<InferOperationMode<typeof strictSchema>>().toEqualTypeOf<'maybe-async'>()
+		expect(strictSchema['~core'].operationMode).toBe('maybe-async')
 		expectTypeOf<InferOutput<typeof strictSchema>>().toEqualTypeOf<{ value: string }>()
 		expectTypeOf<InferOperationMode<typeof looseSchema>>().toEqualTypeOf<'maybe-async'>()
+		expect(looseSchema['~core'].operationMode).toBe('maybe-async')
 		expectTypeOf<InferOutput<typeof looseSchema>>().toMatchTypeOf<{ value: string }>()
 
 		expect(objectSchema.execute(null as any)).not.toBeInstanceOf(Promise)
@@ -72,6 +77,7 @@ describe('schema type-state contracts', () => {
 		const schema = v.unknown().use(delegated)
 
 		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'maybe-async'>()
+		expect(schema['~core'].operationMode).toBe('maybe-async')
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string>()
 		expectTypeOf<InferIssue<typeof schema>>().toEqualTypeOf<InferIssue<typeof delegated>>()
 

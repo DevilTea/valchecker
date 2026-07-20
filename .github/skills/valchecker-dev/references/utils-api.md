@@ -6,12 +6,18 @@ The `utils` object passed to step implementations provides essential functions f
 
 | Function | Purpose | Return Type |
 |----------|---------|-------------|
-| `addSuccessStep(fn)` | Register a validation function that runs on success | `void` |
-| `addFailureStep(fn)` | Register a function that runs on failure (for recovery) | `void` |
+| `addStep(fn, operationMode?)` | Register a general result step | `void` |
+| `addSuccessStep(fn, operationMode?)` | Register a validation function that runs on success | `void` |
+| `addFailureStep(fn, operationMode?)` | Register a function that runs on failure (for recovery) | `void` |
 | `success(value)` | Return a successful result | `SuccessResult<T>` |
 | `failure(issue)` | Return a failure with single issue | `FailureResult` |
 | `failure([issues])` | Return a failure with a non-empty issue tuple | `FailureResult` |
 | `createIssue(opts)` | Create a structured issue object | `Issue` |
+
+
+## Operation mode
+
+Unannotated custom plugins are conservatively treated as `maybe-async`. A plugin may pass `'sync'` as the second argument to `implStepPlugin()` only when all unannotated callbacks are guaranteed to return synchronously. Individual registration calls accept `'sync'`, `'maybe-async'`, or `'async'` to override that plugin default. Declaring `'sync'` is a runtime contract: returning a promise-like result from such a step is unsupported.
 
 ## addSuccessStep
 

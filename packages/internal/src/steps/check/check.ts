@@ -130,6 +130,6 @@ export const check = implStepPlugin<PluginDef>({
 			catch (error) {
 				return callbackFailure('throw', error)
 			}
-		})
+		}, 'maybe-async')
 	},
 })

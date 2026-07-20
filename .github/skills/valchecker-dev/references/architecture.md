@@ -92,11 +92,12 @@ export const stepName = implStepPlugin<PluginDef>({
       )
     })
   },
-})
+}, 'sync')
 ```
 
 **Important Notes:**
 - Always use `/* @__NO_SIDE_EFFECTS__ */` for tree-shaking
+- `implStepPlugin()` defaults unannotated custom plugins to `maybe-async`. Pass `'sync'` only when every unannotated runtime callback in that plugin is contractually synchronous; individual `addStep()` calls may still override the mode.
 - Register validation with `addSuccessStep()` or `addFailureStep()`
 - Use `success()` to pass values, `failure()` to report one or more issues; failure arrays must be non-empty
 - Return transformed values in `success()` for transform steps

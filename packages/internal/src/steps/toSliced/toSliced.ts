@@ -62,4 +62,4 @@ export const toSliced = implStepPlugin<PluginDef>({
 			return success(value.slice(...params))
 		})
 	},
-})
+}, 'sync')

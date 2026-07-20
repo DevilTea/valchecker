@@ -45,4 +45,4 @@ export const toLength = implStepPlugin<PluginDef>({
 			return success(value.length)
 		})
 	},
-})
+}, 'sync')

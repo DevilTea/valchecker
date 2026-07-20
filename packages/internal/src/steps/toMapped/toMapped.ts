@@ -151,4 +151,4 @@ export const toMapped = implStepPlugin<PluginDef>({
 			return success(output)
 		})
 	},
-})
+}, 'sync')

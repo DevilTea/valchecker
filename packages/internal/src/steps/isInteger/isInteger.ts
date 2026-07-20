@@ -58,4 +58,4 @@ export const isInteger = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-})
+}, 'sync')
