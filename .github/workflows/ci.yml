@@ -111,6 +111,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Type Performance
+        run: pnpm typeperf
+
+      - name: Publish Type Performance Summary
+        if: always() && hashFiles('artifacts/type-performance/summary.md') != ''
+        run: cat artifacts/type-performance/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Type Performance Report
+        if: always() && hashFiles('artifacts/type-performance/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: type-performance
+          path: artifacts/type-performance
+          if-no-files-found: error
+          retention-days: 30
+
   Docs:
     runs-on: ubuntu-latest
     steps:
