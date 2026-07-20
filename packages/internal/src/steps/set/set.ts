@@ -52,11 +52,6 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-interface FirstItemMeta {
-	firstItem: unknown
-	firstIndex: number
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export const set = implStepPlugin<PluginDef>({
 	set: ({
@@ -77,7 +72,7 @@ export const set = implStepPlugin<PluginDef>({
 
 			const items = [...value.values()]
 			const output = new Set<unknown>()
-			const firstItemMeta = new Map<unknown, FirstItemMeta>()
+			const firstItemIndex = new Map<unknown, number>()
 			let issues: AnyExecutionIssue[] | undefined
 
 			const processResult = (result: ExecutionResult, item: unknown, index: number): boolean => {
@@ -94,18 +89,18 @@ export const set = implStepPlugin<PluginDef>({
 
 				const transformedItem = result.value
 				if (output.has(transformedItem)) {
-					const first = firstItemMeta.get(transformedItem)
-					if (first == null)
+					const firstIndex = firstItemIndex.get(transformedItem)
+					if (firstIndex == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
 					target.push(createIssue({
 						code: 'set:duplicate_transformed_item',
 						payload: {
 							value,
-							firstItem: first.firstItem,
+							firstItem: items[firstIndex],
 							item,
 							transformedItem,
-							firstIndex: first.firstIndex,
+							firstIndex,
 							index,
 						},
 						path: [index],
@@ -116,7 +111,7 @@ export const set = implStepPlugin<PluginDef>({
 				}
 
 				output.add(transformedItem)
-				firstItemMeta.set(transformedItem, { firstItem: item, firstIndex: index })
+				firstItemIndex.set(transformedItem, index)
 				return false
 			}
 
