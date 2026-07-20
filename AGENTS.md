@@ -34,6 +34,24 @@ Run relevant benchmarks for performance or bundle-sensitive changes.
 - `/* @__NO_SIDE_EFFECTS__ */` on tree-shakable plugin exports
 - follow existing core and step patterns
 
+## Runtime boundary policy
+
+Do not add or retain runtime work solely to defend against deliberate violations of a precise TypeScript contract. TypeScript-only enforcement is acceptable only when every condition below is satisfied:
+
+1. the surface is low-level or an explicitly advanced integration API;
+2. declarations already forbid the operation precisely;
+3. violating the contract requires `any`, a type assertion, direct mutation, or untyped JavaScript;
+4. the failure is confined to the violating caller;
+5. unrelated callers, future valid executions, shared state, security, and data integrity cannot be affected;
+6. the runtime defense runs on a broad or performance-sensitive path;
+7. benchmarks or profiling demonstrate material cost.
+
+Preserve runtime validation when any ordinary public API can receive the value, JavaScript callers could reasonably provide it, TypeScript cannot express the invariant, accepting it creates invalid schema or execution state, delayed failure harms diagnostics, mutation can cross call boundaries, or no measured cost justifies removal.
+
+Before removing a freeze or defensive copy, determine whether the same reference is used by private execution state and public issue payloads. Separate those representations first when consumer mutation could alter future validation. A pull request that changes runtime enforcement must document the boundary, TypeScript guarantee, JavaScript bypass, blast radius, ownership, benchmark evidence, and preserved tests.
+
+Follow [the complete runtime boundary policy](.github/skills/valchecker-dev/references/runtime-boundaries.md).
+
 ## Step naming contract
 
 ### Initial schemas
