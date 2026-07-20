@@ -51,7 +51,7 @@
 		"lint": "eslint .",
 		"lint:fix": "eslint --fix .",
 		"typecheck": "pnpm -r typecheck",
-		"typeperf": "tsx ./scripts/check-type-performance.ts",
+		"typeperf": "pnpm build && tsx ./scripts/check-type-performance.ts",
 		"prepare": "simple-git-hooks"
 	},
 	"devDependencies": {
