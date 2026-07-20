@@ -1,9 +1,12 @@
 name: Fix runtime coverage
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/runtime-structural-fast-paths
+      - main
+    types:
+      - synchronize
+      - reopened
     paths:
       - '.github/workflows/fix-runtime-coverage.yml'
 
@@ -12,25 +15,34 @@ permissions:
 
 jobs:
   fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: agent/runtime-structural-fast-paths
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-      - name: Add strict object coverage and rebuild stage D
+      - name: Fix failure state usage and rebuild stage D
         shell: bash
         run: |
           python <<'PY'
           from pathlib import Path
 
-          path = Path('packages/internal/src/steps/strictObject/strictObject.test.ts')
-          source = path.read_text()
-          marker = "preserves an own __proto__ output property"
-          if marker not in source:
-              test = r'''
+          core_path = Path('packages/internal/src/core/core.ts')
+          core = core_path.read_text()
+          old = "return 'issues' in result && hasIssueDraft(result.issues)"
+          new = "return 'issues' in result && failureNeedsFinalization(result)"
+          if core.count(old) != 1:
+              raise SystemExit(f'Expected one sync failure scan, found {core.count(old)}')
+          core_path.write_text(core.replace(old, new))
 
-	it('preserves an own __proto__ output property', () => {
+          strict_path = Path('packages/internal/src/steps/strictObject/strictObject.test.ts')
+          strict_source = strict_path.read_text()
+          strict_marker = "preserves an own __proto__ output property"
+          if strict_marker not in strict_source:
+              strict_test = r'''
+
+	it('preserves an own __proto__ output property', async () => {
 		const struct = Object.create(null) as Record<PropertyKey, unknown>
 		Object.defineProperty(struct, '__proto__', {
 			enumerable: true,
@@ -42,7 +54,7 @@ jobs:
 			value: 'safe',
 		})
 
-		const result = v.strictObject(struct as any).execute(input)
+		const result = await v.strictObject(struct as any).execute(input)
 		expect(result).toHaveProperty('value')
 		if (!('value' in result))
 			throw new TypeError('Expected strictObject success.')
@@ -50,13 +62,52 @@ jobs:
 		expect((result.value as Record<PropertyKey, unknown>).__proto__).toBe('safe')
 	})
 '''
-              source = source.rsplit('\n})', 1)[0] + test + '\n})\n'
-              path.write_text(source)
+              strict_source = strict_source.rsplit('\n})', 1)[0] + strict_test + '\n})\n'
+              strict_path.write_text(strict_source)
+
+          failure_path = Path('packages/internal/src/core/failure-draft-state.test.ts')
+          failure_source = failure_path.read_text()
+          failure_marker = "does not inspect tracked static issue metadata"
+          if failure_marker not in failure_source:
+              failure_test = r'''
+
+	it('does not inspect tracked static issue metadata', () => {
+		const symbolReads = vi.fn()
+		const createStaticIssue = () => new Proxy<AnyExecutionIssue>({
+			code: 'external:static',
+			category: 'validation',
+			payload: {},
+			message: 'Static issue.',
+			path: [],
+		}, {
+			get(target, property, receiver) {
+				if (typeof property === 'symbol')
+					symbolReads()
+				return Reflect.get(target, property, receiver)
+			},
+		})
+		const issues = [createStaticIssue(), createStaticIssue()]
+		markFailureIssueDraftState(issues, false)
+		const external = {
+			'~core': { operationMode: 'sync' as const },
+			'~execute': () => ({ issues }),
+		}
+
+		const result = (v.unknown() as any).use(external).execute('value')
+		expectFailure(result)
+		expect(result.issues).toBe(issues)
+		expect(symbolReads).not.toHaveBeenCalled()
+	})
+'''
+              failure_source = failure_source.rsplit('\n})', 1)[0] + failure_test + '\n})\n'
+              failure_path.write_text(failure_source)
           PY
           git rm .github/workflows/fix-runtime-coverage.yml
           git reset --soft 92c7beecf82f71ed6e5ce2be731f500320a56d8d
-          git add packages/internal/src/steps/strictObject/strictObject.test.ts
+          git add packages/internal/src/core/core.ts \
+            packages/internal/src/core/failure-draft-state.test.ts \
+            packages/internal/src/steps/strictObject/strictObject.test.ts
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Track failure issue draft state"
-          git push --force origin HEAD:agent/runtime-structural-fast-paths
+          git push --force origin HEAD:${{ github.event.pull_request.head.ref }}
