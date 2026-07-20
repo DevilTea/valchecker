@@ -4,7 +4,7 @@
 	"version": "1.0.0-rc.0",
 	"private": true,
 	"packageManager": "pnpm@10.34.4",
-	"description": "A JS / TS value checker.",
+	"description": "A modular TypeScript runtime validation library.",
 	"author": "DevilTea <ch870814@gmail.com>",
 	"license": "MIT",
 	"homepage": "https://github.com/DevilTea/valchecker#readme",
@@ -13,7 +13,16 @@
 		"url": "git+https://github.com/DevilTea/valchecker.git"
 	},
 	"bugs": "https://github.com/DevilTea/valchecker/issues",
-	"keywords": [],
+	"keywords": [
+		"typescript",
+		"schema",
+		"validation",
+		"validator",
+		"runtime-validation",
+		"type-inference",
+		"standard-schema",
+		"tree-shaking"
+	],
 	"sideEffects": false,
 	"engines": {
 		"node": ">=22"

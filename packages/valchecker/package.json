@@ -5,6 +5,7 @@
 		"access": "public"
 	},
 	"version": "1.0.0-rc.0",
+	"description": "Runtime-first TypeScript validation with a tree-shakeable fluent API.",
 	"author": "DevilTea <ch19980814@gmail.com>",
 	"license": "MIT",
 	"repository": {
@@ -15,7 +16,16 @@
 	"bugs": {
 		"url": "https://github.com/DevilTea/valchecker/issues"
 	},
-	"keywords": [],
+	"keywords": [
+		"typescript",
+		"schema",
+		"validation",
+		"validator",
+		"runtime-validation",
+		"type-inference",
+		"standard-schema",
+		"tree-shaking"
+	],
 	"sideEffects": false,
 	"engines": {
 		"node": ">=22"

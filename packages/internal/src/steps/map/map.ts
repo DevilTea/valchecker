@@ -59,11 +59,6 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-interface FirstKeyMeta {
-	firstSourceKey: unknown
-	firstIndex: number
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export const map = implStepPlugin<PluginDef>({
 	map: ({
@@ -85,7 +80,7 @@ export const map = implStepPlugin<PluginDef>({
 
 			const entries = [...value.entries()]
 			const output = new Map<unknown, unknown>()
-			const firstKeyMeta = new Map<unknown, FirstKeyMeta>()
+			const firstKeyIndex = new Map<unknown, number>()
 			let issues: AnyExecutionIssue[] | undefined
 
 			const appendChildIssues = (result: ExecutionResult, path: PropertyKey[]): boolean => {
@@ -108,18 +103,18 @@ export const map = implStepPlugin<PluginDef>({
 				transformedValue: unknown,
 			): void => {
 				if (output.has(transformedKey)) {
-					const first = firstKeyMeta.get(transformedKey)
-					if (first == null)
+					const firstIndex = firstKeyIndex.get(transformedKey)
+					if (firstIndex == null)
 						throw new Error('Missing transformed Map key metadata.')
 					const target = issues ??= []
 					target.push(createIssue({
 						code: 'map:duplicate_transformed_key',
 						payload: {
 							value,
-							firstSourceKey: first.firstSourceKey,
+							firstSourceKey: entries[firstIndex]![0],
 							sourceKey,
 							transformedKey,
-							firstIndex: first.firstIndex,
+							firstIndex,
 							index,
 						},
 						path: [index, 'key'],
@@ -129,7 +124,7 @@ export const map = implStepPlugin<PluginDef>({
 					return
 				}
 				output.set(transformedKey, transformedValue)
-				firstKeyMeta.set(transformedKey, { firstSourceKey: sourceKey, firstIndex: index })
+				firstKeyIndex.set(transformedKey, index)
 			}
 
 			const continueAsync = async (
