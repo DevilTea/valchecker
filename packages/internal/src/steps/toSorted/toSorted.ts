@@ -74,4 +74,4 @@ export const toSorted = implStepPlugin<PluginDef>({
 			}
 		})
 	},
-})
+}, 'sync')

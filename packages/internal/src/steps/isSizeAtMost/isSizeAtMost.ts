@@ -34,4 +34,4 @@ export const isSizeAtMost = implStepPlugin<PluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

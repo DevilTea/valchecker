@@ -44,4 +44,4 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const unknown = implStepPlugin<PluginDef>({
 	unknown: noop,
-})
+}, 'sync')

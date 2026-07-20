@@ -55,4 +55,4 @@ export const isNaN = implStepPlugin<PluginDef>({
 					}),
 				))
 	},
-})
+}, 'sync')

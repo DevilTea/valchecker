@@ -69,4 +69,4 @@ export const isLengthAtMost = implStepPlugin<LengthAtMostPluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

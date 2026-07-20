@@ -71,4 +71,4 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 			}))
 		})
 	},
-})
+}, 'sync')

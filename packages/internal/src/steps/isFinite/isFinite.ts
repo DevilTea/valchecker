@@ -55,4 +55,4 @@ export const isFinite = implStepPlugin<PluginDef>({
 					}),
 				))
 	},
-})
+}, 'sync')

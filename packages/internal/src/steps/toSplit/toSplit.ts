@@ -49,4 +49,4 @@ export const toSplit = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep(value => success(value.split(...params)))
 	},
-})
+}, 'sync')

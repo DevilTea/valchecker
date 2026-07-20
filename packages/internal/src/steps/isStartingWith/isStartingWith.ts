@@ -56,4 +56,4 @@ export const isStartingWith = implStepPlugin<PluginDef>({
 					}),
 				))
 	},
-})
+}, 'sync')

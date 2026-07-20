@@ -50,6 +50,6 @@ export const toAsync = implStepPlugin<PluginDef>({
 	}) => {
 		addStep((lastResult) => {
 			return Promise.resolve(lastResult)
-		})
+		}, 'async')
 	},
 })

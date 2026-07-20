@@ -75,4 +75,4 @@ export const isIncluding = implStepPlugin<PluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

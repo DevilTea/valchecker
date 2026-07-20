@@ -62,6 +62,7 @@ export const array = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [item, options],
 	}) => {
+		const operationMode = item['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
 		addSuccessStep((value) => {
 			if (Array.isArray(value) === false) {
 				return failure(createIssue({
@@ -120,6 +121,6 @@ export const array = implStepPlugin<PluginDef>({
 			}
 
 			return issues == null ? success(output) : failure(issues)
-		})
+		}, operationMode)
 	},
 })

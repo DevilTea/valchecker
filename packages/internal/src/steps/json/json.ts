@@ -67,4 +67,4 @@ export const json = implStepPlugin<PluginDef>({
 			},
 		)
 	},
-})
+}, 'sync')

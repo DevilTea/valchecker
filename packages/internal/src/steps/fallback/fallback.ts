@@ -92,6 +92,6 @@ export const fallback = implStepPlugin<PluginDef>({
 			catch (error) {
 				return handleError(error)
 			}
-		})
+		}, 'maybe-async')
 	},
 })

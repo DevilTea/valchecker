@@ -64,4 +64,4 @@ export const bigint = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-})
+}, 'sync')

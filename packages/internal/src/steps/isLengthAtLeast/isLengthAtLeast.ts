@@ -69,4 +69,4 @@ export const isLengthAtLeast = implStepPlugin<LengthAtLeastPluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

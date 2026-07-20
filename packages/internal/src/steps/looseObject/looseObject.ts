@@ -106,6 +106,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				keys.push(key)
 		}
 		const keysLen = keys.length
+		let operationMode: OperationMode = 'sync'
 		const propsMeta: Array<{ key: PropertyKey, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -114,6 +115,8 @@ export const looseObject = implStepPlugin<PluginDef>({
 			const isOptional = Array.isArray(prop)
 			const schema = isOptional ? prop[0]! : prop
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
+			if (schema['~core']?.operationMode !== 'sync')
+				operationMode = 'maybe-async'
 		}
 
 		addSuccessStep((value) => {
@@ -212,6 +215,6 @@ export const looseObject = implStepPlugin<PluginDef>({
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)
-		})
+		}, operationMode)
 	},
 })

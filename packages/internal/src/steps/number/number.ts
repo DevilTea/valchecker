@@ -65,4 +65,4 @@ export const number = implStepPlugin<PluginDef>({
 			)
 		})
 	},
-})
+}, 'sync')

@@ -19,4 +19,4 @@ export const toEntries = implStepPlugin<PluginDef>({
 	toEntries: ({ utils: { addSuccessStep, success } }) => {
 		addSuccessStep(value => success([...value.entries()]))
 	},
-})
+}, 'sync')

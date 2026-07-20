@@ -67,6 +67,10 @@ export const map = implStepPlugin<PluginDef>({
 	}) => {
 		const keyExecute = options.key['~execute']
 		const valueExecute = options.value['~execute']
+		const operationMode = options.key['~core']?.operationMode === 'sync'
+			&& options.value['~core']?.operationMode === 'sync'
+			? 'sync'
+			: 'maybe-async'
 
 		addSuccessStep((value) => {
 			if (!(value instanceof Map)) {
@@ -179,6 +183,6 @@ export const map = implStepPlugin<PluginDef>({
 			}
 
 			return issues == null ? success(output) : failure(issues)
-		})
+		}, operationMode)
 	},
 })

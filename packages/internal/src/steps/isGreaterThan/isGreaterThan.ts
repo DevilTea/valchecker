@@ -35,4 +35,4 @@ export const isGreaterThan = implStepPlugin<PluginDef>({
 					defaultMessage: `Expected a value greater than ${minimum}.`,
 				})))
 	},
-})
+}, 'sync')

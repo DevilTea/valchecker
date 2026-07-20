@@ -49,4 +49,4 @@ export const isDefined = implStepPlugin<PluginDef>({
 					defaultMessage: 'Expected a defined value.',
 				})))
 	},
-})
+}, 'sync')

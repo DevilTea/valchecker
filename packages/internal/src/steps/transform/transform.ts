@@ -71,6 +71,6 @@ export const transform = implStepPlugin<PluginDef>({
 			catch (error) {
 				return callbackFailure('throw', error)
 			}
-		})
+		}, 'maybe-async')
 	},
 })

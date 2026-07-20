@@ -447,6 +447,9 @@ export const intersection = implStepPlugin<PluginDef>({
 		params: [branches],
 	}) => {
 		const branchExecutors = branches.map(branch => branch['~execute'])
+		const operationMode: OperationMode = branches.every(branch => branch['~core']?.operationMode === 'sync')
+			? 'sync'
+			: 'maybe-async'
 		const len = branchExecutors.length
 
 		addSuccessStep((value) => {
@@ -503,6 +506,6 @@ export const intersection = implStepPlugin<PluginDef>({
 			}
 
 			return mergeOutputs()
-		})
+		}, operationMode)
 	},
 })

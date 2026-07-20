@@ -45,4 +45,4 @@ export const toUppercase = implStepPlugin<PluginDef>({
 			return success(value.toUpperCase())
 		})
 	},
-})
+}, 'sync')

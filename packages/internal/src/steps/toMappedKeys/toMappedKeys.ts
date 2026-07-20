@@ -117,4 +117,4 @@ export const toMappedKeys = implStepPlugin<PluginDef>({
 			return success(output)
 		})
 	},
-})
+}, 'sync')

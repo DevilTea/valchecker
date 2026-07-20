@@ -66,4 +66,4 @@ export const isMultipleOf = implStepPlugin<PluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

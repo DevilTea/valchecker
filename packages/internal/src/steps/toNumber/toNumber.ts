@@ -68,4 +68,4 @@ export const toNumber = implStepPlugin<PluginDef>({
 			}
 		})
 	},
-})
+}, 'sync')

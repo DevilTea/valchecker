@@ -55,4 +55,4 @@ export const isNonNullish = implStepPlugin<PluginDef>({
 					defaultMessage: 'Expected a non-nullish value.',
 				})))
 	},
-})
+}, 'sync')
