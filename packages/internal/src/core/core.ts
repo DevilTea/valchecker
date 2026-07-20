@@ -28,6 +28,7 @@ const stepPluginDefaultOperationMode = Symbol.for('valchecker.stepPluginDefaultO
 const syncOperationMode = 0
 const maybeAsyncOperationMode = 1
 const asyncOperationMode = 2
+const operationModes = ['sync', 'maybe-async', 'async'] as const
 
 type RuntimeOperationMode =
 	| typeof syncOperationMode
@@ -51,14 +52,6 @@ function toRuntimeOperationMode(operationMode: OperationMode): RuntimeOperationM
 		: operationMode === 'async'
 			? asyncOperationMode
 			: maybeAsyncOperationMode
-}
-
-function toOperationMode(operationMode: RuntimeOperationMode): OperationMode {
-	return operationMode === syncOperationMode
-		? 'sync'
-		: operationMode === asyncOperationMode
-			? 'async'
-			: 'maybe-async'
 }
 
 interface StepMethodContext {
@@ -796,10 +789,8 @@ function createCoreProperties(
 		'~core': {
 			executionStepContext: null!,
 			RegisteredStepPluginDefs: null!,
-			get runtimeSteps() {
-				return runtimeSteps
-			},
-			operationMode: toOperationMode(operationMode),
+			runtimeSteps,
+			operationMode: operationModes[operationMode],
 		},
 		'~execute': executeRaw,
 		execute,
