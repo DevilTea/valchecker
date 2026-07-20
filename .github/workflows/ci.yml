@@ -126,10 +126,29 @@ jobs:
           node-version: 24
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --silent
 
       - name: Measure Type Performance
-        run: pnpm typeperf
+        id: measure
+        shell: bash
+        run: |
+          set +e
+          pnpm typeperf
+          status=$?
+          diagnostic=""
+          if [[ -f artifacts/type-performance/compiler-output.log ]]; then
+            diagnostic="$(grep -oE 'error TS[0-9]+: .*' artifacts/type-performance/compiler-output.log | head -n 1 || true)"
+          fi
+          if [[ -z "$diagnostic" ]]; then
+            if [[ "$status" -eq 0 ]]; then
+              diagnostic="success"
+            else
+              diagnostic="failed-without-typescript-diagnostic"
+            fi
+          fi
+          artifact_key="$(printf '%s' "$diagnostic" | tr -cs '[:alnum:]._-' '-' | cut -c 1-100)"
+          echo "artifact-key=$artifact_key" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
       - name: Publish Type Performance Summary
         if: always() && hashFiles('artifacts/type-performance/summary.md') != ''
@@ -139,7 +158,7 @@ jobs:
         if: always() && hashFiles('artifacts/type-performance/**') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: type-performance
+          name: type-performance-${{ steps.measure.outputs.artifact-key }}
           path: artifacts/type-performance
           if-no-files-found: error
           retention-days: 30
