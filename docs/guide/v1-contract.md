@@ -65,6 +65,8 @@ Built-in APIs communicate their role through naming:
 
 A message-bearing built-in step accepts at most one required semantic operand positionally. Optional configuration and `message` are supplied through one trailing options object. Message-only steps accept an optional options object, and configuration-object steps include `message` in that object. Positional messages are not part of the 1.0 API.
 
+Structural steps that evaluate multiple children may also expose `collectAllIssues` in that options object. Map keeps `key`, `value`, `message`, and `collectAllIssues` in its single required configuration object.
+
 ```ts
 v.number()
 	.isAtLeast(0, { message: 'Expected a non-negative number.' })
@@ -72,6 +74,7 @@ v.string()
 	.isNotEmpty({ message: 'Required.' })
 v.array(v.number())
 	.toSorted({ compareFn: (left, right) => left - right })
+v.object({ name: v.string() }, { collectAllIssues: true })
 ```
 
 Examples:
@@ -292,19 +295,29 @@ Issue paths are arrays of property keys. Nested validators prepend paths by crea
 
 Custom and delegated schemas may safely return frozen or reused issue objects. Symbol path segments are preserved. A delegated issue retains the global message resolver belonging to the instance that created it; an explicit enclosing structure message still has higher priority.
 
+## Structural issue collection
+
+`object()`, `strictObject()`, `looseObject()`, `array()`, `set()`, `map()`, and `intersection()` stop after the first recoverable structural or child failure by default. The failing child may contribute every issue from that child execution, but later siblings, items, entries, or intersection branches are not evaluated.
+
+`collectAllIssues: true` continues after recoverable validation and operation failures and aggregates issues from later structural children. The option is normalized when the schema is constructed, so default and collect-all execution use separate traversal paths.
+
+Internal issues are fatal in both modes and stop later work immediately. `union()` and `variant()` retain their own branch-selection contracts and do not accept this option.
+
 ## Object schemas
 
 All object validators read declared fields from own properties only. Inherited values do not satisfy declared fields. A missing required own property produces the variant-specific `*:missing_key` issue with `{ key }`, and its public path points directly at that key. An own property whose value is `undefined` is present and is passed to the child schema.
 
-### `object(shape)`
+### `object(shape, options?)`
 
 Validates declared fields and returns declared transformed outputs. Unknown input properties are omitted.
 
-### `strictObject(shape)`
+### `strictObject(shape, options?)`
 
-Behaves like `object()` and rejects unknown enumerable own string and symbol keys with `strictObject:unexpected_keys`. The payload is `{ keys, expectedKeys }`. Unexpected keys, missing required keys, and invalid known fields are collected in the same execution rather than returning after the first class of structural error.
+Behaves like `object()` and rejects unknown enumerable own string and symbol keys with `strictObject:unexpected_keys`. The payload is `{ keys, expectedKeys }` and includes every unknown key found during the initial key scan.
 
-### `looseObject(shape)`
+Unknown-key detection precedes declared-field validation. In default mode, `strictObject:unexpected_keys` returns immediately. With `collectAllIssues: true`, missing required keys and invalid known fields are appended in declared shape order.
+
+### `looseObject(shape, options?)`
 
 Validates declared fields and preserves unknown own properties and descriptors. Declared transformed outputs are materialized as ordinary writable data properties.
 
@@ -318,19 +331,21 @@ A declared `__proto__` key is created as an own enumerable data property without
 
 ## Arrays
 
-`array(schema)` validates elements in index order and returns their transformed outputs. Nested issues receive numeric indices in their paths.
+`array(schema, options?)` validates elements in index order and returns their transformed outputs. Nested issues receive numeric indices in their paths.
 
-Earlier synchronous failures can complete before later asynchronous element work is started. Validation and operation issues are collected; an internal issue stops sibling element evaluation immediately and is returned without being hidden.
+By default, the first failing element stops later element work. With `collectAllIssues: true`, validation and operation issues are collected from remaining indexes. An internal issue always stops sibling element evaluation immediately and is returned without being hidden.
 
 ## Map and Set schemas
 
 `set(itemSchema, options?)` accepts `Set` instances, snapshots items at execution start, validates and transforms them in insertion order, and returns a new Set. Child issues receive `[index]` paths.
 
-`map({ key, value, message? })` accepts `Map` instances, snapshots entries at execution start, and executes each entry's key schema before its value schema. Child paths are `[index, 'key']` and `[index, 'value']`. A recoverable key failure does not hide the corresponding value failure.
+`map({ key, value, message?, collectAllIssues? })` accepts `Map` instances, snapshots entries at execution start, and executes each entry's key schema before its value schema. Child paths are `[index, 'key']` and `[index, 'value']`.
 
-Fully synchronous child schemas preserve synchronous collection execution. After a reached thenable, remaining items or entries continue sequentially. Validation and operation issues are collected; an internal child issue stops the current structural continuation and all later siblings. An internal Map key issue stops before the current value schema.
+In default mode, a recoverable Set item failure stops later items. A recoverable Map key failure skips the current value and stops later entries; a value failure also stops later entries. With `collectAllIssues: true`, recoverable issues are collected from later items or entries, and a Map key failure does not hide the corresponding value failure.
 
-Outputs are newly constructed collections and do not mutate the input. If successful source items or keys transform to duplicate SameValueZero values, `set:duplicate_transformed_item` or `map:duplicate_transformed_key` is returned instead of silently reducing Set cardinality or applying Map last-write-wins behavior.
+Fully synchronous child schemas preserve synchronous collection execution. After a reached thenable, remaining items or entries continue sequentially. An internal child issue stops the current structural continuation and all later siblings. An internal Map key issue stops before the current value schema.
+
+Outputs are newly constructed collections and do not mutate the input. If successful source items or keys transform to duplicate SameValueZero values, `set:duplicate_transformed_item` or `map:duplicate_transformed_key` is returned instead of silently reducing Set cardinality or applying Map last-write-wins behavior. In default mode, that collision stops traversal; collect-all mode records it and continues.
 
 The collection-level message participates as an enclosing structure message for owned and nested child issues after paths are prepended.
 
@@ -374,7 +389,7 @@ A variant is synchronous only when every configured branch is synchronous. Other
 
 ## Intersection semantics
 
-`intersection(schemas)` executes all branches and composes compatible outputs.
+`intersection(schemas, options?)` executes branches and composes compatible outputs when every branch succeeds.
 
 Only plain objects are recursively composed. Composition supports enumerable string and symbol keys, compatible cycles, shared references, aliases, and accessors whose values are read once per branch output.
 
@@ -382,7 +397,7 @@ Primitive values are compatible when `Object.is(left, right)` is true. The same 
 
 Incompatible outputs fail with `intersection:conflicting_outputs`. Its payload identifies `path`, `leftBranch`, `rightBranch`, `leftValue`, `rightValue`, and a reason: `different_values`, `different_references`, `incompatible_alias`, `incompatible_cycle`, or `incompatible_prototype`.
 
-After the first asynchronous branch is reached, remaining branches are started and awaited together. A synchronous failure before asynchronous work remains fail-fast.
+Default branch execution is ordered and fail-fast, including after the first asynchronous branch is reached. A failed branch does not start later branches. With `collectAllIssues: true`, recoverable branch failures are aggregated; once asynchronous execution is reached, the current and remaining branches may be started and awaited together. Output merging runs only if every branch succeeds.
 
 ## Fatal and recoverable failures
 
@@ -392,8 +407,10 @@ Combinators use issue categories rather than issue-code string matching:
 | --- | --- | --- | --- |
 | `union()` | try next branch | try next branch | return immediately |
 | `fallback()` | recoverable | recoverable | callback is not run |
-| object/array siblings | collect | collect | stop immediately |
-| `intersection()` | fail | fail | fail |
+| structural siblings, default | stop | stop | stop immediately |
+| structural siblings, `collectAllIssues: true` | collect | collect | stop immediately |
+| `intersection()`, default | fail and stop later branches | fail and stop later branches | fail immediately |
+| `intersection()`, `collectAllIssues: true` | collect branch failure | collect branch failure | fail immediately |
 | `use()` | pass through | pass through | pass through |
 
 If a fallback callback throws or rejects, the final failure contains the original received issues followed by `fallback:failed`, whose category is `operation` and whose payload always includes the thrown `error`.

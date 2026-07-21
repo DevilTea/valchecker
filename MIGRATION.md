@@ -28,11 +28,58 @@ Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v
 7. Audit every `execute()` call for sync or maybe-async behavior.
 8. Add `.toAsync()` where an API requires an unconditional promise.
 9. Verify unions, intersections, object variants, and issue-path handling.
-10. Remove imports of implementation helpers that are no longer exported.
-11. Update message maps for renamed issue codes, payload fields, and the required issue `category`.
-12. Replace assumptions that failure issue arrays may be empty.
-13. Update callback, conversion, JSON, length, and mapped-boolean issue payload handling.
-14. Run installed-package consumer tests, not only workspace source tests.
+10. Add `collectAllIssues: true` where consumers require issues from every structural child.
+11. Remove imports of implementation helpers that are no longer exported.
+12. Update message maps for renamed issue codes, payload fields, and the required issue `category`.
+13. Replace assumptions that failure issue arrays may be empty.
+14. Update callback, conversion, JSON, length, and mapped-boolean issue payload handling.
+15. Run installed-package consumer tests, not only workspace source tests.
+
+## Structural schemas now stop after the first issue
+
+`array()`, `set()`, `map()`, `object()`, `strictObject()`, `looseObject()`, and `intersection()` now stop after the first recoverable structural or child failure by default. This avoids executing later work that cannot change the failed result and makes the default path suitable for performance-sensitive validation.
+
+A failing child can still return multiple issues from its own execution. The change controls whether the parent structure continues to later siblings, items, entries, or intersection branches.
+
+Before, complete structural collection was implicit:
+
+```ts
+const schema = v.object({
+	name: v.string(),
+	age: v.number(),
+})
+
+schema.execute({ name: 1, age: 'old' })
+// Previously contained issues for both fields.
+```
+
+Preserve that behavior explicitly:
+
+```ts
+const schema = v.object({
+	name: v.string(),
+	age: v.number(),
+}, { collectAllIssues: true })
+
+schema.execute({ name: 1, age: 'old' })
+// Contains issues for both fields.
+```
+
+The same trailing option applies to `array()`, `set()`, `strictObject()`, `looseObject()`, and `intersection()`. `map()` keeps all configuration in its required object:
+
+```ts
+const schema = v.map({
+	key: v.string(),
+	value: v.number(),
+	collectAllIssues: true,
+})
+```
+
+Map defaults are now particularly strict: a failing key skips the current value and stops later entries. With `collectAllIssues: true`, the value is still validated and later entries continue.
+
+Default asynchronous intersections now evaluate branches sequentially after the first reached thenable, so a failed branch does not start later branches. `collectAllIssues: true` keeps complete branch validation and may start remaining asynchronous branches together.
+
+Internal issues remain fatal and always stop later structural work. `union()` and `variant()` are unchanged by this option.
 
 ## Built-in step renames
 

@@ -68,7 +68,7 @@ describe('map step plugin', () => {
 	})
 
 	it('collects recoverable key and value issues with stable entry paths', () => {
-		expect(v.map({ key: v.string(), value: v.number() })
+		expect(v.map({ key: v.string(), value: v.number(), collectAllIssues: true })
 			.execute(new Map<unknown, unknown>([[1, 'x'], ['ok', 'y']])))
 			.toMatchObject({
 				issues: [
@@ -84,6 +84,7 @@ describe('map step plugin', () => {
 			key: v.string(),
 			value: v.number(),
 			message: issue => `map:${issue.code}`,
+			collectAllIssues: true,
 		})
 
 		expect(schema.execute(new Map([[1, 'x']]))).toMatchObject({
@@ -167,7 +168,7 @@ describe('map step plugin', () => {
 		})
 		const value = (v as any).number().observe(observed)
 
-		await expect(v.map({ key, value })
+		await expect(v.map({ key, value, collectAllIssues: true })
 			.execute(new Map([['a', 1], ['b', 2]])))
 			.resolves.toMatchObject({
 				issues: [

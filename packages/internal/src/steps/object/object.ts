@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -57,6 +57,8 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * Required keys that are not own properties produce `'object:missing_key'`.
 	 * An own property whose value is `undefined` is still validated by its child schema.
+	 * Declared-field traversal stops after the first issue unless
+	 * `collectAllIssues` is enabled.
 	 */
 	object: DefineStepMethod<
 		Meta,
@@ -64,7 +66,7 @@ interface PluginDef extends TStepPluginDef {
 			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? <S extends Internal.Struct>(
 						struct: S,
-						options?: StepOptions<Internal.Issue<NoInfer<S>>>,
+						options?: StructuralStepOptions<Internal.Issue<NoInfer<S>>>,
 					) => Next<{
 						operationMode: Internal.OpMode<NoInfer<S>>
 						output: Internal.Output<NoInfer<S>>
@@ -126,6 +128,39 @@ export const object = implStepPlugin<PluginDef>({
 		}
 
 		const childrenAreSynchronous = operationMode === 'sync'
+		const collectAllIssues = options?.collectAllIssues === true
+
+		const appendMissingKey = (
+			key: PropertyKey,
+			issues: AnyExecutionIssue[] | undefined,
+		): AnyExecutionIssue[] => {
+			const target = issues ?? []
+			target.push(createIssue({
+				code: 'object:missing_key',
+				payload: { key },
+				path: [key],
+				customMessage: options?.message,
+				defaultMessage: 'Missing required object key.',
+			}))
+			return target
+		}
+
+		const appendChildIssues = (
+			result: ExecutionResult,
+			key: PropertyKey,
+			issues: AnyExecutionIssue[] | undefined,
+		): { issues: AnyExecutionIssue[], hasInternal: boolean } => {
+			let hasInternal = false
+			const target = issues ?? []
+			if (isFailure(result)) {
+				for (const issue of result.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					target.push(prependIssuePath(issue, [key], options?.message))
+				}
+			}
+			return { issues: target, hasInternal }
+		}
 
 		const continueAsync = async (
 			value: object,
@@ -143,16 +178,11 @@ export const object = implStepPlugin<PluginDef>({
 				else if (!Object.hasOwn(value, meta.key)) {
 					if (meta.isOptional) {
 						setOutputValue(output, meta.key, undefined)
+						continue
 					}
-					else {
-						(issues ??= []).push(createIssue({
-							code: 'object:missing_key',
-							payload: { key: meta.key },
-							path: [meta.key],
-							customMessage: options?.message,
-							defaultMessage: 'Missing required object key.',
-						}))
-					}
+					issues = appendMissingKey(meta.key, issues)
+					if (!collectAllIssues)
+						return failure(issues)
 					continue
 				}
 				else {
@@ -160,20 +190,16 @@ export const object = implStepPlugin<PluginDef>({
 				}
 
 				if (isFailure(result)) {
-					let hasInternal = false
-					const target = issues ??= []
-					for (const issue of result.issues) {
-						if (issue.category === 'internal')
-							hasInternal = true
-						target.push(prependIssuePath(issue, [meta.key], options?.message))
-					}
-					if (hasInternal)
-						return failure(target)
+					const appended = appendChildIssues(result, meta.key, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
 				}
 				else {
 					setOutputValue(output, meta.key, result.value)
 				}
 			}
+
 			return issues == null ? success(output) : failure(issues)
 		}
 
@@ -196,16 +222,11 @@ export const object = implStepPlugin<PluginDef>({
 				if (!Object.hasOwn(value, key)) {
 					if (meta.isOptional) {
 						setOutputValue(output, key, undefined)
+						continue
 					}
-					else {
-						(issues ??= []).push(createIssue({
-							code: 'object:missing_key',
-							payload: { key },
-							path: [key],
-							customMessage: options?.message,
-							defaultMessage: 'Missing required object key.',
-						}))
-					}
+					issues = appendMissingKey(key, issues)
+					if (!collectAllIssues)
+						return failure(issues)
 					continue
 				}
 
@@ -215,15 +236,10 @@ export const object = implStepPlugin<PluginDef>({
 
 				const syncResult = result as ExecutionResult
 				if (isFailure(syncResult)) {
-					let hasInternal = false
-					const target = issues ??= []
-					for (const issue of syncResult.issues) {
-						if (issue.category === 'internal')
-							hasInternal = true
-						target.push(prependIssuePath(issue, [key], options?.message))
-					}
-					if (hasInternal)
-						return failure(target)
+					const appended = appendChildIssues(syncResult, key, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
 				}
 				else {
 					setOutputValue(output, key, syncResult.value)

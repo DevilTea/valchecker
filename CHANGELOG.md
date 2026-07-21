@@ -47,6 +47,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Changed
 
+- `array()`, `set()`, `map()`, `object()`, `strictObject()`, `looseObject()`, and `intersection()` now stop after the first recoverable structural or child failure by default; pass `collectAllIssues: true` to preserve complete recoverable issue collection. Default asynchronous intersections now avoid starting later branches after an earlier failure.
 - Standardized all message-bearing built-in step parameters around trailing options objects and removed positional messages.
 - Number `isMultipleOf()` accepts ordinary decimal multiples using a documented floating-point tolerance, while bigint divisibility remains exact.
 - The supported runtime is Node.js 22 or newer.

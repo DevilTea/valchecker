@@ -1,4 +1,4 @@
-import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionFailureResult, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, UnionToIntersection } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -55,13 +55,15 @@ interface PluginDef extends TStepPluginDef {
 	/**
 	 * Checks every branch and recursively merges compatible outputs. A merge
 	 * conflict reports the exact graph path, the pair of branch indices, both
-	 * conflicting values, and a stable reason code.
+	 * conflicting values, and a stable reason code. Branch evaluation stops
+	 * after the first issue unless `collectAllIssues` is enabled.
 	 */
 	intersection: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? <B extends [Use<Valchecker>, ...Use<Valchecker>[]]>(
 				branches: B,
+				options?: StructuralStepOptions<Internal.Issue<NoInfer<B>>>,
 			) => Next<{
 				operationMode: Internal.OpMode<B>
 				output: Internal.Output<B>
@@ -443,8 +445,8 @@ function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
 /* @__NO_SIDE_EFFECTS__ */
 export const intersection = implStepPlugin<PluginDef>({
 	intersection: ({
-		utils: { addSuccessStep, success, failure, isFailure, createIssue },
-		params: [branches],
+		utils: { addSuccessStep, success, failure, isFailure, createIssue, prependIssuePath },
+		params: [branches, options],
 	}) => {
 		const branchExecutors = branches.map(branch => branch['~execute'])
 		const operationMode: OperationMode = branches.every(branch => branch['~core']?.operationMode === 'sync')
@@ -452,62 +454,120 @@ export const intersection = implStepPlugin<PluginDef>({
 			: 'maybe-async'
 		const len = branchExecutors.length
 		const branchesAreSynchronous = operationMode === 'sync'
+		const collectAllIssues = options?.collectAllIssues === true
 
-		addSuccessStep((value) => {
+		const scopeIssues = (result: ExecutionResult): AnyExecutionIssue[] => {
+			const issues: AnyExecutionIssue[] = []
+			if (isFailure(result)) {
+				for (const issue of result.issues)
+					issues.push(prependIssuePath(issue, [], options?.message))
+			}
+			return issues
+		}
+
+		const mergeOutputs = (outputs: unknown[]) => {
+			if (outputs.length === 0)
+				return success(undefined)
+
+			let output = outputs[0]
+			for (let i = 1; i < outputs.length; i++) {
+				const rightOutput = outputs[i]
+				const merged = mergeOutputGraphs(output, rightOutput)
+				if (!merged.ok) {
+					const { path, leftValue, rightValue, reason } = merged.conflict
+					return failure(createIssue({
+						code: 'intersection:conflicting_outputs',
+						payload: {
+							path,
+							leftBranch: findConflictingLeftBranch(outputs, i, path),
+							rightBranch: i,
+							leftValue,
+							rightValue,
+							reason,
+						},
+						customMessage: options?.message,
+						defaultMessage: 'Intersection branch outputs conflict.',
+					}))
+				}
+				output = merged.value
+			}
+			return success(output)
+		}
+
+		const executeFirstIssue = (value: unknown) => {
 			const outputs: unknown[] = []
 
-			const mergeOutputs = () => {
-				if (outputs.length === 0)
-					return success(value)
-
-				let output = outputs[0]
-				for (let i = 1; i < outputs.length; i++) {
-					const rightOutput = outputs[i]
-					const merged = mergeOutputGraphs(output, rightOutput)
-					if (!merged.ok) {
-						const { path, leftValue, rightValue, reason } = merged.conflict
-						return failure(createIssue({
-							code: 'intersection:conflicting_outputs',
-							payload: {
-								path,
-								leftBranch: findConflictingLeftBranch(outputs, i, path),
-								rightBranch: i,
-								leftValue,
-								rightValue,
-								reason,
-							},
-							defaultMessage: 'Intersection branch outputs conflict.',
-						}))
-					}
-					output = merged.value
-				}
-				return success(output)
-			}
-
-			const processResults = (results: ExecutionResult[]) => {
-				for (const result of results) {
+			const continueAsync = async (
+				startIndex: number,
+				firstResult: PromiseLike<ExecutionResult>,
+			): Promise<ExecutionResult> => {
+				for (let index = startIndex; index < len; index++) {
+					const result = index === startIndex
+						? await firstResult
+						: await branchExecutors[index]!(value)
 					if (isFailure(result))
-						return result as ExecutionFailureResult<ExecutionIssue>
+						return failure(scopeIssues(result))
 					outputs.push(result.value)
 				}
-				return mergeOutputs()
+				return mergeOutputs(outputs)
 			}
 
-			for (let i = 0; i < len; i++) {
-				const branchResult = branchExecutors[i]!(value)
-				if (!branchesAreSynchronous && isPromiseLike(branchResult)) {
-					const pending: Promise<ExecutionResult>[] = [Promise.resolve(branchResult)]
-					for (let j = i + 1; j < len; j++)
-						pending.push(Promise.resolve(branchExecutors[j]!(value)))
-					return Promise.all(pending).then(processResults)
+			for (let index = 0; index < len; index++) {
+				const result = branchExecutors[index]!(value)
+				if (!branchesAreSynchronous && isPromiseLike(result))
+					return continueAsync(index, result)
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult))
+					return failure(scopeIssues(syncResult))
+				outputs.push(syncResult.value)
+			}
+			return mergeOutputs(outputs)
+		}
+
+		const executeCollectAll = (value: unknown) => {
+			const outputs: unknown[] = []
+			let issues: AnyExecutionIssue[] | undefined
+
+			const appendIssues = (result: ExecutionResult): boolean => {
+				if (!isFailure(result)) {
+					outputs.push(result.value)
+					return false
 				}
-				const syncBranchResult = branchResult as ExecutionResult
-				if (isFailure(syncBranchResult))
-					return syncBranchResult
-				outputs.push(syncBranchResult.value)
+				let hasInternal = false
+				const target = issues ??= []
+				for (const issue of result.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					target.push(prependIssuePath(issue, [], options?.message))
+				}
+				return hasInternal
 			}
 
-			return mergeOutputs()
-		}, operationMode)
+			const processPending = async (
+				pending: Promise<ExecutionResult>[],
+			): Promise<ExecutionResult> => {
+				const results = await Promise.all(pending)
+				for (const result of results) {
+					if (appendIssues(result))
+						return failure(issues!)
+				}
+				return issues == null ? mergeOutputs(outputs) : failure(issues)
+			}
+
+			for (let index = 0; index < len; index++) {
+				const result = branchExecutors[index]!(value)
+				if (!branchesAreSynchronous && isPromiseLike(result)) {
+					const pending: Promise<ExecutionResult>[] = [Promise.resolve(result)]
+					for (let later = index + 1; later < len; later++)
+						pending.push(Promise.resolve(branchExecutors[later]!(value)))
+					return processPending(pending)
+				}
+				if (appendIssues(result as ExecutionResult))
+					return failure(issues!)
+			}
+			return issues == null ? mergeOutputs(outputs) : failure(issues)
+		}
+
+		addSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)
 	},
 })

@@ -360,7 +360,7 @@ describe('intersection plugin', () => {
 			.toEqual({ value: date })
 	})
 
-	it('should start remaining async branches in parallel', async () => {
+	it('should start remaining async branches in parallel when collecting all issues', async () => {
 		let started = 0
 		let release!: () => void
 		const gate = new Promise<void>((resolve) => {
@@ -379,7 +379,7 @@ describe('intersection plugin', () => {
 					await gate
 					return { right: value }
 				}),
-		])
+		], { collectAllIssues: true })
 			.execute('value')
 		expect(started)
 			.toBe(2)

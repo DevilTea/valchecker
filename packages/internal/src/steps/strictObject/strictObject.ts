@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -58,6 +58,8 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * Required keys that are not own properties produce `'strictObject:missing_key'`.
 	 * An own property whose value is `undefined` is still validated by its child schema.
+	 * Structural validation stops after the first issue unless
+	 * `collectAllIssues` is enabled.
 	 */
 	strictObject: DefineStepMethod<
 		Meta,
@@ -65,7 +67,7 @@ interface PluginDef extends TStepPluginDef {
 			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? <S extends Internal.Struct>(
 						struct: S,
-						options?: StepOptions<Internal.Issue<NoInfer<S>>>,
+						options?: StructuralStepOptions<Internal.Issue<NoInfer<S>>>,
 					) => Next<{
 						operationMode: Internal.OpMode<NoInfer<S>>
 						output: Internal.Output<NoInfer<S>>
@@ -128,6 +130,56 @@ export const strictObject = implStepPlugin<PluginDef>({
 		}
 
 		const childrenAreSynchronous = operationMode === 'sync'
+		const collectAllIssues = options?.collectAllIssues === true
+
+		const collectUnknownKeys = (value: object): PropertyKey[] | undefined => {
+			const ownKeys: PropertyKey[] = Object.keys(value)
+			const ownSymbols = Object.getOwnPropertySymbols(value)
+			for (let i = 0; i < ownSymbols.length; i++) {
+				const key = ownSymbols[i]!
+				if (Object.prototype.propertyIsEnumerable.call(value, key))
+					ownKeys.push(key)
+			}
+			let unknownKeys: PropertyKey[] | undefined
+			for (let i = 0; i < ownKeys.length; i++) {
+				const key = ownKeys[i]!
+				if (!knownKeysSet.has(key))
+					(unknownKeys ??= []).push(key)
+			}
+			return unknownKeys
+		}
+
+		const appendMissingKey = (
+			key: PropertyKey,
+			issues: AnyExecutionIssue[] | undefined,
+		): AnyExecutionIssue[] => {
+			const target = issues ?? []
+			target.push(createIssue({
+				code: 'strictObject:missing_key',
+				payload: { key },
+				path: [key],
+				customMessage: options?.message,
+				defaultMessage: 'Missing required object key.',
+			}))
+			return target
+		}
+
+		const appendChildIssues = (
+			result: ExecutionResult,
+			key: PropertyKey,
+			issues: AnyExecutionIssue[] | undefined,
+		): { issues: AnyExecutionIssue[], hasInternal: boolean } => {
+			let hasInternal = false
+			const target = issues ?? []
+			if (isFailure(result)) {
+				for (const issue of result.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					target.push(prependIssuePath(issue, [key], options?.message))
+				}
+			}
+			return { issues: target, hasInternal }
+		}
 
 		const continueAsync = async (
 			value: object,
@@ -146,17 +198,12 @@ export const strictObject = implStepPlugin<PluginDef>({
 					if (meta.isOptional) {
 						if (output != null)
 							setOutputValue(output, meta.key, undefined)
+						continue
 					}
-					else {
-						(issues ??= []).push(createIssue({
-							code: 'strictObject:missing_key',
-							payload: { key: meta.key },
-							path: [meta.key],
-							customMessage: options?.message,
-							defaultMessage: 'Missing required object key.',
-						}))
-						output = undefined
-					}
+					issues = appendMissingKey(meta.key, issues)
+					output = undefined
+					if (!collectAllIssues)
+						return failure(issues)
 					continue
 				}
 				else {
@@ -164,21 +211,17 @@ export const strictObject = implStepPlugin<PluginDef>({
 				}
 
 				if (isFailure(result)) {
-					let hasInternal = false
-					const target = issues ??= []
+					const appended = appendChildIssues(result, meta.key, issues)
+					issues = appended.issues
 					output = undefined
-					for (const issue of result.issues) {
-						if (issue.category === 'internal')
-							hasInternal = true
-						target.push(prependIssuePath(issue, [meta.key], options?.message))
-					}
-					if (hasInternal)
-						return failure(target)
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
 				}
 				else if (output != null) {
 					setOutputValue(output, meta.key, result.value)
 				}
 			}
+
 			return issues == null ? success(output!) : failure(issues)
 		}
 
@@ -192,22 +235,9 @@ export const strictObject = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const ownKeys: PropertyKey[] = Object.keys(value)
-			const ownSymbols = Object.getOwnPropertySymbols(value)
-			for (let i = 0; i < ownSymbols.length; i++) {
-				const key = ownSymbols[i]!
-				if (Object.prototype.propertyIsEnumerable.call(value, key))
-					ownKeys.push(key)
-			}
-			let unknownKeys: PropertyKey[] | undefined
-			for (let i = 0; i < ownKeys.length; i++) {
-				const key = ownKeys[i]!
-				if (!knownKeysSet.has(key))
-					(unknownKeys ??= []).push(key)
-			}
-
 			let issues: AnyExecutionIssue[] | undefined
 			let output: Record<PropertyKey, any> | undefined = {}
+			const unknownKeys = collectUnknownKeys(value)
 			if (unknownKeys != null) {
 				issues = [createIssue({
 					code: 'strictObject:unexpected_keys',
@@ -216,6 +246,8 @@ export const strictObject = implStepPlugin<PluginDef>({
 					defaultMessage: 'Unexpected object keys found.',
 				})]
 				output = undefined
+				if (!collectAllIssues)
+					return failure(issues)
 			}
 
 			for (let i = 0; i < keysLen; i++) {
@@ -225,17 +257,12 @@ export const strictObject = implStepPlugin<PluginDef>({
 					if (meta.isOptional) {
 						if (output != null)
 							setOutputValue(output, key, undefined)
+						continue
 					}
-					else {
-						(issues ??= []).push(createIssue({
-							code: 'strictObject:missing_key',
-							payload: { key },
-							path: [key],
-							customMessage: options?.message,
-							defaultMessage: 'Missing required object key.',
-						}))
-						output = undefined
-					}
+					issues = appendMissingKey(key, issues)
+					output = undefined
+					if (!collectAllIssues)
+						return failure(issues)
 					continue
 				}
 
@@ -245,16 +272,11 @@ export const strictObject = implStepPlugin<PluginDef>({
 
 				const syncResult = result as ExecutionResult
 				if (isFailure(syncResult)) {
-					let hasInternal = false
-					const target = issues ??= []
+					const appended = appendChildIssues(syncResult, key, issues)
+					issues = appended.issues
 					output = undefined
-					for (const issue of syncResult.issues) {
-						if (issue.category === 'internal')
-							hasInternal = true
-						target.push(prependIssuePath(issue, [key], options?.message))
-					}
-					if (hasInternal)
-						return failure(target)
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
 				}
 				else if (output != null) {
 					setOutputValue(output, key, syncResult.value)
