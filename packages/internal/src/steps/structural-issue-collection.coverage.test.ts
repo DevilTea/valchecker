@@ -63,7 +63,7 @@ function objectSchemas(shape: Record<PropertyKey, any>) {
 	]
 }
 
-describe('structural issue collection execution coverage', () => {
+describe('structural issue collection paths', () => {
 	it('rejects invalid containers in collect-all mode', () => {
 		expect(issueCodes(v.array(v.string(), { collectAllIssues: true }).execute({})))
 			.toEqual(['array:expected_array'])
@@ -103,9 +103,10 @@ describe('structural issue collection execution coverage', () => {
 		for (const schema of objectSchemas(shape)) {
 			const result = schema.execute(input)
 			expect(result).toMatchObject({
-				value: { required: 'ok', optional: undefined, __proto__: 'safe' },
+				value: { required: 'ok', optional: undefined },
 			})
 			expect(Object.hasOwn(result.value, '__proto__')).toBe(true)
+			expect(result.value.__proto__).toBe('safe')
 		}
 	})
 
@@ -283,10 +284,11 @@ describe('structural issue collection execution coverage', () => {
 
 		const later = vi.fn()
 		const internalValue = (v as any).unknown().asyncInternalFailure()
+		const observed = (v as any).unknown().observe(later)
 		const value = {
 			'~execute': (entryValue: unknown) => entryValue === 'internal'
 				? internalValue['~execute'](entryValue)
-				: (v as any).unknown().observe(later)['~execute'](entryValue),
+				: observed['~execute'](entryValue),
 		} as any
 		const valueResult = await (v as any).map({
 			key: v.string(),
