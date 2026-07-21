@@ -43,6 +43,7 @@ for (const scenario of scenarios) {
 			resultKind: scenario.resultKind,
 			issuePolicy: scenario.issuePolicy,
 			comparisonScope: scenario.comparisonScope,
+			diagnosticIssueCount: scenario.diagnosticIssueCount,
 			...measure(operation, mode),
 		})
 	}
