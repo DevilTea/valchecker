@@ -38,8 +38,8 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	set: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
+		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+			? IsExactlyAnyOrUnknown<InferOutput<This>> extends true
 				? <I extends Use<Valchecker>>(
 						item: I,
 						options?: StructuralStepOptions<Internal.Issue<NoInfer<I>>>,
@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 						operationMode: Internal.OpMode<I>
 						output: Set<InferOutput<I>>
 						issue: Internal.Issue<I>
-					}, this['CurrentValchecker']>
+					}, This>
 				: never
 			: never
 	>
