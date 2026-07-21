@@ -81,16 +81,6 @@ export const set = implStepPlugin<PluginDef>({
 			return { issues: target, hasInternal }
 		}
 
-		const snapshotItems = (value: Set<unknown>): unknown[] => {
-			// eslint-disable-next-line unicorn/no-new-array
-			const items = new Array<unknown>(value.size)
-			let index = 0
-			value.forEach((item) => {
-				items[index++] = item
-			})
-			return items
-		}
-
 		const createDuplicateIssue = (
 			value: Set<unknown>,
 			items: unknown[],
@@ -163,7 +153,7 @@ export const set = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const items = snapshotItems(value)
+			const items = [...value.values()]
 			let output: Set<unknown> | undefined
 			let firstItemIndex: Map<unknown, number> | undefined
 			let issues: AnyExecutionIssue[] | undefined
