@@ -135,7 +135,7 @@ Raw output defaults to `benchmarks/results/raw.json`. Use `--output <path>`, `--
 
 ## Methodology
 
-Every adapter implements the same schema families and fixtures where the libraries expose comparable behavior. Before timing a scenario, the runner verifies the expected success/failure state, transformed output where relevant, and explicit issue-count requirements for diagnostic-policy scenarios. CI executes every full-tier supported scenario once across all adapters and records unsupported adapter/scenario combinations instead of assigning synthetic behavior.
+Every adapter implements the same schema families and fixtures where the libraries expose comparable behavior. Before timing a scenario, the runner verifies the expected success/failure state, transformed output where relevant, and exact issue-count requirements for diagnostic-policy scenarios. CI executes every full-tier supported scenario once across all adapters and records unsupported adapter/scenario combinations instead of assigning synthetic behavior.
 
 The suite separates:
 
@@ -154,7 +154,7 @@ Failure throughput is meaningful only when the amount of diagnostic work is expl
 
 - `library-default` scenarios show the real default behavior of each product, but they are not assumed to collect the same number of issues.
 - `first` scenarios require exactly one issue before timing. Valchecker and Valibot participate; Zod is omitted because it does not expose an equivalent whole-parse abort option.
-- `all` scenarios require at least two issues before timing. Valchecker uses `collectAllIssues: true`, Valibot uses its exhaustive default, and Zod uses its normal exhaustive structural behavior.
+- `all` scenarios declare and require an exact top-level issue count before timing. Valchecker uses `collectAllIssues: true`, Valibot uses its exhaustive default, and Zod uses its normal exhaustive structural behavior.
 - unsupported adapters are listed in the report with a reason and are not ranked.
 
 Intersection comparisons use only compatible synchronous object outputs and ordinary branch validation. Merge-conflict and asynchronous scheduling behavior remain excluded because those semantics differ across libraries.
