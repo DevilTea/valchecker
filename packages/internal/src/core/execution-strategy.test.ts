@@ -21,6 +21,11 @@ const executionPlugin = implStepPlugin({
 	asyncSuccessOnly: ({ utils }: any) => {
 		utils.addSuccessStep(async (value: unknown) => utils.success(value), 'async')
 	},
+	asyncThrowSync: ({ utils }: any) => {
+		utils.addStep(() => {
+			throw new Error('synchronous async-step error')
+		}, 'async')
+	},
 } as any) as StepPluginImpl<TStepPluginDef>
 
 const v = createValchecker({ steps: [executionPlugin] }) as any
@@ -69,5 +74,21 @@ describe('operation-mode execution contracts', () => {
 		await expect(rawResult).resolves.toMatchObject({ issues: [{ code: 'test:failure' }] })
 		await expect(publicResult).resolves.toMatchObject({ issues: [{ code: 'test:failure' }] })
 		await expect(standardResult).resolves.toMatchObject({ issues: [{ code: 'test:failure' }] })
+	})
+
+	it('normalizes a synchronous throw from an async step without losing the Promise boundary', async () => {
+		const result = v.asyncThrowSync().execute('value')
+
+		expect(result).toBeInstanceOf(Promise)
+		await expect(result).resolves.toMatchObject({
+			issues: [{
+				code: 'core:unknown_exception',
+				category: 'internal',
+				payload: {
+					method: 'asyncThrowSync',
+					error: expect.objectContaining({ message: 'synchronous async-step error' }),
+				},
+			}],
+		})
 	})
 })
