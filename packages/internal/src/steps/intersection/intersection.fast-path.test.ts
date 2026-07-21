@@ -1,32 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { createValchecker, intersection, number, object, string } from '../..'
+import { createValchecker, intersection, transform, unknown } from '../..'
 
-const v = createValchecker({ steps: [intersection, number, object, string] })
+const v = createValchecker({ steps: [intersection, transform, unknown] })
 
 describe('intersection disjoint plain-object fast path', () => {
 	it('merges disjoint string and symbol keys while preserving the shared prototype', () => {
 		const rightKey = Symbol('right')
-		const prototype = Object.create(null)
-		const input = Object.assign(Object.create(prototype), {
-			left: 'Ada',
-			[rightKey]: 37,
-		})
-		const left = Object.assign(Object.create(prototype), { left: 'Ada' })
-		const right = Object.assign(Object.create(prototype), { [rightKey]: 37 })
+		const left = Object.assign(Object.create(null), { left: 'Ada' })
+		const right = Object.assign(Object.create(null), { [rightKey]: 37 })
 
 		const result = v.intersection([
-			v.object({ left: v.string() }),
-			v.object({ [rightKey]: v.number() }),
-		]).execute(input)
+			v.unknown().transform(() => left),
+			v.unknown().transform(() => right),
+		]).execute(null)
 
-		expect(result).toEqual({ value: { left: 'Ada', [rightKey]: 37 } })
-		if (v.isSuccess(result))
-			expect(Object.getPrototypeOf(result.value)).toBe(Object.prototype)
-
-		const plainResult = v.intersection([
-			v.object({ left: v.string() }),
-			v.object({ [rightKey]: v.number() }),
-		]).execute({ ...left, ...right })
-		expect(plainResult).toEqual({ value: { left: 'Ada', [rightKey]: 37 } })
+		expect(v.isSuccess(result)).toBe(true)
+		if (v.isSuccess(result)) {
+			expect(Object.getPrototypeOf(result.value)).toBe(null)
+			expect(result.value).toEqual({ left: 'Ada', [rightKey]: 37 })
+		}
 	})
 })
