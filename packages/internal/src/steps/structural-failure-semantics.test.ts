@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { implStepPlugin } from '../core'
+import { createValchecker, implStepPlugin } from '../core'
 import { array } from './array'
-import { createValchecker } from './createValchecker'
 import { intersection } from './intersection'
 import { looseObject } from './looseObject'
 import { number } from './number'
