@@ -30,9 +30,9 @@ const v = createValchecker({
 	],
 })
 
-function issueCodes(result: unknown): string[] {
-	return 'issues' in (result as { issues?: unknown })
-		? (result as { issues: Array<{ code: string }> }).issues.map(issue => issue.code)
+function issueCodes(result: { value: unknown } | { issues: Array<{ code: string }> }): string[] {
+	return 'issues' in result
+		? result.issues.map(issue => issue.code)
 		: []
 }
 
@@ -66,32 +66,34 @@ describe('structural collectAllIssues contract', () => {
 			.toEqual(['strictObject:unexpected_keys'])
 	})
 
-	it('array and Set stop later items by default', () => {
-		for (const createSchema of [
-			(item: ReturnType<typeof v.unknown>) => v.array(item),
-			(item: ReturnType<typeof v.unknown>) => v.set(item),
-		]) {
-			const runs: unknown[] = []
-			const item = v.unknown()
-				.transform((value) => {
-					runs.push(value)
-					if (value === 'bad')
-						throw new Error('bad')
-					return value
-				})
-			const input = createSchema === undefined
-				? []
-				: undefined
-			const schema = createSchema(item)
-			const result = schema.execute(schema === schema && createSchema.name === ''
-				? ['bad', 'later']
-				: ['bad', 'later'])
-			void input
-			expect(issueCodes(result))
-				.toEqual(['transform:callback_failed'])
-			expect(runs)
-				.toEqual(['bad'])
-		}
+	it('array stops later items by default', () => {
+		const runs: unknown[] = []
+		const result = v.array(v.unknown().transform((value) => {
+			runs.push(value)
+			if (value === 'bad')
+				throw new Error('bad')
+			return value
+		}))
+			.execute(['bad', 'later'])
+		expect(issueCodes(result))
+			.toEqual(['transform:callback_failed'])
+		expect(runs)
+			.toEqual(['bad'])
+	})
+
+	it('Set stops later items by default', () => {
+		const runs: unknown[] = []
+		const result = v.set(v.unknown().transform((value) => {
+			runs.push(value)
+			if (value === 'bad')
+				throw new Error('bad')
+			return value
+		}))
+			.execute(new Set(['bad', 'later']))
+		expect(issueCodes(result))
+			.toEqual(['transform:callback_failed'])
+		expect(runs)
+			.toEqual(['bad'])
 	})
 
 	it('array and Set collect later items when enabled', () => {
