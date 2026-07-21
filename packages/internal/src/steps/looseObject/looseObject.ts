@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -57,6 +57,8 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * Required keys that are not own properties produce `'looseObject:missing_key'`.
 	 * An own property whose value is `undefined` is still validated by its child schema.
+	 * Declared-field traversal stops after the first issue unless
+	 * `collectAllIssues` is enabled.
 	 */
 	looseObject: DefineStepMethod<
 		Meta,
@@ -64,7 +66,7 @@ interface PluginDef extends TStepPluginDef {
 			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? <S extends Internal.Struct>(
 						struct: S,
-						options?: StepOptions<Internal.Issue<NoInfer<S>>>,
+						options?: StructuralStepOptions<Internal.Issue<NoInfer<S>>>,
 					) => Next<{
 						operationMode: Internal.OpMode<NoInfer<S>>
 						output: Internal.Output<NoInfer<S>>
@@ -73,6 +75,12 @@ interface PluginDef extends TStepPluginDef {
 				: never
 			: never
 	>
+}
+
+interface PropMeta {
+	key: PropertyKey
+	isOptional: boolean
+	execute: Use<Valchecker>['~execute']
 }
 
 function getOwnValue(value: object, key: PropertyKey): unknown {
@@ -107,7 +115,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 		}
 		const keysLen = keys.length
 		let operationMode: OperationMode = 'sync'
-		const propsMeta: Array<{ key: PropertyKey, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
+		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
 			const key = keys[i]!
@@ -120,104 +128,179 @@ export const looseObject = implStepPlugin<PluginDef>({
 		}
 
 		const childrenAreSynchronous = operationMode === 'sync'
+		const collectAllIssues = options?.collectAllIssues === true
 
-		addSuccessStep((value) => {
-			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
-				return failure(createIssue({
-					code: 'looseObject:expected_object',
-					payload: { value },
-					customMessage: options?.message,
-					defaultMessage: 'Expected an object.',
-				}))
-			}
+		const expectedObjectFailure = (value: unknown) => failure(createIssue({
+			code: 'looseObject:expected_object',
+			payload: { value },
+			customMessage: options?.message,
+			defaultMessage: 'Expected an object.',
+		}))
 
-			const issues: AnyExecutionIssue[] = []
+		const missingKeyFailure = (key: PropertyKey) => failure(createIssue({
+			code: 'looseObject:missing_key',
+			payload: { key },
+			path: [key],
+			customMessage: options?.message,
+			defaultMessage: 'Missing required object key.',
+		}))
+
+		const createOutput = (value: object): Record<PropertyKey, any> => {
 			const descriptors = Object.getOwnPropertyDescriptors(value)
 			for (let i = 0; i < keysLen; i++)
 				delete descriptors[keys[i] as keyof typeof descriptors]
-			const output: Record<PropertyKey, any> = Object.defineProperties({}, descriptors)
+			return Object.defineProperties({}, descriptors)
+		}
 
-			for (let i = 0; i < keysLen; i++) {
-				const { key, isOptional, execute } = propsMeta[i]!
-				if (!Object.hasOwn(value, key)) {
-					if (isOptional) {
-						setOutputValue(output, key, undefined)
+		const prependChildIssues = (result: ExecutionResult, key: PropertyKey): AnyExecutionIssue[] => {
+			const issues: AnyExecutionIssue[] = []
+			if (isFailure(result)) {
+				for (const issue of result.issues)
+					issues.push(prependIssuePath(issue, [key], options?.message))
+			}
+			return issues
+		}
+
+		const executeFirstIssue = (value: unknown) => {
+			if (typeof value !== 'object' || value == null || Array.isArray(value))
+				return expectedObjectFailure(value)
+
+			const output = createOutput(value)
+
+			const continueAsync = async (
+				startIndex: number,
+				firstResult: PromiseLike<ExecutionResult>,
+			): Promise<ExecutionResult> => {
+				for (let i = startIndex; i < keysLen; i++) {
+					const meta = propsMeta[i]!
+					let result: ExecutionResult
+					if (i === startIndex) {
+						result = await firstResult
+					}
+					else if (!Object.hasOwn(value, meta.key)) {
+						if (meta.isOptional) {
+							setOutputValue(output, meta.key, undefined)
+							continue
+						}
+						return missingKeyFailure(meta.key)
 					}
 					else {
-						issues.push(createIssue({
-							code: 'looseObject:missing_key',
-							payload: { key },
-							path: [key],
-							customMessage: options?.message,
-							defaultMessage: 'Missing required object key.',
-						}))
+						result = await meta.execute(getOwnValue(value, meta.key))
 					}
+
+					if (isFailure(result))
+						return failure(prependChildIssues(result, meta.key))
+					setOutputValue(output, meta.key, result.value)
+				}
+				return success(output)
+			}
+
+			for (let i = 0; i < keysLen; i++) {
+				const meta = propsMeta[i]!
+				const key = meta.key
+				if (!Object.hasOwn(value, key)) {
+					if (meta.isOptional) {
+						setOutputValue(output, key, undefined)
+						continue
+					}
+					return missingKeyFailure(key)
+				}
+
+				const result = meta.execute(getOwnValue(value, key))
+				if (!childrenAreSynchronous && isPromiseLike(result))
+					return continueAsync(i, result)
+
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult))
+					return failure(prependChildIssues(syncResult, key))
+				setOutputValue(output, key, syncResult.value)
+			}
+			return success(output)
+		}
+
+		const executeCollectAll = (value: unknown) => {
+			if (typeof value !== 'object' || value == null || Array.isArray(value))
+				return expectedObjectFailure(value)
+
+			const output = createOutput(value)
+			let issues: AnyExecutionIssue[] | undefined
+
+			const appendMissingKey = (key: PropertyKey): void => {
+				(issues ??= []).push(createIssue({
+					code: 'looseObject:missing_key',
+					payload: { key },
+					path: [key],
+					customMessage: options?.message,
+					defaultMessage: 'Missing required object key.',
+				}))
+			}
+
+			const appendChildIssues = (result: ExecutionResult, key: PropertyKey): boolean => {
+				if (!isFailure(result))
+					return false
+				let hasInternal = false
+				const target = issues ??= []
+				for (const issue of result.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					target.push(prependIssuePath(issue, [key], options?.message))
+				}
+				return hasInternal
+			}
+
+			const continueAsync = async (
+				startIndex: number,
+				firstResult: PromiseLike<ExecutionResult>,
+			): Promise<ExecutionResult> => {
+				for (let i = startIndex; i < keysLen; i++) {
+					const meta = propsMeta[i]!
+					let result: ExecutionResult
+					if (i === startIndex) {
+						result = await firstResult
+					}
+					else if (!Object.hasOwn(value, meta.key)) {
+						if (meta.isOptional)
+							setOutputValue(output, meta.key, undefined)
+						else
+							appendMissingKey(meta.key)
+						continue
+					}
+					else {
+						result = await meta.execute(getOwnValue(value, meta.key))
+					}
+
+					if (appendChildIssues(result, meta.key))
+						return failure(issues!)
+					if (!isFailure(result))
+						setOutputValue(output, meta.key, result.value)
+				}
+				return issues == null ? success(output) : failure(issues)
+			}
+
+			for (let i = 0; i < keysLen; i++) {
+				const meta = propsMeta[i]!
+				const key = meta.key
+				if (!Object.hasOwn(value, key)) {
+					if (meta.isOptional)
+						setOutputValue(output, key, undefined)
+					else
+						appendMissingKey(key)
 					continue
 				}
 
-				const result = execute(getOwnValue(value, key))
-				if (!childrenAreSynchronous && isPromiseLike(result)) {
-					return (async () => {
-						for (let j = i; j < keysLen; j++) {
-							const meta = propsMeta[j]!
-							let resolved: ExecutionResult
-							if (j === i) {
-								resolved = await result
-							}
-							else if (!Object.hasOwn(value, meta.key)) {
-								if (meta.isOptional) {
-									setOutputValue(output, meta.key, undefined)
-								}
-								else {
-									issues.push(createIssue({
-										code: 'looseObject:missing_key',
-										payload: { key: meta.key },
-										path: [meta.key],
-										customMessage: options?.message,
-										defaultMessage: 'Missing required object key.',
-									}))
-								}
-								continue
-							}
-							else {
-								resolved = await meta.execute(getOwnValue(value, meta.key))
-							}
-
-							if (isFailure(resolved)) {
-								let hasInternal = false
-								for (const issue of resolved.issues) {
-									if (issue.category === 'internal')
-										hasInternal = true
-									issues.push(prependIssuePath(issue, [meta.key], options?.message))
-								}
-								if (hasInternal)
-									return failure(issues)
-							}
-							else {
-								setOutputValue(output, meta.key, resolved.value)
-							}
-						}
-						return issues.length > 0 ? failure(issues) : success(output)
-					})()
-				}
+				const result = meta.execute(getOwnValue(value, key))
+				if (!childrenAreSynchronous && isPromiseLike(result))
+					return continueAsync(i, result)
 
 				const syncResult = result as ExecutionResult
-				if (isFailure(syncResult)) {
-					let hasInternal = false
-					for (const issue of syncResult.issues) {
-						if (issue.category === 'internal')
-							hasInternal = true
-						issues.push(prependIssuePath(issue, [key], options?.message))
-					}
-					if (hasInternal)
-						return failure(issues)
-				}
-				else {
+				if (appendChildIssues(syncResult, key))
+					return failure(issues!)
+				if (!isFailure(syncResult))
 					setOutputValue(output, key, syncResult.value)
-				}
 			}
+			return issues == null ? success(output) : failure(issues)
+		}
 
-			return issues.length > 0 ? failure(issues) : success(output)
-		}, operationMode)
+		addSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)
 	},
 })
