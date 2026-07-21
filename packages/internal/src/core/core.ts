@@ -25,15 +25,15 @@ type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
 
 const stepPluginDefaultOperationMode = Symbol.for('valchecker.stepPluginDefaultOperationMode')
 
-const syncOperationMode = 0
-const maybeAsyncOperationMode = 1
-const asyncOperationMode = 2
-const operationModes = ['sync', 'maybe-async', 'async'] as const
+const RUNTIME_OPERATION_MODE_SYNC = 0
+const RUNTIME_OPERATION_MODE_MAYBE_ASYNC = 1
+const RUNTIME_OPERATION_MODE_ASYNC = 2
+const OPERATION_MODES = ['sync', 'maybe-async', 'async'] as const
 
 type RuntimeOperationMode =
-	| typeof syncOperationMode
-	| typeof maybeAsyncOperationMode
-	| typeof asyncOperationMode
+	| typeof RUNTIME_OPERATION_MODE_SYNC
+	| typeof RUNTIME_OPERATION_MODE_MAYBE_ASYNC
+	| typeof RUNTIME_OPERATION_MODE_ASYNC
 
 type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
 	'~operationMode': RuntimeOperationMode
@@ -48,10 +48,10 @@ type RegisteredStepMethods = Record<PropertyKey, RegisteredStepMethod>
 
 function toRuntimeOperationMode(operationMode: OperationMode): RuntimeOperationMode {
 	return operationMode === 'sync'
-		? syncOperationMode
+		? RUNTIME_OPERATION_MODE_SYNC
 		: operationMode === 'async'
-			? asyncOperationMode
-			: maybeAsyncOperationMode
+			? RUNTIME_OPERATION_MODE_ASYNC
+			: RUNTIME_OPERATION_MODE_MAYBE_ASYNC
 }
 
 interface StepMethodContext {
@@ -596,7 +596,7 @@ function createExecutionStepMethodUtils(
 	) => (lastResult: ExecutionResult) => {
 		try {
 			const result = fn(lastResult)
-			if (operationMode === syncOperationMode)
+			if (operationMode === RUNTIME_OPERATION_MODE_SYNC)
 				return result as ExecutionResult
 			return isPromiseLike(result)
 				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
@@ -707,7 +707,7 @@ function createStepMethodContext({
 				method,
 				runtimeSteps,
 				resolveMessage,
-				syncOperationMode,
+				RUNTIME_OPERATION_MODE_SYNC,
 				registeredStepMethod.defaultOperationMode,
 			)
 			registeredStepMethod.run({
@@ -790,7 +790,7 @@ function createCoreProperties(
 			executionStepContext: null!,
 			RegisteredStepPluginDefs: null!,
 			runtimeSteps,
-			operationMode: operationModes[operationMode],
+			operationMode: OPERATION_MODES[operationMode],
 		},
 		'~execute': executeRaw,
 		execute,
@@ -855,7 +855,7 @@ export function createValchecker<
 }) {
 	const stepMethods = Object.create(null) as RegisteredStepMethods
 	for (const def of steps) {
-		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? maybeAsyncOperationMode
+		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? RUNTIME_OPERATION_MODE_MAYBE_ASYNC
 		for (const method of Reflect.ownKeys(def)) {
 			if (method === runtimeExecutionStepDefMarker || method === stepPluginDefaultOperationMode)
 				continue
@@ -880,6 +880,6 @@ export function createValchecker<
 		resolveMessage,
 		context,
 		currentRuntimeSteps: [],
-		currentOperationMode: syncOperationMode,
+		currentOperationMode: RUNTIME_OPERATION_MODE_SYNC,
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }
