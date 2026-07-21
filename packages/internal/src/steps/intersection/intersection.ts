@@ -102,6 +102,11 @@ interface MergeContext extends PairingContext {
 	mergedPairs: WeakMap<object, WeakSet<object>>
 }
 
+interface FlatProperties {
+	keys: PropertyKey[]
+	values: unknown[]
+}
+
 type MergeSide = 'left' | 'right'
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -153,6 +158,48 @@ function defineEnumerableValue(target: Record<PropertyKey, unknown>, key: Proper
 		value,
 		writable: true,
 	})
+}
+
+function readFlatProperties(value: Record<PropertyKey, unknown>): FlatProperties | undefined {
+	const keys: PropertyKey[] = []
+	const values: unknown[] = []
+	for (const key of Reflect.ownKeys(value)) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, key)!
+		if (!descriptor.enumerable)
+			continue
+		if (!('value' in descriptor) || isPlainObject(descriptor.value))
+			return undefined
+		keys.push(key)
+		values.push(descriptor.value)
+	}
+	return { keys, values }
+}
+
+function tryMergeDisjointFlatPlainObjects(left: unknown, right: unknown): MergeResult | undefined {
+	if (!isPlainObject(left) || !isPlainObject(right) || left === right)
+		return undefined
+
+	const prototype = Object.getPrototypeOf(left)
+	if (prototype !== Object.getPrototypeOf(right))
+		return undefined
+
+	const leftProperties = readFlatProperties(left)
+	const rightProperties = readFlatProperties(right)
+	if (leftProperties == null || rightProperties == null)
+		return undefined
+
+	for (const key of rightProperties.keys) {
+		const descriptor = Object.getOwnPropertyDescriptor(left, key)
+		if (descriptor?.enumerable === true)
+			return undefined
+	}
+
+	const output = Object.create(prototype) as Record<PropertyKey, unknown>
+	for (let i = 0; i < leftProperties.keys.length; i++)
+		defineEnumerableValue(output, leftProperties.keys[i]!, leftProperties.values[i])
+	for (let i = 0; i < rightProperties.keys.length; i++)
+		defineEnumerableValue(output, rightProperties.keys[i]!, rightProperties.values[i])
+	return { ok: true, value: output }
 }
 
 function hasPair(
@@ -423,6 +470,10 @@ function findConflictingLeftBranch(
 }
 
 function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
+	const flatMerge = tryMergeDisjointFlatPlainObjects(left, right)
+	if (flatMerge != null)
+		return flatMerge
+
 	const pairingContext: PairingContext = {
 		leftPartners: new WeakMap(),
 		rightPartners: new WeakMap(),
