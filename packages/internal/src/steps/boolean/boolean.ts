@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { preserveExecutionEffects } from '../../core/execution-effects'
+import { withExecutionEffects } from '../../core/execution-effects'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'boolean'
@@ -47,13 +47,12 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const boolean = implStepPlugin<PluginDef>({
+export const boolean = withExecutionEffects(implStepPlugin<PluginDef>({
 	boolean: ({
 		utils,
 		params: [options],
 	}) => {
 		const { addSuccessStep, success, createIssue, failure } = utils
-		preserveExecutionEffects(utils)
 		addSuccessStep(
 			value => typeof value === 'boolean'
 				?	success(value)
@@ -67,4 +66,4 @@ export const boolean = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-}, 'sync')
+}, 'sync'), { boolean: previous => previous })

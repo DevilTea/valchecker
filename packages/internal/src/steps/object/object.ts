@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects, getPreviousExecutionEffects, setExecutionEffects } from '../../core/execution-effects'
+import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -88,6 +88,17 @@ function getOwnValue(value: object, key: PropertyKey): unknown {
 	return (value as Record<PropertyKey, unknown>)[key]
 }
 
+function getEnumerableOwnKeys(value: Record<PropertyKey, unknown>): PropertyKey[] {
+	const keys: PropertyKey[] = Object.keys(value)
+	const symbols = Object.getOwnPropertySymbols(value)
+	for (let i = 0; i < symbols.length; i++) {
+		const key = symbols[i]!
+		if (Object.prototype.propertyIsEnumerable.call(value, key))
+			keys.push(key)
+	}
+	return keys
+}
+
 function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, value: unknown): void {
 	if (key === '__proto__' && !Object.hasOwn(output, key)) {
 		Object.defineProperty(output, key, {
@@ -102,22 +113,15 @@ function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, valu
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const object = implStepPlugin<PluginDef>({
+export const object = withExecutionEffects(implStepPlugin<PluginDef>({
 	object: ({
 		utils,
 		params: [struct, options],
 	}) => {
 		const { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath } = utils
-		const keys: PropertyKey[] = Object.keys(struct)
-		const symbols = Object.getOwnPropertySymbols(struct)
-		for (let i = 0; i < symbols.length; i++) {
-			const key = symbols[i]!
-			if (Object.prototype.propertyIsEnumerable.call(struct, key))
-				keys.push(key)
-		}
+		const keys = getEnumerableOwnKeys(struct)
 		const keysLen = keys.length
 		let operationMode: OperationMode = 'sync'
-		let parentTraversal = getPreviousExecutionEffects(utils).parentTraversal
 		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -128,14 +132,7 @@ export const object = implStepPlugin<PluginDef>({
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
 			if (schema['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'
-			if (getExecutionEffects(schema).parentTraversal !== 'direct-safe')
-				parentTraversal = 'snapshot-required'
 		}
-		setExecutionEffects(utils, {
-			identity: 'may-transform',
-			parentTraversal,
-			structuralOutput: { kind: 'fresh-ordinary-object', keys: [...keys] },
-		})
 
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
@@ -258,5 +255,23 @@ export const object = implStepPlugin<PluginDef>({
 
 			return issues == null ? success(output) : failure(issues)
 		}, operationMode)
+	},
+}), {
+	object: (previous, [struct]) => {
+		const keys = getEnumerableOwnKeys(struct as Record<PropertyKey, unknown>)
+		let parentTraversal = previous.parentTraversal
+		for (let i = 0; i < keys.length; i++) {
+			const prop = (struct as Record<PropertyKey, any>)[keys[i]!]!
+			const schema = Array.isArray(prop) ? prop[0]! : prop
+			if (getExecutionEffects(schema).parentTraversal !== 'direct-safe') {
+				parentTraversal = 'snapshot-required'
+				break
+			}
+		}
+		return {
+			identity: 'may-transform',
+			parentTraversal,
+			structuralOutput: { kind: 'fresh-ordinary-object', keys },
+		}
 	},
 })

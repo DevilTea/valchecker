@@ -8,7 +8,7 @@ import { object } from '../steps/object'
 import { string } from '../steps/string'
 import { transform } from '../steps/transform'
 import { createValchecker, implStepPlugin } from './core'
-import { conservativeExecutionEffects, getExecutionEffects, neutralExecutionEffects, preserveExecutionEffects } from './execution-effects'
+import { conservativeExecutionEffects, getExecutionEffects, neutralExecutionEffects, preserveExecutionEffects, withExecutionEffects } from './execution-effects'
 
 const passthrough = implStepPlugin({
 	passthrough: ({ utils }: any) => {
@@ -16,12 +16,14 @@ const passthrough = implStepPlugin({
 	},
 } as any) as StepPluginImpl<TStepPluginDef>
 
-const preserveIdentityOnly = implStepPlugin({
-	preserveIdentityOnly: ({ utils }: any) => {
-		preserveExecutionEffects(utils, { identity: 'may-transform' })
-		utils.addStep((result: ExecutionResult) => result, 'sync')
-	},
-} as any) as StepPluginImpl<TStepPluginDef>
+const preserveIdentityOnly = withExecutionEffects(
+	implStepPlugin({
+		preserveIdentityOnly: ({ utils }: any) => {
+			utils.addStep((result: ExecutionResult) => result, 'sync')
+		},
+	} as any) as StepPluginImpl<TStepPluginDef>,
+	{ preserveIdentityOnly: previous => preserveExecutionEffects(previous, { identity: 'may-transform' }) },
+)
 
 const v = createValchecker({
 	steps: [

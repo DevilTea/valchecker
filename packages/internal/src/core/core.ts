@@ -18,8 +18,8 @@ import type {
 	StepPluginImpl,
 	TStepPluginDef,
 } from './types'
-import type { ExecutionEffects } from './execution-effects'
-import { conservativeExecutionEffects, executionEffectsKey, neutralExecutionEffects } from './execution-effects'
+import type { ExecutionEffects, ExecutionEffectsResolver } from './execution-effects'
+import { conservativeExecutionEffects, getStepPluginExecutionEffects, neutralExecutionEffects } from './execution-effects'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
@@ -39,13 +39,12 @@ type RuntimeOperationMode =
 
 type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
 	'~operationMode': RuntimeOperationMode
-	'~previousExecutionEffects': ExecutionEffects
-	'~executionEffects': ExecutionEffects
 }
 
 interface RegisteredStepMethod {
 	run: AnyFn
 	defaultOperationMode: RuntimeOperationMode
+	resolveExecutionEffects?: ExecutionEffectsResolver | undefined
 }
 
 type RegisteredStepMethods = Record<PropertyKey, RegisteredStepMethod>
@@ -627,7 +626,6 @@ function createExecutionStepMethodUtils(
 	runtimeExecutions: RuntimeStep[],
 	resolveMessage: ResolveMessageFn,
 	currentOperationMode: RuntimeOperationMode,
-	currentExecutionEffects: ExecutionEffects,
 	defaultOperationMode: RuntimeOperationMode,
 ): RuntimeStepMethodUtils {
 	const wrapWithErrorHandling = (
@@ -673,8 +671,6 @@ function createExecutionStepMethodUtils(
 
 	const utils: RuntimeStepMethodUtils = {
 		'~operationMode': currentOperationMode,
-		'~previousExecutionEffects': currentExecutionEffects,
-		'~executionEffects': conservativeExecutionEffects,
 		addStep: (fn, operationMode) => {
 			const runtimeOperationMode = operationMode == null
 				? defaultOperationMode
@@ -769,26 +765,30 @@ function createStepMethodContext({
 				throw new TypeError(`Required step method is not registered: ${method}`)
 
 			const runtimeSteps: RuntimeStep[] = []
+			const methodParams = [...params]
 			const utils = createExecutionStepMethodUtils(
 				method,
 				runtimeSteps,
 				resolveMessage,
 				RUNTIME_OPERATION_MODE_SYNC,
-				conservativeExecutionEffects,
 				registeredStepMethod.defaultOperationMode,
 			)
 			registeredStepMethod.run({
 				utils,
-				params: [...params],
+				params: methodParams,
 				context,
 			})
+			const executionEffects = registeredStepMethod.resolveExecutionEffects?.(
+				neutralExecutionEffects,
+				methodParams,
+			) ?? conservativeExecutionEffects
 			return createInstance({
 				stepMethods,
 				resolveMessage,
 				context,
 				currentRuntimeSteps: runtimeSteps,
 				currentOperationMode: utils['~operationMode'],
-				currentExecutionEffects: utils['~executionEffects'],
+				currentExecutionEffects: executionEffects,
 			})
 		},
 	}
@@ -824,7 +824,6 @@ function createProxyHandler({
 					nextRuntimeSteps,
 					resolveMessage,
 					operationMode,
-					executionEffects,
 					registeredStepMethod.defaultOperationMode,
 				)
 				registeredStepMethod.run({
@@ -832,13 +831,17 @@ function createProxyHandler({
 					params,
 					context,
 				})
+				const nextExecutionEffects = registeredStepMethod.resolveExecutionEffects?.(
+					executionEffects,
+					params,
+				) ?? conservativeExecutionEffects
 				return createInstance({
 					stepMethods,
 					resolveMessage,
 					context,
 					currentRuntimeSteps: nextRuntimeSteps,
 					currentOperationMode: utils['~operationMode'],
-					currentExecutionEffects: utils['~executionEffects'],
+					currentExecutionEffects: nextExecutionEffects,
 				})
 			}
 		},
@@ -854,7 +857,6 @@ function createCoreProperties(
 ) {
 	const execute = createPublicExecutor(executeRaw, operationMode)
 	return {
-		[executionEffectsKey]: executionEffects,
 		'~standard': {
 			version: 1,
 			vendor: 'valchecker',
@@ -865,6 +867,7 @@ function createCoreProperties(
 			RegisteredStepPluginDefs: null!,
 			runtimeSteps,
 			operationMode: OPERATION_MODES[operationMode],
+			executionEffects,
 		},
 		'~execute': executeRaw,
 		execute,
@@ -938,6 +941,7 @@ export function createValchecker<
 	const stepMethods = Object.create(null) as RegisteredStepMethods
 	for (const def of steps) {
 		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? RUNTIME_OPERATION_MODE_MAYBE_ASYNC
+		const executionEffectsResolvers = getStepPluginExecutionEffects(def)
 		for (const method of Reflect.ownKeys(def)) {
 			if (method === runtimeExecutionStepDefMarker || method === stepPluginDefaultOperationMode)
 				continue
@@ -951,7 +955,11 @@ export function createValchecker<
 			const stepMethod = Reflect.get(def, method)
 			if (typeof stepMethod !== 'function')
 				throw new TypeError(`Invalid step method: ${method}`)
-			stepMethods[method] = { run: stepMethod, defaultOperationMode }
+			stepMethods[method] = {
+				run: stepMethod,
+				defaultOperationMode,
+				resolveExecutionEffects: executionEffectsResolvers?.[method],
+			}
 		}
 	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
