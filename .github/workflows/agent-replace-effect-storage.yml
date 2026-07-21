@@ -1,0 +1,30 @@
+name: Apply execution effect storage optimization
+
+on:
+  push:
+    branches:
+      - agent/execution-effect-metadata
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply guarded edits
+        run: python .agent/replace-effect-storage.py
+      - name: Remove temporary automation
+        run: rm -rf .agent .github/workflows/agent-replace-effect-storage.yml
+      - name: Commit optimized storage
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "perf: avoid WeakMap metadata registration"
+          git push
