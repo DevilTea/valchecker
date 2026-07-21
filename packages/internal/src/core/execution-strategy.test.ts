@@ -40,11 +40,20 @@ describe('operation-mode execution contracts', () => {
 		const asynchronous = v.maybePass(true)
 
 		expect(synchronous['~core'].operationMode).toBe('maybe-async')
+		expect(synchronous['~execute']('value')).toEqual({ value: 'value' })
 		expect(synchronous.execute('value')).toEqual({ value: 'value' })
+		expect(synchronous['~standard'].validate('value')).toEqual({ value: 'value' })
 
-		const result = asynchronous.execute('value')
-		expect(result).toBeInstanceOf(Promise)
-		await expect(result).resolves.toEqual({ value: 'value' })
+		const rawResult = asynchronous['~execute']('value')
+		const publicResult = asynchronous.execute('value')
+		const standardResult = asynchronous['~standard'].validate('value')
+
+		expect(rawResult).toBeInstanceOf(Promise)
+		expect(publicResult).toBeInstanceOf(Promise)
+		expect(standardResult).toBeInstanceOf(Promise)
+		await expect(rawResult).resolves.toEqual({ value: 'value' })
+		await expect(publicResult).resolves.toEqual({ value: 'value' })
+		await expect(standardResult).resolves.toEqual({ value: 'value' })
 	})
 
 	it('preserves the async Promise boundary when a success-only callback is skipped', async () => {
