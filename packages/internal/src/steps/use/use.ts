@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferIssue, InferOperationMode, InferOutput, Next, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getStructuralRawSyncExecutor } from '../../core/raw-sync-executor'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'use'
@@ -63,7 +64,10 @@ export const use = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep },
 		params: [schema],
 	}) => {
-		const operationMode = schema['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
-		addSuccessStep(value => schema['~execute'](value), operationMode)
+		const isSynchronous = schema['~core']?.operationMode === 'sync'
+		const execute = isSynchronous
+			? getStructuralRawSyncExecutor(schema)
+			: schema['~execute']
+		addSuccessStep(value => execute(value), isSynchronous ? 'sync' : 'maybe-async')
 	},
 })
