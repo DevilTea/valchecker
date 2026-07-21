@@ -3,7 +3,7 @@ import { createValchecker, intersection, transform, unknown } from '../..'
 
 const v = createValchecker({ steps: [intersection, transform, unknown] })
 
-describe('intersection disjoint plain-object fast path', () => {
+describe('intersection disjoint plain-object outputs', () => {
 	it('merges disjoint string and symbol keys while preserving the shared prototype', () => {
 		const rightKey = Symbol('right')
 		const left = Object.assign(Object.create(null), { left: 'Ada' })
