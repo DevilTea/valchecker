@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, UnionToIntersection } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getStructuralRawSyncExecutor } from '../../core/raw-sync-executor'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -499,7 +500,9 @@ export const intersection = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, failure, isFailure, createIssue, prependIssuePath },
 		params: [branches, options],
 	}) => {
-		const branchExecutors = branches.map(branch => branch['~execute'])
+		const branchExecutors = branches.map(branch => branch['~core']?.operationMode === 'sync'
+			? getStructuralRawSyncExecutor(branch)
+			: branch['~execute'])
 		const operationMode: OperationMode = branches.every(branch => branch['~core']?.operationMode === 'sync')
 			? 'sync'
 			: 'maybe-async'
