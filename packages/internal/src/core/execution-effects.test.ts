@@ -22,9 +22,13 @@ const v = createValchecker({
 
 describe('execution effect metadata', () => {
 	it('keeps the empty pipeline neutral and metadata-free steps conservative', () => {
+		const schema = v.string()
+
 		expect(getExecutionEffects(v)).toEqual(neutralExecutionEffects)
 		expect(getExecutionEffects(v.passthrough())).toEqual(conservativeExecutionEffects)
-		expect(getExecutionEffects(v.string().passthrough())).toEqual(conservativeExecutionEffects)
+		expect(getExecutionEffects(schema.passthrough())).toEqual(conservativeExecutionEffects)
+		expect(schema['~executionEffects']).toBeUndefined()
+		expect(Object.keys(schema)).not.toContain('~executionEffects')
 	})
 
 	it.each([
