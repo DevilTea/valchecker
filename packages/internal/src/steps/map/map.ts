@@ -75,223 +75,202 @@ export const map = implStepPlugin<PluginDef>({
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options.collectAllIssues === true
 
-		const expectedMapFailure = (value: unknown) => failure(createIssue({
-			code: 'map:expected_map',
-			payload: { value },
-			customMessage: options.message,
-			defaultMessage: 'Expected a Map.',
-		}))
-
-		const prependChildIssues = (
+		const appendChildIssues = (
 			result: ExecutionResult,
 			path: PropertyKey[],
-		): AnyExecutionIssue[] => {
-			const issues: AnyExecutionIssue[] = []
+			issues: AnyExecutionIssue[] | undefined,
+		): { issues: AnyExecutionIssue[], hasInternal: boolean } => {
+			let hasInternal = false
+			const target = issues ?? []
 			if (isFailure(result)) {
-				for (const issue of result.issues)
-					issues.push(prependIssuePath(issue, path, options.message))
+				for (const issue of result.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					target.push(prependIssuePath(issue, path, options.message))
+				}
 			}
-			return issues
+			return { issues: target, hasInternal }
 		}
 
-		const executeFirstIssue = (value: unknown) => {
-			if (!(value instanceof Map))
-				return expectedMapFailure(value)
-
-			const entries = [...value.entries()]
-			const output = new Map<unknown, unknown>()
-			const firstKeyIndex = new Map<unknown, number>()
-
-			const commitEntry = (
-				sourceKey: unknown,
-				index: number,
-				transformedKey: unknown,
-				transformedValue: unknown,
-			): ExecutionResult | undefined => {
-				if (output.has(transformedKey)) {
-					const firstIndex = firstKeyIndex.get(transformedKey)
-					if (firstIndex == null)
-						throw new Error('Missing transformed Map key metadata.')
-					return failure(createIssue({
-						code: 'map:duplicate_transformed_key',
-						payload: {
-							value,
-							firstSourceKey: entries[firstIndex]![0],
-							sourceKey,
-							transformedKey,
-							firstIndex,
-							index,
-						},
-						path: [index, 'key'],
-						customMessage: options.message,
-						defaultMessage: 'Expected transformed Map keys to be unique.',
-					}))
-				}
-				output.set(transformedKey, transformedValue)
-				firstKeyIndex.set(transformedKey, index)
-				return undefined
+		const commitEntry = (
+			value: Map<unknown, unknown>,
+			entries: [unknown, unknown][],
+			output: Map<unknown, unknown>,
+			firstKeyIndex: Map<unknown, number>,
+			sourceKey: unknown,
+			index: number,
+			transformedKey: unknown,
+			transformedValue: unknown,
+			issues: AnyExecutionIssue[] | undefined,
+		): { issues: AnyExecutionIssue[] | undefined, stop: boolean } => {
+			if (output.has(transformedKey)) {
+				const firstIndex = firstKeyIndex.get(transformedKey)
+				if (firstIndex == null)
+					throw new Error('Missing transformed Map key metadata.')
+				const target = issues ?? []
+				target.push(createIssue({
+					code: 'map:duplicate_transformed_key',
+					payload: {
+						value,
+						firstSourceKey: entries[firstIndex]![0],
+						sourceKey,
+						transformedKey,
+						firstIndex,
+						index,
+					},
+					path: [index, 'key'],
+					customMessage: options.message,
+					defaultMessage: 'Expected transformed Map keys to be unique.',
+				}))
+				return { issues: target, stop: !collectAllIssues }
 			}
 
-			const continueAsync = async (
-				startIndex: number,
-				pending: PromiseLike<ExecutionResult>,
-				phase: 'key' | 'value',
-				resolvedKey?: ExecutionResult,
-			): Promise<ExecutionResult> => {
-				for (let index = startIndex; index < entries.length; index++) {
-					const [sourceKey, sourceValue] = entries[index]!
-					const keyResult = index === startIndex
-						? phase === 'key' ? await pending : resolvedKey!
-						: await keyExecute(sourceKey)
-					if (isFailure(keyResult))
-						return failure(prependChildIssues(keyResult, [index, 'key']))
+			output.set(transformedKey, transformedValue)
+			firstKeyIndex.set(transformedKey, index)
+			return { issues, stop: false }
+		}
 
-					const valueResult = index === startIndex && phase === 'value'
-						? await pending
-						: await valueExecute(sourceValue)
-					if (isFailure(valueResult))
-						return failure(prependChildIssues(valueResult, [index, 'value']))
-
-					const commitFailure = commitEntry(sourceKey, index, keyResult.value, valueResult.value)
-					if (commitFailure != null)
-						return commitFailure
-				}
-				return success(output)
-			}
-
-			for (let index = 0; index < entries.length; index++) {
+		const continueAsync = async (
+			value: Map<unknown, unknown>,
+			entries: [unknown, unknown][],
+			startIndex: number,
+			pending: PromiseLike<ExecutionResult>,
+			phase: 'key' | 'value',
+			output: Map<unknown, unknown>,
+			firstKeyIndex: Map<unknown, number>,
+			issues: AnyExecutionIssue[] | undefined,
+			resolvedKey?: ExecutionResult,
+		): Promise<ExecutionResult> => {
+			for (let index = startIndex; index < entries.length; index++) {
 				const [sourceKey, sourceValue] = entries[index]!
-				const keyResult = keyExecute(sourceKey)
-				if (!childrenAreSynchronous && isPromiseLike(keyResult))
-					return continueAsync(index, keyResult, 'key')
+				const keyWasProcessed = index === startIndex && phase === 'value'
+				const keyResult = index === startIndex
+					? phase === 'key' ? await pending : resolvedKey!
+					: await keyExecute(sourceKey)
+				const keyFailed = isFailure(keyResult)
 
-				const syncKeyResult = keyResult as ExecutionResult
-				if (isFailure(syncKeyResult))
-					return failure(prependChildIssues(syncKeyResult, [index, 'key']))
+				if (!keyWasProcessed && keyFailed) {
+					const appended = appendChildIssues(keyResult, [index, 'key'], issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
 
-				const valueResult = valueExecute(sourceValue)
-				if (!childrenAreSynchronous && isPromiseLike(valueResult))
-					return continueAsync(index, valueResult, 'value', syncKeyResult)
+				const valueResult = index === startIndex && phase === 'value'
+					? await pending
+					: await valueExecute(sourceValue)
+				const valueFailed = isFailure(valueResult)
+				if (valueFailed) {
+					const appended = appendChildIssues(valueResult, [index, 'value'], issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
 
-				const syncValueResult = valueResult as ExecutionResult
-				if (isFailure(syncValueResult))
-					return failure(prependChildIssues(syncValueResult, [index, 'value']))
-
-				const commitFailure = commitEntry(sourceKey, index, syncKeyResult.value, syncValueResult.value)
-				if (commitFailure != null)
-					return commitFailure
+				if (!keyFailed && !valueFailed) {
+					const committed = commitEntry(
+						value,
+						entries,
+						output,
+						firstKeyIndex,
+						sourceKey,
+						index,
+						keyResult.value,
+						valueResult.value,
+						issues,
+					)
+					issues = committed.issues
+					if (committed.stop)
+						return failure(issues!)
+				}
 			}
-			return success(output)
+
+			return issues == null ? success(output) : failure(issues)
 		}
 
-		const executeCollectAll = (value: unknown) => {
-			if (!(value instanceof Map))
-				return expectedMapFailure(value)
+		addSuccessStep((value) => {
+			if (!(value instanceof Map)) {
+				return failure(createIssue({
+					code: 'map:expected_map',
+					payload: { value },
+					customMessage: options.message,
+					defaultMessage: 'Expected a Map.',
+				}))
+			}
 
 			const entries = [...value.entries()]
 			const output = new Map<unknown, unknown>()
 			const firstKeyIndex = new Map<unknown, number>()
 			let issues: AnyExecutionIssue[] | undefined
 
-			const appendChildIssues = (result: ExecutionResult, path: PropertyKey[]): boolean => {
-				if (!isFailure(result))
-					return false
-				let hasInternal = false
-				const target = issues ??= []
-				for (const issue of result.issues) {
-					if (issue.category === 'internal')
-						hasInternal = true
-					target.push(prependIssuePath(issue, path, options.message))
-				}
-				return hasInternal
-			}
-
-			const commitEntry = (
-				sourceKey: unknown,
-				index: number,
-				transformedKey: unknown,
-				transformedValue: unknown,
-			): void => {
-				if (output.has(transformedKey)) {
-					const firstIndex = firstKeyIndex.get(transformedKey)
-					if (firstIndex == null)
-						throw new Error('Missing transformed Map key metadata.')
-					const target = issues ??= []
-					target.push(createIssue({
-						code: 'map:duplicate_transformed_key',
-						payload: {
-							value,
-							firstSourceKey: entries[firstIndex]![0],
-							sourceKey,
-							transformedKey,
-							firstIndex,
-							index,
-						},
-						path: [index, 'key'],
-						customMessage: options.message,
-						defaultMessage: 'Expected transformed Map keys to be unique.',
-					}))
-					return
-				}
-				output.set(transformedKey, transformedValue)
-				firstKeyIndex.set(transformedKey, index)
-			}
-
-			const continueAsync = async (
-				startIndex: number,
-				pending: PromiseLike<ExecutionResult>,
-				phase: 'key' | 'value',
-				resolvedKey?: ExecutionResult,
-			): Promise<ExecutionResult> => {
-				for (let index = startIndex; index < entries.length; index++) {
-					const [sourceKey, sourceValue] = entries[index]!
-					const keyWasProcessed = index === startIndex && phase === 'value'
-					const keyResult = index === startIndex
-						? phase === 'key' ? await pending : resolvedKey!
-						: await keyExecute(sourceKey)
-					const keyFailed = isFailure(keyResult)
-					if (!keyWasProcessed && keyFailed && appendChildIssues(keyResult, [index, 'key']))
-						return failure(issues!)
-
-					const valueResult = index === startIndex && phase === 'value'
-						? await pending
-						: await valueExecute(sourceValue)
-					const valueFailed = isFailure(valueResult)
-					if (valueFailed && appendChildIssues(valueResult, [index, 'value']))
-						return failure(issues!)
-
-					if (!keyFailed && !valueFailed)
-						commitEntry(sourceKey, index, keyResult.value, valueResult.value)
-				}
-				return issues == null ? success(output) : failure(issues)
-			}
-
 			for (let index = 0; index < entries.length; index++) {
 				const [sourceKey, sourceValue] = entries[index]!
 				const keyResult = keyExecute(sourceKey)
-				if (!childrenAreSynchronous && isPromiseLike(keyResult))
-					return continueAsync(index, keyResult, 'key')
+				if (!childrenAreSynchronous && isPromiseLike(keyResult)) {
+					return continueAsync(
+						value,
+						entries,
+						index,
+						keyResult,
+						'key',
+						output,
+						firstKeyIndex,
+						issues,
+					)
+				}
 
 				const syncKeyResult = keyResult as ExecutionResult
 				const keyFailed = isFailure(syncKeyResult)
-				if (keyFailed && appendChildIssues(syncKeyResult, [index, 'key']))
-					return failure(issues!)
+				if (keyFailed) {
+					const appended = appendChildIssues(syncKeyResult, [index, 'key'], issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
 
 				const valueResult = valueExecute(sourceValue)
-				if (!childrenAreSynchronous && isPromiseLike(valueResult))
-					return continueAsync(index, valueResult, 'value', syncKeyResult)
+				if (!childrenAreSynchronous && isPromiseLike(valueResult)) {
+					return continueAsync(
+						value,
+						entries,
+						index,
+						valueResult,
+						'value',
+						output,
+						firstKeyIndex,
+						issues,
+						syncKeyResult,
+					)
+				}
 
 				const syncValueResult = valueResult as ExecutionResult
 				const valueFailed = isFailure(syncValueResult)
-				if (valueFailed && appendChildIssues(syncValueResult, [index, 'value']))
-					return failure(issues!)
+				if (valueFailed) {
+					const appended = appendChildIssues(syncValueResult, [index, 'value'], issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
 
-				if (!keyFailed && !valueFailed)
-					commitEntry(sourceKey, index, syncKeyResult.value, syncValueResult.value)
+				if (!keyFailed && !valueFailed) {
+					const committed = commitEntry(
+						value,
+						entries,
+						output,
+						firstKeyIndex,
+						sourceKey,
+						index,
+						syncKeyResult.value,
+						syncValueResult.value,
+						issues,
+					)
+					issues = committed.issues
+					if (committed.stop)
+						return failure(issues!)
+				}
 			}
-			return issues == null ? success(output) : failure(issues)
-		}
 
-		addSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)
+			return issues == null ? success(output) : failure(issues)
+		}, operationMode)
 	},
 })
