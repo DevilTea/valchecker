@@ -114,6 +114,8 @@ function validateResult(raw) {
 			throw new Error(`${path}.issuePolicy is invalid`)
 		if (!comparisonScopes.has(scenario.comparisonScope))
 			throw new Error(`${path}.comparisonScope is invalid`)
+		if (scenario.diagnosticIssueCount !== null && (!Number.isInteger(scenario.diagnosticIssueCount) || scenario.diagnosticIssueCount <= 0))
+			throw new Error(`${path}.diagnosticIssueCount must be null or a positive integer`)
 		catalog.set(scenario.id, scenario)
 	}
 
@@ -150,7 +152,7 @@ function validateResult(raw) {
 			const expected = catalog.get(result.scenario)
 			if (!expected)
 				throw new Error(`${library.adapter} contains unexpected scenario ${result.scenario}`)
-			for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope']) {
+			for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
 				if (result[field] !== expected[field])
 					throw new Error(`${library.adapter} metadata mismatch for ${result.scenario}.${field}`)
 			}
@@ -273,7 +275,7 @@ function renderMarkdown(raw) {
 		lines.push(
 			`### ${scenario.id}`,
 			'',
-			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Comparison scope: **${scenario.comparisonScope}**`,
+			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}**`,
 			'',
 			'| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME |',
 			'| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |',
@@ -322,7 +324,7 @@ function renderHtml(raw) {
 		const skippedText = skipped.length === 0
 			? ''
 			: `<p><strong>Not ranked:</strong> ${skipped.map(item => `${htmlEscape(item.library)} — ${htmlEscape(item.reason)}`).join('; ')}</p>`
-		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Library</th><th>Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th><th>vs Valchecker</th><th>RME</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
+		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Library</th><th>Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th><th>vs Valchecker</th><th>RME</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
 	}).join('')
 
 	return `<!doctype html>
