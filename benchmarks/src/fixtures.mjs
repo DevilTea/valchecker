@@ -179,7 +179,7 @@ invalidCollectionValues[0] = 0
 invalidCollectionValues[99] = 99
 
 const invalidMapEntries = Array.from({ length: 100 }, (_, index) => [`item-${index}`, index])
-invalidMapEntries[0] = [0, 'invalid']
+invalidMapEntries[0] = [0, 0]
 invalidMapEntries[99] = ['item-99', 'invalid']
 
 export const issuePolicyInputs = {
