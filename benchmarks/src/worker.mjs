@@ -22,13 +22,27 @@ if (action !== 'measure' && action !== 'verify')
 const adapter = (await import(adapterPath)).default
 const scenarios = getScenarios(action === 'verify' ? 'full' : mode)
 const results = []
+const skippedScenarios = []
 
 for (const scenario of scenarios) {
+	const support = scenario.support(adapter)
+	if (!support.supported) {
+		skippedScenarios.push({
+			scenario: scenario.id,
+			reason: support.reason,
+		})
+		continue
+	}
+
 	const operation = scenario.setup(adapter)
 	if (action === 'measure') {
 		results.push({
 			scenario: scenario.id,
 			category: scenario.category,
+			group: scenario.group,
+			resultKind: scenario.resultKind,
+			issuePolicy: scenario.issuePolicy,
+			comparisonScope: scenario.comparisonScope,
 			...measure(operation, mode),
 		})
 	}
@@ -38,6 +52,9 @@ process.stdout.write(JSON.stringify({
 	adapter: adapterName,
 	name: adapter.name,
 	version: adapter.version,
-	verifiedScenarios: scenarios.length,
+	capabilities: adapter.capabilities ?? {},
+	verifiedScenarios: scenarios.length - skippedScenarios.length,
+	totalScenarios: scenarios.length,
+	skippedScenarios,
 	results,
 }))
