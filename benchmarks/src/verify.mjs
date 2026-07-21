@@ -39,5 +39,7 @@ function verifyAdapter(adapter) {
 
 for (const adapter of adapters) {
 	const result = await verifyAdapter(adapter)
-	console.log(`[benchmark] verified ${result.name} ${result.version}: ${result.verifiedScenarios} scenarios`)
+	console.log(
+		`[benchmark] verified ${result.name} ${result.version}: ${result.verifiedScenarios}/${result.totalScenarios} scenarios (${result.skippedScenarios.length} unsupported)`,
+	)
 }
