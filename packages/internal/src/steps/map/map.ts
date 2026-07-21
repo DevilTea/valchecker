@@ -92,57 +92,55 @@ export const map = implStepPlugin<PluginDef>({
 			return { issues: target, hasInternal }
 		}
 
-		const commitEntry = (
+		const snapshotEntries = (value: Map<unknown, unknown>): unknown[] => {
+			// eslint-disable-next-line unicorn/no-new-array
+			const entries = new Array<unknown>(value.size * 2)
+			let offset = 0
+			value.forEach((sourceValue, sourceKey) => {
+				entries[offset++] = sourceKey
+				entries[offset++] = sourceValue
+			})
+			return entries
+		}
+
+		const createDuplicateIssue = (
 			value: Map<unknown, unknown>,
-			entries: [unknown, unknown][],
-			output: Map<unknown, unknown>,
-			firstKeyIndex: Map<unknown, number>,
+			entries: unknown[],
+			firstIndex: number,
 			sourceKey: unknown,
 			index: number,
 			transformedKey: unknown,
-			transformedValue: unknown,
-			issues: AnyExecutionIssue[] | undefined,
-		): { issues: AnyExecutionIssue[] | undefined, stop: boolean } => {
-			if (output.has(transformedKey)) {
-				const firstIndex = firstKeyIndex.get(transformedKey)
-				if (firstIndex == null)
-					throw new Error('Missing transformed Map key metadata.')
-				const target = issues ?? []
-				target.push(createIssue({
-					code: 'map:duplicate_transformed_key',
-					payload: {
-						value,
-						firstSourceKey: entries[firstIndex]![0],
-						sourceKey,
-						transformedKey,
-						firstIndex,
-						index,
-					},
-					path: [index, 'key'],
-					customMessage: options.message,
-					defaultMessage: 'Expected transformed Map keys to be unique.',
-				}))
-				return { issues: target, stop: !collectAllIssues }
-			}
-
-			output.set(transformedKey, transformedValue)
-			firstKeyIndex.set(transformedKey, index)
-			return { issues, stop: false }
-		}
+		) => createIssue({
+			code: 'map:duplicate_transformed_key',
+			payload: {
+				value,
+				firstSourceKey: entries[firstIndex * 2],
+				sourceKey,
+				transformedKey,
+				firstIndex,
+				index,
+			},
+			path: [index, 'key'],
+			customMessage: options.message,
+			defaultMessage: 'Expected transformed Map keys to be unique.',
+		})
 
 		const continueAsync = async (
 			value: Map<unknown, unknown>,
-			entries: [unknown, unknown][],
+			entries: unknown[],
 			startIndex: number,
 			pending: PromiseLike<ExecutionResult>,
 			phase: 'key' | 'value',
-			output: Map<unknown, unknown>,
-			firstKeyIndex: Map<unknown, number>,
+			output: Map<unknown, unknown> | undefined,
+			firstKeyIndex: Map<unknown, number> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
 			resolvedKey?: ExecutionResult,
 		): Promise<ExecutionResult> => {
-			for (let index = startIndex; index < entries.length; index++) {
-				const [sourceKey, sourceValue] = entries[index]!
+			const entryCount = entries.length / 2
+			for (let index = startIndex; index < entryCount; index++) {
+				const offset = index * 2
+				const sourceKey = entries[offset]
+				const sourceValue = entries[offset + 1]
 				const keyWasProcessed = index === startIndex && phase === 'value'
 				const keyResult = index === startIndex
 					? phase === 'key' ? await pending : resolvedKey!
@@ -168,24 +166,26 @@ export const map = implStepPlugin<PluginDef>({
 				}
 
 				if (!keyFailed && !valueFailed) {
-					const committed = commitEntry(
-						value,
-						entries,
-						output,
-						firstKeyIndex,
-						sourceKey,
-						index,
-						keyResult.value,
-						valueResult.value,
-						issues,
-					)
-					issues = committed.issues
-					if (committed.stop)
-						return failure(issues!)
+					const transformedKey = keyResult.value
+					if (output?.has(transformedKey)) {
+						const firstIndex = firstKeyIndex!.get(transformedKey)
+						if (firstIndex == null)
+							throw new Error('Missing transformed Map key metadata.')
+						const target = issues ??= []
+						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
+						if (!collectAllIssues)
+							return failure(target)
+					}
+					else {
+						output ??= new Map()
+						firstKeyIndex ??= new Map()
+						output.set(transformedKey, valueResult.value)
+						firstKeyIndex.set(transformedKey, index)
+					}
 				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output ?? new Map()) : failure(issues)
 		}
 
 		addSuccessStep((value) => {
@@ -198,13 +198,16 @@ export const map = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const entries = [...value.entries()]
-			const output = new Map<unknown, unknown>()
-			const firstKeyIndex = new Map<unknown, number>()
+			const entries = snapshotEntries(value)
+			let output: Map<unknown, unknown> | undefined
+			let firstKeyIndex: Map<unknown, number> | undefined
 			let issues: AnyExecutionIssue[] | undefined
+			const entryCount = entries.length / 2
 
-			for (let index = 0; index < entries.length; index++) {
-				const [sourceKey, sourceValue] = entries[index]!
+			for (let index = 0; index < entryCount; index++) {
+				const offset = index * 2
+				const sourceKey = entries[offset]
+				const sourceValue = entries[offset + 1]
 				const keyResult = keyExecute(sourceKey)
 				if (!childrenAreSynchronous && isPromiseLike(keyResult)) {
 					return continueAsync(
@@ -253,24 +256,26 @@ export const map = implStepPlugin<PluginDef>({
 				}
 
 				if (!keyFailed && !valueFailed) {
-					const committed = commitEntry(
-						value,
-						entries,
-						output,
-						firstKeyIndex,
-						sourceKey,
-						index,
-						syncKeyResult.value,
-						syncValueResult.value,
-						issues,
-					)
-					issues = committed.issues
-					if (committed.stop)
-						return failure(issues!)
+					const transformedKey = syncKeyResult.value
+					if (output?.has(transformedKey)) {
+						const firstIndex = firstKeyIndex!.get(transformedKey)
+						if (firstIndex == null)
+							throw new Error('Missing transformed Map key metadata.')
+						const target = issues ??= []
+						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
+						if (!collectAllIssues)
+							return failure(target)
+					}
+					else {
+						output ??= new Map()
+						firstKeyIndex ??= new Map()
+						output.set(transformedKey, syncValueResult.value)
+						firstKeyIndex.set(transformedKey, index)
+					}
 				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output ?? new Map()) : failure(issues)
 		}, operationMode)
 	},
 })
