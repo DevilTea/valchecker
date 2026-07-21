@@ -38,8 +38,8 @@ interface PluginDef extends TStepPluginDef {
 	 */
 	set: DefineStepMethod<
 		Meta,
-		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-			? IsExactlyAnyOrUnknown<InferOutput<This>> extends true
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
 				? <I extends Use<Valchecker>>(
 						item: I,
 						options?: StructuralStepOptions<Internal.Issue<NoInfer<I>>>,
@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 						operationMode: Internal.OpMode<I>
 						output: Set<InferOutput<I>>
 						issue: Internal.Issue<I>
-					}, This>
+					}, this['CurrentValchecker']>
 				: never
 			: never
 	>
@@ -64,73 +64,93 @@ export const set = implStepPlugin<PluginDef>({
 		const childIsSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
 
-		const processResult = (
-			value: Set<unknown>,
-			items: unknown[],
-			output: Set<unknown>,
-			firstItemIndex: Map<unknown, number>,
+		const appendChildIssues = (
 			result: ExecutionResult,
-			item: unknown,
 			index: number,
 			issues: AnyExecutionIssue[] | undefined,
-		): { issues: AnyExecutionIssue[] | undefined, stop: boolean } => {
+		): { issues: AnyExecutionIssue[], hasInternal: boolean } => {
+			let hasInternal = false
+			const target = issues ?? []
 			if (isFailure(result)) {
-				let hasInternal = false
-				const target = issues ?? []
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
 					target.push(prependIssuePath(issue, [index], options?.message))
 				}
-				return { issues: target, stop: hasInternal || !collectAllIssues }
 			}
-
-			const transformedItem = result.value
-			if (output.has(transformedItem)) {
-				const firstIndex = firstItemIndex.get(transformedItem)
-				if (firstIndex == null)
-					throw new Error('Missing transformed Set item metadata.')
-				const target = issues ?? []
-				target.push(createIssue({
-					code: 'set:duplicate_transformed_item',
-					payload: {
-						value,
-						firstItem: items[firstIndex],
-						item,
-						transformedItem,
-						firstIndex,
-						index,
-					},
-					path: [index],
-					customMessage: options?.message,
-					defaultMessage: 'Expected transformed Set items to be unique.',
-				}))
-				return { issues: target, stop: !collectAllIssues }
-			}
-
-			output.add(transformedItem)
-			firstItemIndex.set(transformedItem, index)
-			return { issues, stop: false }
+			return { issues: target, hasInternal }
 		}
+
+		const snapshotItems = (value: Set<unknown>): unknown[] => {
+			// eslint-disable-next-line unicorn/no-new-array
+			const items = new Array<unknown>(value.size)
+			let index = 0
+			value.forEach((item) => {
+				items[index++] = item
+			})
+			return items
+		}
+
+		const createDuplicateIssue = (
+			value: Set<unknown>,
+			items: unknown[],
+			firstIndex: number,
+			item: unknown,
+			index: number,
+			transformedItem: unknown,
+		) => createIssue({
+			code: 'set:duplicate_transformed_item',
+			payload: {
+				value,
+				firstItem: items[firstIndex],
+				item,
+				transformedItem,
+				firstIndex,
+				index,
+			},
+			path: [index],
+			customMessage: options?.message,
+			defaultMessage: 'Expected transformed Set items to be unique.',
+		})
 
 		const continueAsync = async (
 			value: Set<unknown>,
 			items: unknown[],
 			startIndex: number,
 			firstResult: PromiseLike<ExecutionResult>,
-			output: Set<unknown>,
-			firstItemIndex: Map<unknown, number>,
+			output: Set<unknown> | undefined,
+			firstItemIndex: Map<unknown, number> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
 		): Promise<ExecutionResult> => {
 			for (let index = startIndex; index < items.length; index++) {
 				const item = items[index]
 				const result = index === startIndex ? await firstResult : await execute(item)
-				const processed = processResult(value, items, output, firstItemIndex, result, item, index, issues)
-				issues = processed.issues
-				if (processed.stop)
-					return failure(issues!)
+				if (isFailure(result)) {
+					const appended = appendChildIssues(result, index, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+					continue
+				}
+
+				const transformedItem = result.value
+				if (output?.has(transformedItem)) {
+					const firstIndex = firstItemIndex!.get(transformedItem)
+					if (firstIndex == null)
+						throw new Error('Missing transformed Set item metadata.')
+					const target = issues ??= []
+					target.push(createDuplicateIssue(value, items, firstIndex, item, index, transformedItem))
+					if (!collectAllIssues)
+						return failure(target)
+				}
+				else {
+					output ??= new Set()
+					firstItemIndex ??= new Map()
+					output.add(transformedItem)
+					firstItemIndex.set(transformedItem, index)
+				}
 			}
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output ?? new Set()) : failure(issues)
 		}
 
 		addSuccessStep((value) => {
@@ -143,9 +163,9 @@ export const set = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const items = [...value.values()]
-			const output = new Set<unknown>()
-			const firstItemIndex = new Map<unknown, number>()
+			const items = snapshotItems(value)
+			let output: Set<unknown> | undefined
+			let firstItemIndex: Map<unknown, number> | undefined
 			let issues: AnyExecutionIssue[] | undefined
 
 			for (let index = 0; index < items.length; index++) {
@@ -154,22 +174,34 @@ export const set = implStepPlugin<PluginDef>({
 				if (!childIsSynchronous && isPromiseLike(result))
 					return continueAsync(value, items, index, result, output, firstItemIndex, issues)
 
-				const processed = processResult(
-					value,
-					items,
-					output,
-					firstItemIndex,
-					result as ExecutionResult,
-					item,
-					index,
-					issues,
-				)
-				issues = processed.issues
-				if (processed.stop)
-					return failure(issues!)
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult)) {
+					const appended = appendChildIssues(syncResult, index, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+					continue
+				}
+
+				const transformedItem = syncResult.value
+				if (output?.has(transformedItem)) {
+					const firstIndex = firstItemIndex!.get(transformedItem)
+					if (firstIndex == null)
+						throw new Error('Missing transformed Set item metadata.')
+					const target = issues ??= []
+					target.push(createDuplicateIssue(value, items, firstIndex, item, index, transformedItem))
+					if (!collectAllIssues)
+						return failure(target)
+				}
+				else {
+					output ??= new Set()
+					firstItemIndex ??= new Map()
+					output.add(transformedItem)
+					firstItemIndex.set(transformedItem, index)
+				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output ?? new Set()) : failure(issues)
 		}, operationMode)
 	},
 })
