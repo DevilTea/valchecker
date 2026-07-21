@@ -47,6 +47,7 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 
 ### Changed
 
+- `array()`, `set()`, `map()`, `object()`, `strictObject()`, `looseObject()`, and `intersection()` now stop after the first recoverable structural or child failure by default; pass `collectAllIssues: true` to preserve complete recoverable issue collection. Default asynchronous intersections now avoid starting later branches after an earlier failure.
 - Standardized all message-bearing built-in step parameters around trailing options objects and removed positional messages.
 - Number `isMultipleOf()` accepts ordinary decimal multiples using a documented floating-point tolerance, while bigint divisibility remains exact.
 - The supported runtime is Node.js 22 or newer.
@@ -78,54 +79,3 @@ This release candidate establishes the intended Valchecker 1.0 compatibility con
 - `literal()` uses `Object.is`, and bigint conversion failures use `toBigint:conversion_failed`.
 
 ### Renamed
-
-- `empty()` → `isEmpty()`
-- `integer()` → `isInteger()`
-- `startsWith()` → `isStartingWith()`
-- `endsWith()` → `isEndingWith()`
-- numeric `min()` → `isAtLeast()`
-- numeric `max()` → `isAtMost()`
-- length `min()` → `isLengthAtLeast()`
-- length `max()` → `isLengthAtMost()`
-- `parseJSON()` → `toJSONValue()`
-- `stringifyJSON()` → `toJSONString()`
-- `toSplitted()` → `toSplit()`
-- issue code `transform:failed` → `transform:callback_failed`
-- issue code `toBigint:invalid_bigint` → `toBigint:conversion_failed`
-
-Issue codes for renamed built-in steps now use the public step name, including `isAtLeast:expected_at_least`, `isLengthAtLeast:expected_length_at_least`, and `toJSONValue:invalid_json`.
-
-### Removed
-
-The following accidental implementation exports are no longer part of the public package surface:
-
-- `noop`
-- `returnTrue`
-- `isPromiseLike`
-- `runtimeExecutionStepDefMarker`
-- `createPipeExecutor`
-- `handleMessage`
-- `prependIssuePath`
-- `resolveMessagePriority`
-
-The release workflow no longer:
-
-- bumps package versions,
-- commits or pushes changes,
-- creates or pushes Git tags,
-- executes unpinned release-note tooling,
-- publishes directly from workspace directories,
-- uses a long-lived npm token.
-
-### Security
-
-- npm publication is restricted to a manually dispatched workflow on `main`, protected by the `npm` GitHub environment.
-- Publication uses job-scoped OIDC and rejects `NPM_TOKEN` and `NODE_AUTH_TOKEN`.
-- Exact tarball paths, sizes, SHA-256 checksums, package order, commit identity, npm tag, and typed confirmation are verified immediately before publication.
-- CI rejects source files, tests, benchmarks, TypeScript configuration, and unresolved workspace/catalog dependency protocols in published tarballs.
-
-## Pre-1.0 history
-
-Versions before `1.0.0-rc.0` were development releases and did not provide the full compatibility guarantees documented for the 1.0 line. Refer to Git history and merged pull requests for detailed pre-1.0 changes.
-
-[1.0.0-rc.0]: https://github.com/DevilTea/valchecker/releases/tag/v1.0.0-rc.0
