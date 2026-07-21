@@ -82,7 +82,10 @@ export const check = implStepPlugin<PluginDef>({
 		params: [run, options],
 	}) => {
 		const { addSuccessStep, success, createIssue, failure, prependIssuePath } = utils
-		preserveExecutionEffects(utils, { parentTraversal: 'snapshot-required' })
+		preserveExecutionEffects(utils, {
+			parentTraversal: 'snapshot-required',
+			structuralOutput: null,
+		})
 		addSuccessStep((value) => {
 			let issues: AnyExecutionIssue[] | undefined
 			const addIssue = (issue: AnyExecutionIssue) => {
