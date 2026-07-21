@@ -101,7 +101,7 @@ describe('strictObject step plugin', () => {
 			name: v.string(),
 			age: v.number(),
 			city: v.string(),
-		}).execute({
+		}, { collectAllIssues: true }).execute({
 			name: 123,
 			age: 'old',
 			extra: true,
@@ -167,7 +167,7 @@ describe('strictObject step plugin', () => {
 			first: v.string().transform(async () => { throw new Error('recoverable') }),
 			optional: [v.number()],
 			last: v.string(),
-		})
+		}, { collectAllIssues: true })
 
 		await expect(schema.execute({
 			first: 'value',
