@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getStructuralRawSyncExecutor } from '../../core/raw-sync-executor'
 import { isPromiseLike } from '../../shared'
 
 function canonicalPropertyKey(value: string | number | symbol): string | symbol {
@@ -99,8 +100,12 @@ export const variant = implStepPlugin<PluginDef>({
 			const schema = Reflect.get(variants, key)
 			if (!isValcheckerSchema(schema))
 				throw new TypeError(`variant() branch for ${String(key)} must be a Valchecker schema.`)
-			executors.set(key, schema['~execute'])
-			if (schema['~core']?.operationMode !== 'sync')
+			const isSynchronous = schema['~core']?.operationMode === 'sync'
+			executors.set(
+				key,
+				isSynchronous ? getStructuralRawSyncExecutor(schema) : schema['~execute'],
+			)
+			if (!isSynchronous)
 				operationMode = 'maybe-async'
 		}
 
