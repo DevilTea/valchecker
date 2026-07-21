@@ -59,7 +59,7 @@ describe('set step plugin', () => {
 	})
 
 	it('collects child issues with stable numeric paths', () => {
-		expect(v.set(v.string()).execute(new Set<unknown>(['ok', 1, 2]))).toMatchObject({
+		expect(v.set(v.string(), { collectAllIssues: true }).execute(new Set<unknown>(['ok', 1, 2]))).toMatchObject({
 			issues: [
 				{ code: 'string:expected_string', path: [1], payload: { value: 1 } },
 				{ code: 'string:expected_string', path: [2], payload: { value: 2 } },
@@ -153,7 +153,7 @@ describe('set step plugin', () => {
 				return value
 			})
 
-		await expect(v.set(item).execute(new Set(['a', 'b', 'c'])))
+		await expect(v.set(item, { collectAllIssues: true }).execute(new Set(['a', 'b', 'c'])))
 			.resolves.toMatchObject({
 				issues: [{ code: 'transform:callback_failed', path: [0] }],
 			})
