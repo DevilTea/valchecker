@@ -5,7 +5,7 @@ export type RawSyncExecutor = (value: unknown) => ExecutionResult
 
 const executorCache = new WeakMap<object, RawSyncExecutor>()
 
-function createRawSyncExecutor(runtimeSteps: readonly unknown[]): RawSyncExecutor {
+export function createRawSyncExecutor(runtimeSteps: readonly unknown[]): RawSyncExecutor {
 	const steps = runtimeSteps as readonly SyncRuntimeStep[]
 	const len = steps.length
 	if (len === 0)
