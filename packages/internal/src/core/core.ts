@@ -553,7 +553,7 @@ function hasIssueDraft(issues: readonly AnyExecutionIssue[]): boolean {
 	return false
 }
 
-function finalizeResult(result: ExecutionResult): ExecutionResult {
+function finalizeAsyncResult(result: ExecutionResult): ExecutionResult {
 	return 'issues' in result && hasIssueDraft(result.issues)
 		? finalizeFailureResult(result)
 		: result
@@ -563,17 +563,25 @@ function createPublicExecutor(
 	executeRaw: PipeExecutor,
 	operationMode: RuntimeOperationMode,
 ): PipeExecutor {
-	if (operationMode === RUNTIME_OPERATION_MODE_SYNC)
-		return value => finalizeResult(executeRaw(value) as ExecutionResult)
+	if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
+		return (value) => {
+			const result = executeRaw(value) as ExecutionResult
+			return 'issues' in result && hasIssueDraft(result.issues)
+				? finalizeFailureResult(result)
+				: result
+		}
+	}
 
 	if (operationMode === RUNTIME_OPERATION_MODE_ASYNC)
-		return value => Promise.resolve(executeRaw(value)).then(finalizeResult)
+		return value => Promise.resolve(executeRaw(value)).then(finalizeAsyncResult)
 
 	return (value) => {
 		const result = executeRaw(value)
-		return isPromiseLike(result)
-			? Promise.resolve(result).then(finalizeResult)
-			: finalizeResult(result)
+		if (isPromiseLike(result))
+			return Promise.resolve(result).then(finalizeAsyncResult)
+		return 'issues' in result && hasIssueDraft(result.issues)
+			? finalizeFailureResult(result)
+			: result
 	}
 }
 
