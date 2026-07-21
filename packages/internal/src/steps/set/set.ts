@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getStructuralRawSyncExecutor } from '../../core/raw-sync-executor'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -59,9 +60,11 @@ export const set = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [itemSchema, options],
 	}) => {
-		const execute = itemSchema['~execute']
-		const operationMode = itemSchema['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
-		const childIsSynchronous = operationMode === 'sync'
+		const childIsSynchronous = itemSchema['~core']?.operationMode === 'sync'
+		const execute = childIsSynchronous
+			? getStructuralRawSyncExecutor(itemSchema)
+			: itemSchema['~execute']
+		const operationMode = childIsSynchronous ? 'sync' : 'maybe-async'
 		const collectAllIssues = options?.collectAllIssues === true
 
 		const appendChildIssues = (
