@@ -67,7 +67,7 @@ describe('array step plugin', () => {
 	})
 
 	it('collects child issues with stable numeric paths', () => {
-		expect(v.array(v.string())
+		expect(v.array(v.string(), { collectAllIssues: true })
 			.execute(['ok', 1, 2]))
 			.toEqual({
 				issues: [
@@ -115,7 +115,7 @@ describe('array step plugin', () => {
 				return later(value)
 			})
 
-		await expect(v.array(item)
+		await expect(v.array(item, { collectAllIssues: true })
 			.execute(['first', 'second', 'third']))
 			.resolves.toMatchObject({
 				issues: [{
