@@ -70,108 +70,80 @@ export const array = implStepPlugin<PluginDef>({
 		const execute = item['~execute']
 		const collectAllIssues = options?.collectAllIssues === true
 
-		const expectedArrayFailure = (value: unknown) => failure(createIssue({
-			code: 'array:expected_array',
-			payload: { value },
-			customMessage: options?.message,
-			defaultMessage: 'Expected an array.',
-		}))
-
-		const prependChildIssues = (result: ExecutionResult, index: number): AnyExecutionIssue[] => {
-			const issues: AnyExecutionIssue[] = []
+		const appendChildIssues = (
+			result: ExecutionResult,
+			index: number,
+			issues: AnyExecutionIssue[] | undefined,
+		): { issues: AnyExecutionIssue[], hasInternal: boolean } => {
+			let hasInternal = false
+			const target = issues ?? []
 			if (isFailure(result)) {
-				for (const issue of result.issues)
-					issues.push(prependIssuePath(issue, [index], options?.message))
+				for (const issue of result.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					target.push(prependIssuePath(issue, [index], options?.message))
+				}
 			}
-			return issues
+			return { issues: target, hasInternal }
 		}
 
-		const executeFirstIssue = (value: unknown) => {
-			if (!Array.isArray(value))
-				return expectedArrayFailure(value)
-
-			const len = value.length
-			// eslint-disable-next-line unicorn/no-new-array
-			const output = new Array(len)
-
-			const continueAsync = async (
-				startIndex: number,
-				firstResult: PromiseLike<ExecutionResult>,
-			): Promise<ExecutionResult> => {
-				for (let index = startIndex; index < len; index++) {
-					const result = index === startIndex
-						? await firstResult
-						: await execute(value[index])
-					if (isFailure(result))
-						return failure(prependChildIssues(result, index))
+		const continueAsync = async (
+			value: unknown[],
+			startIndex: number,
+			firstResult: PromiseLike<ExecutionResult>,
+			output: unknown[],
+			issues: AnyExecutionIssue[] | undefined,
+		): Promise<ExecutionResult> => {
+			for (let index = startIndex; index < value.length; index++) {
+				const result = index === startIndex
+					? await firstResult
+					: await execute(value[index])
+				if (isFailure(result)) {
+					const appended = appendChildIssues(result, index, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
+				else {
 					output[index] = result.value
 				}
-				return success(output)
 			}
-
-			for (let index = 0; index < len; index++) {
-				const result = execute(value[index])
-				if (!childIsSynchronous && isPromiseLike(result))
-					return continueAsync(index, result)
-				const syncResult = result as ExecutionResult
-				if (isFailure(syncResult))
-					return failure(prependChildIssues(syncResult, index))
-				output[index] = syncResult.value
-			}
-			return success(output)
+			return issues == null ? success(output) : failure(issues)
 		}
 
-		const executeCollectAll = (value: unknown) => {
-			if (!Array.isArray(value))
-				return expectedArrayFailure(value)
+		addSuccessStep((value) => {
+			if (!Array.isArray(value)) {
+				return failure(createIssue({
+					code: 'array:expected_array',
+					payload: { value },
+					customMessage: options?.message,
+					defaultMessage: 'Expected an array.',
+				}))
+			}
 
 			let issues: AnyExecutionIssue[] | undefined
 			const len = value.length
 			// eslint-disable-next-line unicorn/no-new-array
 			const output = new Array(len)
 
-			const appendChildIssues = (result: ExecutionResult, index: number): boolean => {
-				if (!isFailure(result))
-					return false
-				let hasInternal = false
-				const target = issues ??= []
-				for (const issue of result.issues) {
-					if (issue.category === 'internal')
-						hasInternal = true
-					target.push(prependIssuePath(issue, [index], options?.message))
-				}
-				return hasInternal
-			}
-
-			const continueAsync = async (
-				startIndex: number,
-				firstResult: PromiseLike<ExecutionResult>,
-			): Promise<ExecutionResult> => {
-				for (let index = startIndex; index < len; index++) {
-					const result = index === startIndex
-						? await firstResult
-						: await execute(value[index])
-					if (appendChildIssues(result, index))
-						return failure(issues!)
-					if (!isFailure(result))
-						output[index] = result.value
-				}
-				return issues == null ? success(output) : failure(issues)
-			}
-
 			for (let index = 0; index < len; index++) {
 				const result = execute(value[index])
 				if (!childIsSynchronous && isPromiseLike(result))
-					return continueAsync(index, result)
-				const syncResult = result as ExecutionResult
-				if (appendChildIssues(syncResult, index))
-					return failure(issues!)
-				if (!isFailure(syncResult))
-					output[index] = syncResult.value
-			}
-			return issues == null ? success(output) : failure(issues)
-		}
+					return continueAsync(value, index, result, output, issues)
 
-		addSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult)) {
+					const appended = appendChildIssues(syncResult, index, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
+				else {
+					output[index] = syncResult.value
+				}
+			}
+
+			return issues == null ? success(output) : failure(issues)
+		}, operationMode)
 	},
 })
