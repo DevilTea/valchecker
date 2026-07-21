@@ -18,23 +18,32 @@ import {
 const tierRank = { smoke: 0, standard: 1, full: 2 }
 const explicitIssuePolicies = new Set(['first', 'all'])
 
+function canonicalizeOutput(value) {
+	if (value instanceof Map)
+		return { type: 'Map', entries: [...value].map(([key, item]) => [canonicalizeOutput(key), canonicalizeOutput(item)]) }
+	if (value instanceof Set)
+		return { type: 'Set', values: [...value].map(canonicalizeOutput) }
+	if (Array.isArray(value))
+		return value.map(canonicalizeOutput)
+	if (value != null && typeof value === 'object')
+		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, canonicalizeOutput(item)]))
+	return value
+}
+
 function assertResult(adapter, rawResult, expected) {
 	const normalized = adapter.normalize(rawResult)
 	if (normalized.success !== expected.success)
 		throw new Error(`${adapter.name}: expected success=${expected.success}, received ${normalized.success}`)
 
 	if (expected.output !== undefined) {
-		const actual = JSON.stringify(normalized.output)
-		const wanted = JSON.stringify(expected.output)
+		const actual = JSON.stringify(canonicalizeOutput(normalized.output))
+		const wanted = JSON.stringify(canonicalizeOutput(expected.output))
 		if (actual !== wanted)
 			throw new Error(`${adapter.name}: output mismatch. Expected ${wanted}, received ${actual}`)
 	}
 
 	if (expected.issueCount !== undefined && normalized.issueCount !== expected.issueCount) {
 		throw new Error(`${adapter.name}: expected ${expected.issueCount} issues, received ${normalized.issueCount ?? 'unknown'}`)
-	}
-	if (expected.minimumIssueCount !== undefined && (normalized.issueCount ?? 0) < expected.minimumIssueCount) {
-		throw new Error(`${adapter.name}: expected at least ${expected.minimumIssueCount} issues, received ${normalized.issueCount ?? 'unknown'}`)
 	}
 }
 
@@ -171,10 +180,11 @@ function warmPool(id, tier, buildKey, inputs, expected, options = {}) {
 function issuePolicyPair(structure, buildKey, input, options = {}) {
 	const comparisonScope = options.comparisonScope ?? 'equivalent'
 	const allIssueCount = options.allIssueCount ?? 2
+	const tier = options.tier ?? 'standard'
 	return [
 		warm(
 			`issue-policy/${structure}/invalid/first`,
-			'standard',
+			tier,
 			buildKey,
 			input,
 			{ success: false, issueCount: 1 },
@@ -182,7 +192,7 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 		),
 		warm(
 			`issue-policy/${structure}/invalid/all`,
-			'standard',
+			tier,
 			buildKey,
 			input,
 			{ success: false, issueCount: allIssueCount },
@@ -200,16 +210,16 @@ const allScenarios = [
 	construction('construct/flat-object', 'standard', 'flatObject', flatObject.valid),
 	construction('construct/nested-object', 'standard', 'nestedObject', nestedObject.valid),
 	construction('construct/union', 'standard', 'union', unionInputs.first),
-	construction('construct/set', 'standard', 'set', collectionStructures.set100),
-	construction('construct/map', 'standard', 'map', collectionStructures.map100),
-	construction('construct/intersection', 'standard', 'intersection', collectionStructures.intersection, { success: true }, { comparisonScope: 'compatible-subset' }),
+	construction('construct/set', 'standard', 'set', collectionStructures.set100, { success: true, output: collectionStructures.set100 }),
+	construction('construct/map', 'standard', 'map', collectionStructures.map100, { success: true, output: collectionStructures.map100 }),
+	construction('construct/intersection', 'standard', 'intersection', collectionStructures.intersection, { success: true, output: collectionStructures.intersection }, { comparisonScope: 'compatible-subset' }),
 
 	cold('cold/flat-valid', 'smoke', 'flatObject', flatObject.valid, { success: true }),
 	cold('cold/nested-valid', 'standard', 'nestedObject', nestedObject.valid, { success: true }),
 	cold('cold/union-last', 'standard', 'union', unionInputs.last, { success: true }),
-	cold('cold/set-valid', 'standard', 'set', collectionStructures.set100, { success: true }),
-	cold('cold/map-valid', 'standard', 'map', collectionStructures.map100, { success: true }),
-	cold('cold/intersection-valid', 'standard', 'intersection', collectionStructures.intersection, { success: true }, { comparisonScope: 'compatible-subset' }),
+	cold('cold/set-valid', 'standard', 'set', collectionStructures.set100, { success: true, output: collectionStructures.set100 }),
+	cold('cold/map-valid', 'standard', 'map', collectionStructures.map100, { success: true, output: collectionStructures.map100 }),
+	cold('cold/intersection-valid', 'standard', 'intersection', collectionStructures.intersection, { success: true, output: collectionStructures.intersection }, { comparisonScope: 'compatible-subset' }),
 
 	warm('primitive/valid', 'smoke', 'primitive', primitive.valid, { success: true }),
 	warm('primitive/invalid-type', 'standard', 'primitive', primitive.invalidEarly, { success: false }),
@@ -232,9 +242,9 @@ const allScenarios = [
 	warm('array/100-invalid-last', 'standard', 'recordArray', createInvalidRecords(100, 99), { success: false }),
 	warm('array/1000-invalid-last', 'full', 'recordArray', createInvalidRecords(1000, 999), { success: false }),
 
-	warm('set/100-valid', 'standard', 'set', collectionStructures.set100, { success: true }),
-	warm('map/100-valid', 'standard', 'map', collectionStructures.map100, { success: true }),
-	warm('intersection/valid', 'standard', 'intersection', collectionStructures.intersection, { success: true }, { comparisonScope: 'compatible-subset' }),
+	warm('set/100-valid', 'standard', 'set', collectionStructures.set100, { success: true, output: collectionStructures.set100 }),
+	warm('map/100-valid', 'standard', 'map', collectionStructures.map100, { success: true, output: collectionStructures.map100 }),
+	warm('intersection/valid', 'standard', 'intersection', collectionStructures.intersection, { success: true, output: collectionStructures.intersection }, { comparisonScope: 'compatible-subset' }),
 
 	warm('union/first', 'smoke', 'union', unionInputs.first, { success: true }),
 	warmPool('union/first-rotating', 'standard', 'union', unionFirstPool, { success: true }),
@@ -253,7 +263,7 @@ const allScenarios = [
 	warm('optional-heavy/full', 'standard', 'optionalHeavy', optionalHeavy.full, { success: true }),
 	warm('optional-heavy/invalid', 'standard', 'optionalHeavy', optionalHeavy.invalid, { success: false }),
 
-	...issuePolicyPair('object', 'issuePolicyObject', issuePolicyInputs.object),
+	...issuePolicyPair('object', 'issuePolicyObject', issuePolicyInputs.object, { tier: 'smoke' }),
 	...issuePolicyPair('strict-object', 'issuePolicyStrictObject', issuePolicyInputs.strictObject, { allIssueCount: 3 }),
 	...issuePolicyPair('loose-object', 'issuePolicyLooseObject', issuePolicyInputs.looseObject),
 	...issuePolicyPair('array', 'issuePolicyArray', issuePolicyInputs.array),
