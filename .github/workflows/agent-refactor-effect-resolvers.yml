@@ -20,7 +20,13 @@ jobs:
       - name: Apply guarded core edits
         run: python .agent/refactor-effect-core.py
       - name: Apply guarded built-in edits
-        run: python .agent/refactor-effect-builtins.py
+        shell: bash
+        run: |
+          set +e
+          output=$(python .agent/refactor-effect-builtins.py 2>&1)
+          status=$?
+          printf '%s\n' "$output" | tail -40
+          exit $status
       - name: Remove temporary automation
         run: rm -rf .agent .github/workflows/agent-refactor-effect-resolvers.yml
       - name: Commit resolver refactor
