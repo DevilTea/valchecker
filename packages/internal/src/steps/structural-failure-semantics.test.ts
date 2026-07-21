@@ -277,19 +277,17 @@ describe('structural requiredness contract', () => {
 		])
 			.execute(true)
 
-		expect(result)
+		expect((result as any).issues[0])
 			.toMatchObject({
-				issues: [
-					{
-						code: 'string:expected_string',
-						message: 'leaf message',
-						context: [
-							{ type: 'union', branchIndex: 0 },
-							{ type: 'union', branchIndex: 0 },
-						],
-					},
+				code: 'string:expected_string',
+				message: 'leaf message',
+				context: [
+					{ type: 'union', branchIndex: 0 },
+					{ type: 'union', branchIndex: 0 },
 				],
 			})
+		expect((result as any).issues)
+			.toHaveLength(3)
 		expect(seen)
 			.toEqual([{
 				path: [],
