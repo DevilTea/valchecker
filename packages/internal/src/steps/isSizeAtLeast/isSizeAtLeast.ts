@@ -34,4 +34,4 @@ export const isSizeAtLeast = implStepPlugin<PluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

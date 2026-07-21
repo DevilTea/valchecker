@@ -64,4 +64,4 @@ export const symbol = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-})
+}, 'sync')

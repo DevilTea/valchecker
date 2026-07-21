@@ -63,6 +63,7 @@ export const use = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep },
 		params: [schema],
 	}) => {
-		addSuccessStep(value => schema['~execute'](value))
+		const operationMode = schema['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
+		addSuccessStep(value => schema['~execute'](value), operationMode)
 	},
 })

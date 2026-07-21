@@ -25,4 +25,4 @@ export const toNormalized = implStepPlugin<PluginDef>({
 			throw new TypeError('toNormalized() form must be NFC, NFD, NFKC, or NFKD.')
 		addSuccessStep(value => success(value.normalize(form)))
 	},
-})
+}, 'sync')

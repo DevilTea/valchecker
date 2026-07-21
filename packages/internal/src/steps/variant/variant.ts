@@ -94,11 +94,14 @@ export const variant = implStepPlugin<PluginDef>({
 
 		const expected = Object.freeze([...variantKeys])
 		const executors = new Map<string | symbol, Use<Valchecker>['~execute']>()
+		let operationMode: OperationMode = 'sync'
 		for (const key of variantKeys) {
 			const schema = Reflect.get(variants, key)
 			if (!isValcheckerSchema(schema))
 				throw new TypeError(`variant() branch for ${String(key)} must be a Valchecker schema.`)
 			executors.set(key, schema['~execute'])
+			if (schema['~core']?.operationMode !== 'sync')
+				operationMode = 'maybe-async'
 		}
 
 		const finishBranch = (
@@ -148,9 +151,11 @@ export const variant = implStepPlugin<PluginDef>({
 			}
 
 			const result = execute(value)
+			if (operationMode === 'sync')
+				return finishBranch(result as ExecutionResult, received as string | number | symbol)
 			return isPromiseLike(result)
 				? Promise.resolve(result).then(resolved => finishBranch(resolved, received as string | number | symbol))
 				: finishBranch(result, received as string | number | symbol)
-		})
+		}, operationMode)
 	},
 })

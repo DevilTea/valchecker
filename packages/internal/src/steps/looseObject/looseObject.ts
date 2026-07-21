@@ -106,6 +106,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				keys.push(key)
 		}
 		const keysLen = keys.length
+		let operationMode: OperationMode = 'sync'
 		const propsMeta: Array<{ key: PropertyKey, isOptional: boolean, execute: Use<Valchecker>['~execute'] }> = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -114,7 +115,11 @@ export const looseObject = implStepPlugin<PluginDef>({
 			const isOptional = Array.isArray(prop)
 			const schema = isOptional ? prop[0]! : prop
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
+			if (schema['~core']?.operationMode !== 'sync')
+				operationMode = 'maybe-async'
 		}
+
+		const childrenAreSynchronous = operationMode === 'sync'
 
 		addSuccessStep((value) => {
 			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
@@ -151,7 +156,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				}
 
 				const result = execute(getOwnValue(value, key))
-				if (isPromiseLike(result)) {
+				if (!childrenAreSynchronous && isPromiseLike(result)) {
 					return (async () => {
 						for (let j = i; j < keysLen; j++) {
 							const meta = propsMeta[j]!
@@ -196,9 +201,10 @@ export const looseObject = implStepPlugin<PluginDef>({
 					})()
 				}
 
-				if (isFailure(result)) {
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult)) {
 					let hasInternal = false
-					for (const issue of result.issues) {
+					for (const issue of syncResult.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
 						issues.push(prependIssuePath(issue, [key], options?.message))
@@ -207,11 +213,11 @@ export const looseObject = implStepPlugin<PluginDef>({
 						return failure(issues)
 				}
 				else {
-					setOutputValue(output, key, result.value)
+					setOutputValue(output, key, syncResult.value)
 				}
 			}
 
 			return issues.length > 0 ? failure(issues) : success(output)
-		})
+		}, operationMode)
 	},
 })

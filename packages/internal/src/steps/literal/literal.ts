@@ -73,4 +73,4 @@ export const literal = implStepPlugin<PluginDef>({
 					defaultMessage: `Expected literal value "${String(literalValue)}".`,
 				})))
 	},
-})
+}, 'sync')

@@ -49,4 +49,4 @@ export const isNonNull = implStepPlugin<PluginDef>({
 					defaultMessage: 'Expected a non-null value.',
 				})))
 	},
-})
+}, 'sync')

@@ -67,6 +67,11 @@ export const map = implStepPlugin<PluginDef>({
 	}) => {
 		const keyExecute = options.key['~execute']
 		const valueExecute = options.value['~execute']
+		const operationMode = options.key['~core']?.operationMode === 'sync'
+			&& options.value['~core']?.operationMode === 'sync'
+			? 'sync'
+			: 'maybe-async'
+		const childrenAreSynchronous = operationMode === 'sync'
 
 		addSuccessStep((value) => {
 			if (!(value instanceof Map)) {
@@ -159,26 +164,28 @@ export const map = implStepPlugin<PluginDef>({
 			for (let index = 0; index < entries.length; index++) {
 				const [sourceKey, sourceValue] = entries[index]!
 				const keyResult = keyExecute(sourceKey)
-				if (isPromiseLike(keyResult))
+				if (!childrenAreSynchronous && isPromiseLike(keyResult))
 					return continueAsync(index, keyResult, 'key')
 
-				const keyFailed = isFailure(keyResult)
-				if (keyFailed && appendChildIssues(keyResult, [index, 'key']))
+				const syncKeyResult = keyResult as ExecutionResult
+				const keyFailed = isFailure(syncKeyResult)
+				if (keyFailed && appendChildIssues(syncKeyResult, [index, 'key']))
 					return failure(issues!)
 
 				const valueResult = valueExecute(sourceValue)
-				if (isPromiseLike(valueResult))
-					return continueAsync(index, valueResult, 'value', keyResult)
+				if (!childrenAreSynchronous && isPromiseLike(valueResult))
+					return continueAsync(index, valueResult, 'value', syncKeyResult)
 
-				const valueFailed = isFailure(valueResult)
-				if (valueFailed && appendChildIssues(valueResult, [index, 'value']))
+				const syncValueResult = valueResult as ExecutionResult
+				const valueFailed = isFailure(syncValueResult)
+				if (valueFailed && appendChildIssues(syncValueResult, [index, 'value']))
 					return failure(issues!)
 
 				if (!keyFailed && !valueFailed)
-					commitEntry(sourceKey, index, keyResult.value, valueResult.value)
+					commitEntry(sourceKey, index, syncKeyResult.value, syncValueResult.value)
 			}
 
 			return issues == null ? success(output) : failure(issues)
-		})
+		}, operationMode)
 	},
 })

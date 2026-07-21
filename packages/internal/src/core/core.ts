@@ -12,6 +12,7 @@ import type {
 	IssueContext,
 	MessageExceptionIssue,
 	MessageHandler,
+	OperationMode,
 	ResolveMessageFn,
 	StepMethodUtils,
 	StepPluginImpl,
@@ -21,6 +22,37 @@ import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
+
+const stepPluginDefaultOperationMode = Symbol.for('valchecker.stepPluginDefaultOperationMode')
+
+const RUNTIME_OPERATION_MODE_SYNC = 0
+const RUNTIME_OPERATION_MODE_MAYBE_ASYNC = 1
+const RUNTIME_OPERATION_MODE_ASYNC = 2
+const OPERATION_MODES = ['sync', 'maybe-async', 'async'] as const
+
+type RuntimeOperationMode =
+	| typeof RUNTIME_OPERATION_MODE_SYNC
+	| typeof RUNTIME_OPERATION_MODE_MAYBE_ASYNC
+	| typeof RUNTIME_OPERATION_MODE_ASYNC
+
+type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
+	'~operationMode': RuntimeOperationMode
+}
+
+interface RegisteredStepMethod {
+	run: AnyFn
+	defaultOperationMode: RuntimeOperationMode
+}
+
+type RegisteredStepMethods = Record<PropertyKey, RegisteredStepMethod>
+
+function toRuntimeOperationMode(operationMode: OperationMode): RuntimeOperationMode {
+	return operationMode === 'sync'
+		? RUNTIME_OPERATION_MODE_SYNC
+		: operationMode === 'async'
+			? RUNTIME_OPERATION_MODE_ASYNC
+			: RUNTIME_OPERATION_MODE_MAYBE_ASYNC
+}
 
 interface StepMethodContext {
 	createInitialSchema: (method: string, params?: readonly unknown[]) => any
@@ -71,8 +103,14 @@ function setIssueDraftMetadata(
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export function implStepPlugin<StepPluginDef extends TStepPluginDef>(stepImpl: StepPluginImpl<StepPluginDef>): StepPluginImpl<StepPluginDef> {
+export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
+	stepImpl: StepPluginImpl<StepPluginDef>,
+	defaultOperationMode: OperationMode = 'maybe-async',
+): StepPluginImpl<StepPluginDef> {
 	(stepImpl as any)[runtimeExecutionStepDefMarker] = true
+	Object.defineProperty(stepImpl, stepPluginDefaultOperationMode, {
+		value: toRuntimeOperationMode(defaultOperationMode),
+	})
 	return stepImpl
 }
 
@@ -549,12 +587,17 @@ function createExecutionStepMethodUtils(
 	method: string,
 	runtimeExecutions: RuntimeStep[],
 	resolveMessage: ResolveMessageFn,
-): StepMethodUtils<any, any, any, any> {
+	currentOperationMode: RuntimeOperationMode,
+	defaultOperationMode: RuntimeOperationMode,
+): RuntimeStepMethodUtils {
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
+		operationMode: RuntimeOperationMode,
 	) => (lastResult: ExecutionResult) => {
 		try {
 			const result = fn(lastResult)
+			if (operationMode === RUNTIME_OPERATION_MODE_SYNC)
+				return result as ExecutionResult
 			return isPromiseLike(result)
 				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
 				: result
@@ -564,10 +607,32 @@ function createExecutionStepMethodUtils(
 		}
 	}
 
-	return {
-		addStep: fn => runtimeExecutions.push(wrapWithErrorHandling(fn)),
-		addSuccessStep: fn => runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result)),
-		addFailureStep: fn => runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result)),
+	const utils: RuntimeStepMethodUtils = {
+		'~operationMode': currentOperationMode,
+		addStep: (fn, operationMode) => {
+			const runtimeOperationMode = operationMode == null
+				? defaultOperationMode
+				: toRuntimeOperationMode(operationMode)
+			runtimeExecutions.push(wrapWithErrorHandling(fn, runtimeOperationMode))
+			if (runtimeOperationMode > utils['~operationMode'])
+				utils['~operationMode'] = runtimeOperationMode
+		},
+		addSuccessStep: (fn, operationMode) => {
+			const runtimeOperationMode = operationMode == null
+				? defaultOperationMode
+				: toRuntimeOperationMode(operationMode)
+			runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result, runtimeOperationMode))
+			if (runtimeOperationMode > utils['~operationMode'])
+				utils['~operationMode'] = runtimeOperationMode
+		},
+		addFailureStep: (fn, operationMode) => {
+			const runtimeOperationMode = operationMode == null
+				? defaultOperationMode
+				: toRuntimeOperationMode(operationMode)
+			runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result, runtimeOperationMode))
+			if (runtimeOperationMode > utils['~operationMode'])
+				utils['~operationMode'] = runtimeOperationMode
+		},
 		isSuccess,
 		isFailure,
 		prependIssuePath,
@@ -620,6 +685,7 @@ function createExecutionStepMethodUtils(
 		},
 		issue: i => i,
 	}
+	return utils
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -627,22 +693,25 @@ function createStepMethodContext({
 	stepMethods,
 	resolveMessage,
 }: {
-	stepMethods: Record<PropertyKey, unknown>
+	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 }): StepMethodContext {
 	const context: StepMethodContext = {
 		createInitialSchema: (method, params = []) => {
-			const stepMethod = stepMethods[method]
-			if (typeof stepMethod !== 'function')
+			const registeredStepMethod = stepMethods[method]
+			if (registeredStepMethod == null)
 				throw new TypeError(`Required step method is not registered: ${method}`)
 
 			const runtimeSteps: RuntimeStep[] = []
-			stepMethod({
-				utils: createExecutionStepMethodUtils(
-					method,
-					runtimeSteps,
-					resolveMessage,
-				),
+			const utils = createExecutionStepMethodUtils(
+				method,
+				runtimeSteps,
+				resolveMessage,
+				RUNTIME_OPERATION_MODE_SYNC,
+				registeredStepMethod.defaultOperationMode,
+			)
+			registeredStepMethod.run({
+				utils,
 				params: [...params],
 				context,
 			})
@@ -651,6 +720,7 @@ function createStepMethodContext({
 				resolveMessage,
 				context,
 				currentRuntimeSteps: runtimeSteps,
+				currentOperationMode: utils['~operationMode'],
 			})
 		},
 	}
@@ -662,11 +732,13 @@ function createProxyHandler({
 	stepMethods,
 	resolveMessage,
 	runtimeSteps,
+	operationMode,
 	context,
 }: {
-	stepMethods: Record<PropertyKey, unknown>
+	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 	runtimeSteps: RuntimeStep[]
+	operationMode: RuntimeOperationMode
 	context: StepMethodContext
 }) {
 	return {
@@ -674,15 +746,18 @@ function createProxyHandler({
 			if (Object.hasOwn(stepMethods, p) === false)
 				return Reflect.get(target, p, receiver)
 
-			const stepMethod = stepMethods[p] as AnyFn
+			const registeredStepMethod = stepMethods[p]!
 			return (...params: any[]) => {
 				const nextRuntimeSteps = [...runtimeSteps]
-				stepMethod({
-					utils: createExecutionStepMethodUtils(
-						p as string,
-						nextRuntimeSteps,
-						resolveMessage,
-					),
+				const utils = createExecutionStepMethodUtils(
+					p as string,
+					nextRuntimeSteps,
+					resolveMessage,
+					operationMode,
+					registeredStepMethod.defaultOperationMode,
+				)
+				registeredStepMethod.run({
+					utils,
 					params,
 					context,
 				})
@@ -691,6 +766,7 @@ function createProxyHandler({
 					resolveMessage,
 					context,
 					currentRuntimeSteps: nextRuntimeSteps,
+					currentOperationMode: utils['~operationMode'],
 				})
 			}
 		},
@@ -701,6 +777,7 @@ function createProxyHandler({
 function createCoreProperties(
 	runtimeSteps: RuntimeStep[],
 	executeRaw: PipeExecutor,
+	operationMode: RuntimeOperationMode,
 ) {
 	const execute = createPublicExecutor(executeRaw)
 	return {
@@ -712,9 +789,8 @@ function createCoreProperties(
 		'~core': {
 			executionStepContext: null!,
 			RegisteredStepPluginDefs: null!,
-			get runtimeSteps() {
-				return runtimeSteps
-			},
+			runtimeSteps,
+			operationMode: OPERATION_MODES[operationMode],
 		},
 		'~execute': executeRaw,
 		execute,
@@ -729,16 +805,24 @@ function createInstance({
 	resolveMessage,
 	context,
 	currentRuntimeSteps,
+	currentOperationMode,
 }: {
-	stepMethods: Record<PropertyKey, unknown>
+	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 	context: StepMethodContext
 	currentRuntimeSteps: RuntimeStep[]
+	currentOperationMode: RuntimeOperationMode
 }): any {
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
-	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw)
+	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw, currentOperationMode)
 
-	return new Proxy(coreProperties, createProxyHandler({ stepMethods, resolveMessage, runtimeSteps: currentRuntimeSteps, context }))
+	return new Proxy(coreProperties, createProxyHandler({
+		stepMethods,
+		resolveMessage,
+		runtimeSteps: currentRuntimeSteps,
+		operationMode: currentOperationMode,
+		context,
+	}))
 }
 
 const reservedStepMethodNames = new Set<PropertyKey>([
@@ -764,14 +848,16 @@ export function createValchecker<
 			'~core': {
 				executionStepContext: any
 				registeredExecutionStepPlugins: NonNullable<NoInfer<ExecutionSteps>[number]['~def']>
+				operationMode: any
 			}
 		}>
 	>
 }) {
-	const stepMethods = Object.create(null) as Record<PropertyKey, unknown>
+	const stepMethods = Object.create(null) as RegisteredStepMethods
 	for (const def of steps) {
+		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? RUNTIME_OPERATION_MODE_MAYBE_ASYNC
 		for (const method of Reflect.ownKeys(def)) {
-			if (method === runtimeExecutionStepDefMarker)
+			if (method === runtimeExecutionStepDefMarker || method === stepPluginDefaultOperationMode)
 				continue
 			if (typeof method !== 'string')
 				throw new TypeError(`Invalid step method name: ${String(method)}`)
@@ -783,7 +869,7 @@ export function createValchecker<
 			const stepMethod = Reflect.get(def, method)
 			if (typeof stepMethod !== 'function')
 				throw new TypeError(`Invalid step method: ${method}`)
-			stepMethods[method] = stepMethod
+			stepMethods[method] = { run: stepMethod, defaultOperationMode }
 		}
 	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
@@ -794,5 +880,6 @@ export function createValchecker<
 		resolveMessage,
 		context,
 		currentRuntimeSteps: [],
+		currentOperationMode: RUNTIME_OPERATION_MODE_SYNC,
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }

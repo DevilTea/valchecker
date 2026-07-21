@@ -69,4 +69,4 @@ export const instance = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-})
+}, 'sync')

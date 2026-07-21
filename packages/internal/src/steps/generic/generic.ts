@@ -79,14 +79,15 @@ export const generic = implStepPlugin<PluginDef>({
 					}
 				}
 				return result
-			})
+			}, 'maybe-async')
 		}
 		// Handle direct step
 		else {
 			const runtimeSteps = stepOrFactory['~core'].runtimeSteps
+			const operationMode = stepOrFactory['~core']?.operationMode ?? 'maybe-async'
 			const len = runtimeSteps.length
 			for (let i = 0; i < len; i++) {
-				addStep(runtimeSteps[i]!)
+				addStep(runtimeSteps[i]!, operationMode)
 			}
 		}
 	},

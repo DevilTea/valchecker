@@ -48,4 +48,4 @@ export const toBoolean = implStepPlugin<PluginDef>({
 			return success(Boolean(value))
 		})
 	},
-})
+}, 'sync')

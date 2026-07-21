@@ -79,4 +79,4 @@ export const looseNumber = implStepPlugin<PluginDef>({
 					)
 		})
 	},
-})
+}, 'sync')

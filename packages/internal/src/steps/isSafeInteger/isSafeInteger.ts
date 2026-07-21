@@ -25,4 +25,4 @@ export const isSafeInteger = implStepPlugin<PluginDef>({
 					defaultMessage: 'Expected a safe integer.',
 				})))
 	},
-})
+}, 'sync')

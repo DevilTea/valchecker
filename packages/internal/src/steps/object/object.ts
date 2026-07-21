@@ -112,6 +112,7 @@ export const object = implStepPlugin<PluginDef>({
 				keys.push(key)
 		}
 		const keysLen = keys.length
+		let operationMode: OperationMode = 'sync'
 		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -120,7 +121,11 @@ export const object = implStepPlugin<PluginDef>({
 			const isOptional = Array.isArray(prop)
 			const schema = isOptional ? prop[0]! : prop
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
+			if (schema['~core']?.operationMode !== 'sync')
+				operationMode = 'maybe-async'
 		}
+
+		const childrenAreSynchronous = operationMode === 'sync'
 
 		const continueAsync = async (
 			value: object,
@@ -205,13 +210,14 @@ export const object = implStepPlugin<PluginDef>({
 				}
 
 				const result = meta.execute(getOwnValue(value, key))
-				if (isPromiseLike(result))
+				if (!childrenAreSynchronous && isPromiseLike(result))
 					return continueAsync(value, i, result, output, issues)
 
-				if (isFailure(result)) {
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult)) {
 					let hasInternal = false
 					const target = issues ??= []
-					for (const issue of result.issues) {
+					for (const issue of syncResult.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
 						target.push(prependIssuePath(issue, [key], options?.message))
@@ -220,11 +226,11 @@ export const object = implStepPlugin<PluginDef>({
 						return failure(target)
 				}
 				else {
-					setOutputValue(output, key, result.value)
+					setOutputValue(output, key, syncResult.value)
 				}
 			}
 
 			return issues == null ? success(output) : failure(issues)
-		})
+		}, operationMode)
 	},
 })

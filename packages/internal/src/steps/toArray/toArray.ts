@@ -24,4 +24,4 @@ export const toArray = implStepPlugin<PluginDef>({
 	toArray: ({ utils: { addSuccessStep, success } }) => {
 		addSuccessStep(value => success([...value]))
 	},
-})
+}, 'sync')

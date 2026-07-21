@@ -45,4 +45,4 @@ export const toLowercase = implStepPlugin<PluginDef>({
 			return success(value.toLowerCase())
 		})
 	},
-})
+}, 'sync')

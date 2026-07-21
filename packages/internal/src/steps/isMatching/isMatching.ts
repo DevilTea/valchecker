@@ -40,4 +40,4 @@ export const isMatching = implStepPlugin<PluginDef>({
 					}))
 		})
 	},
-})
+}, 'sync')

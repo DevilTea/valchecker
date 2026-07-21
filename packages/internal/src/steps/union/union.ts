@@ -1,5 +1,5 @@
 import type { IsEqual } from 'type-fest'
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
@@ -110,19 +110,24 @@ export const union = implStepPlugin<PluginDef>({
 			throw new TypeError('union() requires at least one branch.')
 
 		const branchExecutors = new Array(branches.length)
+		let operationMode: OperationMode = 'sync'
 		for (let index = 0; index < branches.length; index++) {
 			if (!Object.hasOwn(branches, index))
 				throw new TypeError(`union() branch at index ${index} is missing.`)
-			branchExecutors[index] = normalizeBranch(branches[index], index, context)['~execute']
+			const branch = normalizeBranch(branches[index], index, context)
+			branchExecutors[index] = branch['~execute']
+			if (branch['~core']?.operationMode !== 'sync')
+				operationMode = 'maybe-async'
 		}
 		const len = branchExecutors.length
+		const branchesAreSynchronous = operationMode === 'sync'
 
 		addSuccessStep((value) => {
 			let issues: AnyExecutionIssue[] | undefined
 
 			for (let i = 0; i < len; i++) {
 				const branchResult = branchExecutors[i]!(value)
-				if (isPromiseLike(branchResult)) {
+				if (!branchesAreSynchronous && isPromiseLike(branchResult)) {
 					return (async () => {
 						for (let j = i; j < len; j++) {
 							const result = j === i
@@ -149,13 +154,14 @@ export const union = implStepPlugin<PluginDef>({
 					})()
 				}
 
-				if (!isFailure(branchResult))
-					return branchResult
+				const syncBranchResult = branchResult as ExecutionResult
+				if (!isFailure(syncBranchResult))
+					return syncBranchResult
 
 				const collected = issues ??= []
 				const branchStart = collected.length
 				let hasInternal = false
-				for (const issue of branchResult.issues) {
+				for (const issue of syncBranchResult.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
 					collected.push(appendIssueContext(issue, {
@@ -168,6 +174,6 @@ export const union = implStepPlugin<PluginDef>({
 			}
 
 			return failure(issues!)
-		})
+		}, operationMode)
 	},
 })

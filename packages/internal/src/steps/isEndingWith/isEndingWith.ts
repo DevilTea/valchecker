@@ -56,4 +56,4 @@ export const isEndingWith = implStepPlugin<PluginDef>({
 					}),
 				))
 	},
-})
+}, 'sync')

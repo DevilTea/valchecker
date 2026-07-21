@@ -64,4 +64,4 @@ export const boolean = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-})
+}, 'sync')

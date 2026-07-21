@@ -78,4 +78,4 @@ export const looseBigint = implStepPlugin<PluginDef>({
 					)
 		})
 	},
-})
+}, 'sync')

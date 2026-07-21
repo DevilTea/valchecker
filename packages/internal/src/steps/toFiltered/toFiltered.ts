@@ -149,4 +149,4 @@ export const toFiltered = implStepPlugin<PluginDef>({
 			return success(output)
 		})
 	},
-})
+}, 'sync')

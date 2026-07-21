@@ -17,4 +17,4 @@ export const toSize = implStepPlugin<PluginDef>({
 	toSize: ({ utils: { addSuccessStep, success } }) => {
 		addSuccessStep(value => success(value.size))
 	},
-})
+}, 'sync')

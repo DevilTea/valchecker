@@ -74,4 +74,4 @@ export const null_ = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-})
+}, 'sync')

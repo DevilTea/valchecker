@@ -75,4 +75,4 @@ export const toSafeNumber = implStepPlugin<PluginDef>({
 			return success(Number(value))
 		})
 	},
-})
+}, 'sync')

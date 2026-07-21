@@ -45,4 +45,4 @@ export const isIncludingValue = implStepPlugin<PluginDef>({
 			}))
 		})
 	},
-})
+}, 'sync')

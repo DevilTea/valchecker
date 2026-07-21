@@ -1,4 +1,4 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOperationMode, InferOutput, Next, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
@@ -62,6 +62,8 @@ export const array = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [item, options],
 	}) => {
+		const operationMode = item['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
+		const childIsSynchronous = operationMode === 'sync'
 		addSuccessStep((value) => {
 			if (Array.isArray(value) === false) {
 				return failure(createIssue({
@@ -80,7 +82,7 @@ export const array = implStepPlugin<PluginDef>({
 
 			for (let i = 0; i < len; i++) {
 				const result = execute(value[i])
-				if (isPromiseLike(result)) {
+				if (!childIsSynchronous && isPromiseLike(result)) {
 					return (async () => {
 						for (let j = i; j < len; j++) {
 							const resolved = j === i ? await result : await execute(value[j])
@@ -103,10 +105,11 @@ export const array = implStepPlugin<PluginDef>({
 					})()
 				}
 
-				if (isFailure(result)) {
+				const syncResult = result as ExecutionResult
+				if (isFailure(syncResult)) {
 					let hasInternal = false
 					const target = issues ??= []
-					for (const issue of result.issues) {
+					for (const issue of syncResult.issues) {
 						if (issue.category === 'internal')
 							hasInternal = true
 						target.push(prependIssuePath(issue, [i]))
@@ -115,11 +118,11 @@ export const array = implStepPlugin<PluginDef>({
 						return failure(target)
 				}
 				else {
-					output[i] = result.value
+					output[i] = syncResult.value
 				}
 			}
 
 			return issues == null ? success(output) : failure(issues)
-		})
+		}, operationMode)
 	},
 })
