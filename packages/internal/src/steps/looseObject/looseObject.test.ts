@@ -59,6 +59,23 @@ describe('looseObject step plugin', () => {
 			})
 	})
 
+	it('does not materialize extra descriptors after a declared field fails', () => {
+		let ownKeysCalls = 0
+		const input = new Proxy({ value: 42, extra: true }, {
+			ownKeys(target) {
+				ownKeysCalls++
+				return Reflect.ownKeys(target)
+			},
+		})
+
+		expect(v.looseObject({ value: v.string() })
+			.execute(input))
+			.toMatchObject({
+				issues: [{ code: 'string:expected_string' }],
+			})
+		expect(ownKeysCalls).toBe(0)
+	})
+
 	it('reports the complete missing-key issue contract', () => {
 		expect(v.looseObject({
 			name: v.string(),
