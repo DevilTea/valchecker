@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { setExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -48,9 +49,15 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const transform = implStepPlugin<PluginDef>({
 	transform: ({
-		utils: { addSuccessStep, success, createIssue, failure },
+		utils,
 		params: [run, options],
 	}) => {
+		const { addSuccessStep, success, createIssue, failure } = utils
+		setExecutionEffects(utils, {
+			identity: 'may-transform',
+			parentTraversal: 'snapshot-required',
+			structuralOutput: null,
+		})
 		addSuccessStep((value) => {
 			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => failure(
 				createIssue({

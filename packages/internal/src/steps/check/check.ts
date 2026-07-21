@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { preserveExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike, returnTrue } from '../../shared'
 
 declare namespace Internal {
@@ -77,9 +78,11 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const check = implStepPlugin<PluginDef>({
 	check: ({
-		utils: { addSuccessStep, success, createIssue, failure, prependIssuePath },
+		utils,
 		params: [run, options],
 	}) => {
+		const { addSuccessStep, success, createIssue, failure, prependIssuePath } = utils
+		preserveExecutionEffects(utils, { parentTraversal: 'snapshot-required' })
 		addSuccessStep((value) => {
 			let issues: AnyExecutionIssue[] | undefined
 			const addIssue = (issue: AnyExecutionIssue) => {

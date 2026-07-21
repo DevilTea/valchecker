@@ -18,6 +18,8 @@ import type {
 	StepPluginImpl,
 	TStepPluginDef,
 } from './types'
+import type { ExecutionEffects } from './execution-effects'
+import { conservativeExecutionEffects, neutralExecutionEffects, registerExecutionEffects } from './execution-effects'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
@@ -37,6 +39,8 @@ type RuntimeOperationMode =
 
 type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
 	'~operationMode': RuntimeOperationMode
+	'~previousExecutionEffects': ExecutionEffects
+	'~executionEffects': ExecutionEffects
 }
 
 interface RegisteredStepMethod {
@@ -623,6 +627,7 @@ function createExecutionStepMethodUtils(
 	runtimeExecutions: RuntimeStep[],
 	resolveMessage: ResolveMessageFn,
 	currentOperationMode: RuntimeOperationMode,
+	currentExecutionEffects: ExecutionEffects,
 	defaultOperationMode: RuntimeOperationMode,
 ): RuntimeStepMethodUtils {
 	const wrapWithErrorHandling = (
@@ -668,6 +673,8 @@ function createExecutionStepMethodUtils(
 
 	const utils: RuntimeStepMethodUtils = {
 		'~operationMode': currentOperationMode,
+		'~previousExecutionEffects': currentExecutionEffects,
+		'~executionEffects': conservativeExecutionEffects,
 		addStep: (fn, operationMode) => {
 			const runtimeOperationMode = operationMode == null
 				? defaultOperationMode
@@ -767,6 +774,7 @@ function createStepMethodContext({
 				runtimeSteps,
 				resolveMessage,
 				RUNTIME_OPERATION_MODE_SYNC,
+				conservativeExecutionEffects,
 				registeredStepMethod.defaultOperationMode,
 			)
 			registeredStepMethod.run({
@@ -780,6 +788,7 @@ function createStepMethodContext({
 				context,
 				currentRuntimeSteps: runtimeSteps,
 				currentOperationMode: utils['~operationMode'],
+				currentExecutionEffects: utils['~executionEffects'],
 			})
 		},
 	}
@@ -792,12 +801,14 @@ function createProxyHandler({
 	resolveMessage,
 	runtimeSteps,
 	operationMode,
+	executionEffects,
 	context,
 }: {
 	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 	runtimeSteps: RuntimeStep[]
 	operationMode: RuntimeOperationMode
+	executionEffects: ExecutionEffects
 	context: StepMethodContext
 }) {
 	return {
@@ -813,6 +824,7 @@ function createProxyHandler({
 					nextRuntimeSteps,
 					resolveMessage,
 					operationMode,
+					executionEffects,
 					registeredStepMethod.defaultOperationMode,
 				)
 				registeredStepMethod.run({
@@ -826,6 +838,7 @@ function createProxyHandler({
 					context,
 					currentRuntimeSteps: nextRuntimeSteps,
 					currentOperationMode: utils['~operationMode'],
+					currentExecutionEffects: utils['~executionEffects'],
 				})
 			}
 		},
@@ -865,23 +878,28 @@ function createInstance({
 	context,
 	currentRuntimeSteps,
 	currentOperationMode,
+	currentExecutionEffects,
 }: {
 	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 	context: StepMethodContext
 	currentRuntimeSteps: RuntimeStep[]
 	currentOperationMode: RuntimeOperationMode
+	currentExecutionEffects: ExecutionEffects
 }): any {
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps, currentOperationMode)
 	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw, currentOperationMode)
 
-	return new Proxy(coreProperties, createProxyHandler({
+	const instance = new Proxy(coreProperties, createProxyHandler({
 		stepMethods,
 		resolveMessage,
 		runtimeSteps: currentRuntimeSteps,
 		operationMode: currentOperationMode,
+		executionEffects: currentExecutionEffects,
 		context,
 	}))
+	registerExecutionEffects(instance, currentExecutionEffects)
+	return instance
 }
 
 const reservedStepMethodNames = new Set<PropertyKey>([
@@ -940,5 +958,6 @@ export function createValchecker<
 		context,
 		currentRuntimeSteps: [],
 		currentOperationMode: RUNTIME_OPERATION_MODE_SYNC,
+		currentExecutionEffects: neutralExecutionEffects,
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }

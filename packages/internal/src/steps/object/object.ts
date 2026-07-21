@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getExecutionEffects, getPreviousExecutionEffects, setExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -103,9 +104,10 @@ function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, valu
 /* @__NO_SIDE_EFFECTS__ */
 export const object = implStepPlugin<PluginDef>({
 	object: ({
-		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
+		utils,
 		params: [struct, options],
 	}) => {
+		const { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath } = utils
 		const keys: PropertyKey[] = Object.keys(struct)
 		const symbols = Object.getOwnPropertySymbols(struct)
 		for (let i = 0; i < symbols.length; i++) {
@@ -115,6 +117,7 @@ export const object = implStepPlugin<PluginDef>({
 		}
 		const keysLen = keys.length
 		let operationMode: OperationMode = 'sync'
+		let parentTraversal = getPreviousExecutionEffects(utils).parentTraversal
 		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -125,7 +128,14 @@ export const object = implStepPlugin<PluginDef>({
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
 			if (schema['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'
+			if (getExecutionEffects(schema).parentTraversal !== 'direct-safe')
+				parentTraversal = 'snapshot-required'
 		}
+		setExecutionEffects(utils, {
+			identity: 'may-transform',
+			parentTraversal,
+			structuralOutput: { kind: 'fresh-ordinary-object', keys: [...keys] },
+		})
 
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true

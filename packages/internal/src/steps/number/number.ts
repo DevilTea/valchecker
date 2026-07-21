@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { preserveExecutionEffects } from '../../core/execution-effects'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'number'
@@ -48,9 +49,11 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const number = implStepPlugin<PluginDef>({
 	number: ({
-		utils: { addSuccessStep, success, createIssue, failure },
+		utils,
 		params: [options],
 	}) => {
+		const { addSuccessStep, success, createIssue, failure } = utils
+		preserveExecutionEffects(utils)
 		addSuccessStep((value) => {
 			if (typeof value === 'number') {
 				return success(value)

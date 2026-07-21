@@ -1,0 +1,83 @@
+import type { ExecutionResult, StepPluginImpl, TStepPluginDef } from './types'
+import { describe, expect, it } from 'vitest'
+import { bigint } from '../steps/bigint'
+import { boolean } from '../steps/boolean'
+import { check } from '../steps/check'
+import { number } from '../steps/number'
+import { object } from '../steps/object'
+import { string } from '../steps/string'
+import { transform } from '../steps/transform'
+import { createValchecker, implStepPlugin } from './core'
+import { conservativeExecutionEffects, getExecutionEffects, neutralExecutionEffects } from './execution-effects'
+
+const passthrough = implStepPlugin({
+	passthrough: ({ utils }: any) => {
+		utils.addStep((result: ExecutionResult) => result, 'sync')
+	},
+} as any) as StepPluginImpl<TStepPluginDef>
+
+const v = createValchecker({
+	steps: [string, number, boolean, bigint, object, check, transform, passthrough],
+}) as any
+
+describe('execution effect metadata', () => {
+	it('keeps the empty pipeline neutral and metadata-free steps conservative', () => {
+		expect(getExecutionEffects(v)).toEqual(neutralExecutionEffects)
+		expect(getExecutionEffects(v.passthrough())).toEqual(conservativeExecutionEffects)
+		expect(getExecutionEffects(v.string().passthrough())).toEqual(conservativeExecutionEffects)
+	})
+
+	it.each([
+		['string', v.string()],
+		['number', v.number()],
+		['boolean', v.boolean()],
+		['bigint', v.bigint()],
+	])('marks the %s initial schema as direct and identity-preserving', (_name, schema) => {
+		expect(getExecutionEffects(schema)).toEqual(neutralExecutionEffects)
+	})
+
+	it('does not let a later classifier recover guarantees lost by an earlier step', () => {
+		const schema = v.string().transform(() => 'transformed').string()
+
+		expect(getExecutionEffects(schema)).toEqual(conservativeExecutionEffects)
+	})
+
+	it('records known fresh ordinary-object output', () => {
+		const schema = v.object({ left: v.string(), right: v.number() })
+
+		expect(getExecutionEffects(schema)).toEqual({
+			identity: 'may-transform',
+			parentTraversal: 'direct-safe',
+			structuralOutput: {
+				kind: 'fresh-ordinary-object',
+				keys: ['left', 'right'],
+			},
+		})
+	})
+
+	it('propagates traversal safety from the previous pipeline and structural children', () => {
+		const unsafeChild = v.object({ value: v.string().check(() => true) })
+		const unsafePrevious = v.string().check(() => true).object({ value: v.string() })
+
+		expect(getExecutionEffects(unsafeChild).parentTraversal).toBe('snapshot-required')
+		expect(getExecutionEffects(unsafePrevious).parentTraversal).toBe('snapshot-required')
+	})
+
+	it('lets validation callbacks preserve output shape while requiring snapshots', () => {
+		const schema = v.object({ value: v.string() }).check(() => true)
+		const effects = getExecutionEffects(schema)
+
+		expect(effects.identity).toBe('may-transform')
+		expect(effects.parentTraversal).toBe('snapshot-required')
+		expect(effects.structuralOutput).toEqual({
+			kind: 'fresh-ordinary-object',
+			keys: ['value'],
+		})
+	})
+
+	it('invalidates structural and identity guarantees after arbitrary transforms', () => {
+		const schema = v.object({ value: v.string() }).transform((value: unknown) => value)
+
+		expect(getExecutionEffects(schema)).toEqual(conservativeExecutionEffects)
+	})
+})
