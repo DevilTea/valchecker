@@ -1,4 +1,4 @@
-import type { StepMethodUtils } from './types'
+import type { StepPluginImpl } from './types'
 
 export type OutputIdentityEffect = 'identity-preserving' | 'may-transform'
 export type ParentTraversalEffect = 'direct-safe' | 'snapshot-required'
@@ -20,6 +20,11 @@ export interface ExecutionEffectsPatch {
 	readonly structuralOutput?: FreshOrdinaryObjectOutput | null | undefined
 }
 
+export type ExecutionEffectsResolver = (
+	previous: ExecutionEffects,
+	params: readonly unknown[],
+) => ExecutionEffects
+
 export const neutralExecutionEffects: ExecutionEffects = {
 	identity: 'identity-preserving',
 	parentTraversal: 'direct-safe',
@@ -32,21 +37,35 @@ export const conservativeExecutionEffects: ExecutionEffects = {
 	structuralOutput: null,
 }
 
-export const executionEffectsKey = Symbol('valchecker.executionEffects')
-
-interface RuntimeExecutionEffectsUtils {
-	'~previousExecutionEffects': ExecutionEffects
-	'~executionEffects': ExecutionEffects
-}
-
 interface SchemaWithExecutionEffects {
-	readonly [executionEffectsKey]?: ExecutionEffects
+	readonly '~core'?: {
+		readonly executionEffects?: ExecutionEffects | undefined
+	} | undefined
 }
 
-function patchExecutionEffects(
+type ExecutionEffectsResolvers = Readonly<Record<PropertyKey, ExecutionEffectsResolver>>
+const executionEffectsResolversByPlugin = new WeakMap<object, ExecutionEffectsResolvers>()
+
+export function withExecutionEffects<Plugin extends StepPluginImpl<any>>(
+	plugin: Plugin,
+	resolvers: Partial<Record<keyof Plugin, ExecutionEffectsResolver>>,
+): Plugin {
+	executionEffectsResolversByPlugin.set(plugin, resolvers as ExecutionEffectsResolvers)
+	return plugin
+}
+
+export function getStepPluginExecutionEffects(
+	plugin: StepPluginImpl<any>,
+): ExecutionEffectsResolvers | undefined {
+	return executionEffectsResolversByPlugin.get(plugin)
+}
+
+export function preserveExecutionEffects(
 	base: ExecutionEffects,
-	patch: ExecutionEffectsPatch,
+	patch?: ExecutionEffectsPatch,
 ): ExecutionEffects {
+	if (patch == null)
+		return base
 	return {
 		identity: patch.identity ?? base.identity,
 		parentTraversal: patch.parentTraversal ?? base.parentTraversal,
@@ -56,31 +75,6 @@ function patchExecutionEffects(
 	}
 }
 
-export function setExecutionEffects(
-	utils: StepMethodUtils<any, any, any, any>,
-	effects: ExecutionEffects,
-): void {
-	const runtimeUtils = utils as StepMethodUtils<any, any, any, any> & RuntimeExecutionEffectsUtils
-	runtimeUtils['~executionEffects'] = effects
-}
-
-export function preserveExecutionEffects(
-	utils: StepMethodUtils<any, any, any, any>,
-	patch?: ExecutionEffectsPatch,
-): void {
-	const runtimeUtils = utils as StepMethodUtils<any, any, any, any> & RuntimeExecutionEffectsUtils
-	const previous = runtimeUtils['~previousExecutionEffects']
-	runtimeUtils['~executionEffects'] = patch == null
-		? previous
-		: patchExecutionEffects(previous, patch)
-}
-
-export function getPreviousExecutionEffects(
-	utils: StepMethodUtils<any, any, any, any>,
-): ExecutionEffects {
-	return (utils as StepMethodUtils<any, any, any, any> & RuntimeExecutionEffectsUtils)['~previousExecutionEffects']
-}
-
 export function getExecutionEffects(schema: object): ExecutionEffects {
-	return (schema as SchemaWithExecutionEffects)[executionEffectsKey] ?? conservativeExecutionEffects
+	return (schema as SchemaWithExecutionEffects)['~core']?.executionEffects ?? conservativeExecutionEffects
 }
