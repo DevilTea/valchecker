@@ -66,6 +66,7 @@ function defineScenario({
 	resultKind,
 	issuePolicy,
 	comparisonScope,
+	diagnosticIssueCount,
 	createOperation,
 }) {
 	const group = benchmarkGroup(category, resultKind, issuePolicy)
@@ -77,6 +78,7 @@ function defineScenario({
 		resultKind,
 		issuePolicy,
 		comparisonScope,
+		diagnosticIssueCount,
 		buildKey,
 		support(adapter) {
 			return supportFor(adapter, issuePolicy)
@@ -96,6 +98,7 @@ function construction(id, tier, buildKey, correctnessInput, expected = { success
 		resultKind: expected.success ? 'success' : 'failure',
 		issuePolicy: options.issuePolicy ?? 'not-applicable',
 		comparisonScope: options.comparisonScope ?? 'equivalent',
+		diagnosticIssueCount: expected.issueCount ?? null,
 		createOperation(adapter, context) {
 			const verifySchema = adapter.build[buildKey](context)
 			assertResult(adapter, adapter.parse(verifySchema, correctnessInput, context), expected)
@@ -113,6 +116,7 @@ function cold(id, tier, buildKey, input, expected, options = {}) {
 		resultKind: expected.success ? 'success' : 'failure',
 		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
 		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
+		diagnosticIssueCount: expected.issueCount ?? null,
 		createOperation(adapter, context) {
 			const operation = () => adapter.parse(adapter.build[buildKey](context), input, context)
 			assertResult(adapter, operation(), expected)
@@ -130,6 +134,7 @@ function warm(id, tier, buildKey, input, expected, options = {}) {
 		resultKind: expected.success ? 'success' : 'failure',
 		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
 		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
+		diagnosticIssueCount: expected.issueCount ?? null,
 		createOperation(adapter, context) {
 			const schema = adapter.build[buildKey](context)
 			const operation = () => adapter.parse(schema, input, context)
@@ -148,6 +153,7 @@ function warmPool(id, tier, buildKey, inputs, expected, options = {}) {
 		resultKind: expected.success ? 'success' : 'failure',
 		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
 		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
+		diagnosticIssueCount: expected.issueCount ?? null,
 		createOperation(adapter, context) {
 			const schema = adapter.build[buildKey](context)
 			for (const input of inputs)
@@ -164,6 +170,7 @@ function warmPool(id, tier, buildKey, inputs, expected, options = {}) {
 
 function issuePolicyPair(structure, buildKey, input, options = {}) {
 	const comparisonScope = options.comparisonScope ?? 'equivalent'
+	const allIssueCount = options.allIssueCount ?? 2
 	return [
 		warm(
 			`issue-policy/${structure}/invalid/first`,
@@ -178,7 +185,7 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 			'standard',
 			buildKey,
 			input,
-			{ success: false, minimumIssueCount: 2 },
+			{ success: false, issueCount: allIssueCount },
 			{ issuePolicy: 'all', comparisonScope },
 		),
 	]
@@ -247,7 +254,7 @@ const allScenarios = [
 	warm('optional-heavy/invalid', 'standard', 'optionalHeavy', optionalHeavy.invalid, { success: false }),
 
 	...issuePolicyPair('object', 'issuePolicyObject', issuePolicyInputs.object),
-	...issuePolicyPair('strict-object', 'issuePolicyStrictObject', issuePolicyInputs.strictObject),
+	...issuePolicyPair('strict-object', 'issuePolicyStrictObject', issuePolicyInputs.strictObject, { allIssueCount: 3 }),
 	...issuePolicyPair('loose-object', 'issuePolicyLooseObject', issuePolicyInputs.looseObject),
 	...issuePolicyPair('array', 'issuePolicyArray', issuePolicyInputs.array),
 	...issuePolicyPair('set', 'issuePolicySet', issuePolicyInputs.set),
@@ -271,5 +278,6 @@ export function getScenarioCatalog(mode) {
 		resultKind: scenario.resultKind,
 		issuePolicy: scenario.issuePolicy,
 		comparisonScope: scenario.comparisonScope,
+		diagnosticIssueCount: scenario.diagnosticIssueCount,
 	}))
 }
