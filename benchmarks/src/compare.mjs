@@ -7,7 +7,7 @@ const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const stabilityThreshold = 5
 const meaningfulThreshold = 5
 const severeScenarioRegression = -10
-const severeCategoryRegression = -5
+const severeGroupRegression = -5
 const tCritical95 = new Map([
 	[2, 12.706],
 	[3, 4.303],
@@ -109,14 +109,21 @@ function aggregateRuns(raws, label) {
 			const result = resultMap.get(template.scenario)
 			if (!result)
 				throw new Error(`${label} run is missing ${template.scenario}`)
-			if (result.category !== template.category)
-				throw new Error(`${label} category mismatch for ${template.scenario}`)
+			for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
+				if (result[field] !== template[field])
+					throw new Error(`${label} metadata mismatch for ${template.scenario}.${field}`)
+			}
 			return result
 		})
 		const runMedians = runResults.map(result => result.medianOpsPerSecond)
 		return {
 			scenario: template.scenario,
 			category: template.category,
+			group: template.group,
+			resultKind: template.resultKind,
+			issuePolicy: template.issuePolicy,
+			comparisonScope: template.comparisonScope,
+			diagnosticIssueCount: template.diagnosticIssueCount,
 			medianOpsPerSecond: median(runMedians),
 			crossRunRme: relativeMarginOfError(runMedians),
 			runMedians,
@@ -166,8 +173,10 @@ function compareResults(baseline, candidate) {
 		const head = candidateByScenario.get(base.scenario)
 		if (!head)
 			throw new Error(`Candidate is missing scenario ${base.scenario}`)
-		if (head.category !== base.category)
-			throw new Error(`Category mismatch for ${base.scenario}`)
+		for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
+			if (head[field] !== base[field])
+				throw new Error(`Metadata mismatch for ${base.scenario}.${field}`)
+		}
 		const pairedRatios = head.runMedians.map((value, index) => value / base.runMedians[index])
 		const ratio = median(pairedRatios)
 		const delta = ratio - 1
@@ -183,6 +192,11 @@ function compareResults(baseline, candidate) {
 		return {
 			scenario: base.scenario,
 			category: base.category,
+			group: base.group,
+			resultKind: base.resultKind,
+			issuePolicy: base.issuePolicy,
+			comparisonScope: base.comparisonScope,
+			diagnosticIssueCount: base.diagnosticIssueCount,
 			baselineOps: base.medianOpsPerSecond,
 			candidateOps: head.medianOpsPerSecond,
 			baselineCrossRunRme: base.crossRunRme,
@@ -200,13 +214,13 @@ function compareResults(baseline, candidate) {
 	if (candidateByScenario.size !== rows.length)
 		throw new Error('Candidate contains scenarios absent from baseline')
 
-	const categories = [...new Set(rows.map(row => row.category))].map((category) => {
-		const categoryRows = rows.filter(row => row.category === category)
-		const stableRows = categoryRows.filter(row => row.stable)
+	const groups = [...new Set(rows.map(row => row.group))].map((group) => {
+		const groupRows = rows.filter(row => row.group === group)
+		const stableRows = groupRows.filter(row => row.stable)
 		const ratio = geometricMean(stableRows.map(row => row.ratio))
 		return {
-			category,
-			scenarios: categoryRows.length,
+			group,
+			scenarios: groupRows.length,
 			stableScenarios: stableRows.length,
 			ratio,
 			delta: ratio == null ? null : ratio - 1,
@@ -214,10 +228,10 @@ function compareResults(baseline, candidate) {
 	})
 
 	const severeScenarios = rows.filter(row => row.stable && row.delta * 100 <= severeScenarioRegression)
-	const severeCategories = categories.filter(row => row.delta != null && row.stableScenarios >= 2 && row.delta * 100 <= severeCategoryRegression)
+	const severeGroups = groups.filter(row => row.delta != null && row.stableScenarios >= 2 && row.delta * 100 <= severeGroupRegression)
 	const improvements = rows.filter(row => row.classification === 'improvement')
 	const regressions = rows.filter(row => row.classification === 'regression')
-	const verdict = severeScenarios.length > 0 || severeCategories.length > 0
+	const verdict = severeScenarios.length > 0 || severeGroups.length > 0
 		? 'regression'
 		: regressions.length > 0 && improvements.length > 0
 			? 'tradeoff-review'
@@ -228,7 +242,7 @@ function compareResults(baseline, candidate) {
 					: 'neutral'
 
 	return {
-		schemaVersion: 3,
+		schemaVersion: 4,
 		mode: baseline.mode,
 		runCounts: { baseline: baseline.runCount, candidate: candidate.runCount },
 		commits: { baseline: baseline.commits, candidate: candidate.commits },
@@ -236,7 +250,7 @@ function compareResults(baseline, candidate) {
 			stabilityPairedRmePercent: stabilityThreshold,
 			meaningfulChangePercent: meaningfulThreshold,
 			severeScenarioRegressionPercent: Math.abs(severeScenarioRegression),
-			severeCategoryRegressionPercent: Math.abs(severeCategoryRegression),
+			severeGroupRegressionPercent: Math.abs(severeGroupRegression),
 		},
 		verdict,
 		counts: {
@@ -245,10 +259,10 @@ function compareResults(baseline, candidate) {
 			neutral: rows.filter(row => row.classification === 'neutral').length,
 			unstable: rows.filter(row => row.classification === 'unstable').length,
 		},
-		categories,
+		groups,
 		rows,
 		severeScenarios: severeScenarios.map(row => row.scenario),
-		severeCategories: severeCategories.map(row => row.category),
+		severeGroups: severeGroups.map(row => row.group),
 	}
 }
 
@@ -260,23 +274,24 @@ function renderMarkdown(result) {
 		'',
 		`Meaningful change requires at least **${meaningfulThreshold}%** with paired-ratio RME at or below **${stabilityThreshold}%**.`,
 		'',
-		'## Category tradeoffs',
+		'## Benchmark-group tradeoffs',
 		'',
-		'| Category | Stable scenarios | Geometric mean change |',
+		'| Group | Stable scenarios | Geometric mean change |',
 		'| --- | ---: | ---: |',
 	]
-	for (const row of result.categories)
-		lines.push(`| ${markdownCell(row.category)} | ${row.stableScenarios}/${row.scenarios} | ${row.delta == null ? 'n/a' : formatDelta(row.delta)} |`)
+	for (const row of result.groups)
+		lines.push(`| ${markdownCell(row.group)} | ${row.stableScenarios}/${row.scenarios} | ${row.delta == null ? 'n/a' : formatDelta(row.delta)} |`)
 
 	lines.push(
 		'',
 		'## Scenario changes',
 		'',
-		'| Scenario | Category | Baseline ops/s | Candidate ops/s | Change | Paired RME | Classification |',
-		'| --- | --- | ---: | ---: | ---: | ---: | --- |',
+		'| Scenario | Group | Issue policy | Issues | Baseline ops/s | Candidate ops/s | Change | Paired RME | Classification |',
+		'| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
 	)
-	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta))
-		lines.push(`| ${markdownCell(row.scenario)} | ${row.category} | ${Math.round(row.baselineOps).toLocaleString('en-US')} | ${Math.round(row.candidateOps).toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
+	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta)) {
+		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps).toLocaleString('en-US')} | ${Math.round(row.candidateOps).toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
+	}
 
 	lines.push(
 		'',
@@ -285,6 +300,7 @@ function renderMarkdown(result) {
 		'- Each observation is a candidate/base ratio from adjacent independent processes; the reported change is the median paired ratio.',
 		'- Paired RME uses a 95% Student’s t interval, which is intentionally conservative for three process pairs.',
 		'- Below 3% is normally noise; 3–5% needs corroboration; at least 5% with paired RME ≤5% is meaningful.',
+		'- Group-level gates keep success, library-default failure, first-issue failure, and all-issues failure tradeoffs separate.',
 		'- Construction or fresh-schema regressions require documented warm-path amortization.',
 		'- Added complexity or bundle size should normally buy at least 10% in a representative hot path or broad gains.',
 		'- Correctness, API stability, coverage, and package integrity remain hard constraints.',
@@ -294,9 +310,9 @@ function renderMarkdown(result) {
 }
 
 function renderHtml(result) {
-	const categories = result.categories.map(row => `<tr><td>${htmlEscape(row.category)}</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`).join('')
-	const rows = [...result.rows].sort((left, right) => left.delta - right.delta).map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.category)}</td><td>${Math.round(row.baselineOps).toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps).toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`).join('')
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1180px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline}</p><h2>Category tradeoffs</h2><table><thead><tr><th>Category</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${categories}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
+	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`).join('')
+	const rows = [...result.rows].sort((left, right) => left.delta - right.delta).map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps).toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps).toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`).join('')
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline}</p><h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))

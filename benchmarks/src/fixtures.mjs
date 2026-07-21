@@ -167,3 +167,27 @@ export const optionalSparsePool = Array.from({ length: 64 }, (_, index) => ({
 	id: `config-${index}`,
 	enabled: index % 2 === 0,
 }))
+
+export const collectionStructures = {
+	set100: new Set(Array.from({ length: 100 }, (_, index) => `item-${index}`)),
+	map100: new Map(Array.from({ length: 100 }, (_, index) => [`item-${index}`, index])),
+	intersection: Object.freeze({ left: 'left', right: 1 }),
+}
+
+const invalidCollectionValues = Array.from({ length: 100 }, (_, index) => `item-${index}`)
+invalidCollectionValues[0] = 0
+invalidCollectionValues[99] = 99
+
+const invalidMapEntries = Array.from({ length: 100 }, (_, index) => [`item-${index}`, index])
+invalidMapEntries[0] = [0, 0]
+invalidMapEntries[99] = ['item-99', 'invalid']
+
+export const issuePolicyInputs = {
+	object: Object.freeze({ first: 1, second: 2 }),
+	strictObject: Object.freeze({ first: 1, second: 2, extra: true }),
+	looseObject: Object.freeze({ first: 1, second: 2, extra: true }),
+	array: Object.freeze([...invalidCollectionValues]),
+	set: new Set(invalidCollectionValues),
+	map: new Map(invalidMapEntries),
+	intersection: Object.freeze({ left: 1, right: 2 }),
+}

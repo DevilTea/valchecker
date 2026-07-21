@@ -36,9 +36,17 @@ const createOptionalFields = () => ({
 	tag: v.optional(v.string()),
 })
 
+const issuePolicyFields = () => ({
+	first: v.string(),
+	second: v.string(),
+})
+
 export default {
 	name: 'Valibot',
 	version: '1.4.2',
+	capabilities: {
+		issuePolicies: ['first', 'all'],
+	},
 	build: {
 		primitive: () => v.pipe(
 			v.string(),
@@ -68,6 +76,12 @@ export default {
 			value: v.number(),
 			enabled: v.boolean(),
 		})),
+		set: () => v.set(v.string()),
+		map: () => v.map(v.string(), v.number()),
+		intersection: () => v.intersect([
+			v.object({ left: v.string() }),
+			v.object({ right: v.number() }),
+		]),
 		union: () => v.union([
 			v.object({ type: v.literal('text'), value: v.string() }),
 			v.object({ type: v.literal('count'), value: v.number() }),
@@ -82,13 +96,27 @@ export default {
 			v.transform(value => `user:${value}`),
 		),
 		optionalHeavy: () => v.object(createOptionalFields()),
+		issuePolicyObject: () => v.object(issuePolicyFields()),
+		issuePolicyStrictObject: () => v.strictObject(issuePolicyFields()),
+		issuePolicyLooseObject: () => v.looseObject(issuePolicyFields()),
+		issuePolicyArray: () => v.array(v.string()),
+		issuePolicySet: () => v.set(v.string()),
+		issuePolicyMap: () => v.map(v.string(), v.number()),
+		issuePolicyIntersection: () => v.intersect([
+			v.object({ left: v.string() }),
+			v.object({ right: v.string() }),
+		]),
 	},
-	parse(schema, input) {
-		return v.safeParse(schema, input)
+	parse(schema, input, context) {
+		return v.safeParse(
+			schema,
+			input,
+			context?.issuePolicy === 'first' ? { abortEarly: true } : undefined,
+		)
 	},
 	normalize(result) {
 		return result.success
-			? { success: true, output: result.output }
-			: { success: false }
+			? { success: true, output: result.output, issueCount: 0 }
+			: { success: false, issueCount: result.issues.length }
 	},
 }

@@ -25,8 +25,8 @@ A blank seed is replaced with a value derived from the commit and workflow run. 
 
 Each completed run publishes:
 
-- `raw.json`: every sample and environment field; the source of truth
-- `summary.md` and `summary.html`: concise category-level interpretation and reliability warnings
+- `raw.json`: every sample, scenario semantic, skipped-adapter reason, and environment field; the source of truth
+- `summary.md` and `summary.html`: concise benchmark-group interpretation and reliability warnings
 - `report.md` and `report.html`: the complete scenario-by-scenario report
 
 The concise Markdown report is written to the Actions job summary. The artifact retains both concise and detailed reports for 90 days. Record the commit, seed, Node.js version, runner image, and CPU model when comparing separate runs.
@@ -64,11 +64,12 @@ The impact report classifies a scenario only when its paired-ratio RME is at or 
 - 3–5%: requires corroboration from adjacent scenarios or independent workflow runs
 - at least 5%: meaningful scenario-level change
 - at least 10% regression: severe scenario regression
-- at least 5% geometric-mean regression across two or more stable scenarios in a category: severe category regression
+- at least 5% geometric-mean regression across two or more stable scenarios in a benchmark group: severe group regression
 
 Severe regressions fail the workflow. Mixed improvements and regressions remain a reviewer decision. A performance change is valuable only when the target workload and tradeoff are explicit:
 
 - construction or fresh-schema cost may increase only when warmed gains are larger and the amortization point is documented
+- warmed success, library-default failure, first-issue failure, and all-issues failure are evaluated as separate groups
 - added implementation complexity or package size should normally buy at least 10% in a representative hot path or broad gains across multiple scenarios
 - semantic correctness, API stability, coverage, and package integrity remain hard constraints
 
@@ -134,26 +135,38 @@ Raw output defaults to `benchmarks/results/raw.json`. Use `--output <path>`, `--
 
 ## Methodology
 
-Every adapter implements the same schema families and fixtures. Before timing a scenario, the runner verifies that each adapter produces the expected success/failure state and, where outputs matter, the expected transformed output. CI also executes every full-tier scenario once across all adapters.
+Every adapter implements the same schema families and fixtures where the libraries expose comparable behavior. Before timing a scenario, the runner verifies the expected success/failure state, transformed output where relevant, and exact issue-count requirements for diagnostic-policy scenarios. CI executes every full-tier supported scenario once across all adapters and records unsupported adapter/scenario combinations instead of assigning synthetic behavior.
 
 The suite separates:
 
 1. complete schema construction, including all child schemas,
-2. complete schema construction plus first validation (cold), and
-3. validation using an already-created and warmed schema.
+2. complete schema construction plus first validation (cold),
+3. warmed successful validation,
+4. warmed failure under each library’s default diagnostics,
+5. warmed failure that stops after the first issue, and
+6. warmed failure that exhaustively collects issues.
 
-Scenarios cover primitive pipelines, flat and nested objects, strict unknown-key rejection, arrays, ordered unions, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
+Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
+
+### Diagnostic policy comparability
+
+Failure throughput is meaningful only when the amount of diagnostic work is explicit:
+
+- `library-default` scenarios show the real default behavior of each product, but they are not assumed to collect the same number of issues.
+- `first` scenarios require exactly one issue before timing. Valchecker and Valibot participate; Zod is omitted because it does not expose an equivalent whole-parse abort option.
+- `all` scenarios declare and require an exact top-level issue count before timing. Valchecker uses `collectAllIssues: true`, Valibot uses its exhaustive default, and Zod uses its normal exhaustive structural behavior.
+- unsupported adapters are listed in the report with a reason and are not ranked.
+
+Intersection comparisons use only compatible synchronous object outputs and ordinary branch validation. Merge-conflict and asynchronous scheduling behavior remain excluded because those semantics differ across libraries.
 
 In addition to fixed-input ceilings, representative warm scenarios rotate through pools of same-shape objects with different identities and values. These rotating-input cases reduce the risk of keeping an optimization that only benefits one frozen object instance.
 
-Each library runs in a dedicated Node.js process. Library order is shuffled from a recorded seed. Results include every sample, median and mean throughput, median nanoseconds per operation, relative margin of error, package versions, Node.js version, CPU, operating system, runner image, and commit metadata.
+Each library runs in a dedicated Node.js process. Library order is shuffled from a recorded seed. Results include every sample, median and mean throughput, median nanoseconds per operation, relative margin of error, package versions, Node.js version, CPU, operating system, runner image, commit metadata, benchmark group, issue policy, comparison scope, and skipped-adapter reasons.
 
 ## Interpretation
 
-Do not combine construction, cold, and warm results into one ranking. They measure different costs. Compare libraries only within the same scenario and category.
+Do not combine construction, cold execution, warmed success, and the different failure-policy groups into one ranking. Compare libraries only within the same scenario, benchmark group, and issue policy.
 
-Results with relative margin of error above 5% are marked unstable in generated reports and should be rerun before drawing conclusions. Failure results include each library’s issue construction and traversal behavior.
+Results with relative margin of error above 5% are marked unstable in generated reports and should be rerun before drawing conclusions. `library-default` failure results include each library’s own issue construction and traversal behavior. Use explicit `first` or `all` scenarios when the diagnostic workload must be equivalent.
 
 Zod 4’s generated object fast path can exchange expensive schema creation or first execution for exceptional warmed throughput. Fixed-input warmed scenarios therefore represent a steady-state ceiling, not cold-start latency or whole-application performance.
-
-The benchmark suite intentionally avoids asynchronous validation and intersection comparisons in the primary set: Promise scheduling would dominate the former, while intersection output semantics are not equivalent across libraries.

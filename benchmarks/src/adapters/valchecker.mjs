@@ -36,9 +36,29 @@ const createOptionalFields = () => ({
 	tag: [v.string()],
 })
 
+const issuePolicyFields = () => ({
+	first: v.string(),
+	second: v.string(),
+})
+
+function structuralOptions(context) {
+	return context?.issuePolicy === 'all'
+		? { collectAllIssues: true }
+		: undefined
+}
+
+function mapOptions(context, key, value) {
+	return context?.issuePolicy === 'all'
+		? { key, value, collectAllIssues: true }
+		: { key, value }
+}
+
 export default {
 	name: 'Valchecker',
 	version: 'workspace',
+	capabilities: {
+		issuePolicies: ['first', 'all'],
+	},
 	build: {
 		primitive: () => v.string()
 			.isLengthAtLeast(3)
@@ -66,6 +86,12 @@ export default {
 			value: v.number(),
 			enabled: v.boolean(),
 		})),
+		set: () => v.set(v.string()),
+		map: () => v.map({ key: v.string(), value: v.number() }),
+		intersection: () => v.intersection([
+			v.object({ left: v.string() }),
+			v.object({ right: v.number() }),
+		]),
 		union: () => v.union([
 			v.object({ type: v.literal('text'), value: v.string() }),
 			v.object({ type: v.literal('count'), value: v.number() }),
@@ -78,13 +104,23 @@ export default {
 			.toLowercase()
 			.transform(value => `user:${value}`),
 		optionalHeavy: () => v.object(createOptionalFields()),
+		issuePolicyObject: context => v.object(issuePolicyFields(), structuralOptions(context)),
+		issuePolicyStrictObject: context => v.strictObject(issuePolicyFields(), structuralOptions(context)),
+		issuePolicyLooseObject: context => v.looseObject(issuePolicyFields(), structuralOptions(context)),
+		issuePolicyArray: context => v.array(v.string(), structuralOptions(context)),
+		issuePolicySet: context => v.set(v.string(), structuralOptions(context)),
+		issuePolicyMap: context => v.map(mapOptions(context, v.string(), v.number())),
+		issuePolicyIntersection: context => v.intersection([
+			v.object({ left: v.string() }),
+			v.object({ right: v.string() }),
+		], structuralOptions(context)),
 	},
 	parse(schema, input) {
 		return schema.execute(input)
 	},
 	normalize(result) {
 		return 'value' in result
-			? { success: true, output: result.value }
-			: { success: false }
+			? { success: true, output: result.value, issueCount: 0 }
+			: { success: false, issueCount: result.issues.length }
 	},
 }
