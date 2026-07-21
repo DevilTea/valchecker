@@ -1,8 +1,10 @@
 import {
+	collectionStructures,
 	createInvalidRecords,
 	createRecords,
 	flatObject,
 	flatObjectPool,
+	issuePolicyInputs,
 	nestedObject,
 	optionalHeavy,
 	optionalSparsePool,
@@ -14,6 +16,7 @@ import {
 } from './fixtures.mjs'
 
 const tierRank = { smoke: 0, standard: 1, full: 2 }
+const explicitIssuePolicies = new Set(['first', 'all'])
 
 function assertResult(adapter, rawResult, expected) {
 	const normalized = adapter.normalize(rawResult)
@@ -26,65 +29,159 @@ function assertResult(adapter, rawResult, expected) {
 		if (actual !== wanted)
 			throw new Error(`${adapter.name}: output mismatch. Expected ${wanted}, received ${actual}`)
 	}
+
+	if (expected.issueCount !== undefined && normalized.issueCount !== expected.issueCount) {
+		throw new Error(`${adapter.name}: expected ${expected.issueCount} issues, received ${normalized.issueCount ?? 'unknown'}`)
+	}
+	if (expected.minimumIssueCount !== undefined && (normalized.issueCount ?? 0) < expected.minimumIssueCount) {
+		throw new Error(`${adapter.name}: expected at least ${expected.minimumIssueCount} issues, received ${normalized.issueCount ?? 'unknown'}`)
+	}
 }
 
-function construction(id, tier, buildKey, correctnessInput, expected = { success: true }) {
+function benchmarkGroup(category, resultKind, issuePolicy) {
+	if (category !== 'warm')
+		return category
+	if (resultKind === 'success')
+		return 'warm/success'
+	return `warm/failure/${issuePolicy}`
+}
+
+function supportFor(adapter, issuePolicy) {
+	if (!explicitIssuePolicies.has(issuePolicy))
+		return { supported: true, reason: null }
+	const supportedPolicies = adapter.capabilities?.issuePolicies ?? []
+	return supportedPolicies.includes(issuePolicy)
+		? { supported: true, reason: null }
+		: {
+				supported: false,
+				reason: `${adapter.name} does not expose a benchmark-equivalent ${issuePolicy}-issue policy`,
+			}
+}
+
+function defineScenario({
+	id,
+	category,
+	tier,
+	buildKey,
+	resultKind,
+	issuePolicy,
+	comparisonScope,
+	createOperation,
+}) {
+	const group = benchmarkGroup(category, resultKind, issuePolicy)
 	return {
+		id,
+		category,
+		tier,
+		group,
+		resultKind,
+		issuePolicy,
+		comparisonScope,
+		buildKey,
+		support(adapter) {
+			return supportFor(adapter, issuePolicy)
+		},
+		setup(adapter) {
+			return createOperation(adapter, { issuePolicy, comparisonScope, resultKind })
+		},
+	}
+}
+
+function construction(id, tier, buildKey, correctnessInput, expected = { success: true }, options = {}) {
+	return defineScenario({
 		id,
 		category: 'construction',
 		tier,
-		setup(adapter) {
-			const verifySchema = adapter.build[buildKey]()
-			assertResult(adapter, adapter.parse(verifySchema, correctnessInput), expected)
-			return () => adapter.build[buildKey]()
+		buildKey,
+		resultKind: expected.success ? 'success' : 'failure',
+		issuePolicy: options.issuePolicy ?? 'not-applicable',
+		comparisonScope: options.comparisonScope ?? 'equivalent',
+		createOperation(adapter, context) {
+			const verifySchema = adapter.build[buildKey](context)
+			assertResult(adapter, adapter.parse(verifySchema, correctnessInput, context), expected)
+			return () => adapter.build[buildKey](context)
 		},
-	}
+	})
 }
 
-function cold(id, tier, buildKey, input, expected) {
-	return {
+function cold(id, tier, buildKey, input, expected, options = {}) {
+	return defineScenario({
 		id,
 		category: 'cold',
 		tier,
-		setup(adapter) {
-			const operation = () => adapter.parse(adapter.build[buildKey](), input)
+		buildKey,
+		resultKind: expected.success ? 'success' : 'failure',
+		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
+		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
+		createOperation(adapter, context) {
+			const operation = () => adapter.parse(adapter.build[buildKey](context), input, context)
 			assertResult(adapter, operation(), expected)
 			return operation
 		},
-	}
+	})
 }
 
-function warm(id, tier, buildKey, input, expected) {
-	return {
+function warm(id, tier, buildKey, input, expected, options = {}) {
+	return defineScenario({
 		id,
 		category: 'warm',
 		tier,
-		setup(adapter) {
-			const schema = adapter.build[buildKey]()
-			const operation = () => adapter.parse(schema, input)
+		buildKey,
+		resultKind: expected.success ? 'success' : 'failure',
+		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
+		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
+		createOperation(adapter, context) {
+			const schema = adapter.build[buildKey](context)
+			const operation = () => adapter.parse(schema, input, context)
 			assertResult(adapter, operation(), expected)
 			return operation
 		},
-	}
+	})
 }
 
-function warmPool(id, tier, buildKey, inputs, expected) {
-	return {
+function warmPool(id, tier, buildKey, inputs, expected, options = {}) {
+	return defineScenario({
 		id,
 		category: 'warm',
 		tier,
-		setup(adapter) {
-			const schema = adapter.build[buildKey]()
+		buildKey,
+		resultKind: expected.success ? 'success' : 'failure',
+		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
+		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
+		createOperation(adapter, context) {
+			const schema = adapter.build[buildKey](context)
 			for (const input of inputs)
-				assertResult(adapter, adapter.parse(schema, input), expected)
+				assertResult(adapter, adapter.parse(schema, input, context), expected)
 			let index = 0
 			return () => {
 				const input = inputs[index % inputs.length]
 				index++
-				return adapter.parse(schema, input)
+				return adapter.parse(schema, input, context)
 			}
 		},
-	}
+	})
+}
+
+function issuePolicyPair(structure, buildKey, input, options = {}) {
+	const comparisonScope = options.comparisonScope ?? 'compatible-subset'
+	return [
+		warm(
+			`issue-policy/${structure}/invalid/first`,
+			'standard',
+			buildKey,
+			input,
+			{ success: false, issueCount: 1 },
+			{ issuePolicy: 'first', comparisonScope },
+		),
+		warm(
+			`issue-policy/${structure}/invalid/all`,
+			'standard',
+			buildKey,
+			input,
+			{ success: false, minimumIssueCount: 2 },
+			{ issuePolicy: 'all', comparisonScope },
+		),
+	]
 }
 
 const records10 = createRecords(10)
@@ -96,10 +193,16 @@ const allScenarios = [
 	construction('construct/flat-object', 'standard', 'flatObject', flatObject.valid),
 	construction('construct/nested-object', 'standard', 'nestedObject', nestedObject.valid),
 	construction('construct/union', 'standard', 'union', unionInputs.first),
+	construction('construct/set', 'standard', 'set', collectionStructures.set100),
+	construction('construct/map', 'standard', 'map', collectionStructures.map100),
+	construction('construct/intersection', 'standard', 'intersection', collectionStructures.intersection, { success: true }, { comparisonScope: 'compatible-subset' }),
 
 	cold('cold/flat-valid', 'smoke', 'flatObject', flatObject.valid, { success: true }),
 	cold('cold/nested-valid', 'standard', 'nestedObject', nestedObject.valid, { success: true }),
 	cold('cold/union-last', 'standard', 'union', unionInputs.last, { success: true }),
+	cold('cold/set-valid', 'standard', 'set', collectionStructures.set100, { success: true }),
+	cold('cold/map-valid', 'standard', 'map', collectionStructures.map100, { success: true }),
+	cold('cold/intersection-valid', 'standard', 'intersection', collectionStructures.intersection, { success: true }, { comparisonScope: 'compatible-subset' }),
 
 	warm('primitive/valid', 'smoke', 'primitive', primitive.valid, { success: true }),
 	warm('primitive/invalid-type', 'standard', 'primitive', primitive.invalidEarly, { success: false }),
@@ -122,6 +225,10 @@ const allScenarios = [
 	warm('array/100-invalid-last', 'standard', 'recordArray', createInvalidRecords(100, 99), { success: false }),
 	warm('array/1000-invalid-last', 'full', 'recordArray', createInvalidRecords(1000, 999), { success: false }),
 
+	warm('set/100-valid', 'standard', 'set', collectionStructures.set100, { success: true }),
+	warm('map/100-valid', 'standard', 'map', collectionStructures.map100, { success: true }),
+	warm('intersection/valid', 'standard', 'intersection', collectionStructures.intersection, { success: true }, { comparisonScope: 'compatible-subset' }),
+
 	warm('union/first', 'smoke', 'union', unionInputs.first, { success: true }),
 	warmPool('union/first-rotating', 'standard', 'union', unionFirstPool, { success: true }),
 	warm('union/middle', 'standard', 'union', unionInputs.middle, { success: true }),
@@ -138,6 +245,14 @@ const allScenarios = [
 	warmPool('optional-heavy/sparse-rotating', 'standard', 'optionalHeavy', optionalSparsePool, { success: true }),
 	warm('optional-heavy/full', 'standard', 'optionalHeavy', optionalHeavy.full, { success: true }),
 	warm('optional-heavy/invalid', 'standard', 'optionalHeavy', optionalHeavy.invalid, { success: false }),
+
+	...issuePolicyPair('object', 'issuePolicyObject', issuePolicyInputs.object),
+	...issuePolicyPair('strict-object', 'issuePolicyStrictObject', issuePolicyInputs.strictObject),
+	...issuePolicyPair('loose-object', 'issuePolicyLooseObject', issuePolicyInputs.looseObject),
+	...issuePolicyPair('array', 'issuePolicyArray', issuePolicyInputs.array),
+	...issuePolicyPair('set', 'issuePolicySet', issuePolicyInputs.set),
+	...issuePolicyPair('map', 'issuePolicyMap', issuePolicyInputs.map),
+	...issuePolicyPair('intersection', 'issuePolicyIntersection', issuePolicyInputs.intersection, { comparisonScope: 'compatible-subset' }),
 ]
 
 export function getScenarios(mode) {
@@ -145,4 +260,16 @@ export function getScenarios(mode) {
 	if (rank === undefined)
 		throw new Error(`Unknown benchmark mode: ${mode}`)
 	return allScenarios.filter(scenario => tierRank[scenario.tier] <= rank)
+}
+
+export function getScenarioCatalog(mode) {
+	return getScenarios(mode).map(scenario => ({
+		id: scenario.id,
+		category: scenario.category,
+		tier: scenario.tier,
+		group: scenario.group,
+		resultKind: scenario.resultKind,
+		issuePolicy: scenario.issuePolicy,
+		comparisonScope: scenario.comparisonScope,
+	}))
 }
