@@ -34,8 +34,12 @@ function parseArguments(argv) {
 }
 
 function assertResult(raw) {
-	if (!raw || typeof raw !== 'object' || !Array.isArray(raw.libraries) || raw.libraries.length === 0)
+	if (!raw || typeof raw !== 'object' || raw.schemaVersion !== 2)
 		throw new TypeError('Invalid benchmark result')
+	if (!Array.isArray(raw.scenarioCatalog) || raw.scenarioCatalog.length === 0)
+		throw new TypeError('Benchmark result has no scenario catalog')
+	if (!Array.isArray(raw.libraries) || raw.libraries.length === 0)
+		throw new TypeError('Benchmark result has no libraries')
 	return raw
 }
 
@@ -63,55 +67,66 @@ function htmlEscape(value) {
 }
 
 function scenarioRows(raw, scenario) {
-	return raw.libraries.map((library) => {
-		const result = library.results.find(item => item.scenario === scenario)
-		if (!result)
-			throw new Error(`${library.adapter} is missing scenario ${scenario}`)
-		return { adapter: library.adapter, name: library.name, version: library.version, ...result }
+	return raw.libraries.flatMap((library) => {
+		const result = library.results.find(item => item.scenario === scenario.id)
+		return result == null
+			? []
+			: [{ adapter: library.adapter, name: library.name, version: library.version, ...result }]
 	}).sort((left, right) => right.medianOpsPerSecond - left.medianOpsPerSecond)
 }
 
 function buildSummary(raw) {
-	const scenarios = raw.libraries[0].results.map(result => result.scenario)
-	const categoryMap = new Map()
+	const groupMap = new Map()
 	const stableHighlights = []
 	let unstableMeasurements = 0
+	let skippedMeasurements = 0
 
-	for (const scenario of scenarios) {
+	for (const scenario of raw.scenarioCatalog) {
 		const rows = scenarioRows(raw, scenario)
-		const category = rows[0].category
+		if (rows.length === 0)
+			continue
 		const fastest = rows[0]
 		const valchecker = rows.find(row => row.adapter === 'valchecker')
-		const stable = rows.every(row => row.relativeMarginOfError <= 5)
+		const stable = rows.length >= 2 && rows.every(row => row.relativeMarginOfError <= 5)
 		unstableMeasurements += rows.filter(row => row.relativeMarginOfError > 5).length
+		skippedMeasurements += raw.libraries.length - rows.length
 
-		let categoryData = categoryMap.get(category)
-		if (!categoryData) {
-			categoryData = { scenarios: 0, valcheckerWins: 0, ratios: [], stableScenarios: 0 }
-			categoryMap.set(category, categoryData)
+		let groupData = groupMap.get(scenario.group)
+		if (!groupData) {
+			groupData = { scenarios: 0, comparableScenarios: 0, valcheckerWins: 0, ratios: [], stableScenarios: 0 }
+			groupMap.set(scenario.group, groupData)
 		}
-		categoryData.scenarios++
+		groupData.scenarios++
+		if (rows.length >= 2)
+			groupData.comparableScenarios++
 		if (valchecker && stable) {
 			const ratio = valchecker.medianOpsPerSecond / fastest.medianOpsPerSecond
-			categoryData.ratios.push(ratio)
-			categoryData.stableScenarios++
+			groupData.ratios.push(ratio)
+			groupData.stableScenarios++
 			if (fastest.adapter === 'valchecker')
-				categoryData.valcheckerWins++
-			stableHighlights.push({ scenario, category, ratio, fastest: fastest.name })
+				groupData.valcheckerWins++
+			stableHighlights.push({
+				scenario: scenario.id,
+				group: scenario.group,
+				issuePolicy: scenario.issuePolicy,
+				ratio,
+				fastest: fastest.name,
+			})
 		}
 	}
 
-	const categoryRows = [...categoryMap.entries()].map(([category, data]) => ({
-		category,
+	const groupRows = [...groupMap.entries()].map(([group, data]) => ({
+		group,
 		...data,
 		geometricMeanVsFastest: geometricMean(data.ratios),
 	}))
 	const sortedHighlights = [...stableHighlights].sort((left, right) => right.ratio - left.ratio)
 	return {
-		categoryRows,
+		groupRows,
 		strongest: sortedHighlights.slice(0, 3),
 		weakest: sortedHighlights.slice(-3).reverse(),
 		unstableMeasurements,
+		skippedMeasurements,
 		totalMeasurements: raw.libraries.reduce((sum, library) => sum + library.results.length, 0),
 	}
 }
@@ -122,44 +137,47 @@ function renderMarkdown(raw, summary) {
 		'',
 		`Profile: **${raw.mode}** · Node: **${raw.environment.node}** · CPU: **${raw.environment.cpu}**`,
 		'',
-		'> This is the concise view. Construction, fresh-schema execution, and warmed validation are separate costs; do not combine them into one overall winner.',
+		'> This concise view separates construction, cold execution, warmed success, library-default failures, first-issue failures, and all-issues failures. Do not combine them into one overall winner.',
 		'',
-		'## Category snapshot',
+		'## Benchmark group snapshot',
 		'',
-		'| Category | Scenarios | Stable scenarios | Stable Valchecker wins | Valchecker geometric mean vs fastest |',
-		'| --- | ---: | ---: | ---: | ---: |',
+		'| Group | Scenarios | Comparable | Stable | Stable Valchecker wins | Valchecker geometric mean vs fastest |',
+		'| --- | ---: | ---: | ---: | ---: | ---: |',
 	]
-	for (const row of summary.categoryRows)
-		lines.push(`| ${markdownCell(row.category)} | ${row.scenarios} | ${row.stableScenarios} | ${row.valcheckerWins} | ${row.geometricMeanVsFastest == null ? 'n/a' : percent(row.geometricMeanVsFastest)} |`)
+	for (const row of summary.groupRows) {
+		lines.push(`| ${markdownCell(row.group)} | ${row.scenarios} | ${row.comparableScenarios} | ${row.stableScenarios} | ${row.valcheckerWins} | ${row.geometricMeanVsFastest == null ? 'n/a' : percent(row.geometricMeanVsFastest)} |`)
+	}
 
 	const renderHighlights = (title, rows) => {
-		lines.push('', `## ${title}`, '', '| Scenario | Category | Valchecker vs fastest | Fastest library |', '| --- | --- | ---: | --- |')
+		lines.push('', `## ${title}`, '', '| Scenario | Group | Issue policy | Valchecker vs fastest | Fastest library |', '| --- | --- | --- | ---: | --- |')
 		if (rows.length === 0)
-			lines.push('| n/a | n/a | n/a | n/a |')
+			lines.push('| n/a | n/a | n/a | n/a | n/a |')
 		for (const row of rows)
-			lines.push(`| ${markdownCell(row.scenario)} | ${row.category} | ${percent(row.ratio)} | ${markdownCell(row.fastest)} |`)
+			lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${percent(row.ratio)} | ${markdownCell(row.fastest)} |`)
 	}
 	renderHighlights('Strongest stable Valchecker scenarios', summary.strongest)
 	renderHighlights('Largest stable Valchecker gaps', summary.weakest)
 
 	lines.push(
 		'',
-		'## Reliability',
+		'## Reliability and comparability',
 		'',
-		`- ${summary.unstableMeasurements} of ${summary.totalMeasurements} measurements have RME above 5% and should be rerun before interpretation.`,
-		'- Generated-code validators such as Zod 4 JIT can be slow during schema creation or first execution but exceptionally fast after the schema is warmed.',
-		'- Fixed-input warm scenarios represent steady-state throughput, not cold-start latency or whole-application performance.',
-		'- Rotating-input scenarios are stronger evidence for real-world same-shape request objects.',
-		'- Use the full Markdown/HTML report and raw JSON artifact for scenario-level evidence.',
+		`- ${summary.unstableMeasurements} of ${summary.totalMeasurements} measured rows have RME above 5% and should be rerun before interpretation.`,
+		`- ${summary.skippedMeasurements} adapter/scenario combinations were intentionally omitted because the adapter does not expose an equivalent benchmark policy.`,
+		'- Library-default failures describe actual defaults but may perform different amounts of diagnostic work.',
+		'- Explicit first/all scenarios verify issue counts before timing and are the correct place to compare diagnostic policy costs.',
+		'- Compatible-subset intersection scenarios avoid merge-conflict and asynchronous semantics that differ across libraries.',
+		'- Generated-code validators such as Zod 4 JIT can be slow during schema creation or first execution but exceptionally fast after warming.',
+		'- Use the full Markdown/HTML report and raw JSON artifact for scenario-level evidence and omission reasons.',
 		'',
 	)
 	return `${lines.join('\n')}\n`
 }
 
 function renderHtml(raw, summary) {
-	const categoryRows = summary.categoryRows.map(row => `<tr><td>${htmlEscape(row.category)}</td><td>${row.scenarios}</td><td>${row.stableScenarios}</td><td>${row.valcheckerWins}</td><td>${row.geometricMeanVsFastest == null ? 'n/a' : percent(row.geometricMeanVsFastest)}</td></tr>`).join('')
-	const highlightTable = rows => rows.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.category)}</td><td>${percent(row.ratio)}</td><td>${htmlEscape(row.fastest)}</td></tr>`).join('') || '<tr><td colspan="4">n/a</td></tr>'
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:960px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, fresh-schema execution, and warmed validation are separate costs; do not combine them into one overall winner.</p><h2>Category snapshot</h2><table><thead><tr><th>Category</th><th>Scenarios</th><th>Stable</th><th>Stable Valchecker wins</th><th>Valchecker vs fastest</th></tr></thead><tbody>${categoryRows}</tbody></table><h2>Strongest stable Valchecker scenarios</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.strongest)}</tbody></table><h2>Largest stable Valchecker gaps</h2><table><thead><tr><th>Scenario</th><th>Category</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.weakest)}</tbody></table><h2>Reliability</h2><ul><li>${summary.unstableMeasurements} of ${summary.totalMeasurements} measurements have RME above 5%.</li><li>Zod 4 JIT can trade schema/first-run cost for exceptional warmed object throughput.</li><li>Fixed-input warm scenarios are steady-state microbenchmarks, not whole-application performance.</li><li>Rotating inputs provide stronger real-world evidence.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
+	const groupRows = summary.groupRows.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.scenarios}</td><td>${row.comparableScenarios}</td><td>${row.stableScenarios}</td><td>${row.valcheckerWins}</td><td>${row.geometricMeanVsFastest == null ? 'n/a' : percent(row.geometricMeanVsFastest)}</td></tr>`).join('')
+	const highlightTable = rows => rows.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${percent(row.ratio)}</td><td>${htmlEscape(row.fastest)}</td></tr>`).join('') || '<tr><td colspan="5">n/a</td></tr>'
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1040px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, cold execution, warmed success, and each failure-policy group are separate costs.</p><h2>Benchmark group snapshot</h2><table><thead><tr><th>Group</th><th>Scenarios</th><th>Comparable</th><th>Stable</th><th>Valchecker wins</th><th>Valchecker vs fastest</th></tr></thead><tbody>${groupRows}</tbody></table><h2>Strongest stable Valchecker scenarios</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.strongest)}</tbody></table><h2>Largest stable Valchecker gaps</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.weakest)}</tbody></table><h2>Reliability and comparability</h2><ul><li>${summary.unstableMeasurements} of ${summary.totalMeasurements} measured rows have RME above 5%.</li><li>${summary.skippedMeasurements} adapter/scenario combinations were intentionally omitted.</li><li>Library defaults may perform different diagnostic work.</li><li>Explicit first/all scenarios verify issue counts before timing.</li><li>Intersection scenarios test only a compatible synchronous subset.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))
