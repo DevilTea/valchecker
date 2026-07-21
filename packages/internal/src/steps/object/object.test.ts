@@ -125,7 +125,7 @@ describe('object step plugin', () => {
 			name: v.string(),
 			age: v.number(),
 			city: v.string(),
-		})
+		}, { collectAllIssues: true })
 			.execute({
 				name: 123,
 				age: 'old',
@@ -187,7 +187,7 @@ describe('object step plugin', () => {
 			second: v.string()
 				.transform(later),
 			optional: [v.number()],
-		})
+		}, { collectAllIssues: true })
 
 		await expect(schema.execute({
 			first: 'first',
@@ -233,7 +233,7 @@ describe('object step plugin', () => {
 				.internalFailure(),
 			later: (v as any).unknown()
 				.observe(later),
-		})
+		}, { collectAllIssues: true })
 		const result = schema.execute({
 			invalid: 'wrong',
 			internal: 'value',
