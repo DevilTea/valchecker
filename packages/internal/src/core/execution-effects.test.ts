@@ -63,16 +63,16 @@ describe('execution effect metadata', () => {
 		expect(getExecutionEffects(unsafePrevious).parentTraversal).toBe('snapshot-required')
 	})
 
-	it('lets validation callbacks preserve output shape while requiring snapshots', () => {
-		const schema = v.object({ value: v.string() }).check(() => true)
+	it('keeps callback checks identity-preserving while invalidating structural guarantees', () => {
+		const schema = v.object({ value: v.string() }).check((value: Record<string, unknown>) => {
+			value.extra = true
+			return true
+		})
 		const effects = getExecutionEffects(schema)
 
 		expect(effects.identity).toBe('may-transform')
 		expect(effects.parentTraversal).toBe('snapshot-required')
-		expect(effects.structuralOutput).toEqual({
-			kind: 'fresh-ordinary-object',
-			keys: ['value'],
-		})
+		expect(effects.structuralOutput).toBeNull()
 	})
 
 	it('invalidates structural and identity guarantees after arbitrary transforms', () => {
