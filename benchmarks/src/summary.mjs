@@ -109,6 +109,7 @@ function buildSummary(raw) {
 				scenario: scenario.id,
 				group: scenario.group,
 				issuePolicy: scenario.issuePolicy,
+				diagnosticIssueCount: scenario.diagnosticIssueCount,
 				ratio,
 				fastest: fastest.name,
 			})
@@ -149,11 +150,11 @@ function renderMarkdown(raw, summary) {
 	}
 
 	const renderHighlights = (title, rows) => {
-		lines.push('', `## ${title}`, '', '| Scenario | Group | Issue policy | Valchecker vs fastest | Fastest library |', '| --- | --- | --- | ---: | --- |')
+		lines.push('', `## ${title}`, '', '| Scenario | Group | Issue policy | Issues | Valchecker vs fastest | Fastest library |', '| --- | --- | --- | ---: | ---: | --- |')
 		if (rows.length === 0)
-			lines.push('| n/a | n/a | n/a | n/a | n/a |')
+			lines.push('| n/a | n/a | n/a | n/a | n/a | n/a |')
 		for (const row of rows)
-			lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${percent(row.ratio)} | ${markdownCell(row.fastest)} |`)
+			lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${percent(row.ratio)} | ${markdownCell(row.fastest)} |`)
 	}
 	renderHighlights('Strongest stable Valchecker scenarios', summary.strongest)
 	renderHighlights('Largest stable Valchecker gaps', summary.weakest)
@@ -176,8 +177,8 @@ function renderMarkdown(raw, summary) {
 
 function renderHtml(raw, summary) {
 	const groupRows = summary.groupRows.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.scenarios}</td><td>${row.comparableScenarios}</td><td>${row.stableScenarios}</td><td>${row.valcheckerWins}</td><td>${row.geometricMeanVsFastest == null ? 'n/a' : percent(row.geometricMeanVsFastest)}</td></tr>`).join('')
-	const highlightTable = rows => rows.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${percent(row.ratio)}</td><td>${htmlEscape(row.fastest)}</td></tr>`).join('') || '<tr><td colspan="5">n/a</td></tr>'
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1040px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, cold execution, warmed success, and each failure-policy group are separate costs.</p><h2>Benchmark group snapshot</h2><table><thead><tr><th>Group</th><th>Scenarios</th><th>Comparable</th><th>Stable</th><th>Valchecker wins</th><th>Valchecker vs fastest</th></tr></thead><tbody>${groupRows}</tbody></table><h2>Strongest stable Valchecker scenarios</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.strongest)}</tbody></table><h2>Largest stable Valchecker gaps</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.weakest)}</tbody></table><h2>Reliability and comparability</h2><ul><li>${summary.unstableMeasurements} of ${summary.totalMeasurements} measured rows have RME above 5%.</li><li>${summary.skippedMeasurements} adapter/scenario combinations were intentionally omitted.</li><li>Library defaults may perform different diagnostic work.</li><li>Explicit first/all scenarios verify issue counts before timing.</li><li>Intersection scenarios test only a compatible synchronous subset.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
+	const highlightTable = rows => rows.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${percent(row.ratio)}</td><td>${htmlEscape(row.fastest)}</td></tr>`).join('') || '<tr><td colspan="6">n/a</td></tr>'
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1040px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, cold execution, warmed success, and each failure-policy group are separate costs.</p><h2>Benchmark group snapshot</h2><table><thead><tr><th>Group</th><th>Scenarios</th><th>Comparable</th><th>Stable</th><th>Valchecker wins</th><th>Valchecker vs fastest</th></tr></thead><tbody>${groupRows}</tbody></table><h2>Strongest stable Valchecker scenarios</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.strongest)}</tbody></table><h2>Largest stable Valchecker gaps</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>vs fastest</th><th>Fastest</th></tr></thead><tbody>${highlightTable(summary.weakest)}</tbody></table><h2>Reliability and comparability</h2><ul><li>${summary.unstableMeasurements} of ${summary.totalMeasurements} measured rows have RME above 5%.</li><li>${summary.skippedMeasurements} adapter/scenario combinations were intentionally omitted.</li><li>Library defaults may perform different diagnostic work.</li><li>Explicit first/all scenarios verify issue counts before timing.</li><li>Intersection scenarios test only a compatible synchronous subset.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))
