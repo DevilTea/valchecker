@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getStructuralRawSyncExecutor } from '../../core/raw-sync-executor'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -122,8 +123,13 @@ export const object = implStepPlugin<PluginDef>({
 			const prop = struct[key]!
 			const isOptional = Array.isArray(prop)
 			const schema = isOptional ? prop[0]! : prop
-			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
-			if (schema['~core']?.operationMode !== 'sync')
+			const isSynchronous = schema['~core']?.operationMode === 'sync'
+			propsMeta.push({
+				key,
+				isOptional,
+				execute: isSynchronous ? getStructuralRawSyncExecutor(schema) : schema['~execute'],
+			})
+			if (!isSynchronous)
 				operationMode = 'maybe-async'
 		}
 
