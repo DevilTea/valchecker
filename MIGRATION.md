@@ -28,11 +28,58 @@ Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v
 7. Audit every `execute()` call for sync or maybe-async behavior.
 8. Add `.toAsync()` where an API requires an unconditional promise.
 9. Verify unions, intersections, object variants, and issue-path handling.
-10. Remove imports of implementation helpers that are no longer exported.
-11. Update message maps for renamed issue codes, payload fields, and the required issue `category`.
-12. Replace assumptions that failure issue arrays may be empty.
-13. Update callback, conversion, JSON, length, and mapped-boolean issue payload handling.
-14. Run installed-package consumer tests, not only workspace source tests.
+10. Add `collectAllIssues: true` where consumers require issues from every structural child.
+11. Remove imports of implementation helpers that are no longer exported.
+12. Update message maps for renamed issue codes, payload fields, and the required issue `category`.
+13. Replace assumptions that failure issue arrays may be empty.
+14. Update callback, conversion, JSON, length, and mapped-boolean issue payload handling.
+15. Run installed-package consumer tests, not only workspace source tests.
+
+## Structural schemas now stop after the first issue
+
+`array()`, `set()`, `map()`, `object()`, `strictObject()`, `looseObject()`, and `intersection()` now stop after the first recoverable structural or child failure by default. This avoids executing later work that cannot change the failed result and makes the default path suitable for performance-sensitive validation.
+
+A failing child can still return multiple issues from its own execution. The change controls whether the parent structure continues to later siblings, items, entries, or intersection branches.
+
+Before, complete structural collection was implicit:
+
+```ts
+const schema = v.object({
+	name: v.string(),
+	age: v.number(),
+})
+
+schema.execute({ name: 1, age: 'old' })
+// Previously contained issues for both fields.
+```
+
+Preserve that behavior explicitly:
+
+```ts
+const schema = v.object({
+	name: v.string(),
+	age: v.number(),
+}, { collectAllIssues: true })
+
+schema.execute({ name: 1, age: 'old' })
+// Contains issues for both fields.
+```
+
+The same trailing option applies to `array()`, `set()`, `strictObject()`, `looseObject()`, and `intersection()`. `map()` keeps all configuration in its required object:
+
+```ts
+const schema = v.map({
+	key: v.string(),
+	value: v.number(),
+	collectAllIssues: true,
+})
+```
+
+Map defaults are now particularly strict: a failing key skips the current value and stops later entries. With `collectAllIssues: true`, the value is still validated and later entries continue.
+
+Default asynchronous intersections now evaluate branches sequentially after the first reached thenable, so a failed branch does not start later branches. `collectAllIssues: true` keeps complete branch validation and may start remaining asynchronous branches together.
+
+Internal issues remain fatal and always stop later structural work. `union()` and `variant()` are unchanged by this option.
 
 ## Built-in step renames
 
@@ -258,94 +305,3 @@ schema.execute(42) // synchronous failure before callback
 ```
 
 Awaiting either mode is safe. Append `.toAsync()` when every invocation must return a native promise.
-
-Callback steps may assimilate complete `PromiseLike` values, including custom thenables and cross-realm promises.
-
-## Composition changes
-
-### Union
-
-`union()` returns the first successful branch's transformed output. Review branch order and output types.
-
-### Intersection
-
-Only compatible plain-object outputs are recursively composed. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference. Compatible cycles, aliases, and enumerable symbol keys are supported. `intersection:conflicting_outputs` now reports the conflict path, branch pair, values, and a stable reason instead of carrying the complete outputs array.
-
-### Objects
-
-- Declared fields are read from own properties only. Missing required own properties now produce `object:missing_key`, `strictObject:missing_key`, or `looseObject:missing_key`; present `undefined` is still validated by the child schema.
-- `object()` omits unknown output properties.
-- `strictObject()` rejects unknown enumerable own string and symbol keys, reports `{ keys, expectedKeys }`, and collects unknown, missing, and invalid-known-field issues together.
-- `looseObject()` preserves unknown own properties and descriptors.
-- Declared `__proto__` fields are safe own data properties.
-- A one-element tuple still marks a field optional. When absent, the child schema is skipped and the declared output property is materialized with `undefined`.
-
-### Fatal and recoverable combinator behavior
-
-`union()` and `fallback()` no longer treat internal failures as ordinary alternatives. Union stops at an internal branch issue; fallback does not run its callback. Object and array traversal also stop sibling evaluation once an internal issue is observed. Union branch provenance is available in `issue.context` without changing `issue.path`.
-
-A throwing or rejecting fallback callback now emits an `operation`-category `fallback:failed` issue after the original issues, and `payload.error` is required.
-
-## Issue shape and core failures
-
-Every public Valchecker issue now includes a required `category`:
-
-```ts
-category: 'validation' | 'operation' | 'internal'
-```
-
-Two-argument `ExecutionIssue<'code', Payload>` declarations remain validation issues by default. Plugin authors must specify the third generic for operation or internal failures. Failure results now use a non-empty tuple, `[Issue, ...Issue[]]`.
-
-`core:unknown_exception` changed its payload field from `value` to `receivedResult` because the captured value is the complete execution result received by the failing step. Message-handler exceptions are represented separately as `core:message_exception`.
-
-Nested message handlers now run after the final path is assembled and may be provided at enclosing object scopes. The priority is leaf step, nearest enclosing structure, outer structures, originating instance global handler, leaf default, then `"Invalid value."`.
-
-## Messages and issue paths
-
-Message priority is:
-
-1. per-step message,
-2. global resolver,
-3. built-in default,
-4. `"Invalid value."`.
-
-Message maps inspect own properties only. Nested paths are prepended by cloning issue objects, so frozen and reused child issues are supported.
-
-## `use()` and Standard Schema
-
-`use(schema)` preserves delegated transformed output, issue types, paths, and maybe-async behavior.
-
-Every schema exposes `~standard` for Standard Schema V1 integrations. Native application code may continue to use `execute()` for complete Valchecker issue payloads.
-
-## Public API cleanup
-
-The following accidental implementation exports are no longer public:
-
-```text
-noop
-returnTrue
-isPromiseLike
-runtimeExecutionStepDefMarker
-createPipeExecutor
-handleMessage
-prependIssuePath
-resolveMessagePriority
-```
-
-Application code should import from `valchecker`. Plugin authors should use root exports from `@valchecker/internal`, not source paths.
-
-Plugin method names must be strings, map to functions, remain unique, avoid core method names, and not be `then`. Symbol method names are rejected.
-
-## Verification after migration
-
-```bash
-pnpm install --frozen-lockfile
-pnpm build
-pnpm lint
-pnpm typecheck
-pnpm test
-```
-
-Also test an installed tarball or registry package under the same module resolution used in production. Workspace imports can hide missing files, invalid export maps, and dependency rewrite problems.
-
-When reporting release-candidate issues, include the exact Valchecker, Node.js, and TypeScript versions; module resolution; minimal schema and input; actual and expected result; and whether execution used `execute()` or `~standard`.
