@@ -331,25 +331,25 @@ describe('issue message finalization', () => {
 				schema: v.object({
 					first: v.number({ message: () => 'dynamic:first' }),
 					second: v.number(),
-				}),
+				}, { collectAllIssues: true }),
 				messages: ['dynamic:first', 'Expected a number.'],
 			},
 			{
 				schema: v.object({
 					first: v.number(),
 					second: v.number({ message: () => 'dynamic:second' }),
-				}),
+				}, { collectAllIssues: true }),
 				messages: ['Expected a number.', 'dynamic:second'],
 			},
 			{
 				schema: v.object({
 					first: v.number({ message: () => 'dynamic:first' }),
 					second: v.number({ message: () => 'dynamic:second' }),
-				}),
+				}, { collectAllIssues: true }),
 				messages: ['dynamic:first', 'dynamic:second'],
 			},
 			{
-				schema: v.object({ first: v.number(), second: v.number() }),
+				schema: v.object({ first: v.number(), second: v.number() }, { collectAllIssues: true }),
 				messages: ['Expected a number.', 'Expected a number.'],
 			},
 		]
