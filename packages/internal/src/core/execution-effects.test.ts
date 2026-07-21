@@ -63,7 +63,7 @@ describe('execution effect metadata', () => {
 		expect(getExecutionEffects(unsafePrevious).parentTraversal).toBe('snapshot-required')
 	})
 
-	it('keeps callback checks identity-preserving while invalidating structural guarantees', () => {
+	it('preserves the existing identity classification while invalidating structural guarantees', () => {
 		const schema = v.object({ value: v.string() }).check((value: Record<string, unknown>) => {
 			value.extra = true
 			return true
