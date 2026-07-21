@@ -32,12 +32,16 @@ export const conservativeExecutionEffects: ExecutionEffects = {
 	structuralOutput: null,
 }
 
+export const executionEffectsKey = Symbol('valchecker.executionEffects')
+
 interface RuntimeExecutionEffectsUtils {
 	'~previousExecutionEffects': ExecutionEffects
 	'~executionEffects': ExecutionEffects
 }
 
-const executionEffectsBySchema = new WeakMap<object, ExecutionEffects>()
+interface SchemaWithExecutionEffects {
+	readonly [executionEffectsKey]?: ExecutionEffects
+}
 
 function patchExecutionEffects(
 	base: ExecutionEffects,
@@ -62,13 +66,13 @@ export function setExecutionEffects(
 
 export function preserveExecutionEffects(
 	utils: StepMethodUtils<any, any, any, any>,
-	patch: ExecutionEffectsPatch = {},
+	patch?: ExecutionEffectsPatch,
 ): void {
 	const runtimeUtils = utils as StepMethodUtils<any, any, any, any> & RuntimeExecutionEffectsUtils
-	runtimeUtils['~executionEffects'] = patchExecutionEffects(
-		runtimeUtils['~previousExecutionEffects'],
-		patch,
-	)
+	const previous = runtimeUtils['~previousExecutionEffects']
+	runtimeUtils['~executionEffects'] = patch == null
+		? previous
+		: patchExecutionEffects(previous, patch)
 }
 
 export function getPreviousExecutionEffects(
@@ -77,13 +81,6 @@ export function getPreviousExecutionEffects(
 	return (utils as StepMethodUtils<any, any, any, any> & RuntimeExecutionEffectsUtils)['~previousExecutionEffects']
 }
 
-export function registerExecutionEffects(
-	schema: object,
-	effects: ExecutionEffects,
-): void {
-	executionEffectsBySchema.set(schema, effects)
-}
-
 export function getExecutionEffects(schema: object): ExecutionEffects {
-	return executionEffectsBySchema.get(schema) ?? conservativeExecutionEffects
+	return (schema as SchemaWithExecutionEffects)[executionEffectsKey] ?? conservativeExecutionEffects
 }
