@@ -130,63 +130,91 @@ export const object = implStepPlugin<PluginDef>({
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
 
-		const expectedObjectFailure = (value: unknown) => failure(createIssue({
-			code: 'object:expected_object',
-			payload: { value },
-			customMessage: options?.message,
-			defaultMessage: 'Expected an object.',
-		}))
-
-		const missingKeyFailure = (key: PropertyKey) => failure(createIssue({
-			code: 'object:missing_key',
-			payload: { key },
-			path: [key],
-			customMessage: options?.message,
-			defaultMessage: 'Missing required object key.',
-		}))
-
-		const prependChildIssues = (result: ExecutionResult, key: PropertyKey): AnyExecutionIssue[] => {
-			const issues: AnyExecutionIssue[] = []
-			if (isFailure(result)) {
-				for (const issue of result.issues)
-					issues.push(prependIssuePath(issue, [key], options?.message))
-			}
-			return issues
+		const appendMissingKey = (
+			key: PropertyKey,
+			issues: AnyExecutionIssue[] | undefined,
+		): AnyExecutionIssue[] => {
+			const target = issues ?? []
+			target.push(createIssue({
+				code: 'object:missing_key',
+				payload: { key },
+				path: [key],
+				customMessage: options?.message,
+				defaultMessage: 'Missing required object key.',
+			}))
+			return target
 		}
 
-		const executeFirstIssue = (value: unknown) => {
-			if (typeof value !== 'object' || value == null || Array.isArray(value))
-				return expectedObjectFailure(value)
+		const appendChildIssues = (
+			result: ExecutionResult,
+			key: PropertyKey,
+			issues: AnyExecutionIssue[] | undefined,
+		): { issues: AnyExecutionIssue[], hasInternal: boolean } => {
+			let hasInternal = false
+			const target = issues ?? []
+			if (isFailure(result)) {
+				for (const issue of result.issues) {
+					if (issue.category === 'internal')
+						hasInternal = true
+					target.push(prependIssuePath(issue, [key], options?.message))
+				}
+			}
+			return { issues: target, hasInternal }
+		}
 
-			const output: Record<PropertyKey, any> = {}
+		const continueAsync = async (
+			value: object,
+			startIndex: number,
+			firstResult: PromiseLike<ExecutionResult>,
+			output: Record<PropertyKey, any>,
+			issues: AnyExecutionIssue[] | undefined,
+		): Promise<ExecutionResult> => {
+			for (let i = startIndex; i < keysLen; i++) {
+				const meta = propsMeta[i]!
+				let result: ExecutionResult
+				if (i === startIndex) {
+					result = await firstResult
+				}
+				else if (!Object.hasOwn(value, meta.key)) {
+					if (meta.isOptional) {
+						setOutputValue(output, meta.key, undefined)
+						continue
+					}
+					issues = appendMissingKey(meta.key, issues)
+					if (!collectAllIssues)
+						return failure(issues)
+					continue
+				}
+				else {
+					result = await meta.execute(getOwnValue(value, meta.key))
+				}
 
-			const continueAsync = async (
-				startIndex: number,
-				firstResult: PromiseLike<ExecutionResult>,
-			): Promise<ExecutionResult> => {
-				for (let i = startIndex; i < keysLen; i++) {
-					const meta = propsMeta[i]!
-					let result: ExecutionResult
-					if (i === startIndex) {
-						result = await firstResult
-					}
-					else if (!Object.hasOwn(value, meta.key)) {
-						if (meta.isOptional) {
-							setOutputValue(output, meta.key, undefined)
-							continue
-						}
-						return missingKeyFailure(meta.key)
-					}
-					else {
-						result = await meta.execute(getOwnValue(value, meta.key))
-					}
-
-					if (isFailure(result))
-						return failure(prependChildIssues(result, meta.key))
+				if (isFailure(result)) {
+					const appended = appendChildIssues(result, meta.key, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
+				else {
 					setOutputValue(output, meta.key, result.value)
 				}
-				return success(output)
 			}
+
+			return issues == null ? success(output) : failure(issues)
+		}
+
+		addSuccessStep((value) => {
+			if (typeof value !== 'object' || value == null || Array.isArray(value)) {
+				return failure(createIssue({
+					code: 'object:expected_object',
+					payload: { value },
+					customMessage: options?.message,
+					defaultMessage: 'Expected an object.',
+				}))
+			}
+
+			let issues: AnyExecutionIssue[] | undefined
+			const output: Record<PropertyKey, any> = {}
 
 			for (let i = 0; i < keysLen; i++) {
 				const meta = propsMeta[i]!
@@ -196,104 +224,29 @@ export const object = implStepPlugin<PluginDef>({
 						setOutputValue(output, key, undefined)
 						continue
 					}
-					return missingKeyFailure(key)
-				}
-
-				const result = meta.execute(getOwnValue(value, key))
-				if (!childrenAreSynchronous && isPromiseLike(result))
-					return continueAsync(i, result)
-
-				const syncResult = result as ExecutionResult
-				if (isFailure(syncResult))
-					return failure(prependChildIssues(syncResult, key))
-				setOutputValue(output, key, syncResult.value)
-			}
-			return success(output)
-		}
-
-		const executeCollectAll = (value: unknown) => {
-			if (typeof value !== 'object' || value == null || Array.isArray(value))
-				return expectedObjectFailure(value)
-
-			let issues: AnyExecutionIssue[] | undefined
-			const output: Record<PropertyKey, any> = {}
-
-			const appendChildIssues = (result: ExecutionResult, key: PropertyKey): boolean => {
-				if (!isFailure(result))
-					return false
-				let hasInternal = false
-				const target = issues ??= []
-				for (const issue of result.issues) {
-					if (issue.category === 'internal')
-						hasInternal = true
-					target.push(prependIssuePath(issue, [key], options?.message))
-				}
-				return hasInternal
-			}
-
-			const appendMissingKey = (key: PropertyKey): void => {
-				(issues ??= []).push(createIssue({
-					code: 'object:missing_key',
-					payload: { key },
-					path: [key],
-					customMessage: options?.message,
-					defaultMessage: 'Missing required object key.',
-				}))
-			}
-
-			const continueAsync = async (
-				startIndex: number,
-				firstResult: PromiseLike<ExecutionResult>,
-			): Promise<ExecutionResult> => {
-				for (let i = startIndex; i < keysLen; i++) {
-					const meta = propsMeta[i]!
-					let result: ExecutionResult
-					if (i === startIndex) {
-						result = await firstResult
-					}
-					else if (!Object.hasOwn(value, meta.key)) {
-						if (meta.isOptional)
-							setOutputValue(output, meta.key, undefined)
-						else
-							appendMissingKey(meta.key)
-						continue
-					}
-					else {
-						result = await meta.execute(getOwnValue(value, meta.key))
-					}
-
-					if (appendChildIssues(result, meta.key))
-						return failure(issues!)
-					if (!isFailure(result))
-						setOutputValue(output, meta.key, result.value)
-				}
-				return issues == null ? success(output) : failure(issues)
-			}
-
-			for (let i = 0; i < keysLen; i++) {
-				const meta = propsMeta[i]!
-				const key = meta.key
-				if (!Object.hasOwn(value, key)) {
-					if (meta.isOptional)
-						setOutputValue(output, key, undefined)
-					else
-						appendMissingKey(key)
+					issues = appendMissingKey(key, issues)
+					if (!collectAllIssues)
+						return failure(issues)
 					continue
 				}
 
 				const result = meta.execute(getOwnValue(value, key))
 				if (!childrenAreSynchronous && isPromiseLike(result))
-					return continueAsync(i, result)
+					return continueAsync(value, i, result, output, issues)
 
 				const syncResult = result as ExecutionResult
-				if (appendChildIssues(syncResult, key))
-					return failure(issues!)
-				if (!isFailure(syncResult))
+				if (isFailure(syncResult)) {
+					const appended = appendChildIssues(syncResult, key, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
+				else {
 					setOutputValue(output, key, syncResult.value)
+				}
 			}
-			return issues == null ? success(output) : failure(issues)
-		}
 
-		addSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)
+			return issues == null ? success(output) : failure(issues)
+		}, operationMode)
 	},
 })
