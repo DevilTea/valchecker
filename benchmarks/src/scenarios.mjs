@@ -163,7 +163,7 @@ function warmPool(id, tier, buildKey, inputs, expected, options = {}) {
 }
 
 function issuePolicyPair(structure, buildKey, input, options = {}) {
-	const comparisonScope = options.comparisonScope ?? 'compatible-subset'
+	const comparisonScope = options.comparisonScope ?? 'equivalent'
 	return [
 		warm(
 			`issue-policy/${structure}/invalid/first`,
