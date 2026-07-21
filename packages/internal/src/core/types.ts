@@ -402,6 +402,12 @@ export interface StepOptions<Issue extends AnyExecutionIssue = AnyExecutionIssue
 	readonly message?: MessageHandler<Issue> | undefined
 }
 
+/** Optional configuration for structural steps that evaluate multiple children. */
+export interface StructuralStepOptions<Issue extends AnyExecutionIssue = AnyExecutionIssue> extends StepOptions<Issue> {
+	/** Continue after recoverable child failures and collect issues from later children. Defaults to `false`. */
+	readonly collectAllIssues?: boolean | undefined
+}
+
 export type ResolveMessageFn = (param: {
 	data: IssueMessageInput<AnyExecutionIssue>
 	customMessage?: MessageHandler<any> | undefined
