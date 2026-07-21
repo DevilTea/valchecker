@@ -51,17 +51,14 @@ replace_once(
 )
 replace_once(
     check_path,
-    """\t},
-})
-""",
+    "\t},\n})",
     """\t},
 }), {
 \tcheck: previous => preserveExecutionEffects(previous, {
 \t\tparentTraversal: 'snapshot-required',
 \t\tstructuralOutput: null,
 \t}),
-})
-""",
+})""",
 )
 
 transform_path = 'packages/internal/src/steps/transform/transform.ts'
@@ -87,12 +84,8 @@ replace_once(
 )
 replace_once(
     transform_path,
-    """\t},
-})
-""",
-    """\t},
-}), { transform: () => conservativeExecutionEffects })
-""",
+    "\t},\n})",
+    "\t},\n}), { transform: () => conservativeExecutionEffects })",
 )
 
 object_path = 'packages/internal/src/steps/object/object.ts'
@@ -168,9 +161,7 @@ replace_once(
 )
 replace_once(
     object_path,
-    """\t},
-})
-""",
+    "\t},\n})",
     """\t},
 }), {
 \tobject: (previous, [struct]) => {
@@ -190,8 +181,7 @@ replace_once(
 \t\t\tstructuralOutput: { kind: 'fresh-ordinary-object', keys },
 \t\t}
 \t},
-})
-""",
+})""",
 )
 
 # Refactor the test-only partial-preservation plugin to use registration metadata.
