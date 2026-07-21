@@ -130,11 +130,17 @@ export const looseObject = implStepPlugin<PluginDef>({
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
 
-		const createOutput = (value: object): Record<PropertyKey, any> => {
+		const materializeOutput = (
+			value: object,
+			transformedValues: unknown[],
+		): Record<PropertyKey, any> => {
 			const descriptors = Object.getOwnPropertyDescriptors(value)
 			for (let i = 0; i < keysLen; i++)
 				delete descriptors[keys[i] as keyof typeof descriptors]
-			return Object.defineProperties({}, descriptors)
+			const output = Object.defineProperties({}, descriptors)
+			for (let i = 0; i < keysLen; i++)
+				setOutputValue(output, keys[i]!, transformedValues[i])
+			return output
 		}
 
 		const appendMissingKey = (
@@ -173,7 +179,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 			value: object,
 			startIndex: number,
 			firstResult: PromiseLike<ExecutionResult>,
-			output: Record<PropertyKey, any>,
+			transformedValues: unknown[],
 			issues: AnyExecutionIssue[] | undefined,
 		): Promise<ExecutionResult> => {
 			for (let i = startIndex; i < keysLen; i++) {
@@ -184,7 +190,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				}
 				else if (!Object.hasOwn(value, meta.key)) {
 					if (meta.isOptional) {
-						setOutputValue(output, meta.key, undefined)
+						transformedValues[i] = undefined
 						continue
 					}
 					issues = appendMissingKey(meta.key, issues)
@@ -203,11 +209,13 @@ export const looseObject = implStepPlugin<PluginDef>({
 						return failure(issues)
 				}
 				else {
-					setOutputValue(output, meta.key, result.value)
+					transformedValues[i] = result.value
 				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null
+				? success(materializeOutput(value, transformedValues))
+				: failure(issues)
 		}
 
 		addSuccessStep((value) => {
@@ -220,7 +228,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const output = createOutput(value)
+			const transformedValues = new Array<unknown>(keysLen)
 			let issues: AnyExecutionIssue[] | undefined
 
 			for (let i = 0; i < keysLen; i++) {
@@ -228,7 +236,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				const key = meta.key
 				if (!Object.hasOwn(value, key)) {
 					if (meta.isOptional) {
-						setOutputValue(output, key, undefined)
+						transformedValues[i] = undefined
 						continue
 					}
 					issues = appendMissingKey(key, issues)
@@ -239,7 +247,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 
 				const result = meta.execute(getOwnValue(value, key))
 				if (!childrenAreSynchronous && isPromiseLike(result))
-					return continueAsync(value, i, result, output, issues)
+					return continueAsync(value, i, result, transformedValues, issues)
 
 				const syncResult = result as ExecutionResult
 				if (isFailure(syncResult)) {
@@ -249,11 +257,13 @@ export const looseObject = implStepPlugin<PluginDef>({
 						return failure(issues)
 				}
 				else {
-					setOutputValue(output, key, syncResult.value)
+					transformedValues[i] = syncResult.value
 				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null
+				? success(materializeOutput(value, transformedValues))
+				: failure(issues)
 		}, operationMode)
 	},
 })
