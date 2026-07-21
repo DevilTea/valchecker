@@ -109,7 +109,7 @@ function aggregateRuns(raws, label) {
 			const result = resultMap.get(template.scenario)
 			if (!result)
 				throw new Error(`${label} run is missing ${template.scenario}`)
-			for (const field of ['category', 'group', 'resultKind', 'issuePolicy']) {
+			for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
 				if (result[field] !== template[field])
 					throw new Error(`${label} metadata mismatch for ${template.scenario}.${field}`)
 			}
@@ -122,6 +122,8 @@ function aggregateRuns(raws, label) {
 			group: template.group,
 			resultKind: template.resultKind,
 			issuePolicy: template.issuePolicy,
+			comparisonScope: template.comparisonScope,
+			diagnosticIssueCount: template.diagnosticIssueCount,
 			medianOpsPerSecond: median(runMedians),
 			crossRunRme: relativeMarginOfError(runMedians),
 			runMedians,
@@ -171,7 +173,7 @@ function compareResults(baseline, candidate) {
 		const head = candidateByScenario.get(base.scenario)
 		if (!head)
 			throw new Error(`Candidate is missing scenario ${base.scenario}`)
-		for (const field of ['category', 'group', 'resultKind', 'issuePolicy']) {
+		for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
 			if (head[field] !== base[field])
 				throw new Error(`Metadata mismatch for ${base.scenario}.${field}`)
 		}
@@ -193,6 +195,8 @@ function compareResults(baseline, candidate) {
 			group: base.group,
 			resultKind: base.resultKind,
 			issuePolicy: base.issuePolicy,
+			comparisonScope: base.comparisonScope,
+			diagnosticIssueCount: base.diagnosticIssueCount,
 			baselineOps: base.medianOpsPerSecond,
 			candidateOps: head.medianOpsPerSecond,
 			baselineCrossRunRme: base.crossRunRme,
@@ -282,11 +286,11 @@ function renderMarkdown(result) {
 		'',
 		'## Scenario changes',
 		'',
-		'| Scenario | Group | Issue policy | Baseline ops/s | Candidate ops/s | Change | Paired RME | Classification |',
-		'| --- | --- | --- | ---: | ---: | ---: | ---: | --- |',
+		'| Scenario | Group | Issue policy | Issues | Baseline ops/s | Candidate ops/s | Change | Paired RME | Classification |',
+		'| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
 	)
 	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta)) {
-		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${Math.round(row.baselineOps).toLocaleString('en-US')} | ${Math.round(row.candidateOps).toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
+		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps).toLocaleString('en-US')} | ${Math.round(row.candidateOps).toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
 	}
 
 	lines.push(
@@ -307,8 +311,8 @@ function renderMarkdown(result) {
 
 function renderHtml(result) {
 	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`).join('')
-	const rows = [...result.rows].sort((left, right) => left.delta - right.delta).map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${Math.round(row.baselineOps).toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps).toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`).join('')
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline}</p><h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
+	const rows = [...result.rows].sort((left, right) => left.delta - right.delta).map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps).toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps).toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`).join('')
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline}</p><h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))
