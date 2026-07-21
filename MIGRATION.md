@@ -305,3 +305,94 @@ schema.execute(42) // synchronous failure before callback
 ```
 
 Awaiting either mode is safe. Append `.toAsync()` when every invocation must return a native promise.
+
+Callback steps may assimilate complete `PromiseLike` values, including custom thenables and cross-realm promises.
+
+## Composition changes
+
+### Union
+
+`union()` returns the first successful branch's transformed output. Review branch order and output types.
+
+### Intersection
+
+Only compatible plain-object outputs are recursively composed. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference. Compatible cycles, aliases, and enumerable symbol keys are supported. `intersection:conflicting_outputs` now reports the conflict path, branch pair, values, and a stable reason instead of carrying the complete outputs array.
+
+### Objects
+
+- Declared fields are read from own properties only. Missing required own properties now produce `object:missing_key`, `strictObject:missing_key`, or `looseObject:missing_key`; present `undefined` is still validated by the child schema.
+- `object()` omits unknown output properties.
+- `strictObject()` rejects unknown enumerable own string and symbol keys, reports `{ keys, expectedKeys }`, and collects unknown, missing, and invalid-known-field issues together.
+- `looseObject()` preserves unknown own properties and descriptors.
+- Declared `__proto__` fields are safe own data properties.
+- A one-element tuple still marks a field optional. When absent, the child schema is skipped and the declared output property is materialized with `undefined`.
+
+### Fatal and recoverable combinator behavior
+
+`union()` and `fallback()` no longer treat internal failures as ordinary alternatives. Union stops at an internal branch issue; fallback does not run its callback. Object and array traversal also stop sibling evaluation once an internal issue is observed. Union branch provenance is available in `issue.context` without changing `issue.path`.
+
+A throwing or rejecting fallback callback now emits an `operation`-category `fallback:failed` issue after the original issues, and `payload.error` is required.
+
+## Issue shape and core failures
+
+Every public Valchecker issue now includes a required `category`:
+
+```ts
+category: 'validation' | 'operation' | 'internal'
+```
+
+Two-argument `ExecutionIssue<'code', Payload>` declarations remain validation issues by default. Plugin authors must specify the third generic for operation or internal failures. Failure results now use a non-empty tuple, `[Issue, ...Issue[]]`.
+
+`core:unknown_exception` changed its payload field from `value` to `receivedResult` because the captured value is the complete execution result received by the failing step. Message-handler exceptions are represented separately as `core:message_exception`.
+
+Nested message handlers now run after the final path is assembled and may be provided at enclosing object scopes. The priority is leaf step, nearest enclosing structure, outer structures, originating instance global handler, leaf default, then `"Invalid value."`.
+
+## Messages and issue paths
+
+Message priority is:
+
+1. per-step message,
+2. global resolver,
+3. built-in default,
+4. `"Invalid value."`.
+
+Message maps inspect own properties only. Nested paths are prepended by cloning issue objects, so frozen and reused child issues are supported.
+
+## `use()` and Standard Schema
+
+`use(schema)` preserves delegated transformed output, issue types, paths, and maybe-async behavior.
+
+Every schema exposes `~standard` for Standard Schema V1 integrations. Native application code may continue to use `execute()` for complete Valchecker issue payloads.
+
+## Public API cleanup
+
+The following accidental implementation exports are no longer public:
+
+```text
+noop
+returnTrue
+isPromiseLike
+runtimeExecutionStepDefMarker
+createPipeExecutor
+handleMessage
+prependIssuePath
+resolveMessagePriority
+```
+
+Application code should import from `valchecker`. Plugin authors should use root exports from `@valchecker/internal`, not source paths.
+
+Plugin method names must be strings, map to functions, remain unique, avoid core method names, and not be `then`. Symbol method names are rejected.
+
+## Verification after migration
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm lint
+pnpm typecheck
+pnpm test
+```
+
+Also test an installed tarball or registry package under the same module resolution used in production. Workspace imports can hide missing files, invalid export maps, and dependency rewrite problems.
+
+When reporting release-candidate issues, include the exact Valchecker, Node.js, and TypeScript versions; module resolution; minimal schema and input; actual and expected result; and whether execution used `execute()` or `~standard`.
