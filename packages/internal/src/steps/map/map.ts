@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getStructuralRawSyncExecutor } from '../../core/raw-sync-executor'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -66,10 +67,15 @@ export const map = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [options],
 	}) => {
-		const keyExecute = options.key['~execute']
-		const valueExecute = options.value['~execute']
-		const operationMode = options.key['~core']?.operationMode === 'sync'
-			&& options.value['~core']?.operationMode === 'sync'
+		const keyIsSynchronous = options.key['~core']?.operationMode === 'sync'
+		const valueIsSynchronous = options.value['~core']?.operationMode === 'sync'
+		const keyExecute = keyIsSynchronous
+			? getStructuralRawSyncExecutor(options.key)
+			: options.key['~execute']
+		const valueExecute = valueIsSynchronous
+			? getStructuralRawSyncExecutor(options.value)
+			: options.value['~execute']
+		const operationMode = keyIsSynchronous && valueIsSynchronous
 			? 'sync'
 			: 'maybe-async'
 		const childrenAreSynchronous = operationMode === 'sync'
