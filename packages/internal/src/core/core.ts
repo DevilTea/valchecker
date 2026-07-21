@@ -225,12 +225,32 @@ export function createPipeExecutor({
 	return value => executeRuntimeSteps(runtimeSteps, value)
 }
 
-function createFinalizedPipeExecutor(runtimeSteps: RuntimeStep[]): PipeExecutor {
+function createFinalizedPipeExecutor(
+	runtimeSteps: RuntimeStep[],
+	operationMode: RuntimeOperationMode,
+): PipeExecutor {
 	const len = runtimeSteps.length
 	if (len === 0)
 		return value => ({ value })
 
 	const first = runtimeSteps[0]!
+	if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
+		if (len === 1)
+			return value => first({ value }) as ExecutionResult
+
+		const second = runtimeSteps[1]!
+		if (len === 2) {
+			return value => second(first({ value }) as ExecutionResult) as ExecutionResult
+		}
+
+		return (value) => {
+			let result = first({ value }) as ExecutionResult
+			for (let i = 1; i < len; i++)
+				result = runtimeSteps[i]!(result) as ExecutionResult
+			return result
+		}
+	}
+
 	if (len === 1)
 		return value => first({ value })
 
@@ -533,20 +553,27 @@ function hasIssueDraft(issues: readonly AnyExecutionIssue[]): boolean {
 	return false
 }
 
-function finalizeAsyncResult(result: ExecutionResult): ExecutionResult {
+function finalizeResult(result: ExecutionResult): ExecutionResult {
 	return 'issues' in result && hasIssueDraft(result.issues)
 		? finalizeFailureResult(result)
 		: result
 }
 
-function createPublicExecutor(executeRaw: PipeExecutor): PipeExecutor {
+function createPublicExecutor(
+	executeRaw: PipeExecutor,
+	operationMode: RuntimeOperationMode,
+): PipeExecutor {
+	if (operationMode === RUNTIME_OPERATION_MODE_SYNC)
+		return value => finalizeResult(executeRaw(value) as ExecutionResult)
+
+	if (operationMode === RUNTIME_OPERATION_MODE_ASYNC)
+		return value => Promise.resolve(executeRaw(value)).then(finalizeResult)
+
 	return (value) => {
 		const result = executeRaw(value)
-		if (isPromiseLike(result))
-			return Promise.resolve(result).then(finalizeAsyncResult)
-		return 'issues' in result && hasIssueDraft(result.issues)
-			? finalizeFailureResult(result)
-			: result
+		return isPromiseLike(result)
+			? Promise.resolve(result).then(finalizeResult)
+			: finalizeResult(result)
 	}
 }
 
@@ -593,17 +620,41 @@ function createExecutionStepMethodUtils(
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
 		operationMode: RuntimeOperationMode,
-	) => (lastResult: ExecutionResult) => {
-		try {
-			const result = fn(lastResult)
-			if (operationMode === RUNTIME_OPERATION_MODE_SYNC)
-				return result as ExecutionResult
-			return isPromiseLike(result)
-				? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
-				: result
+	): RuntimeStep => {
+		if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
+			return (lastResult) => {
+				try {
+					return fn(lastResult) as ExecutionResult
+				}
+				catch (error) {
+					return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
+				}
+			}
 		}
-		catch (error) {
-			return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
+
+		if (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {
+			return (lastResult) => {
+				try {
+					return Promise.resolve(fn(lastResult)).catch(
+						error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage),
+					)
+				}
+				catch (error) {
+					return Promise.resolve(createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
+				}
+			}
+		}
+
+		return (lastResult) => {
+			try {
+				const result = fn(lastResult)
+				return isPromiseLike(result)
+					? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
+					: result
+			}
+			catch (error) {
+				return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
+			}
 		}
 	}
 
@@ -779,7 +830,7 @@ function createCoreProperties(
 	executeRaw: PipeExecutor,
 	operationMode: RuntimeOperationMode,
 ) {
-	const execute = createPublicExecutor(executeRaw)
+	const execute = createPublicExecutor(executeRaw, operationMode)
 	return {
 		'~standard': {
 			version: 1,
@@ -813,7 +864,7 @@ function createInstance({
 	currentRuntimeSteps: RuntimeStep[]
 	currentOperationMode: RuntimeOperationMode
 }): any {
-	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps)
+	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps, currentOperationMode)
 	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw, currentOperationMode)
 
 	return new Proxy(coreProperties, createProxyHandler({
