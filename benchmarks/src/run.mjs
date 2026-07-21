@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { getProfile } from './measure.mjs'
+import { getScenarioCatalog } from './scenarios.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const workerPath = fileURLToPath(new URL('./worker.mjs', import.meta.url))
@@ -121,7 +122,7 @@ for (const adapter of order) {
 }
 
 const result = {
-	schemaVersion: 1,
+	schemaVersion: 2,
 	mode: options.mode,
 	seed: options.seed,
 	startedAt,
@@ -140,6 +141,7 @@ const result = {
 		runnerImageVersion: process.env.ImageVersion ?? null,
 	},
 	order,
+	scenarioCatalog: getScenarioCatalog(options.mode),
 	libraries,
 }
 
