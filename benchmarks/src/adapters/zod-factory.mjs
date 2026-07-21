@@ -39,9 +39,17 @@ export function createZodAdapter(z, name, version) {
 		tag: z.string().optional(),
 	})
 
+	const issuePolicyFields = () => ({
+		first: z.string(),
+		second: z.string(),
+	})
+
 	return {
 		name,
 		version,
+		capabilities: {
+			issuePolicies: ['all'],
+		},
 		build: {
 			primitive: () => z.string().min(3).max(32).regex(/^[a-z0-9-]+$/),
 			flatObject: () => z.object(createFields()),
@@ -62,6 +70,12 @@ export function createZodAdapter(z, name, version) {
 				}),
 			}),
 			recordArray: () => z.array(createRecord()),
+			set: () => z.set(z.string()),
+			map: () => z.map(z.string(), z.number()),
+			intersection: () => z.intersection(
+				z.object({ left: z.string() }),
+				z.object({ right: z.number() }),
+			),
 			union: () => z.union([
 				z.object({ type: z.literal('text'), value: z.string() }),
 				z.object({ type: z.literal('count'), value: z.number() }),
@@ -74,14 +88,24 @@ export function createZodAdapter(z, name, version) {
 				.toLowerCase()
 				.transform(value => `user:${value}`),
 			optionalHeavy: () => z.object(createOptionalFields()),
+			issuePolicyObject: () => z.object(issuePolicyFields()),
+			issuePolicyStrictObject: () => z.object(issuePolicyFields()).strict(),
+			issuePolicyLooseObject: () => z.object(issuePolicyFields()).passthrough(),
+			issuePolicyArray: () => z.array(z.string()),
+			issuePolicySet: () => z.set(z.string()),
+			issuePolicyMap: () => z.map(z.string(), z.number()),
+			issuePolicyIntersection: () => z.intersection(
+				z.object({ left: z.string() }),
+				z.object({ right: z.string() }),
+			),
 		},
 		parse(schema, input) {
 			return schema.safeParse(input)
 		},
 		normalize(result) {
 			return result.success
-				? { success: true, output: result.data }
-				: { success: false }
+				? { success: true, output: result.data, issueCount: 0 }
+				: { success: false, issueCount: result.error.issues.length }
 		},
 	}
 }
