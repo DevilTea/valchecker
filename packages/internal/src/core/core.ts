@@ -19,7 +19,7 @@ import type {
 	TStepPluginDef,
 } from './types'
 import type { ExecutionEffects } from './execution-effects'
-import { conservativeExecutionEffects, neutralExecutionEffects, registerExecutionEffects } from './execution-effects'
+import { conservativeExecutionEffects, executionEffectsKey, neutralExecutionEffects } from './execution-effects'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
@@ -850,9 +850,11 @@ function createCoreProperties(
 	runtimeSteps: RuntimeStep[],
 	executeRaw: PipeExecutor,
 	operationMode: RuntimeOperationMode,
+	executionEffects: ExecutionEffects,
 ) {
 	const execute = createPublicExecutor(executeRaw, operationMode)
 	return {
+		[executionEffectsKey]: executionEffects,
 		'~standard': {
 			version: 1,
 			vendor: 'valchecker',
@@ -888,9 +890,14 @@ function createInstance({
 	currentExecutionEffects: ExecutionEffects
 }): any {
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps, currentOperationMode)
-	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw, currentOperationMode)
+	const coreProperties = createCoreProperties(
+		currentRuntimeSteps,
+		executeRaw,
+		currentOperationMode,
+		currentExecutionEffects,
+	)
 
-	const instance = new Proxy(coreProperties, createProxyHandler({
+	return new Proxy(coreProperties, createProxyHandler({
 		stepMethods,
 		resolveMessage,
 		runtimeSteps: currentRuntimeSteps,
@@ -898,8 +905,6 @@ function createInstance({
 		executionEffects: currentExecutionEffects,
 		context,
 	}))
-	registerExecutionEffects(instance, currentExecutionEffects)
-	return instance
 }
 
 const reservedStepMethodNames = new Set<PropertyKey>([
