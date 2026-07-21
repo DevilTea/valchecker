@@ -8,7 +8,7 @@ import { object } from '../steps/object'
 import { string } from '../steps/string'
 import { transform } from '../steps/transform'
 import { createValchecker, implStepPlugin } from './core'
-import { conservativeExecutionEffects, getExecutionEffects, neutralExecutionEffects } from './execution-effects'
+import { conservativeExecutionEffects, getExecutionEffects, neutralExecutionEffects, preserveExecutionEffects } from './execution-effects'
 
 const passthrough = implStepPlugin({
 	passthrough: ({ utils }: any) => {
@@ -16,8 +16,25 @@ const passthrough = implStepPlugin({
 	},
 } as any) as StepPluginImpl<TStepPluginDef>
 
+const preserveIdentityOnly = implStepPlugin({
+	preserveIdentityOnly: ({ utils }: any) => {
+		preserveExecutionEffects(utils, { identity: 'may-transform' })
+		utils.addStep((result: ExecutionResult) => result, 'sync')
+	},
+} as any) as StepPluginImpl<TStepPluginDef>
+
 const v = createValchecker({
-	steps: [string, number, boolean, bigint, object, check, transform, passthrough],
+	steps: [
+		string,
+		number,
+		boolean,
+		bigint,
+		object,
+		check,
+		transform,
+		passthrough,
+		preserveIdentityOnly,
+	],
 }) as any
 
 describe('execution effect metadata', () => {
@@ -38,6 +55,14 @@ describe('execution effect metadata', () => {
 		['bigint', v.bigint()],
 	])('marks the %s initial schema as direct and identity-preserving', (_name, schema) => {
 		expect(getExecutionEffects(schema)).toEqual(neutralExecutionEffects)
+	})
+
+	it('preserves unspecified effects in a partial trusted annotation', () => {
+		expect(getExecutionEffects(v.string().preserveIdentityOnly())).toEqual({
+			identity: 'may-transform',
+			parentTraversal: 'direct-safe',
+			structuralOutput: null,
+		})
 	})
 
 	it('does not let a later classifier recover guarantees lost by an earlier step', () => {
