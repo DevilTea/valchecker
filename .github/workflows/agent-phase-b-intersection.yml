@@ -1,0 +1,80 @@
+name: Agent Phase B Intersection
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/execution-effect-metadata'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - name: Add static Intersection plans
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('packages/internal/src/steps/intersection/intersection.ts')
+          text = path.read_text()
+
+          def replace(old: str, new: str, count: int = 1) -> None:
+              global text
+              actual = text.count(old)
+              if actual != count:
+                  raise RuntimeError(f'expected {count} matches, found {actual}: {old[:80]!r}')
+              text = text.replace(old, new)
+
+          replace(
+              "import type { IsEqual, UnionToIntersection } from '../../shared'\nimport { implStepPlugin } from '../../core'",
+              "import type { IsEqual, UnionToIntersection } from '../../shared'\nimport type { ExecutionEffects } from '../../core/execution-effects'\nimport { implStepPlugin } from '../../core'\nimport { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'",
+          )
+
+          replace(
+              """interface FlatProperties {\n\tkeys: PropertyKey[]\n\tvalues: unknown[]\n}\n\ntype MergeSide = 'left' | 'right'\n""",
+              """interface FlatProperties {\n\tkeys: PropertyKey[]\n\tvalues: unknown[]\n}\n\ninterface StaticObjectMergePlan {\n\treadonly branchKeys: readonly (readonly PropertyKey[])[]\n\treadonly keys: readonly PropertyKey[]\n}\n\ninterface IntersectionExecutionEffectsMetadata {\n\treadonly staticObjectMergePlan: StaticObjectMergePlan | null\n\treadonly branchesAreDirectSafe: boolean\n}\n\nfunction createStaticObjectMergePlan(\n\tbranchEffects: readonly ExecutionEffects[],\n): StaticObjectMergePlan | null {\n\tconst seen = new Set<PropertyKey>()\n\tconst branchKeys: (readonly PropertyKey[])[] = []\n\tconst keys: PropertyKey[] = []\n\n\tfor (let branchIndex = 0; branchIndex < branchEffects.length; branchIndex++) {\n\t\tconst structuralOutput = branchEffects[branchIndex]!.structuralOutput\n\t\tif (structuralOutput == null)\n\t\t\treturn null\n\n\t\tconst currentKeys = structuralOutput.keys\n\t\tfor (let keyIndex = 0; keyIndex < currentKeys.length; keyIndex++) {\n\t\t\tconst key = currentKeys[keyIndex]!\n\t\t\tif (seen.has(key))\n\t\t\t\treturn null\n\t\t\tseen.add(key)\n\t\t\tkeys.push(key)\n\t\t}\n\t\tbranchKeys.push(currentKeys)\n\t}\n\n\treturn { branchKeys, keys }\n}\n\ntype MergeSide = 'left' | 'right'\n""",
+          )
+
+          replace(
+              """function defineEnumerableValue(target: Record<PropertyKey, unknown>, key: PropertyKey, value: unknown): void {\n\tObject.defineProperty(target, key, {\n\t\tconfigurable: true,\n\t\tenumerable: true,\n\t\tvalue,\n\t\twritable: true,\n\t})\n}\n\nfunction readFlatProperties""",
+              """function defineEnumerableValue(target: Record<PropertyKey, unknown>, key: PropertyKey, value: unknown): void {\n\tObject.defineProperty(target, key, {\n\t\tconfigurable: true,\n\t\tenumerable: true,\n\t\tvalue,\n\t\twritable: true,\n\t})\n}\n\nfunction setStaticOutputValue(\n\ttarget: Record<PropertyKey, unknown>,\n\tkey: PropertyKey,\n\tvalue: unknown,\n): void {\n\tif (key === '__proto__') {\n\t\tdefineEnumerableValue(target, key, value)\n\t\treturn\n\t}\n\ttarget[key] = value\n}\n\nfunction tryMergeStaticDisjointObjectOutputs(\n\toutputs: readonly unknown[],\n\tplan: StaticObjectMergePlan,\n): Record<PropertyKey, unknown> | undefined {\n\tconst output: Record<PropertyKey, unknown> = {}\n\n\tfor (let branchIndex = 0; branchIndex < plan.branchKeys.length; branchIndex++) {\n\t\tconst branchOutput = outputs[branchIndex] as Record<PropertyKey, unknown>\n\t\tconst keys = plan.branchKeys[branchIndex]!\n\t\tfor (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {\n\t\t\tconst key = keys[keyIndex]!\n\t\t\tconst value = branchOutput[key]\n\t\t\tif (isPlainObject(value))\n\t\t\t\treturn undefined\n\t\t\tsetStaticOutputValue(output, key, value)\n\t\t}\n\t}\n\n\treturn output\n}\n\nfunction readFlatProperties""",
+          )
+
+          replace(
+              'export const intersection = implStepPlugin<PluginDef>({',
+              'export const intersection = withExecutionEffects(implStepPlugin<PluginDef>({',
+          )
+
+          replace(
+              """\t\tconst branchesAreSynchronous = operationMode === 'sync'\n\t\tconst collectAllIssues = options?.collectAllIssues === true\n""",
+              """\t\tconst branchesAreSynchronous = operationMode === 'sync'\n\t\tconst collectAllIssues = options?.collectAllIssues === true\n\t\tconst branchEffects = branches.map(branch => getExecutionEffects(branch))\n\t\tconst staticObjectMergePlan = createStaticObjectMergePlan(branchEffects)\n\t\tconst branchesAreDirectSafe = branchEffects.every(\n\t\t\teffects => effects.parentTraversal === 'direct-safe',\n\t\t)\n""",
+          )
+
+          replace(
+              """\t\tconst mergeOutputs = (outputs: unknown[]) => {\n\t\t\tif (outputs.length === 0)\n\t\t\t\treturn success(undefined)\n\n\t\t\tlet output = outputs[0]\n""",
+              """\t\tconst mergeOutputs = (outputs: unknown[]) => {\n\t\t\tif (outputs.length === 0)\n\t\t\t\treturn success(undefined)\n\n\t\t\tif (staticObjectMergePlan != null) {\n\t\t\t\tconst staticOutput = tryMergeStaticDisjointObjectOutputs(outputs, staticObjectMergePlan)\n\t\t\t\tif (staticOutput != null)\n\t\t\t\t\treturn success(staticOutput)\n\t\t\t}\n\n\t\t\tlet output = outputs[0]\n""",
+          )
+
+          replace(
+              """\t\taddSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)\n\t},\n})\n""",
+              """\t\taddSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)\n\t\treturn { staticObjectMergePlan, branchesAreDirectSafe }\n\t},\n}), {\n\tintersection: (previous, _params, stepMetadata) => {\n\t\tconst { staticObjectMergePlan, branchesAreDirectSafe }\n\t\t\t= stepMetadata as IntersectionExecutionEffectsMetadata\n\t\treturn {\n\t\t\tidentity: 'may-transform',\n\t\t\tparentTraversal: previous.parentTraversal === 'direct-safe' && branchesAreDirectSafe\n\t\t\t\t? 'direct-safe'\n\t\t\t\t: 'snapshot-required',\n\t\t\tstructuralOutput: staticObjectMergePlan == null\n\t\t\t\t? null\n\t\t\t\t: { kind: 'fresh-ordinary-object', keys: staticObjectMergePlan.keys },\n\t\t}\n\t},\n})\n""",
+          )
+
+          path.write_text(text)
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/agent-phase-b-intersection.yml
+          git add packages/internal/src/steps/intersection/intersection.ts
+          git commit -m "perf: add static Intersection merge plans"
+          git push
