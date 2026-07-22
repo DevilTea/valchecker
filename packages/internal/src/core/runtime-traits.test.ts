@@ -20,7 +20,6 @@ describe('runtime step traits', () => {
 				category: 'internal',
 				payload: {
 					method: 'throwingIdentity',
-					value: 'value',
 				},
 			}],
 		})
