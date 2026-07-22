@@ -132,6 +132,29 @@ describe('Map lazy output allocation', () => {
 		expect(result.issues[0]).toMatchObject({ path: [0, 'key'] })
 	})
 
+	it('keeps a successful prefix key reserved across a later failure', () => {
+		const input = new Map([['kept', 1], ['failed', 'bad'], ['later', 2]])
+		const key = v.unknown().syncMap((sourceKey: unknown) => sourceKey === 'later' ? 'kept' : sourceKey)
+		const value = v.unknown().syncProcess((entryValue: unknown) => entryValue === 'bad'
+			? { ok: false }
+			: { ok: true, value: entryValue })
+		const result = v.map({ key, value, collectAllIssues: true }).execute(input)
+
+		expect(result.issues.map((issue: any) => issue.code)).toEqual([
+			'fixture:rejected',
+			'map:duplicate_transformed_key',
+		])
+		expect(result.issues[1]).toMatchObject({
+			path: [2, 'key'],
+			payload: {
+				firstSourceKey: 'kept',
+				firstIndex: 0,
+				sourceKey: 'later',
+				index: 2,
+			},
+		})
+	})
+
 	it('does not reserve the key of a failed value entry', () => {
 		const input = new Map([['failed', 'bad'], ['a', 'ok']])
 		const key = v.unknown().syncMap((sourceKey: unknown) => sourceKey === 'a' ? 'failed' : sourceKey)
