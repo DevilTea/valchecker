@@ -3,6 +3,8 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
+const nativeMapForEach = Map.prototype.forEach
+
 declare namespace Internal {
 	type ResolveMode<M extends OperationMode> = IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
 	export type OpMode<K extends Use<Valchecker>, V extends Use<Valchecker>> = ResolveMode<InferOperationMode<K> | InferOperationMode<V>>
@@ -92,14 +94,20 @@ export const map = implStepPlugin<PluginDef>({
 			return { issues: target, hasInternal }
 		}
 
-		const snapshotEntries = (value: Map<unknown, unknown>): unknown[] => {
+		const snapshotEntries = (
+			value: Map<unknown, unknown>,
+			size: number,
+			forEach: typeof Map.prototype.forEach,
+		): unknown[] => {
 			// eslint-disable-next-line unicorn/no-new-array
-			const entries = new Array<unknown>(value.size * 2)
+			const entries = new Array<unknown>(size * 2)
 			let offset = 0
-			value.forEach((sourceValue, sourceKey) => {
-				entries[offset++] = sourceKey
-				entries[offset++] = sourceValue
-			})
+			Reflect.apply(forEach, value, [
+				(sourceValue: unknown, sourceKey: unknown) => {
+					entries[offset++] = sourceKey
+					entries[offset++] = sourceValue
+				},
+			])
 			return entries
 		}
 
@@ -198,11 +206,108 @@ export const map = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const entries = snapshotEntries(value)
+			const size = value.size
+			const forEach = value.forEach
+			const entries = snapshotEntries(value, size, forEach)
+			const entryCount = entries.length / 2
+
+			if (childrenAreSynchronous && forEach === nativeMapForEach) {
+				let output: Map<unknown, unknown> | undefined
+				let firstKeyIndex: Map<unknown, number> | undefined
+				let hasFailure = false
+				let issues: AnyExecutionIssue[] | undefined
+
+				for (let index = 0; index < entryCount; index++) {
+					const offset = index * 2
+					const sourceKey = entries[offset]
+					const sourceValue = entries[offset + 1]
+					const keyResult = keyExecute(sourceKey) as ExecutionResult
+					const keyFailed = isFailure(keyResult)
+					if (keyFailed) {
+						const appended = appendChildIssues(keyResult, [index, 'key'], issues)
+						issues = appended.issues
+						if (appended.hasInternal || !collectAllIssues)
+							return failure(issues)
+					}
+
+					const valueResult = valueExecute(sourceValue) as ExecutionResult
+					const valueFailed = isFailure(valueResult)
+					if (valueFailed) {
+						const appended = appendChildIssues(valueResult, [index, 'value'], issues)
+						issues = appended.issues
+						if (appended.hasInternal || !collectAllIssues)
+							return failure(issues)
+					}
+
+					if (keyFailed || valueFailed) {
+						if (!hasFailure && output == null && index > 0) {
+							output = new Map()
+							firstKeyIndex = new Map()
+							for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
+								const prefixOffset = prefixIndex * 2
+								const prefixKey = entries[prefixOffset]
+								output.set(prefixKey, entries[prefixOffset + 1])
+								firstKeyIndex.set(prefixKey, prefixIndex)
+							}
+						}
+						hasFailure = true
+						continue
+					}
+
+					const transformedKey = keyResult.value
+					const transformedValue = valueResult.value
+					const keyIsIdentity = transformedKey === sourceKey
+						|| (transformedKey !== transformedKey && sourceKey !== sourceKey)
+					if (
+						output == null
+						&& !hasFailure
+						&& keyIsIdentity
+						&& Object.is(transformedValue, sourceValue)
+					)
+						continue
+
+					if (output == null) {
+						output = new Map()
+						firstKeyIndex = new Map()
+						if (!hasFailure) {
+							for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
+								const prefixOffset = prefixIndex * 2
+								const prefixKey = entries[prefixOffset]
+								output.set(prefixKey, entries[prefixOffset + 1])
+								firstKeyIndex.set(prefixKey, prefixIndex)
+							}
+						}
+					}
+
+					if (output.has(transformedKey)) {
+						const firstIndex = firstKeyIndex!.get(transformedKey)
+						if (firstIndex == null)
+							throw new Error('Missing transformed Map key metadata.')
+						const target = issues ??= []
+						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
+						if (!collectAllIssues)
+							return failure(target)
+					}
+					else {
+						output.set(transformedKey, transformedValue)
+						firstKeyIndex!.set(transformedKey, index)
+					}
+				}
+
+				if (issues != null)
+					return failure(issues)
+				if (output != null)
+					return success(output)
+
+				output = new Map()
+				for (let offset = 0; offset < entries.length; offset += 2)
+					output.set(entries[offset], entries[offset + 1])
+				return success(output)
+			}
+
 			let output: Map<unknown, unknown> | undefined
 			let firstKeyIndex: Map<unknown, number> | undefined
 			let issues: AnyExecutionIssue[] | undefined
-			const entryCount = entries.length / 2
 
 			for (let index = 0; index < entryCount; index++) {
 				const offset = index * 2
