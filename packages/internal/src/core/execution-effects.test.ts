@@ -78,12 +78,12 @@ describe('execution effect metadata', () => {
 		expect(getExecutionEffects(schema)).toEqual(conservativeExecutionEffects)
 	})
 
-	it('records known fresh ordinary-object output', () => {
+	it('records known fresh ordinary-object output with conservative parent traversal', () => {
 		const schema = v.object({ left: v.string(), right: v.number() })
 
 		expect(getExecutionEffects(schema)).toEqual({
 			identity: 'may-transform',
-			parentTraversal: 'direct-safe',
+			parentTraversal: 'snapshot-required',
 			structuralOutput: {
 				kind: 'fresh-ordinary-object',
 				keys: ['left', 'right'],
@@ -91,7 +91,7 @@ describe('execution effect metadata', () => {
 		})
 	})
 
-	it('propagates traversal safety from the previous pipeline and structural children', () => {
+	it('keeps object traversal conservative around property access and callbacks', () => {
 		const unsafeChild = v.object({ value: v.string().check(() => true) })
 		const unsafePrevious = v.string().check(() => true).object({ value: v.string() })
 
