@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { implStepPlugin } from '../../core'
 import { check, createValchecker, object, set, string } from '../..'
 
-const v = createValchecker({ steps: [check, object, set, string] })
+const passthrough = implStepPlugin<any>({
+	passthrough: ({ utils }: any) => {
+		utils.addSuccessStep((value: unknown) => utils.success(value), 'sync')
+	},
+}, 'sync')
+
+const v = createValchecker({ steps: [check, object, passthrough, set, string] }) as any
 
 describe('set traversal plans', () => {
 	it('does not call the snapshot values method for identity item schemas', () => {
@@ -43,6 +50,22 @@ describe('set traversal plans', () => {
 		})
 
 		expect(v.set(v.string().check(() => true)).execute(input)).toEqual({
+			value: new Set(['a']),
+		})
+		expect(snapshotUsed).toBe(true)
+	})
+
+	it('does not trust an unmarked synchronous custom passthrough', () => {
+		const input = new Set(['a'])
+		let snapshotUsed = false
+		Object.defineProperty(input, 'values', {
+			value() {
+				snapshotUsed = true
+				return Set.prototype.values.call(this)
+			},
+		})
+
+		expect(v.set(v.string().passthrough()).execute(input)).toEqual({
 			value: new Set(['a']),
 		})
 		expect(snapshotUsed).toBe(true)
