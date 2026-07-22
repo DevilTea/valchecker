@@ -33,6 +33,11 @@ describe('runtime step traits', () => {
 		expect(hasIdentityOnlyRuntimeSteps(untrusted)).toBe(false)
 	})
 
+	it('rejects empty pipelines and mixed trusted pipelines', () => {
+		expect(hasIdentityOnlyRuntimeSteps(v)).toBe(false)
+		expect(hasIdentityOnlyRuntimeSteps(v.throwingIdentity().passthrough())).toBe(false)
+	})
+
 	it('keeps unknown-exception handling for trusted identity wrappers', () => {
 		expect(v.throwingIdentity().execute('value')).toMatchObject({
 			issues: [{
