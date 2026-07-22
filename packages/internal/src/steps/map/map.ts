@@ -210,7 +210,7 @@ export const map = implStepPlugin<PluginDef>({
 			if (childrenAreSynchronous && forEach === nativeMapForEach) {
 				let output: Map<unknown, unknown> | undefined
 				let firstKeyIndex: Map<unknown, number> | undefined
-				let failedIndices: Set<number> | undefined
+				let hasFailure = false
 				let issues: AnyExecutionIssue[] | undefined
 
 				for (let index = 0; index < entryCount; index++) {
@@ -236,8 +236,17 @@ export const map = implStepPlugin<PluginDef>({
 					}
 
 					if (keyFailed || valueFailed) {
-						failedIndices ??= new Set()
-						failedIndices.add(index)
+						if (!hasFailure && output == null && index > 0) {
+							output = new Map()
+							firstKeyIndex = new Map()
+							for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
+								const prefixOffset = prefixIndex * 2
+								const prefixKey = entries[prefixOffset]
+								output.set(prefixKey, entries[prefixOffset + 1])
+								firstKeyIndex.set(prefixKey, prefixIndex)
+							}
+						}
+						hasFailure = true
 						continue
 					}
 
@@ -245,14 +254,19 @@ export const map = implStepPlugin<PluginDef>({
 					const transformedValue = valueResult.value
 					const keyIsIdentity = transformedKey === sourceKey
 						|| (transformedKey !== transformedKey && sourceKey !== sourceKey)
-					if (output == null && keyIsIdentity && Object.is(transformedValue, sourceValue))
+					if (
+						output == null
+						&& !hasFailure
+						&& keyIsIdentity
+						&& Object.is(transformedValue, sourceValue)
+					)
 						continue
 
 					if (output == null) {
 						output = new Map()
 						firstKeyIndex = new Map()
-						for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
-							if (!failedIndices?.has(prefixIndex)) {
+						if (!hasFailure) {
+							for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
 								const prefixOffset = prefixIndex * 2
 								const prefixKey = entries[prefixOffset]
 								output.set(prefixKey, entries[prefixOffset + 1])
