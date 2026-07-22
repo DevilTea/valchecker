@@ -19,7 +19,7 @@ const passthrough = implStepPlugin<any>({
 const v = createValchecker({ steps: [passthrough, throwingIdentity] }) as any
 
 describe('runtime step traits', () => {
-	it('encodes trust while preserving arrow-function wrappers', () => {
+	it('encodes trust while preserving arrow wrappers', () => {
 		const trusted = v.throwingIdentity()
 		const untrusted = v.passthrough()
 		const trustedStep = trusted['~core'].runtimeSteps[0]
@@ -33,19 +33,17 @@ describe('runtime step traits', () => {
 		expect(hasIdentityOnlyRuntimeSteps(untrusted)).toBe(false)
 	})
 
-	it('rejects empty pipelines and mixed trusted pipelines', () => {
+	it('rejects empty and mixed pipelines', () => {
 		expect(hasIdentityOnlyRuntimeSteps(v)).toBe(false)
 		expect(hasIdentityOnlyRuntimeSteps(v.throwingIdentity().passthrough())).toBe(false)
 	})
 
-	it('keeps unknown-exception handling for trusted identity wrappers', () => {
+	it('keeps unknown-exception handling for trusted wrappers', () => {
 		expect(v.throwingIdentity().execute('value')).toMatchObject({
 			issues: [{
 				code: 'core:unknown_exception',
 				category: 'internal',
-				payload: {
-					method: 'throwingIdentity',
-				},
+				payload: { method: 'throwingIdentity' },
 			}],
 		})
 	})
