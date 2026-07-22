@@ -71,140 +71,143 @@ jobs:
 
           python <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
-              count = text.count(old)
+          def sub_once(text: str, pattern: str, replacement: str, label: str, flags=0) -> str:
+              result, count = re.subn(pattern, replacement, text, count=1, flags=flags)
               if count != 1:
                   raise RuntimeError(f'{label}: expected one replacement, found {count}')
-              return text.replace(old, new, 1)
+              print(f'patched {label}')
+              return result
 
-          # Core: no per-schema effect state; only choose trusted identity wrappers
-          # while each runtime step is created.
-          path = Path('packages/internal/src/core/core.ts')
-          text = path.read_text()
-          text = replace_once(
+          core = Path('packages/internal/src/core/core.ts')
+          text = core.read_text()
+          text = sub_once(
               text,
-              "import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'\n",
-              "import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'\nimport { isIdentityRuntimeStepPlugin } from './runtime-traits'\n",
+              r"(import \{ isPromiseLike, runtimeExecutionStepDefMarker \} from '../shared'\n)",
+              r"\1import { isIdentityRuntimeStepPlugin } from './runtime-traits'\n",
               'core trait import',
           )
-          text = replace_once(
+          text = sub_once(
               text,
-              """interface RegisteredStepMethod {\n\trun: AnyFn\n\tdefaultOperationMode: RuntimeOperationMode\n}\n""",
-              """interface RegisteredStepMethod {\n\trun: AnyFn\n\tdefaultOperationMode: RuntimeOperationMode\n\tidentityRuntimeSteps: boolean\n}\n""",
+              r"interface RegisteredStepMethod \{\n\trun: AnyFn\n\tdefaultOperationMode: RuntimeOperationMode\n\}",
+              "interface RegisteredStepMethod {\n\trun: AnyFn\n\tdefaultOperationMode: RuntimeOperationMode\n\tidentityRuntimeSteps: boolean\n}",
               'registered method trait',
           )
-          text = replace_once(
+          text = sub_once(
               text,
-              """\tcurrentOperationMode: RuntimeOperationMode,\n\tdefaultOperationMode: RuntimeOperationMode,\n): RuntimeStepMethodUtils {\n""",
-              """\tcurrentOperationMode: RuntimeOperationMode,\n\tdefaultOperationMode: RuntimeOperationMode,\n\tidentityRuntimeSteps: boolean,\n): RuntimeStepMethodUtils {\n""",
+              r"(function createExecutionStepMethodUtils\([\s\S]*?\tdefaultOperationMode: RuntimeOperationMode,)\n(\): RuntimeStepMethodUtils \{)",
+              r"\1\n\tidentityRuntimeSteps: boolean,\n\2",
               'utils signature',
           )
-          marker = """\tconst wrapWithErrorHandling = (\n\t\tfn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,\n\t\toperationMode: RuntimeOperationMode,\n\t): RuntimeStep => {\n"""
-          identity_block = marker + """\t\tif (identityRuntimeSteps) {\n\t\t\tif (operationMode === RUNTIME_OPERATION_MODE_SYNC) {\n\t\t\t\treturn function identityRuntimeStep(lastResult) {\n\t\t\t\t\ttry {\n\t\t\t\t\t\treturn fn(lastResult) as ExecutionResult\n\t\t\t\t\t}\n\t\t\t\t\tcatch (error) {\n\t\t\t\t\t\treturn createUnknownExceptionFailure(method, lastResult, error, resolveMessage)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tif (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {\n\t\t\t\treturn function identityRuntimeStep(lastResult) {\n\t\t\t\t\ttry {\n\t\t\t\t\t\treturn Promise.resolve(fn(lastResult)).catch(\n\t\t\t\t\t\t\terror => createUnknownExceptionFailure(method, lastResult, error, resolveMessage),\n\t\t\t\t\t\t)\n\t\t\t\t\t}\n\t\t\t\t\tcatch (error) {\n\t\t\t\t\t\treturn Promise.resolve(createUnknownExceptionFailure(method, lastResult, error, resolveMessage))\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\treturn function identityRuntimeStep(lastResult) {\n\t\t\t\ttry {\n\t\t\t\t\tconst result = fn(lastResult)\n\t\t\t\t\treturn isPromiseLike(result)\n\t\t\t\t\t\t? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))\n\t\t\t\t\t\t: result\n\t\t\t\t}\n\t\t\t\tcatch (error) {\n\t\t\t\t\treturn createUnknownExceptionFailure(method, lastResult, error, resolveMessage)\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n"""
-          text = replace_once(text, marker, identity_block, 'identity wrapper block')
-          # Add the trait argument at both utility creation sites.
-          call_tail = """\t\t\t\tregisteredStepMethod.defaultOperationMode,\n\t\t\t)\n"""
-          replacement = """\t\t\t\tregisteredStepMethod.defaultOperationMode,\n\t\t\t\tregisteredStepMethod.identityRuntimeSteps,\n\t\t\t)\n"""
-          count = text.count(call_tail)
+          wrapper_start = """\tconst wrapWithErrorHandling = (\n\t\tfn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,\n\t\toperationMode: RuntimeOperationMode,\n\t): RuntimeStep => {\n"""
+          identity_block = wrapper_start + """\t\tif (identityRuntimeSteps) {\n\t\t\tif (operationMode === RUNTIME_OPERATION_MODE_SYNC) {\n\t\t\t\treturn function identityRuntimeStep(lastResult) {\n\t\t\t\t\ttry {\n\t\t\t\t\t\treturn fn(lastResult) as ExecutionResult\n\t\t\t\t\t}\n\t\t\t\t\tcatch (error) {\n\t\t\t\t\t\treturn createUnknownExceptionFailure(method, lastResult, error, resolveMessage)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tif (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {\n\t\t\t\treturn function identityRuntimeStep(lastResult) {\n\t\t\t\t\ttry {\n\t\t\t\t\t\treturn Promise.resolve(fn(lastResult)).catch(\n\t\t\t\t\t\t\terror => createUnknownExceptionFailure(method, lastResult, error, resolveMessage),\n\t\t\t\t\t\t)\n\t\t\t\t\t}\n\t\t\t\t\tcatch (error) {\n\t\t\t\t\t\treturn Promise.resolve(createUnknownExceptionFailure(method, lastResult, error, resolveMessage))\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\treturn function identityRuntimeStep(lastResult) {\n\t\t\t\ttry {\n\t\t\t\t\tconst result = fn(lastResult)\n\t\t\t\t\treturn isPromiseLike(result)\n\t\t\t\t\t\t? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))\n\t\t\t\t\t\t: result\n\t\t\t\t}\n\t\t\t\tcatch (error) {\n\t\t\t\t\treturn createUnknownExceptionFailure(method, lastResult, error, resolveMessage)\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n"""
+          if text.count(wrapper_start) != 1:
+              raise RuntimeError(f'identity wrapper insertion: found {text.count(wrapper_start)} starts')
+          text = text.replace(wrapper_start, identity_block, 1)
+          print('patched identity wrapper insertion')
+
+          text, count = re.subn(
+              r"(registeredStepMethod\.defaultOperationMode,)(\n\s*\))",
+              r"\1\n\t\t\t\tregisteredStepMethod.identityRuntimeSteps,\2",
+              text,
+          )
           if count != 2:
               raise RuntimeError(f'core utils call sites: expected 2, found {count}')
-          text = text.replace(call_tail, replacement)
-          text = replace_once(
+          print('patched core utils call sites')
+
+          text = sub_once(
               text,
-              """\tfor (const def of steps) {\n\t\tconst defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? RUNTIME_OPERATION_MODE_MAYBE_ASYNC\n\t\tfor (const method of Reflect.ownKeys(def)) {\n""",
-              """\tfor (const def of steps) {\n\t\tconst defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? RUNTIME_OPERATION_MODE_MAYBE_ASYNC\n\t\tconst identityRuntimeSteps = isIdentityRuntimeStepPlugin(def)\n\t\tfor (const method of Reflect.ownKeys(def)) {\n""",
+              r"(\tfor \(const def of steps\) \{\n\t\tconst defaultOperationMode = .*?\n)(\t\tfor \(const method of Reflect\.ownKeys\(def\)\) \{)",
+              r"\1\t\tconst identityRuntimeSteps = isIdentityRuntimeStepPlugin(def)\n\2",
               'plugin trait lookup',
           )
-          text = replace_once(
+          text = sub_once(
               text,
-              """\t\t\tstepMethods[method] = {\n\t\t\t\trun: stepMethod,\n\t\t\t\tdefaultOperationMode,\n\t\t\t}\n""",
-              """\t\t\tstepMethods[method] = {\n\t\t\t\trun: stepMethod,\n\t\t\t\tdefaultOperationMode,\n\t\t\t\tidentityRuntimeSteps,\n\t\t\t}\n""",
+              r"(\t\t\tstepMethods\[method\] = \{\n\t\t\t\trun: stepMethod,\n\t\t\t\tdefaultOperationMode,)(\n\t\t\t\})",
+              r"\1\n\t\t\t\tidentityRuntimeSteps,\2",
               'registered method assignment',
           )
-          path.write_text(text)
+          core.write_text(text)
 
-          # Mark only the four primitive initial classifiers as identity-only.
           for name in ('string', 'number', 'boolean', 'bigint'):
               path = Path(f'packages/internal/src/steps/{name}/{name}.ts')
               text = path.read_text()
-              text = replace_once(
+              text = sub_once(
                   text,
-                  "import { implStepPlugin } from '../../core'\n",
-                  "import { implStepPlugin } from '../../core'\nimport { markIdentityRuntimeStepPlugin } from '../../core/runtime-traits'\n",
+                  r"(import \{ implStepPlugin \} from '../../core'\n)",
+                  r"\1import { markIdentityRuntimeStepPlugin } from '../../core/runtime-traits'\n",
                   f'{name} trait import',
               )
-              text = replace_once(
+              text = sub_once(
                   text,
-                  f'export const {name} = implStepPlugin<PluginDef>({{',
-                  f'export const {name} = /* @__PURE__ */ markIdentityRuntimeStepPlugin(implStepPlugin<PluginDef>({{',
+                  rf"export const {name} = implStepPlugin<PluginDef>\(\{{",
+                  f"export const {name} = /* @__PURE__ */ markIdentityRuntimeStepPlugin(implStepPlugin<PluginDef>({{",
                   f'{name} wrapper start',
               )
-              ending = "}, 'sync')\n"
-              if not text.endswith(ending):
-                  raise RuntimeError(f'{name}: unexpected plugin ending')
-              text = text[:-len(ending)] + "}, 'sync'))\n"
+              position = text.rfind("}, 'sync')")
+              if position < 0:
+                  raise RuntimeError(f'{name}: sync plugin ending not found')
+              text = text[:position] + "}, 'sync'))" + text[position + len("}, 'sync')"):]
               path.write_text(text)
+              print(f'patched {name} wrapper ending')
 
-          # Map: local child-pipeline identity discovery; direct path preserves
-          # source key/value after successful identity validation.
-          path = Path('packages/internal/src/steps/map/map.ts')
-          text = path.read_text()
-          text = replace_once(
+          map_path = Path('packages/internal/src/steps/map/map.ts')
+          text = map_path.read_text()
+          text = sub_once(
               text,
-              "import { getExecutionEffects } from '../../core/execution-effects'\n",
+              r"import \{ getExecutionEffects \} from '../../core/execution-effects'\n",
               "import { hasIdentityOnlyRuntimeSteps } from '../../core/runtime-traits'\n",
               'map trait import',
           )
-          text = replace_once(
+          text = sub_once(
               text,
-              """\t\tconst keyEffects = getExecutionEffects(options.key)\n\t\tconst valueEffects = getExecutionEffects(options.value)\n\t\tconst childrenAreDirectSafe = childrenAreSynchronous\n\t\t\t&& keyEffects.identity === 'identity-preserving'\n\t\t\t&& keyEffects.parentTraversal === 'direct-safe'\n\t\t\t&& valueEffects.parentTraversal === 'direct-safe'\n\t\tconst valueIsIdentityPreserving = valueEffects.identity === 'identity-preserving'\n""",
-              """\t\tconst childrenAreDirectSafe = childrenAreSynchronous\n\t\t\t&& hasIdentityOnlyRuntimeSteps(options.key)\n\t\t\t&& hasIdentityOnlyRuntimeSteps(options.value)\n""",
+              r"\t\tconst keyEffects = getExecutionEffects\(options\.key\)\n\t\tconst valueEffects = getExecutionEffects\(options\.value\)\n\t\tconst childrenAreDirectSafe = childrenAreSynchronous\n\t\t\t&& keyEffects\.identity === 'identity-preserving'\n\t\t\t&& keyEffects\.parentTraversal === 'direct-safe'\n\t\t\t&& valueEffects\.parentTraversal === 'direct-safe'\n\t\tconst valueIsIdentityPreserving = valueEffects\.identity === 'identity-preserving'\n",
+              "\t\tconst childrenAreDirectSafe = childrenAreSynchronous\n\t\t\t&& hasIdentityOnlyRuntimeSteps(options.key)\n\t\t\t&& hasIdentityOnlyRuntimeSteps(options.value)\n",
               'map plan selection',
           )
-          text = replace_once(
+          text = sub_once(
               text,
-              """\t\t\t\t\toutput.set(\n\t\t\t\t\t\tsourceKey,\n\t\t\t\t\t\tvalueIsIdentityPreserving ? sourceValue : valueResult.value,\n\t\t\t\t\t)\n""",
+              r"\t\t\t\t\toutput\.set\(\n\t\t\t\t\t\tsourceKey,\n\t\t\t\t\t\tvalueIsIdentityPreserving \? sourceValue : valueResult\.value,\n\t\t\t\t\t\)\n",
               "\t\t\t\t\toutput.set(sourceKey, sourceValue)\n",
               'map identity output',
           )
-          path.write_text(text)
+          map_path.write_text(text)
 
-          # Set: local child-pipeline identity discovery.
-          path = Path('packages/internal/src/steps/set/set.ts')
-          text = path.read_text()
-          text = replace_once(
+          set_path = Path('packages/internal/src/steps/set/set.ts')
+          text = set_path.read_text()
+          text = sub_once(
               text,
-              "import { getExecutionEffects } from '../../core/execution-effects'\n",
+              r"import \{ getExecutionEffects \} from '../../core/execution-effects'\n",
               "import { hasIdentityOnlyRuntimeSteps } from '../../core/runtime-traits'\n",
               'set trait import',
           )
-          text = replace_once(
+          text = sub_once(
               text,
-              """\t\tconst itemEffects = getExecutionEffects(itemSchema)\n\t\tconst itemIsDirectIdentity = childIsSynchronous\n\t\t\t&& itemEffects.identity === 'identity-preserving'\n\t\t\t&& itemEffects.parentTraversal === 'direct-safe'\n""",
-              """\t\tconst itemIsDirectIdentity = childIsSynchronous\n\t\t\t&& hasIdentityOnlyRuntimeSteps(itemSchema)\n""",
+              r"\t\tconst itemEffects = getExecutionEffects\(itemSchema\)\n\t\tconst itemIsDirectIdentity = childIsSynchronous\n\t\t\t&& itemEffects\.identity === 'identity-preserving'\n\t\t\t&& itemEffects\.parentTraversal === 'direct-safe'\n",
+              "\t\tconst itemIsDirectIdentity = childIsSynchronous\n\t\t\t&& hasIdentityOnlyRuntimeSteps(itemSchema)\n",
               'set plan selection',
           )
-          path.write_text(text)
+          set_path.write_text(text)
 
-          # Focused Map tests: remove the no-longer-supported trusted transforming
-          # value path; identity and conservative snapshot paths remain covered.
-          path = Path('packages/internal/src/steps/map/traversal-plan.test.ts')
-          text = path.read_text()
+          test_path = Path('packages/internal/src/steps/map/traversal-plan.test.ts')
+          text = test_path.read_text()
           text = text.replace("import { implStepPlugin } from '../../core'\n", '')
           text = text.replace("import { preserveExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n", '')
-          start = text.find('const double = ')
-          if start != -1:
-              end = text.index('\n\nconst v =', start)
-              text = text[:start] + text[end + 2:]
+          text = re.sub(r"const double = [\s\S]*?\n\n(?=const v =)", '', text, count=1)
           text = text.replace('const v = createValchecker({ steps: [map, number, object, string, double] }) as any', 'const v = createValchecker({ steps: [map, number, object, string] })')
-          start = text.find("\n\tit('directly traverses identity keys with a trusted direct-safe value transform'")
-          if start != -1:
-              end = text.index("\n\tit('keeps snapshot semantics", start)
-              text = text[:start] + text[end:]
-          path.write_text(text)
+          text = re.sub(
+              r"\n\tit\('directly traverses identity keys with a trusted direct-safe value transform',[\s\S]*?(?=\n\tit\('keeps snapshot semantics)",
+              '',
+              text,
+              count=1,
+          )
+          test_path.write_text(text)
+          print('patched map traversal tests')
           PY
 
+          git diff --check
+          git diff --stat
           git rm .github/workflows/agent-phase-f-local-traits.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
