@@ -53,6 +53,11 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+interface FirstItemMetadata {
+	firstIndex: number
+	firstItem: unknown
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 export const set = implStepPlugin<PluginDef>({
 	set: ({
@@ -83,7 +88,7 @@ export const set = implStepPlugin<PluginDef>({
 
 		const createDuplicateIssue = (
 			value: Set<unknown>,
-			items: unknown[],
+			firstItem: unknown,
 			firstIndex: number,
 			item: unknown,
 			index: number,
@@ -92,7 +97,7 @@ export const set = implStepPlugin<PluginDef>({
 			code: 'set:duplicate_transformed_item',
 			payload: {
 				value,
-				firstItem: items[firstIndex],
+				firstItem,
 				item,
 				transformedItem,
 				firstIndex,
@@ -129,7 +134,7 @@ export const set = implStepPlugin<PluginDef>({
 					if (firstIndex == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
-					target.push(createDuplicateIssue(value, items, firstIndex, item, index, transformedItem))
+					target.push(createDuplicateIssue(value, items[firstIndex], firstIndex, item, index, transformedItem))
 					if (!collectAllIssues)
 						return failure(target)
 				}
@@ -143,16 +148,7 @@ export const set = implStepPlugin<PluginDef>({
 			return issues == null ? success(output ?? new Set()) : failure(issues)
 		}
 
-		addSuccessStep((value) => {
-			if (!(value instanceof Set)) {
-				return failure(createIssue({
-					code: 'set:expected_set',
-					payload: { value },
-					customMessage: options?.message,
-					defaultMessage: 'Expected a Set.',
-				}))
-			}
-
+		const executeArraySnapshot = (value: Set<unknown>): ExecutionResult | PromiseLike<ExecutionResult> => {
 			const items = [...value.values()]
 			let output: Set<unknown> | undefined
 			let firstItemIndex: Map<unknown, number> | undefined
@@ -179,7 +175,7 @@ export const set = implStepPlugin<PluginDef>({
 					if (firstIndex == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
-					target.push(createDuplicateIssue(value, items, firstIndex, item, index, transformedItem))
+					target.push(createDuplicateIssue(value, items[firstIndex], firstIndex, item, index, transformedItem))
 					if (!collectAllIssues)
 						return failure(target)
 				}
@@ -192,6 +188,96 @@ export const set = implStepPlugin<PluginDef>({
 			}
 
 			return issues == null ? success(output ?? new Set()) : failure(issues)
+		}
+
+		const executeNativeSnapshot = (value: Set<unknown>): ExecutionResult => {
+			const snapshot = new Set(Set.prototype.values.call(value) as IterableIterator<unknown>)
+			let output: Set<unknown> | undefined
+			let firstItemMetadata: Map<unknown, FirstItemMetadata> | undefined
+			let failedIndices: Set<number> | undefined
+			let issues: AnyExecutionIssue[] | undefined
+			let index = 0
+
+			for (const item of snapshot) {
+				const result = execute(item) as ExecutionResult
+				if (isFailure(result)) {
+					const appended = appendChildIssues(result, index, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+					failedIndices ??= new Set()
+					failedIndices.add(index)
+					index++
+					continue
+				}
+
+				const transformedItem = result.value
+				const isIdentity = transformedItem === item || (transformedItem !== transformedItem && item !== item)
+				if (output == null && isIdentity) {
+					index++
+					continue
+				}
+
+				if (output == null) {
+					output = new Set()
+					firstItemMetadata = new Map()
+					let prefixIndex = 0
+					for (const prefixItem of snapshot) {
+						if (prefixIndex >= index)
+							break
+						if (!failedIndices?.has(prefixIndex)) {
+							output.add(prefixItem)
+							firstItemMetadata.set(prefixItem, {
+								firstIndex: prefixIndex,
+								firstItem: prefixItem,
+							})
+						}
+						prefixIndex++
+					}
+				}
+
+				if (output.has(transformedItem)) {
+					const first = firstItemMetadata!.get(transformedItem)
+					if (first == null)
+						throw new Error('Missing transformed Set item metadata.')
+					const target = issues ??= []
+					target.push(createDuplicateIssue(
+						value,
+						first.firstItem,
+						first.firstIndex,
+						item,
+						index,
+						transformedItem,
+					))
+					if (!collectAllIssues)
+						return failure(target)
+				}
+				else {
+					output.add(transformedItem)
+					firstItemMetadata!.set(transformedItem, {
+						firstIndex: index,
+						firstItem: item,
+					})
+				}
+				index++
+			}
+
+			return issues == null ? success(output ?? snapshot) : failure(issues)
+		}
+
+		addSuccessStep((value) => {
+			if (!(value instanceof Set)) {
+				return failure(createIssue({
+					code: 'set:expected_set',
+					payload: { value },
+					customMessage: options?.message,
+					defaultMessage: 'Expected a Set.',
+				}))
+			}
+
+			return childIsSynchronous && value.values === Set.prototype.values
+				? executeNativeSnapshot(value)
+				: executeArraySnapshot(value)
 		}, operationMode)
 	},
 })
