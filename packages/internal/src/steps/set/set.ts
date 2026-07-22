@@ -3,6 +3,8 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
+const nativeSetValues = Set.prototype.values
+
 declare namespace Internal {
 	export type OpMode<I extends Use<Valchecker>> = IsEqual<InferOperationMode<I>, 'sync'> extends true ? 'sync' : 'maybe-async'
 	export type ExpectedIssue = ExecutionIssue<'set:expected_set', { value: unknown }>
@@ -53,6 +55,11 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+interface FirstItemMetadata {
+	firstIndex: number
+	firstItem: unknown
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 export const set = implStepPlugin<PluginDef>({
 	set: ({
@@ -83,7 +90,7 @@ export const set = implStepPlugin<PluginDef>({
 
 		const createDuplicateIssue = (
 			value: Set<unknown>,
-			items: unknown[],
+			firstItem: unknown,
 			firstIndex: number,
 			item: unknown,
 			index: number,
@@ -92,7 +99,7 @@ export const set = implStepPlugin<PluginDef>({
 			code: 'set:duplicate_transformed_item',
 			payload: {
 				value,
-				firstItem: items[firstIndex],
+				firstItem,
 				item,
 				transformedItem,
 				firstIndex,
@@ -129,7 +136,7 @@ export const set = implStepPlugin<PluginDef>({
 					if (firstIndex == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
-					target.push(createDuplicateIssue(value, items, firstIndex, item, index, transformedItem))
+					target.push(createDuplicateIssue(value, items[firstIndex], firstIndex, item, index, transformedItem))
 					if (!collectAllIssues)
 						return failure(target)
 				}
@@ -153,7 +160,76 @@ export const set = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const items = [...value.values()]
+			const values = value.values
+			if (childIsSynchronous && values === nativeSetValues) {
+				const items = [...values.call(value)]
+				let output: Set<unknown> | undefined
+				let firstItemMetadata: Map<unknown, FirstItemMetadata> | undefined
+				let failedIndices: Set<number> | undefined
+				let issues: AnyExecutionIssue[] | undefined
+
+				for (let index = 0; index < items.length; index++) {
+					const item = items[index]
+					const result = execute(item) as ExecutionResult
+					if (isFailure(result)) {
+						const appended = appendChildIssues(result, index, issues)
+						issues = appended.issues
+						if (appended.hasInternal || !collectAllIssues)
+							return failure(issues)
+						failedIndices ??= new Set()
+						failedIndices.add(index)
+						continue
+					}
+
+					const transformedItem = result.value
+					const isIdentity = transformedItem === item || (transformedItem !== transformedItem && item !== item)
+					if (output == null && isIdentity)
+						continue
+
+					if (output == null) {
+						output = new Set()
+						firstItemMetadata = new Map()
+						for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
+							if (!failedIndices?.has(prefixIndex)) {
+								const prefixItem = items[prefixIndex]
+								output.add(prefixItem)
+								firstItemMetadata.set(prefixItem, {
+									firstIndex: prefixIndex,
+									firstItem: prefixItem,
+								})
+							}
+						}
+					}
+
+					if (output.has(transformedItem)) {
+						const first = firstItemMetadata!.get(transformedItem)
+						if (first == null)
+							throw new Error('Missing transformed Set item metadata.')
+						const target = issues ??= []
+						target.push(createDuplicateIssue(
+							value,
+							first.firstItem,
+							first.firstIndex,
+							item,
+							index,
+							transformedItem,
+						))
+						if (!collectAllIssues)
+							return failure(target)
+					}
+					else {
+						output.add(transformedItem)
+						firstItemMetadata!.set(transformedItem, {
+							firstIndex: index,
+							firstItem: item,
+						})
+					}
+				}
+
+				return issues == null ? success(output ?? new Set(items)) : failure(issues)
+			}
+
+			const items = [...values.call(value)]
 			let output: Set<unknown> | undefined
 			let firstItemIndex: Map<unknown, number> | undefined
 			let issues: AnyExecutionIssue[] | undefined
@@ -179,7 +255,7 @@ export const set = implStepPlugin<PluginDef>({
 					if (firstIndex == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
-					target.push(createDuplicateIssue(value, items, firstIndex, item, index, transformedItem))
+					target.push(createDuplicateIssue(value, items[firstIndex], firstIndex, item, index, transformedItem))
 					if (!collectAllIssues)
 						return failure(target)
 				}
