@@ -18,9 +18,22 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 1
+          show-progress: false
       - name: Replace global effects with local runtime traits
-        run: python .github/scripts/phase-f-local-traits.py
+        id: migration
+        continue-on-error: true
+        run: python .github/scripts/phase-f-local-traits.py > phase-f-local-traits.log 2>&1
+      - name: Upload migration diagnostics
+        if: steps.migration.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-f-local-traits-log
+          path: phase-f-local-traits.log
+      - name: Fail after diagnostics
+        if: steps.migration.outcome == 'failure'
+        run: exit 1
       - name: Commit migration
+        if: steps.migration.outcome == 'success'
         run: |
           git rm .github/workflows/agent-phase-f-local-traits.yml .github/scripts/phase-f-local-traits.py
           git config user.name github-actions[bot]
