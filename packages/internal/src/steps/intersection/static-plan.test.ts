@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { getExecutionEffects } from '../../core/execution-effects'
 import { createValchecker, intersection, number, object, string, transform, unknown } from '../..'
 
 const v = createValchecker({
@@ -7,29 +6,12 @@ const v = createValchecker({
 })
 
 describe('intersection static object merge plan', () => {
-	it('publishes a fresh ordinary-object output for disjoint known branch keys', () => {
-		const schema = v.intersection([
-			v.object({ left: v.string() }),
-			v.object({ right: v.number() }),
-		])
-
-		expect(getExecutionEffects(schema)).toEqual({
-			identity: 'may-transform',
-			parentTraversal: 'snapshot-required',
-			structuralOutput: {
-				kind: 'fresh-ordinary-object',
-				keys: ['left', 'right'],
-			},
-		})
-	})
-
 	it('falls back when branch keys overlap', () => {
 		const schema = v.intersection([
 			v.object({ shared: v.string() }),
 			v.object({ shared: v.string() }),
 		])
 
-		expect(getExecutionEffects(schema).structuralOutput).toBeNull()
 		expect(schema.execute({ shared: 'value' })).toEqual({ value: { shared: 'value' } })
 	})
 

@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
+import { getExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -61,12 +61,8 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-interface MapExecutionEffectsMetadata {
-	readonly childrenAreDirectSafe: boolean
-}
-
 /* @__NO_SIDE_EFFECTS__ */
-export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
+export const map = implStepPlugin<PluginDef>({
 	map: ({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [options],
@@ -353,17 +349,5 @@ export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef
 		}
 
 		addSuccessStep(childrenAreDirectSafe ? executeDirect : executeSnapshot, operationMode)
-		return { childrenAreDirectSafe }
-	},
-}), {
-	map: (previous, _params, stepMetadata) => {
-		const { childrenAreDirectSafe } = stepMetadata as MapExecutionEffectsMetadata
-		return {
-			identity: 'may-transform',
-			parentTraversal: previous.parentTraversal === 'direct-safe' && childrenAreDirectSafe
-				? 'direct-safe'
-				: 'snapshot-required',
-			structuralOutput: null,
-		}
 	},
 })

@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
+import { getExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -54,12 +54,8 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-interface SetExecutionEffectsMetadata {
-	readonly itemIsDirectIdentity: boolean
-}
-
 /* @__NO_SIDE_EFFECTS__ */
-export const set = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
+export const set = implStepPlugin<PluginDef>({
 	set: ({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [itemSchema, options],
@@ -238,17 +234,5 @@ export const set = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef
 		}
 
 		addSuccessStep(itemIsDirectIdentity ? executeDirectIdentity : executeSnapshot, operationMode)
-		return { itemIsDirectIdentity }
-	},
-}), {
-	set: (previous, _params, stepMetadata) => {
-		const { itemIsDirectIdentity } = stepMetadata as SetExecutionEffectsMetadata
-		return {
-			identity: 'may-transform',
-			parentTraversal: previous.parentTraversal === 'direct-safe' && itemIsDirectIdentity
-				? 'direct-safe'
-				: 'snapshot-required',
-			structuralOutput: null,
-		}
 	},
 })

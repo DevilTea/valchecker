@@ -1,7 +1,6 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { preserveExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike, returnTrue } from '../../shared'
 
 declare namespace Internal {
@@ -76,7 +75,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const check = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
+export const check = implStepPlugin<PluginDef>({
 	check: ({
 		utils,
 		params: [run, options],
@@ -134,9 +133,4 @@ export const check = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginD
 			}
 		}, 'maybe-async')
 	},
-}), {
-	check: previous => preserveExecutionEffects(previous, {
-		parentTraversal: 'snapshot-required',
-		structuralOutput: null,
-	}),
 })

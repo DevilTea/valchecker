@@ -815,10 +815,11 @@ function createProxyHandler({
 }) {
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
-			if (p === executionEffectsKey)
-				return executionEffects
-			if (Object.hasOwn(stepMethods, p) === false)
+			if (Object.hasOwn(stepMethods, p) === false) {
+				if (p === executionEffectsKey)
+					return executionEffects
 				return Reflect.get(target, p, receiver)
+			}
 
 			const registeredStepMethod = stepMethods[p]!
 			return (...params: any[]) => {

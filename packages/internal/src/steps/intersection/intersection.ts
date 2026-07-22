@@ -2,7 +2,7 @@ import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, Def
 import type { IsEqual, UnionToIntersection } from '../../shared'
 import type { ExecutionEffects } from '../../core/execution-effects'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
+import { getExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -112,11 +112,6 @@ interface FlatProperties {
 interface StaticObjectMergePlan {
 	readonly branchKeys: readonly (readonly PropertyKey[])[]
 	readonly keys: readonly PropertyKey[]
-}
-
-interface IntersectionExecutionEffectsMetadata {
-	readonly staticObjectMergePlan: StaticObjectMergePlan | null
-	readonly branchesAreDirectSafe: boolean
 }
 
 function createStaticObjectMergePlan(
@@ -565,7 +560,7 @@ function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const intersection = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
+export const intersection = implStepPlugin<PluginDef>({
 	intersection: ({
 		utils: { addSuccessStep, success, failure, isFailure, createIssue, prependIssuePath },
 		params: [branches, options],
@@ -579,9 +574,6 @@ export const intersection = /* @__PURE__ */ withExecutionEffects(implStepPlugin<
 		const collectAllIssues = options?.collectAllIssues === true
 		const branchEffects = branches.map(branch => getExecutionEffects(branch))
 		const staticObjectMergePlan = createStaticObjectMergePlan(branchEffects)
-		const branchesAreDirectSafe = branchEffects.every(
-			effects => effects.parentTraversal === 'direct-safe',
-		)
 
 		const scopeIssues = (result: ExecutionResult): AnyExecutionIssue[] => {
 			const issues: AnyExecutionIssue[] = []
@@ -702,20 +694,5 @@ export const intersection = /* @__PURE__ */ withExecutionEffects(implStepPlugin<
 		}
 
 		addSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)
-		return { staticObjectMergePlan, branchesAreDirectSafe }
-	},
-}), {
-	intersection: (previous, _params, stepMetadata) => {
-		const { staticObjectMergePlan, branchesAreDirectSafe }
-			= stepMetadata as IntersectionExecutionEffectsMetadata
-		return {
-			identity: 'may-transform',
-			parentTraversal: previous.parentTraversal === 'direct-safe' && branchesAreDirectSafe
-				? 'direct-safe'
-				: 'snapshot-required',
-			structuralOutput: staticObjectMergePlan == null
-				? null
-				: { kind: 'fresh-ordinary-object', keys: staticObjectMergePlan.keys },
-		}
 	},
 })
