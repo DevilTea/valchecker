@@ -19,7 +19,7 @@ const passthrough = implStepPlugin<any>({
 const v = createValchecker({ steps: [passthrough, throwingIdentity] }) as any
 
 describe('runtime step traits', () => {
-	it('encodes trust without changing arrow-function call semantics', () => {
+	it('encodes trust while preserving arrow-function wrappers', () => {
 		const trusted = v.throwingIdentity()
 		const untrusted = v.passthrough()
 		const trustedStep = trusted['~core'].runtimeSteps[0]
