@@ -162,14 +162,14 @@ export const set = implStepPlugin<PluginDef>({
 
 			const values = value.values
 			if (childIsSynchronous && values === nativeSetValues) {
-				const snapshot = new Set(nativeSetValues.call(value) as IterableIterator<unknown>)
+				const items = [...values.call(value)]
 				let output: Set<unknown> | undefined
 				let firstItemMetadata: Map<unknown, FirstItemMetadata> | undefined
 				let failedIndices: Set<number> | undefined
 				let issues: AnyExecutionIssue[] | undefined
-				let index = 0
 
-				for (const item of snapshot) {
+				for (let index = 0; index < items.length; index++) {
+					const item = items[index]
 					const result = execute(item) as ExecutionResult
 					if (isFailure(result)) {
 						const appended = appendChildIssues(result, index, issues)
@@ -178,32 +178,26 @@ export const set = implStepPlugin<PluginDef>({
 							return failure(issues)
 						failedIndices ??= new Set()
 						failedIndices.add(index)
-						index++
 						continue
 					}
 
 					const transformedItem = result.value
 					const isIdentity = transformedItem === item || (transformedItem !== transformedItem && item !== item)
-					if (output == null && isIdentity) {
-						index++
+					if (output == null && isIdentity)
 						continue
-					}
 
 					if (output == null) {
 						output = new Set()
 						firstItemMetadata = new Map()
-						let prefixIndex = 0
-						for (const prefixItem of snapshot) {
-							if (prefixIndex >= index)
-								break
+						for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
 							if (!failedIndices?.has(prefixIndex)) {
+								const prefixItem = items[prefixIndex]
 								output.add(prefixItem)
 								firstItemMetadata.set(prefixItem, {
 									firstIndex: prefixIndex,
 									firstItem: prefixItem,
 								})
 							}
-							prefixIndex++
 						}
 					}
 
@@ -230,10 +224,9 @@ export const set = implStepPlugin<PluginDef>({
 							firstItem: item,
 						})
 					}
-					index++
 				}
 
-				return issues == null ? success(output ?? snapshot) : failure(issues)
+				return issues == null ? success(output ?? new Set(items)) : failure(issues)
 			}
 
 			const items = [...values.call(value)]
