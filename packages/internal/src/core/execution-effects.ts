@@ -65,10 +65,8 @@ export function getStepPluginExecutionEffects(
 
 export function preserveExecutionEffects(
 	base: ExecutionEffects,
-	patch?: ExecutionEffectsPatch,
+	patch: ExecutionEffectsPatch,
 ): ExecutionEffects {
-	if (patch == null)
-		return base
 	return {
 		identity: patch.identity ?? base.identity,
 		parentTraversal: patch.parentTraversal ?? base.parentTraversal,
