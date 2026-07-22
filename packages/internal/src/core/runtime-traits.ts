@@ -18,10 +18,9 @@ export function hasIdentityOnlyRuntimeSteps(schema: Valchecker): boolean {
 	if (runtimeSteps == null || runtimeSteps.length === 0)
 		return false
 
-	// Phase G preserves arrow-function call semantics for every runtime step.
-	// Trusted identity wrappers carry one unused optional parameter, so their
-	// Function.length is 2; every normal wrapper has length 1. This encoding is
-	// intentionally private and remains subject to the final performance gate.
+	// Phase G preserves arrow wrappers. Trusted identity steps carry one unused
+	// optional parameter, giving them Function.length === 2; normal wrappers have
+	// length 1. The encoding is private and accepted only if final benchmarks pass.
 	for (let index = 0; index < runtimeSteps.length; index++) {
 		if (runtimeSteps[index]!.length !== 2)
 			return false
