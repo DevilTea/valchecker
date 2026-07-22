@@ -15,7 +15,7 @@ describe('intersection static object merge plan', () => {
 
 		expect(getExecutionEffects(schema)).toEqual({
 			identity: 'may-transform',
-			parentTraversal: 'direct-safe',
+			parentTraversal: 'snapshot-required',
 			structuralOutput: {
 				kind: 'fresh-ordinary-object',
 				keys: ['left', 'right'],
