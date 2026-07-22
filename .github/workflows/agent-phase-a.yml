@@ -63,8 +63,8 @@ jobs:
               )
               replace(
                   path,
-                  f"}}), {{ {method}: previous => previous }})",
-                  f"}}), {{ {method}: PRESERVE_EXECUTION_EFFECTS }})",
+                  f"}}, 'sync'), {{ {method}: previous => previous }})",
+                  f"}}, 'sync'), {{ {method}: PRESERVE_EXECUTION_EFFECTS }})",
               )
 
           replace(
