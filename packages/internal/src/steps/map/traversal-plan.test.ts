@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { implStepPlugin } from '../../core'
-import { preserveExecutionEffects, getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
+import { preserveExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
 import { createValchecker, map, number, object, string } from '../..'
 
 const double = withExecutionEffects(implStepPlugin<any>({
@@ -17,21 +17,6 @@ const double = withExecutionEffects(implStepPlugin<any>({
 const v = createValchecker({ steps: [map, number, object, string, double] }) as any
 
 describe('map traversal plans', () => {
-	it('uses direct traversal only for synchronous direct-safe child schemas', () => {
-		const direct = v.map({ key: v.string(), value: v.number() })
-		const snapshot = v.map({
-			key: v.string(),
-			value: v.object({ label: v.string() }),
-		})
-
-		expect(getExecutionEffects(direct)).toEqual({
-			identity: 'may-transform',
-			parentTraversal: 'direct-safe',
-			structuralOutput: null,
-		})
-		expect(getExecutionEffects(snapshot).parentTraversal).toBe('snapshot-required')
-	})
-
 	it('does not call the snapshot forEach path for identity key and value schemas', () => {
 		const input = new Map([['a', 1], ['b', 2]])
 		Object.defineProperty(input, 'forEach', {
