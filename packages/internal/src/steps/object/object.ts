@@ -99,6 +99,11 @@ function getEnumerableOwnKeys(value: Record<PropertyKey, unknown>): PropertyKey[
 	return keys
 }
 
+interface ObjectExecutionEffectsMetadata {
+	readonly keys: readonly PropertyKey[]
+	readonly childrenAreDirectSafe: boolean
+}
+
 function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, value: unknown): void {
 	if (key === '__proto__' && !Object.hasOwn(output, key)) {
 		Object.defineProperty(output, key, {
@@ -122,6 +127,7 @@ export const object = withExecutionEffects(implStepPlugin<PluginDef>({
 		const keys = getEnumerableOwnKeys(struct)
 		const keysLen = keys.length
 		let operationMode: OperationMode = 'sync'
+		let childrenAreDirectSafe = true
 		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -132,6 +138,8 @@ export const object = withExecutionEffects(implStepPlugin<PluginDef>({
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
 			if (schema['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'
+			if (getExecutionEffects(schema).parentTraversal !== 'direct-safe')
+				childrenAreDirectSafe = false
 		}
 
 		const childrenAreSynchronous = operationMode === 'sync'
@@ -255,22 +263,16 @@ export const object = withExecutionEffects(implStepPlugin<PluginDef>({
 
 			return issues == null ? success(output) : failure(issues)
 		}, operationMode)
+		return { keys, childrenAreDirectSafe }
 	},
 }), {
-	object: (previous, [struct]) => {
-		const keys = getEnumerableOwnKeys(struct as Record<PropertyKey, unknown>)
-		let parentTraversal = previous.parentTraversal
-		for (let i = 0; i < keys.length; i++) {
-			const prop = (struct as Record<PropertyKey, any>)[keys[i]!]!
-			const schema = Array.isArray(prop) ? prop[0]! : prop
-			if (getExecutionEffects(schema).parentTraversal !== 'direct-safe') {
-				parentTraversal = 'snapshot-required'
-				break
-			}
-		}
+	object: (previous, _params, stepMetadata) => {
+		const { keys, childrenAreDirectSafe } = stepMetadata as ObjectExecutionEffectsMetadata
 		return {
 			identity: 'may-transform',
-			parentTraversal,
+			parentTraversal: previous.parentTraversal === 'direct-safe' && childrenAreDirectSafe
+				? 'direct-safe'
+				: 'snapshot-required',
 			structuralOutput: { kind: 'fresh-ordinary-object', keys },
 		}
 	},

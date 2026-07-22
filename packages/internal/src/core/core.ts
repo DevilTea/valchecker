@@ -19,7 +19,7 @@ import type {
 	TStepPluginDef,
 } from './types'
 import type { ExecutionEffects, ExecutionEffectsResolver } from './execution-effects'
-import { conservativeExecutionEffects, getStepPluginExecutionEffects, neutralExecutionEffects } from './execution-effects'
+import { conservativeExecutionEffects, executionEffectsKey, getStepPluginExecutionEffects, neutralExecutionEffects } from './execution-effects'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
@@ -773,7 +773,7 @@ function createStepMethodContext({
 				RUNTIME_OPERATION_MODE_SYNC,
 				registeredStepMethod.defaultOperationMode,
 			)
-			registeredStepMethod.run({
+			const stepMetadata = registeredStepMethod.run({
 				utils,
 				params: methodParams,
 				context,
@@ -781,6 +781,7 @@ function createStepMethodContext({
 			const executionEffects = registeredStepMethod.resolveExecutionEffects?.(
 				neutralExecutionEffects,
 				methodParams,
+				stepMetadata,
 			) ?? conservativeExecutionEffects
 			return createInstance({
 				stepMethods,
@@ -826,7 +827,7 @@ function createProxyHandler({
 					operationMode,
 					registeredStepMethod.defaultOperationMode,
 				)
-				registeredStepMethod.run({
+				const stepMetadata = registeredStepMethod.run({
 					utils,
 					params,
 					context,
@@ -834,6 +835,7 @@ function createProxyHandler({
 				const nextExecutionEffects = registeredStepMethod.resolveExecutionEffects?.(
 					executionEffects,
 					params,
+					stepMetadata,
 				) ?? conservativeExecutionEffects
 				return createInstance({
 					stepMethods,
@@ -867,7 +869,7 @@ function createCoreProperties(
 			RegisteredStepPluginDefs: null!,
 			runtimeSteps,
 			operationMode: OPERATION_MODES[operationMode],
-			executionEffects,
+			[executionEffectsKey]: executionEffects,
 		},
 		'~execute': executeRaw,
 		execute,

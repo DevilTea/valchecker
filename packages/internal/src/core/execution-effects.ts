@@ -23,6 +23,7 @@ export interface ExecutionEffectsPatch {
 export type ExecutionEffectsResolver = (
 	previous: ExecutionEffects,
 	params: readonly unknown[],
+	stepMetadata: unknown,
 ) => ExecutionEffects
 
 export const neutralExecutionEffects: ExecutionEffects = {
@@ -37,9 +38,11 @@ export const conservativeExecutionEffects: ExecutionEffects = {
 	structuralOutput: null,
 }
 
+export const executionEffectsKey = Symbol('valchecker.executionEffects')
+
 interface SchemaWithExecutionEffects {
 	readonly '~core'?: {
-		readonly executionEffects?: ExecutionEffects | undefined
+		readonly [executionEffectsKey]?: ExecutionEffects | undefined
 	} | undefined
 }
 
@@ -76,5 +79,5 @@ export function preserveExecutionEffects(
 }
 
 export function getExecutionEffects(schema: object): ExecutionEffects {
-	return (schema as SchemaWithExecutionEffects)['~core']?.executionEffects ?? conservativeExecutionEffects
+	return (schema as SchemaWithExecutionEffects)['~core']?.[executionEffectsKey] ?? conservativeExecutionEffects
 }
