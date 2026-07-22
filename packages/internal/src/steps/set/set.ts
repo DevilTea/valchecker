@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -53,8 +54,12 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+interface SetExecutionEffectsMetadata {
+	readonly itemIsDirectIdentity: boolean
+}
+
 /* @__NO_SIDE_EFFECTS__ */
-export const set = implStepPlugin<PluginDef>({
+export const set = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	set: ({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [itemSchema, options],
@@ -63,6 +68,10 @@ export const set = implStepPlugin<PluginDef>({
 		const operationMode = itemSchema['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
 		const childIsSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
+		const itemEffects = getExecutionEffects(itemSchema)
+		const itemIsDirectIdentity = childIsSynchronous
+			&& itemEffects.identity === 'identity-preserving'
+			&& itemEffects.parentTraversal === 'direct-safe'
 
 		const appendChildIssues = (
 			result: ExecutionResult,
@@ -143,7 +152,7 @@ export const set = implStepPlugin<PluginDef>({
 			return issues == null ? success(output ?? new Set()) : failure(issues)
 		}
 
-		addSuccessStep((value) => {
+		const executeSnapshot = (value: unknown) => {
 			if (!(value instanceof Set)) {
 				return failure(createIssue({
 					code: 'set:expected_set',
@@ -192,6 +201,54 @@ export const set = implStepPlugin<PluginDef>({
 			}
 
 			return issues == null ? success(output ?? new Set()) : failure(issues)
-		}, operationMode)
+		}
+
+		const executeDirectIdentity = (value: unknown) => {
+			if (!(value instanceof Set)) {
+				return failure(createIssue({
+					code: 'set:expected_set',
+					payload: { value },
+					customMessage: options?.message,
+					defaultMessage: 'Expected a Set.',
+				}))
+			}
+
+			let output: Set<unknown> | undefined
+			let issues: AnyExecutionIssue[] | undefined
+			let index = 0
+			const iterator = Set.prototype.values.call(value) as IterableIterator<unknown>
+
+			for (let next = iterator.next(); !next.done; next = iterator.next()) {
+				const item = next.value
+				const result = execute(item) as ExecutionResult
+				if (isFailure(result)) {
+					const appended = appendChildIssues(result, index, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
+				else {
+					output ??= new Set()
+					output.add(item)
+				}
+				index++
+			}
+
+			return issues == null ? success(output ?? new Set()) : failure(issues)
+		}
+
+		addSuccessStep(itemIsDirectIdentity ? executeDirectIdentity : executeSnapshot, operationMode)
+		return { itemIsDirectIdentity }
+	},
+}), {
+	set: (previous, _params, stepMetadata) => {
+		const { itemIsDirectIdentity } = stepMetadata as SetExecutionEffectsMetadata
+		return {
+			identity: 'may-transform',
+			parentTraversal: previous.parentTraversal === 'direct-safe' && itemIsDirectIdentity
+				? 'direct-safe'
+				: 'snapshot-required',
+			structuralOutput: null,
+		}
 	},
 })
