@@ -565,7 +565,7 @@ function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const intersection = withExecutionEffects(implStepPlugin<PluginDef>({
+export const intersection = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	intersection: ({
 		utils: { addSuccessStep, success, failure, isFailure, createIssue, prependIssuePath },
 		params: [branches, options],

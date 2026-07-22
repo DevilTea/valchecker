@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
+import { withExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -101,7 +101,6 @@ function getEnumerableOwnKeys(value: Record<PropertyKey, unknown>): PropertyKey[
 
 interface ObjectExecutionEffectsMetadata {
 	readonly keys: readonly PropertyKey[]
-	readonly childrenAreDirectSafe: boolean
 }
 
 function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, value: unknown): void {
@@ -118,7 +117,7 @@ function setOutputValue(output: Record<PropertyKey, any>, key: PropertyKey, valu
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const object = withExecutionEffects(implStepPlugin<PluginDef>({
+export const object = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	object: ({
 		utils,
 		params: [struct, options],
@@ -127,7 +126,6 @@ export const object = withExecutionEffects(implStepPlugin<PluginDef>({
 		const keys = getEnumerableOwnKeys(struct)
 		const keysLen = keys.length
 		let operationMode: OperationMode = 'sync'
-		let childrenAreDirectSafe = true
 		const propsMeta: PropMeta[] = []
 
 		for (let i = 0; i < keysLen; i++) {
@@ -138,8 +136,6 @@ export const object = withExecutionEffects(implStepPlugin<PluginDef>({
 			propsMeta.push({ key, isOptional, execute: schema['~execute'] })
 			if (schema['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'
-			if (getExecutionEffects(schema).parentTraversal !== 'direct-safe')
-				childrenAreDirectSafe = false
 		}
 
 		const childrenAreSynchronous = operationMode === 'sync'
@@ -263,16 +259,14 @@ export const object = withExecutionEffects(implStepPlugin<PluginDef>({
 
 			return issues == null ? success(output) : failure(issues)
 		}, operationMode)
-		return { keys, childrenAreDirectSafe }
+		return { keys }
 	},
 }), {
-	object: (previous, _params, stepMetadata) => {
-		const { keys, childrenAreDirectSafe } = stepMetadata as ObjectExecutionEffectsMetadata
+	object: (_previous, _params, stepMetadata) => {
+		const { keys } = stepMetadata as ObjectExecutionEffectsMetadata
 		return {
 			identity: 'may-transform',
-			parentTraversal: previous.parentTraversal === 'direct-safe' && childrenAreDirectSafe
-				? 'direct-safe'
-				: 'snapshot-required',
+			parentTraversal: 'snapshot-required',
 			structuralOutput: { kind: 'fresh-ordinary-object', keys },
 		}
 	},

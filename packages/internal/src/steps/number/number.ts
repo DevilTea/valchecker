@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const number = withExecutionEffects(implStepPlugin<PluginDef>({
+export const number = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	number: ({
 		utils,
 		params: [options],

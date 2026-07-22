@@ -76,7 +76,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const check = withExecutionEffects(implStepPlugin<PluginDef>({
+export const check = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	check: ({
 		utils,
 		params: [run, options],

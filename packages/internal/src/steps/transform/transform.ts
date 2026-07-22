@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const transform = withExecutionEffects(implStepPlugin<PluginDef>({
+export const transform = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	transform: ({
 		utils,
 		params: [run, options],

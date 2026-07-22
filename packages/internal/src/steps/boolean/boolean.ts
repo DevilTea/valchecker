@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const boolean = withExecutionEffects(implStepPlugin<PluginDef>({
+export const boolean = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	boolean: ({
 		utils,
 		params: [options],

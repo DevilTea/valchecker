@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const bigint = withExecutionEffects(implStepPlugin<PluginDef>({
+export const bigint = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	bigint: ({
 		utils,
 		params: [options],
