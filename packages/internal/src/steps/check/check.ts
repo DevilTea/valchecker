@@ -77,10 +77,9 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const check = implStepPlugin<PluginDef>({
 	check: ({
-		utils,
+		utils: { addSuccessStep, success, createIssue, failure, prependIssuePath },
 		params: [run, options],
 	}) => {
-		const { addSuccessStep, success, createIssue, failure, prependIssuePath } = utils
 		addSuccessStep((value) => {
 			let issues: AnyExecutionIssue[] | undefined
 			const addIssue = (issue: AnyExecutionIssue) => {

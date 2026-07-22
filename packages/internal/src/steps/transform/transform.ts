@@ -48,10 +48,9 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const transform = implStepPlugin<PluginDef>({
 	transform: ({
-		utils,
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [run, options],
 	}) => {
-		const { addSuccessStep, success, createIssue, failure } = utils
 		addSuccessStep((value) => {
 			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => failure(
 				createIssue({

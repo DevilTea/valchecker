@@ -1,8 +1,6 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, UnionToIntersection } from '../../shared'
-import type { ExecutionEffects } from '../../core/execution-effects'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -109,37 +107,6 @@ interface FlatProperties {
 	values: unknown[]
 }
 
-interface StaticObjectMergePlan {
-	readonly branchKeys: readonly (readonly PropertyKey[])[]
-	readonly keys: readonly PropertyKey[]
-}
-
-function createStaticObjectMergePlan(
-	branchEffects: readonly ExecutionEffects[],
-): StaticObjectMergePlan | null {
-	const seen = new Set<PropertyKey>()
-	const branchKeys: (readonly PropertyKey[])[] = []
-	const keys: PropertyKey[] = []
-
-	for (let branchIndex = 0; branchIndex < branchEffects.length; branchIndex++) {
-		const structuralOutput = branchEffects[branchIndex]!.structuralOutput
-		if (structuralOutput == null)
-			return null
-
-		const currentKeys = structuralOutput.keys
-		for (let keyIndex = 0; keyIndex < currentKeys.length; keyIndex++) {
-			const key = currentKeys[keyIndex]!
-			if (seen.has(key))
-				return null
-			seen.add(key)
-			keys.push(key)
-		}
-		branchKeys.push(currentKeys)
-	}
-
-	return { branchKeys, keys }
-}
-
 type MergeSide = 'left' | 'right'
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -191,39 +158,6 @@ function defineEnumerableValue(target: Record<PropertyKey, unknown>, key: Proper
 		value,
 		writable: true,
 	})
-}
-
-function setStaticOutputValue(
-	target: Record<PropertyKey, unknown>,
-	key: PropertyKey,
-	value: unknown,
-): void {
-	if (key === '__proto__') {
-		defineEnumerableValue(target, key, value)
-		return
-	}
-	target[key] = value
-}
-
-function tryMergeStaticDisjointObjectOutputs(
-	outputs: readonly unknown[],
-	plan: StaticObjectMergePlan,
-): Record<PropertyKey, unknown> | undefined {
-	const output: Record<PropertyKey, unknown> = {}
-
-	for (let branchIndex = 0; branchIndex < plan.branchKeys.length; branchIndex++) {
-		const branchOutput = outputs[branchIndex] as Record<PropertyKey, unknown>
-		const keys = plan.branchKeys[branchIndex]!
-		for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
-			const key = keys[keyIndex]!
-			const value = branchOutput[key]
-			if (isPlainObject(value))
-				return undefined
-			setStaticOutputValue(output, key, value)
-		}
-	}
-
-	return output
 }
 
 function readFlatProperties(value: Record<PropertyKey, unknown>): FlatProperties | undefined {
@@ -572,8 +506,6 @@ export const intersection = implStepPlugin<PluginDef>({
 		const len = branchExecutors.length
 		const branchesAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
-		const branchEffects = branches.map(branch => getExecutionEffects(branch))
-		const staticObjectMergePlan = createStaticObjectMergePlan(branchEffects)
 
 		const scopeIssues = (result: ExecutionResult): AnyExecutionIssue[] => {
 			const issues: AnyExecutionIssue[] = []
@@ -587,12 +519,6 @@ export const intersection = implStepPlugin<PluginDef>({
 		const mergeOutputs = (outputs: unknown[]) => {
 			if (outputs.length === 0)
 				return success(undefined)
-
-			if (staticObjectMergePlan != null) {
-				const staticOutput = tryMergeStaticDisjointObjectOutputs(outputs, staticObjectMergePlan)
-				if (staticOutput != null)
-					return success(staticOutput)
-			}
 
 			let output = outputs[0]
 			for (let i = 1; i < outputs.length; i++) {

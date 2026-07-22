@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects } from '../../core/execution-effects'
+import { hasIdentityOnlyRuntimeSteps } from '../../core/runtime-traits'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -64,10 +64,8 @@ export const set = implStepPlugin<PluginDef>({
 		const operationMode = itemSchema['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
 		const childIsSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
-		const itemEffects = getExecutionEffects(itemSchema)
 		const itemIsDirectIdentity = childIsSynchronous
-			&& itemEffects.identity === 'identity-preserving'
-			&& itemEffects.parentTraversal === 'direct-safe'
+			&& hasIdentityOnlyRuntimeSteps(itemSchema)
 
 		const appendChildIssues = (
 			result: ExecutionResult,

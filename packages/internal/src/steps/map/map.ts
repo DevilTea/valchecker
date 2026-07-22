@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { getExecutionEffects } from '../../core/execution-effects'
+import { hasIdentityOnlyRuntimeSteps } from '../../core/runtime-traits'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -75,13 +75,9 @@ export const map = implStepPlugin<PluginDef>({
 			: 'maybe-async'
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options.collectAllIssues === true
-		const keyEffects = getExecutionEffects(options.key)
-		const valueEffects = getExecutionEffects(options.value)
 		const childrenAreDirectSafe = childrenAreSynchronous
-			&& keyEffects.identity === 'identity-preserving'
-			&& keyEffects.parentTraversal === 'direct-safe'
-			&& valueEffects.parentTraversal === 'direct-safe'
-		const valueIsIdentityPreserving = valueEffects.identity === 'identity-preserving'
+			&& hasIdentityOnlyRuntimeSteps(options.key)
+			&& hasIdentityOnlyRuntimeSteps(options.value)
 
 		const appendChildIssues = (
 			result: ExecutionResult,
@@ -337,10 +333,7 @@ export const map = implStepPlugin<PluginDef>({
 
 				if (!keyFailed && !valueFailed) {
 					output ??= new Map()
-					output.set(
-						sourceKey,
-						valueIsIdentityPreserving ? sourceValue : valueResult.value,
-					)
+					output.set(sourceKey, sourceValue)
 				}
 				index++
 			}

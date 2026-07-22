@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { PRESERVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'
+import { markIdentityRuntimeStepPlugin } from '../../core/runtime-traits'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'string'
@@ -47,12 +47,11 @@ interface PluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const string = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
+export const string = /* @__PURE__ */ markIdentityRuntimeStepPlugin(implStepPlugin<PluginDef>({
 	string: ({
-		utils,
+		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const { addSuccessStep, success, createIssue, failure } = utils
 		addSuccessStep((value) => {
 			// Inline type check for better performance
 			if (typeof value === 'string') {
@@ -68,4 +67,4 @@ export const string = /* @__PURE__ */ withExecutionEffects(implStepPlugin<Plugin
 			)
 		})
 	},
-}, 'sync'), { string: PRESERVE_EXECUTION_EFFECTS })
+}, 'sync'))

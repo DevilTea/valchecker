@@ -18,9 +18,8 @@ import type {
 	StepPluginImpl,
 	TStepPluginDef,
 } from './types'
-import type { ExecutionEffects, ExecutionEffectsResolver } from './execution-effects'
-import { CONSERVATIVE_EXECUTION_EFFECTS, conservativeExecutionEffects, executionEffectsKey, getStepPluginExecutionEffects, neutralExecutionEffects, PRESERVE_EXECUTION_EFFECTS } from './execution-effects'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
+import { isIdentityRuntimeStepPlugin } from './runtime-traits'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
@@ -44,7 +43,7 @@ type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
 interface RegisteredStepMethod {
 	run: AnyFn
 	defaultOperationMode: RuntimeOperationMode
-	resolveExecutionEffects?: ExecutionEffectsResolver | undefined
+	identityRuntimeSteps: boolean
 }
 
 type RegisteredStepMethods = Record<PropertyKey, RegisteredStepMethod>
@@ -627,11 +626,50 @@ function createExecutionStepMethodUtils(
 	resolveMessage: ResolveMessageFn,
 	currentOperationMode: RuntimeOperationMode,
 	defaultOperationMode: RuntimeOperationMode,
+	identityRuntimeSteps: boolean,
 ): RuntimeStepMethodUtils {
 	const wrapWithErrorHandling = (
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
 		operationMode: RuntimeOperationMode,
 	): RuntimeStep => {
+		if (identityRuntimeSteps) {
+			if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
+				return function identityRuntimeStep(lastResult) {
+					try {
+						return fn(lastResult) as ExecutionResult
+					}
+					catch (error) {
+						return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
+					}
+				}
+			}
+
+			if (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {
+				return function identityRuntimeStep(lastResult) {
+					try {
+						return Promise.resolve(fn(lastResult)).catch(
+							error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage),
+						)
+					}
+					catch (error) {
+						return Promise.resolve(createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
+					}
+				}
+			}
+
+			return function identityRuntimeStep(lastResult) {
+				try {
+					const result = fn(lastResult)
+					return isPromiseLike(result)
+						? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
+						: result
+				}
+				catch (error) {
+					return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
+				}
+			}
+		}
+
 		if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
 			return (lastResult) => {
 				try {
@@ -765,32 +803,25 @@ function createStepMethodContext({
 				throw new TypeError(`Required step method is not registered: ${method}`)
 
 			const runtimeSteps: RuntimeStep[] = []
-			const methodParams = [...params]
 			const utils = createExecutionStepMethodUtils(
 				method,
 				runtimeSteps,
 				resolveMessage,
 				RUNTIME_OPERATION_MODE_SYNC,
 				registeredStepMethod.defaultOperationMode,
+				registeredStepMethod.identityRuntimeSteps,
 			)
-			const stepMetadata = registeredStepMethod.run({
+			registeredStepMethod.run({
 				utils,
-				params: methodParams,
+				params: [...params],
 				context,
 			})
-			const effectsResolution = registeredStepMethod.resolveExecutionEffects
-			const executionEffects = effectsResolution === PRESERVE_EXECUTION_EFFECTS
-				? neutralExecutionEffects
-				: effectsResolution === CONSERVATIVE_EXECUTION_EFFECTS || effectsResolution == null
-					? conservativeExecutionEffects
-					: effectsResolution(neutralExecutionEffects, methodParams, stepMetadata)
 			return createInstance({
 				stepMethods,
 				resolveMessage,
 				context,
 				currentRuntimeSteps: runtimeSteps,
 				currentOperationMode: utils['~operationMode'],
-				currentExecutionEffects: executionEffects,
 			})
 		},
 	}
@@ -803,23 +834,18 @@ function createProxyHandler({
 	resolveMessage,
 	runtimeSteps,
 	operationMode,
-	executionEffects,
 	context,
 }: {
 	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 	runtimeSteps: RuntimeStep[]
 	operationMode: RuntimeOperationMode
-	executionEffects: ExecutionEffects
 	context: StepMethodContext
 }) {
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
-			if (Object.hasOwn(stepMethods, p) === false) {
-				if (p === executionEffectsKey)
-					return executionEffects
+			if (Object.hasOwn(stepMethods, p) === false)
 				return Reflect.get(target, p, receiver)
-			}
 
 			const registeredStepMethod = stepMethods[p]!
 			return (...params: any[]) => {
@@ -830,25 +856,19 @@ function createProxyHandler({
 					resolveMessage,
 					operationMode,
 					registeredStepMethod.defaultOperationMode,
+				registeredStepMethod.identityRuntimeSteps,
 				)
-				const stepMetadata = registeredStepMethod.run({
+				registeredStepMethod.run({
 					utils,
 					params,
 					context,
 				})
-				const effectsResolution = registeredStepMethod.resolveExecutionEffects
-				const nextExecutionEffects = effectsResolution === PRESERVE_EXECUTION_EFFECTS
-					? executionEffects
-					: effectsResolution === CONSERVATIVE_EXECUTION_EFFECTS || effectsResolution == null
-						? conservativeExecutionEffects
-						: effectsResolution(executionEffects, params, stepMetadata)
 				return createInstance({
 					stepMethods,
 					resolveMessage,
 					context,
 					currentRuntimeSteps: nextRuntimeSteps,
 					currentOperationMode: utils['~operationMode'],
-					currentExecutionEffects: nextExecutionEffects,
 				})
 			}
 		},
@@ -888,28 +908,21 @@ function createInstance({
 	context,
 	currentRuntimeSteps,
 	currentOperationMode,
-	currentExecutionEffects,
 }: {
 	stepMethods: RegisteredStepMethods
 	resolveMessage: ResolveMessageFn
 	context: StepMethodContext
 	currentRuntimeSteps: RuntimeStep[]
 	currentOperationMode: RuntimeOperationMode
-	currentExecutionEffects: ExecutionEffects
 }): any {
 	const executeRaw = createFinalizedPipeExecutor(currentRuntimeSteps, currentOperationMode)
-	const coreProperties = createCoreProperties(
-		currentRuntimeSteps,
-		executeRaw,
-		currentOperationMode,
-	)
+	const coreProperties = createCoreProperties(currentRuntimeSteps, executeRaw, currentOperationMode)
 
 	return new Proxy(coreProperties, createProxyHandler({
 		stepMethods,
 		resolveMessage,
 		runtimeSteps: currentRuntimeSteps,
 		operationMode: currentOperationMode,
-		executionEffects: currentExecutionEffects,
 		context,
 	}))
 }
@@ -945,7 +958,7 @@ export function createValchecker<
 	const stepMethods = Object.create(null) as RegisteredStepMethods
 	for (const def of steps) {
 		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? RUNTIME_OPERATION_MODE_MAYBE_ASYNC
-		const executionEffectsResolvers = getStepPluginExecutionEffects(def)
+		const identityRuntimeSteps = isIdentityRuntimeStepPlugin(def)
 		for (const method of Reflect.ownKeys(def)) {
 			if (method === runtimeExecutionStepDefMarker || method === stepPluginDefaultOperationMode)
 				continue
@@ -959,11 +972,7 @@ export function createValchecker<
 			const stepMethod = Reflect.get(def, method)
 			if (typeof stepMethod !== 'function')
 				throw new TypeError(`Invalid step method: ${method}`)
-			stepMethods[method] = {
-				run: stepMethod,
-				defaultOperationMode,
-				resolveExecutionEffects: executionEffectsResolvers?.[method],
-			}
+			stepMethods[method] = { run: stepMethod, defaultOperationMode, identityRuntimeSteps }
 		}
 	}
 	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
@@ -975,6 +984,5 @@ export function createValchecker<
 		context,
 		currentRuntimeSteps: [],
 		currentOperationMode: RUNTIME_OPERATION_MODE_SYNC,
-		currentExecutionEffects: neutralExecutionEffects,
 	}) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }
