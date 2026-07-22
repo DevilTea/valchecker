@@ -1,0 +1,87 @@
+name: Agent Phase A
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/execution-effect-metadata'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - name: Apply Phase A optimization
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str, count: int = 1) -> None:
+              file = Path(path)
+              text = file.read_text()
+              actual = text.count(old)
+              if actual != count:
+                  raise RuntimeError(f'{path}: expected {count} matches, found {actual}')
+              file.write_text(text.replace(old, new))
+
+          replace(
+              'packages/internal/src/core/execution-effects.ts',
+              """export type ExecutionEffectsResolver = (\n\tprevious: ExecutionEffects,\n\tparams: readonly unknown[],\n\tstepMetadata: unknown,\n) => ExecutionEffects\n""",
+              """export const PRESERVE_EXECUTION_EFFECTS = 0\nexport const CONSERVATIVE_EXECUTION_EFFECTS = 1\n\nexport type ExecutionEffectsResolver =\n\t| typeof PRESERVE_EXECUTION_EFFECTS\n\t| typeof CONSERVATIVE_EXECUTION_EFFECTS\n\t| ((\n\t\tprevious: ExecutionEffects,\n\t\tparams: readonly unknown[],\n\t\tstepMetadata: unknown,\n\t) => ExecutionEffects)\n""",
+          )
+
+          replace(
+              'packages/internal/src/core/core.ts',
+              "import { conservativeExecutionEffects, executionEffectsKey, getStepPluginExecutionEffects, neutralExecutionEffects } from './execution-effects'",
+              "import { CONSERVATIVE_EXECUTION_EFFECTS, conservativeExecutionEffects, executionEffectsKey, getStepPluginExecutionEffects, neutralExecutionEffects, PRESERVE_EXECUTION_EFFECTS } from './execution-effects'",
+          )
+          replace(
+              'packages/internal/src/core/core.ts',
+              """\t\t\tconst executionEffects = registeredStepMethod.resolveExecutionEffects?.(\n\t\t\t\tneutralExecutionEffects,\n\t\t\t\tmethodParams,\n\t\t\t\tstepMetadata,\n\t\t\t) ?? conservativeExecutionEffects\n""",
+              """\t\t\tconst effectsResolution = registeredStepMethod.resolveExecutionEffects\n\t\t\tconst executionEffects = effectsResolution === PRESERVE_EXECUTION_EFFECTS\n\t\t\t\t? neutralExecutionEffects\n\t\t\t\t: effectsResolution === CONSERVATIVE_EXECUTION_EFFECTS || effectsResolution == null\n\t\t\t\t\t? conservativeExecutionEffects\n\t\t\t\t\t: effectsResolution(neutralExecutionEffects, methodParams, stepMetadata)\n""",
+          )
+          replace(
+              'packages/internal/src/core/core.ts',
+              """\t\t\t\tconst nextExecutionEffects = registeredStepMethod.resolveExecutionEffects?.(\n\t\t\t\t\texecutionEffects,\n\t\t\t\t\tparams,\n\t\t\t\t\tstepMetadata,\n\t\t\t\t) ?? conservativeExecutionEffects\n""",
+              """\t\t\t\tconst effectsResolution = registeredStepMethod.resolveExecutionEffects\n\t\t\t\tconst nextExecutionEffects = effectsResolution === PRESERVE_EXECUTION_EFFECTS\n\t\t\t\t\t? executionEffects\n\t\t\t\t\t: effectsResolution === CONSERVATIVE_EXECUTION_EFFECTS || effectsResolution == null\n\t\t\t\t\t\t? conservativeExecutionEffects\n\t\t\t\t\t\t: effectsResolution(executionEffects, params, stepMetadata)\n""",
+          )
+
+          for method in ('number', 'boolean', 'bigint'):
+              path = f'packages/internal/src/steps/{method}/{method}.ts'
+              replace(
+                  path,
+                  "import { withExecutionEffects } from '../../core/execution-effects'",
+                  "import { PRESERVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'",
+              )
+              replace(
+                  path,
+                  f"}}), {{ {method}: previous => previous }})",
+                  f"}}), {{ {method}: PRESERVE_EXECUTION_EFFECTS }})",
+              )
+
+          replace(
+              'packages/internal/src/steps/transform/transform.ts',
+              "import { conservativeExecutionEffects, withExecutionEffects } from '../../core/execution-effects'",
+              "import { CONSERVATIVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'",
+          )
+          replace(
+              'packages/internal/src/steps/transform/transform.ts',
+              "}), { transform: () => conservativeExecutionEffects })",
+              "}), { transform: CONSERVATIVE_EXECUTION_EFFECTS })",
+          )
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/agent-phase-a.yml
+          git add packages/internal/src/core packages/internal/src/steps/number packages/internal/src/steps/boolean packages/internal/src/steps/bigint packages/internal/src/steps/transform
+          git commit -m "perf: reduce execution effect resolution overhead"
+          git push
