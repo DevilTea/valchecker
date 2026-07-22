@@ -47,7 +47,9 @@ describe('execution effect metadata', () => {
 		expect(getExecutionEffects(v.passthrough())).toEqual(conservativeExecutionEffects)
 		expect(getExecutionEffects(schema.passthrough())).toEqual(conservativeExecutionEffects)
 		expect(schema['~executionEffects']).toBeUndefined()
+		expect(schema['~core'].executionEffects).toBeUndefined()
 		expect(Object.keys(schema)).not.toContain('~executionEffects')
+		expect(Object.keys(schema['~core'])).not.toContain('executionEffects')
 	})
 
 	it.each([
