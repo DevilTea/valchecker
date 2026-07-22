@@ -633,36 +633,9 @@ function createExecutionStepMethodUtils(
 		operationMode: RuntimeOperationMode,
 	): RuntimeStep => {
 		if (identityRuntimeSteps) {
-			if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
-				return function identityRuntimeStep(lastResult) {
-					try {
-						return fn(lastResult) as ExecutionResult
-					}
-					catch (error) {
-						return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
-					}
-				}
-			}
-
-			if (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {
-				return function identityRuntimeStep(lastResult) {
-					try {
-						return Promise.resolve(fn(lastResult)).catch(
-							error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage),
-						)
-					}
-					catch (error) {
-						return Promise.resolve(createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
-					}
-				}
-			}
-
 			return function identityRuntimeStep(lastResult) {
 				try {
-					const result = fn(lastResult)
-					return isPromiseLike(result)
-						? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
-						: result
+					return fn(lastResult) as ExecutionResult
 				}
 				catch (error) {
 					return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
