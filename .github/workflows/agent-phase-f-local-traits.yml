@@ -19,6 +19,28 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 1
           show-progress: false
+      - name: Match base registration format
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/phase-f-local-traits.py')
+          text = path.read_text()
+          old = '''text = sub_once(
+              text,
+              r"(\\t\\t\\tstepMethods\\[method\\] = \\{\\n\\t\\t\\t\\trun: stepMethod,\\n\\t\\t\\t\\tdefaultOperationMode,)(\\n\\t\\t\\t\\})",
+              r"\\1\\n\\t\\t\\t\\tidentityRuntimeSteps,\\2",
+              'registered method assignment',
+          )'''
+          new = '''text = sub_once(
+              text,
+              r"\\t\\t\\tstepMethods\\[method\\] = \\{ run: stepMethod, defaultOperationMode \\}",
+              "\\t\\t\\tstepMethods[method] = { run: stepMethod, defaultOperationMode, identityRuntimeSteps }",
+              'registered method assignment',
+          )'''
+          if text.count(old) != 1:
+              raise RuntimeError(f'expected one script block, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
       - name: Replace global effects with local runtime traits
         id: migration
         continue-on-error: true
