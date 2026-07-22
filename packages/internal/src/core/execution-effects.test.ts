@@ -70,6 +70,13 @@ describe('execution effect metadata', () => {
 			parentTraversal: 'direct-safe',
 			structuralOutput: null,
 		})
+		expect(preserveExecutionEffects(neutralExecutionEffects, {
+			parentTraversal: 'snapshot-required',
+		})).toEqual({
+			identity: 'identity-preserving',
+			parentTraversal: 'snapshot-required',
+			structuralOutput: null,
+		})
 	})
 
 	it('does not let a later classifier recover guarantees lost by an earlier step', () => {
