@@ -22,147 +22,108 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text()
+          def read(path: str) -> str:
+              return Path(path).read_text()
+
+          def write(path: str, text: str) -> None:
+              Path(path).write_text(text)
+              print(f'updated {path}')
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
               count = text.count(old)
               if count != 1:
-                  raise RuntimeError(f'{path}: expected one replacement, found {count}')
-              file.write_text(text.replace(old, new, 1))
+                  raise RuntimeError(f'{label}: expected one replacement, found {count}')
+              return text.replace(old, new, 1)
 
-          replace_once(
-              'packages/internal/src/core/core.ts',
+          path = 'packages/internal/src/core/core.ts'
+          text = read(path)
+          text = replace_once(
+              text,
               """\t\tget: (target: any, p: PropertyKey, receiver: any) => {\n\t\t\tif (p === executionEffectsKey)\n\t\t\t\treturn executionEffects\n\t\t\tif (Object.hasOwn(stepMethods, p) === false)\n\t\t\t\treturn Reflect.get(target, p, receiver)\n\n\t\t\tconst registeredStepMethod = stepMethods[p]!\n""",
               """\t\tget: (target: any, p: PropertyKey, receiver: any) => {\n\t\t\tif (Object.hasOwn(stepMethods, p) === false) {\n\t\t\t\tif (p === executionEffectsKey)\n\t\t\t\t\treturn executionEffects\n\t\t\t\treturn Reflect.get(target, p, receiver)\n\t\t\t}\n\n\t\t\tconst registeredStepMethod = stepMethods[p]!\n""",
+              'core proxy metadata lookup',
           )
+          write(path, text)
 
-          replace_once(
-              'packages/internal/src/steps/check/check.ts',
-              "import { preserveExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/check/check.ts',
-              'export const check = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({',
-              'export const check = implStepPlugin<PluginDef>({',
-          )
-          replace_once(
-              'packages/internal/src/steps/check/check.ts',
-              """\t},\n}), {\n\tcheck: previous => preserveExecutionEffects(previous, {\n\t\tparentTraversal: 'snapshot-required',\n\t\tstructuralOutput: null,\n\t}),\n})\n""",
-              """\t},\n})\n""",
-          )
+          path = 'packages/internal/src/steps/check/check.ts'
+          text = read(path)
+          text = replace_once(text, "import { preserveExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n", '', 'check import')
+          text = replace_once(text, 'export const check = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({', 'export const check = implStepPlugin<PluginDef>({', 'check export')
+          split = text.split('\n}), {\n\tcheck:', 1)
+          if len(split) != 2:
+              raise RuntimeError('check resolver suffix not found')
+          text = split[0] + '\n})\n'
+          write(path, text)
 
-          replace_once(
-              'packages/internal/src/steps/transform/transform.ts',
-              "import { CONSERVATIVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'\n",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/transform/transform.ts',
-              'export const transform = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({',
-              'export const transform = implStepPlugin<PluginDef>({',
-          )
-          replace_once(
-              'packages/internal/src/steps/transform/transform.ts',
-              "\t},\n}), { transform: CONSERVATIVE_EXECUTION_EFFECTS })\n",
-              "\t},\n})\n",
-          )
+          path = 'packages/internal/src/steps/transform/transform.ts'
+          text = read(path)
+          text = replace_once(text, "import { CONSERVATIVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'\n", '', 'transform import')
+          text = replace_once(text, 'export const transform = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({', 'export const transform = implStepPlugin<PluginDef>({', 'transform export')
+          split = text.split('\n}), { transform:', 1)
+          if len(split) != 2:
+              raise RuntimeError('transform resolver suffix not found')
+          text = split[0] + '\n})\n'
+          write(path, text)
 
-          replace_once(
-              'packages/internal/src/steps/map/map.ts',
-              "import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n",
-              "import { getExecutionEffects } from '../../core/execution-effects'\n",
-          )
-          replace_once(
-              'packages/internal/src/steps/map/map.ts',
-              """interface MapExecutionEffectsMetadata {\n\treadonly childrenAreDirectSafe: boolean\n}\n\n""",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/map/map.ts',
-              'export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({',
-              'export const map = implStepPlugin<PluginDef>({',
-          )
-          replace_once(
-              'packages/internal/src/steps/map/map.ts',
-              """\t\taddSuccessStep(childrenAreDirectSafe ? executeDirect : executeSnapshot, operationMode)\n\t\treturn { childrenAreDirectSafe }\n\t},\n}), {\n\tmap: (previous, _params, stepMetadata) => {\n\t\tconst { childrenAreDirectSafe } = stepMetadata as MapExecutionEffectsMetadata\n\t\treturn {\n\t\t\tidentity: 'may-transform',\n\t\t\tparentTraversal: previous.parentTraversal === 'direct-safe' && childrenAreDirectSafe\n\t\t\t\t? 'direct-safe'\n\t\t\t\t: 'snapshot-required',\n\t\t\tstructuralOutput: null,\n\t\t}\n\t},\n})\n""",
-              """\t\taddSuccessStep(childrenAreDirectSafe ? executeDirect : executeSnapshot, operationMode)\n\t},\n})\n""",
-          )
+          path = 'packages/internal/src/steps/map/map.ts'
+          text = read(path)
+          text = replace_once(text, "import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n", "import { getExecutionEffects } from '../../core/execution-effects'\n", 'map import')
+          text = re.sub(r'interface MapExecutionEffectsMetadata \{.*?\}\n\n', '', text, count=1, flags=re.S)
+          text = replace_once(text, 'export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({', 'export const map = implStepPlugin<PluginDef>({', 'map export')
+          marker = '\t\taddSuccessStep(childrenAreDirectSafe ? executeDirect : executeSnapshot, operationMode)\n'
+          if text.count(marker) != 1:
+              raise RuntimeError('map final marker not found')
+          text = text[:text.index(marker) + len(marker)] + '\t},\n})\n'
+          write(path, text)
 
-          replace_once(
-              'packages/internal/src/steps/set/set.ts',
-              "import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n",
-              "import { getExecutionEffects } from '../../core/execution-effects'\n",
-          )
-          replace_once(
-              'packages/internal/src/steps/set/set.ts',
-              """interface SetExecutionEffectsMetadata {\n\treadonly itemIsDirectIdentity: boolean\n}\n\n""",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/set/set.ts',
-              'export const set = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({',
-              'export const set = implStepPlugin<PluginDef>({',
-          )
-          replace_once(
-              'packages/internal/src/steps/set/set.ts',
-              """\t\taddSuccessStep(itemIsDirectIdentity ? executeDirectIdentity : executeSnapshot, operationMode)\n\t\treturn { itemIsDirectIdentity }\n\t},\n}), {\n\tset: (previous, _params, stepMetadata) => {\n\t\tconst { itemIsDirectIdentity } = stepMetadata as SetExecutionEffectsMetadata\n\t\treturn {\n\t\t\tidentity: 'may-transform',\n\t\t\tparentTraversal: previous.parentTraversal === 'direct-safe' && itemIsDirectIdentity\n\t\t\t\t? 'direct-safe'\n\t\t\t\t: 'snapshot-required',\n\t\t\tstructuralOutput: null,\n\t\t}\n\t},\n})\n""",
-              """\t\taddSuccessStep(itemIsDirectIdentity ? executeDirectIdentity : executeSnapshot, operationMode)\n\t},\n})\n""",
-          )
+          path = 'packages/internal/src/steps/set/set.ts'
+          text = read(path)
+          text = replace_once(text, "import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n", "import { getExecutionEffects } from '../../core/execution-effects'\n", 'set import')
+          text = re.sub(r'interface SetExecutionEffectsMetadata \{.*?\}\n\n', '', text, count=1, flags=re.S)
+          text = replace_once(text, 'export const set = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({', 'export const set = implStepPlugin<PluginDef>({', 'set export')
+          marker = '\t\taddSuccessStep(itemIsDirectIdentity ? executeDirectIdentity : executeSnapshot, operationMode)\n'
+          if text.count(marker) != 1:
+              raise RuntimeError('set final marker not found')
+          text = text[:text.index(marker) + len(marker)] + '\t},\n})\n'
+          write(path, text)
 
-          replace_once(
-              'packages/internal/src/steps/intersection/intersection.ts',
-              "import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n",
-              "import { getExecutionEffects } from '../../core/execution-effects'\n",
+          path = 'packages/internal/src/steps/intersection/intersection.ts'
+          text = read(path)
+          text = replace_once(text, "import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'\n", "import { getExecutionEffects } from '../../core/execution-effects'\n", 'intersection import')
+          text = re.sub(r'interface IntersectionExecutionEffectsMetadata \{.*?\}\n\n', '', text, count=1, flags=re.S)
+          text = replace_once(text, 'export const intersection = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({', 'export const intersection = implStepPlugin<PluginDef>({', 'intersection export')
+          text, count = re.subn(
+              r"\n\t\tconst branchesAreDirectSafe = branchEffects\.every\(\n\t\t\teffects => effects\.parentTraversal === 'direct-safe',\n\t\t\)\n",
+              '\n',
+              text,
+              count=1,
           )
-          replace_once(
-              'packages/internal/src/steps/intersection/intersection.ts',
-              """interface IntersectionExecutionEffectsMetadata {\n\treadonly staticObjectMergePlan: StaticObjectMergePlan | null\n\treadonly branchesAreDirectSafe: boolean\n}\n\n""",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/intersection/intersection.ts',
-              'export const intersection = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({',
-              'export const intersection = implStepPlugin<PluginDef>({',
-          )
-          replace_once(
-              'packages/internal/src/steps/intersection/intersection.ts',
-              """\t\tconst staticObjectMergePlan = createStaticObjectMergePlan(branchEffects)\n\t\tconst branchesAreDirectSafe = branchEffects.every(\n\t\t\teffects => effects.parentTraversal === 'direct-safe',\n\t\t)\n""",
-              "\t\tconst staticObjectMergePlan = createStaticObjectMergePlan(branchEffects)\n",
-          )
-          replace_once(
-              'packages/internal/src/steps/intersection/intersection.ts',
-              """\t\taddSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)\n\t\treturn { staticObjectMergePlan, branchesAreDirectSafe }\n\t},\n}), {\n\tintersection: (previous, _params, stepMetadata) => {\n\t\tconst { staticObjectMergePlan, branchesAreDirectSafe }\n\t\t\t= stepMetadata as IntersectionExecutionEffectsMetadata\n\t\treturn {\n\t\t\tidentity: 'may-transform',\n\t\t\tparentTraversal: previous.parentTraversal === 'direct-safe' && branchesAreDirectSafe\n\t\t\t\t? 'direct-safe'\n\t\t\t\t: 'snapshot-required',\n\t\t\tstructuralOutput: staticObjectMergePlan == null\n\t\t\t\t? null\n\t\t\t\t: { kind: 'fresh-ordinary-object', keys: staticObjectMergePlan.keys },\n\t\t}\n\t},\n})\n""",
-              """\t\taddSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)\n\t},\n})\n""",
-          )
+          if count != 1:
+              raise RuntimeError('intersection branch safety block not found')
+          marker = '\t\taddSuccessStep(collectAllIssues ? executeCollectAll : executeFirstIssue, operationMode)\n'
+          if text.count(marker) != 1:
+              raise RuntimeError('intersection final marker not found')
+          text = text[:text.index(marker) + len(marker)] + '\t},\n})\n'
+          write(path, text)
 
-          replace_once(
-              'packages/internal/src/steps/intersection/static-plan.test.ts',
-              "import { getExecutionEffects } from '../../core/execution-effects'\n",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/intersection/static-plan.test.ts',
-              """\tit('publishes a fresh ordinary-object output for disjoint known branch keys', () => {\n\t\tconst schema = v.intersection([\n\t\t\tv.object({ left: v.string() }),\n\t\t\tv.object({ right: v.number() }),\n\t\t])\n\n\t\texpect(getExecutionEffects(schema)).toEqual({\n\t\t\tidentity: 'may-transform',\n\t\t\tparentTraversal: 'snapshot-required',\n\t\t\tstructuralOutput: {\n\t\t\t\tkind: 'fresh-ordinary-object',\n\t\t\t\tkeys: ['left', 'right'],\n\t\t\t},\n\t\t})\n\t})\n\n""",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/intersection/static-plan.test.ts',
-              "\n\t\texpect(getExecutionEffects(schema).structuralOutput).toBeNull()",
-              '',
-          )
+          path = 'packages/internal/src/steps/intersection/static-plan.test.ts'
+          text = read(path)
+          text = replace_once(text, "import { getExecutionEffects } from '../../core/execution-effects'\n", '', 'intersection test import')
+          start = text.index("\tit('publishes a fresh ordinary-object output")
+          end = text.index("\tit('falls back when branch keys overlap'", start)
+          text = text[:start] + text[end:]
+          text = text.replace("\n\t\texpect(getExecutionEffects(schema).structuralOutput).toBeNull()", '', 1)
+          write(path, text)
 
-          replace_once(
-              'packages/internal/src/steps/set/traversal-plan.test.ts',
-              "import { getExecutionEffects } from '../../core/execution-effects'\n",
-              '',
-          )
-          replace_once(
-              'packages/internal/src/steps/set/traversal-plan.test.ts',
-              """\tit('uses direct traversal only for synchronous identity-safe item schemas', () => {\n\t\tconst direct = v.set(v.string())\n\t\tconst snapshot = v.set(v.object({ label: v.string() }))\n\n\t\texpect(getExecutionEffects(direct)).toEqual({\n\t\t\tidentity: 'may-transform',\n\t\t\tparentTraversal: 'direct-safe',\n\t\t\tstructuralOutput: null,\n\t\t})\n\t\texpect(getExecutionEffects(snapshot).parentTraversal).toBe('snapshot-required')\n\t})\n\n""",
-              '',
-          )
+          path = 'packages/internal/src/steps/set/traversal-plan.test.ts'
+          text = read(path)
+          text = replace_once(text, "import { getExecutionEffects } from '../../core/execution-effects'\n", '', 'set test import')
+          start = text.index("\tit('uses direct traversal only for synchronous identity-safe item schemas'")
+          end = text.index("\tit('does not call the snapshot values method", start)
+          text = text[:start] + text[end:]
+          write(path, text)
           PY
           git rm .github/workflows/agent-phase-e-trim-effects.yml
           git config user.name github-actions[bot]
