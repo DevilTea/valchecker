@@ -121,10 +121,14 @@ describe('Set native snapshots', () => {
 
 	it('retains the array snapshot contract for an overridden values method', () => {
 		const input = new Set(['source'])
+		let getterCalls = 0
 		Object.defineProperty(input, 'values', {
-			value: function* () {
-				yield 'a'
-				yield 'a'
+			get() {
+				getterCalls++
+				return function* () {
+					yield 'a'
+					yield 'a'
+				}
 			},
 		})
 
@@ -140,5 +144,6 @@ describe('Set native snapshots', () => {
 				},
 			}],
 		})
+		expect(getterCalls).toBe(1)
 	})
 })
