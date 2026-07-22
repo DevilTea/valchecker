@@ -815,6 +815,8 @@ function createProxyHandler({
 }) {
 	return {
 		get: (target: any, p: PropertyKey, receiver: any) => {
+			if (p === executionEffectsKey)
+				return executionEffects
 			if (Object.hasOwn(stepMethods, p) === false)
 				return Reflect.get(target, p, receiver)
 
@@ -857,7 +859,6 @@ function createCoreProperties(
 	runtimeSteps: RuntimeStep[],
 	executeRaw: PipeExecutor,
 	operationMode: RuntimeOperationMode,
-	executionEffects: ExecutionEffects,
 ) {
 	const execute = createPublicExecutor(executeRaw, operationMode)
 	return {
@@ -871,7 +872,6 @@ function createCoreProperties(
 			RegisteredStepPluginDefs: null!,
 			runtimeSteps,
 			operationMode: OPERATION_MODES[operationMode],
-			[executionEffectsKey]: executionEffects,
 		},
 		'~execute': executeRaw,
 		execute,
@@ -901,7 +901,6 @@ function createInstance({
 		currentRuntimeSteps,
 		executeRaw,
 		currentOperationMode,
-		currentExecutionEffects,
 	)
 
 	return new Proxy(coreProperties, createProxyHandler({
