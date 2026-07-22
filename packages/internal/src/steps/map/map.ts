@@ -82,9 +82,9 @@ export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef
 		const keyEffects = getExecutionEffects(options.key)
 		const valueEffects = getExecutionEffects(options.value)
 		const childrenAreDirectSafe = childrenAreSynchronous
+			&& keyEffects.identity === 'identity-preserving'
 			&& keyEffects.parentTraversal === 'direct-safe'
 			&& valueEffects.parentTraversal === 'direct-safe'
-		const keyIsIdentityPreserving = keyEffects.identity === 'identity-preserving'
 		const valueIsIdentityPreserving = valueEffects.identity === 'identity-preserving'
 
 		const appendChildIssues = (
@@ -315,15 +315,12 @@ export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef
 			}
 
 			let output: Map<unknown, unknown> | undefined
-			let firstKeyIndex: Map<unknown, number> | undefined
-			const sourceKeys: unknown[] | undefined = keyIsIdentityPreserving ? undefined : []
 			let issues: AnyExecutionIssue[] | undefined
 			let index = 0
 			const iterator = Map.prototype.entries.call(value) as IterableIterator<[unknown, unknown]>
 
 			for (let next = iterator.next(); !next.done; next = iterator.next()) {
 				const [sourceKey, sourceValue] = next.value
-				sourceKeys?.push(sourceKey)
 				const keyResult = keyExecute(sourceKey) as ExecutionResult
 				const keyFailed = isFailure(keyResult)
 				if (keyFailed) {
@@ -343,34 +340,11 @@ export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef
 				}
 
 				if (!keyFailed && !valueFailed) {
-					const transformedKey = keyIsIdentityPreserving ? sourceKey : keyResult.value
-					if (!keyIsIdentityPreserving && output?.has(transformedKey)) {
-						const firstIndex = firstKeyIndex!.get(transformedKey)
-						if (firstIndex == null)
-							throw new Error('Missing transformed Map key metadata.')
-						const target = issues ??= []
-						target.push(createDuplicateIssue(
-							value,
-							sourceKeys![firstIndex],
-							firstIndex,
-							sourceKey,
-							index,
-							transformedKey,
-						))
-						if (!collectAllIssues)
-							return failure(target)
-					}
-					else {
-						output ??= new Map()
-						output.set(
-							transformedKey,
-							valueIsIdentityPreserving ? sourceValue : valueResult.value,
-						)
-						if (!keyIsIdentityPreserving) {
-							firstKeyIndex ??= new Map()
-							firstKeyIndex.set(transformedKey, index)
-						}
-					}
+					output ??= new Map()
+					output.set(
+						sourceKey,
+						valueIsIdentityPreserving ? sourceValue : valueResult.value,
+					)
 				}
 				index++
 			}
