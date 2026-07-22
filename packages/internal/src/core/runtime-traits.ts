@@ -20,7 +20,7 @@ export function hasIdentityOnlyRuntimeSteps(schema: Valchecker): boolean {
 
 	// Phase G preserves arrow wrappers. Trusted identity steps carry one unused
 	// optional parameter, giving them Function.length === 2; normal wrappers have
-	// length 1. The encoding is private and accepted only if final benchmarks pass.
+	// length 1. This private encoding remains subject to the final benchmark gate.
 	for (let index = 0; index < runtimeSteps.length; index++) {
 		if (runtimeSteps[index]!.length !== 2)
 			return false
