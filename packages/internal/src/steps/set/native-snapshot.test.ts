@@ -110,13 +110,10 @@ describe('Set native snapshots', () => {
 				return { ok: false }
 			return { ok: true, value: value === 'a' ? 'failed' : value }
 		})
+		const result = v.set(item, { collectAllIssues: true }).execute(input)
 
-		expect(v.set(item, { collectAllIssues: true }).execute(input)).toMatchObject({
-			issues: [{
-				code: 'fixture:rejected',
-				path: [0],
-			}],
-		})
+		expect(result.issues.map((issue: any) => issue.code)).toEqual(['fixture:rejected'])
+		expect(result.issues[0]).toMatchObject({ path: [0] })
 	})
 
 	it('retains the array snapshot contract for an overridden values method', () => {
