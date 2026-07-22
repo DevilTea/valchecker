@@ -633,7 +633,7 @@ function createExecutionStepMethodUtils(
 		operationMode: RuntimeOperationMode,
 	): RuntimeStep => {
 		if (identityRuntimeSteps) {
-			return function identityRuntimeStep(lastResult) {
+			return (lastResult, _identityMarker?: never) => {
 				try {
 					return fn(lastResult) as ExecutionResult
 				}

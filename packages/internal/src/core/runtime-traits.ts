@@ -18,10 +18,11 @@ export function hasIdentityOnlyRuntimeSteps(schema: Valchecker): boolean {
 	if (runtimeSteps == null || runtimeSteps.length === 0)
 		return false
 
-	// Core emits constructable wrappers only for explicitly marked built-in
-	// identity plugins; every untrusted or potentially transforming step is an arrow.
+	// Core preserves arrow-function call semantics for every runtime step. Trusted
+	// identity wrappers carry one unused optional parameter, so their immutable
+	// Function.length is 2; every normal wrapper has length 1.
 	for (let index = 0; index < runtimeSteps.length; index++) {
-		if (!Object.hasOwn(runtimeSteps[index]!, 'prototype'))
+		if (runtimeSteps[index]!.length !== 2)
 			return false
 	}
 	return true
