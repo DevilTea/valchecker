@@ -1,22 +1,20 @@
 name: Agent Phase F Prune Traits
 
 on:
-  pull_request:
-    types: [synchronize]
-    branches: [main]
+  push:
+    branches: [agent/execution-effect-metadata]
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.event.pull_request.head.ref == 'agent/execution-effect-metadata'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: agent/execution-effect-metadata
+          repository: DevilTea/valchecker
           show-progress: false
       - name: Remove unreachable identity wrappers
         run: |
@@ -48,4 +46,4 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
           git commit -m "refactor: remove unreachable identity wrappers"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          git push origin HEAD:agent/execution-effect-metadata
