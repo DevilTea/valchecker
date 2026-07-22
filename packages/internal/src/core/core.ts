@@ -856,7 +856,7 @@ function createProxyHandler({
 					resolveMessage,
 					operationMode,
 					registeredStepMethod.defaultOperationMode,
-				registeredStepMethod.identityRuntimeSteps,
+					registeredStepMethod.identityRuntimeSteps,
 				)
 				registeredStepMethod.run({
 					utils,
