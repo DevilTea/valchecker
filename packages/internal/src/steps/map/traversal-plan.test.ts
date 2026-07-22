@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { getExecutionEffects } from '../../core/execution-effects'
+import { implStepPlugin } from '../../core'
+import { preserveExecutionEffects, getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
 import { createValchecker, map, number, object, string } from '../..'
 
-const v = createValchecker({ steps: [map, number, object, string] })
+const double = withExecutionEffects(implStepPlugin<any>({
+	double: ({ utils }: any) => {
+		utils.addSuccessStep((value: number) => utils.success(value * 2), 'sync')
+	},
+}, 'sync'), {
+	double: previous => preserveExecutionEffects(previous, {
+		identity: 'may-transform',
+		structuralOutput: null,
+	}),
+})
+
+const v = createValchecker({ steps: [map, number, object, string, double] }) as any
 
 describe('map traversal plans', () => {
 	it('uses direct traversal only for synchronous direct-safe child schemas', () => {
@@ -33,6 +45,22 @@ describe('map traversal plans', () => {
 		expect(result).toEqual({ value: new Map([['a', 1], ['b', 2]]) })
 		if (v.isSuccess(result))
 			expect(result.value).not.toBe(input)
+	})
+
+	it('directly traverses identity keys with a trusted direct-safe value transform', () => {
+		const input = new Map([['a', 1], ['b', 2]])
+		Object.defineProperty(input, 'forEach', {
+			value: () => {
+				throw new Error('snapshot path used')
+			},
+		})
+
+		expect(v.map({
+			key: v.string(),
+			value: v.number().double(),
+		}).execute(input)).toEqual({
+			value: new Map([['a', 2], ['b', 4]]),
+		})
 	})
 
 	it('keeps snapshot semantics when object property access mutates the source Map', () => {
