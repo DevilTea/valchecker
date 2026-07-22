@@ -8,7 +8,7 @@ import { object } from '../steps/object'
 import { string } from '../steps/string'
 import { transform } from '../steps/transform'
 import { createValchecker, implStepPlugin } from './core'
-import { conservativeExecutionEffects, getExecutionEffects, neutralExecutionEffects, preserveExecutionEffects, withExecutionEffects } from './execution-effects'
+import { conservativeExecutionEffects, executionEffectsKey, getExecutionEffects, neutralExecutionEffects, preserveExecutionEffects, withExecutionEffects } from './execution-effects'
 
 const passthrough = implStepPlugin({
 	passthrough: ({ utils }: any) => {
@@ -46,10 +46,13 @@ describe('execution effect metadata', () => {
 		expect(getExecutionEffects(v)).toEqual(neutralExecutionEffects)
 		expect(getExecutionEffects(v.passthrough())).toEqual(conservativeExecutionEffects)
 		expect(getExecutionEffects(schema.passthrough())).toEqual(conservativeExecutionEffects)
+		expect(schema[executionEffectsKey]).toEqual(neutralExecutionEffects)
 		expect(schema['~executionEffects']).toBeUndefined()
 		expect(schema['~core'].executionEffects).toBeUndefined()
 		expect(Object.keys(schema)).not.toContain('~executionEffects')
 		expect(Object.keys(schema['~core'])).not.toContain('executionEffects')
+		expect(Reflect.ownKeys(schema)).not.toContain(executionEffectsKey)
+		expect(Reflect.ownKeys(schema['~core'])).not.toContain(executionEffectsKey)
 	})
 
 	it.each([
