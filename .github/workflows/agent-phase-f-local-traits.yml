@@ -57,7 +57,7 @@ jobs:
       - name: Commit migration
         if: steps.migration.outcome == 'success'
         run: |
-          git rm .github/workflows/agent-phase-f-local-traits.yml .github/scripts/phase-f-local-traits.py
+          git rm -f .github/workflows/agent-phase-f-local-traits.yml .github/scripts/phase-f-local-traits.py
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
