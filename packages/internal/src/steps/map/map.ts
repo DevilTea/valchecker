@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { getExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -60,8 +61,12 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+interface MapExecutionEffectsMetadata {
+	readonly childrenAreDirectSafe: boolean
+}
+
 /* @__NO_SIDE_EFFECTS__ */
-export const map = implStepPlugin<PluginDef>({
+export const map = /* @__PURE__ */ withExecutionEffects(implStepPlugin<PluginDef>({
 	map: ({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [options],
@@ -74,6 +79,13 @@ export const map = implStepPlugin<PluginDef>({
 			: 'maybe-async'
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options.collectAllIssues === true
+		const keyEffects = getExecutionEffects(options.key)
+		const valueEffects = getExecutionEffects(options.value)
+		const childrenAreDirectSafe = childrenAreSynchronous
+			&& keyEffects.parentTraversal === 'direct-safe'
+			&& valueEffects.parentTraversal === 'direct-safe'
+		const keyIsIdentityPreserving = keyEffects.identity === 'identity-preserving'
+		const valueIsIdentityPreserving = valueEffects.identity === 'identity-preserving'
 
 		const appendChildIssues = (
 			result: ExecutionResult,
@@ -105,7 +117,7 @@ export const map = implStepPlugin<PluginDef>({
 
 		const createDuplicateIssue = (
 			value: Map<unknown, unknown>,
-			entries: unknown[],
+			firstSourceKey: unknown,
 			firstIndex: number,
 			sourceKey: unknown,
 			index: number,
@@ -114,7 +126,7 @@ export const map = implStepPlugin<PluginDef>({
 			code: 'map:duplicate_transformed_key',
 			payload: {
 				value,
-				firstSourceKey: entries[firstIndex * 2],
+				firstSourceKey,
 				sourceKey,
 				transformedKey,
 				firstIndex,
@@ -172,7 +184,14 @@ export const map = implStepPlugin<PluginDef>({
 						if (firstIndex == null)
 							throw new Error('Missing transformed Map key metadata.')
 						const target = issues ??= []
-						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
+						target.push(createDuplicateIssue(
+							value,
+							entries[firstIndex * 2],
+							firstIndex,
+							sourceKey,
+							index,
+							transformedKey,
+						))
 						if (!collectAllIssues)
 							return failure(target)
 					}
@@ -188,7 +207,7 @@ export const map = implStepPlugin<PluginDef>({
 			return issues == null ? success(output ?? new Map()) : failure(issues)
 		}
 
-		addSuccessStep((value) => {
+		const executeSnapshot = (value: unknown) => {
 			if (!(value instanceof Map)) {
 				return failure(createIssue({
 					code: 'map:expected_map',
@@ -262,7 +281,14 @@ export const map = implStepPlugin<PluginDef>({
 						if (firstIndex == null)
 							throw new Error('Missing transformed Map key metadata.')
 						const target = issues ??= []
-						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
+						target.push(createDuplicateIssue(
+							value,
+							entries[firstIndex * 2],
+							firstIndex,
+							sourceKey,
+							index,
+							transformedKey,
+						))
 						if (!collectAllIssues)
 							return failure(target)
 					}
@@ -276,6 +302,94 @@ export const map = implStepPlugin<PluginDef>({
 			}
 
 			return issues == null ? success(output ?? new Map()) : failure(issues)
-		}, operationMode)
+		}
+
+		const executeDirect = (value: unknown) => {
+			if (!(value instanceof Map)) {
+				return failure(createIssue({
+					code: 'map:expected_map',
+					payload: { value },
+					customMessage: options.message,
+					defaultMessage: 'Expected a Map.',
+				}))
+			}
+
+			let output: Map<unknown, unknown> | undefined
+			let firstKeyIndex: Map<unknown, number> | undefined
+			const sourceKeys: unknown[] | undefined = keyIsIdentityPreserving ? undefined : []
+			let issues: AnyExecutionIssue[] | undefined
+			let index = 0
+			const iterator = Map.prototype.entries.call(value) as IterableIterator<[unknown, unknown]>
+
+			for (let next = iterator.next(); !next.done; next = iterator.next()) {
+				const [sourceKey, sourceValue] = next.value
+				sourceKeys?.push(sourceKey)
+				const keyResult = keyExecute(sourceKey) as ExecutionResult
+				const keyFailed = isFailure(keyResult)
+				if (keyFailed) {
+					const appended = appendChildIssues(keyResult, [index, 'key'], issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
+
+				const valueResult = valueExecute(sourceValue) as ExecutionResult
+				const valueFailed = isFailure(valueResult)
+				if (valueFailed) {
+					const appended = appendChildIssues(valueResult, [index, 'value'], issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+				}
+
+				if (!keyFailed && !valueFailed) {
+					const transformedKey = keyIsIdentityPreserving ? sourceKey : keyResult.value
+					if (!keyIsIdentityPreserving && output?.has(transformedKey)) {
+						const firstIndex = firstKeyIndex!.get(transformedKey)
+						if (firstIndex == null)
+							throw new Error('Missing transformed Map key metadata.')
+						const target = issues ??= []
+						target.push(createDuplicateIssue(
+							value,
+							sourceKeys![firstIndex],
+							firstIndex,
+							sourceKey,
+							index,
+							transformedKey,
+						))
+						if (!collectAllIssues)
+							return failure(target)
+					}
+					else {
+						output ??= new Map()
+						output.set(
+							transformedKey,
+							valueIsIdentityPreserving ? sourceValue : valueResult.value,
+						)
+						if (!keyIsIdentityPreserving) {
+							firstKeyIndex ??= new Map()
+							firstKeyIndex.set(transformedKey, index)
+						}
+					}
+				}
+				index++
+			}
+
+			return issues == null ? success(output ?? new Map()) : failure(issues)
+		}
+
+		addSuccessStep(childrenAreDirectSafe ? executeDirect : executeSnapshot, operationMode)
+		return { childrenAreDirectSafe }
+	},
+}), {
+	map: (previous, _params, stepMetadata) => {
+		const { childrenAreDirectSafe } = stepMetadata as MapExecutionEffectsMetadata
+		return {
+			identity: 'may-transform',
+			parentTraversal: previous.parentTraversal === 'direct-safe' && childrenAreDirectSafe
+				? 'direct-safe'
+				: 'snapshot-required',
+			structuralOutput: null,
+		}
 	},
 })
