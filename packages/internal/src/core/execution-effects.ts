@@ -20,11 +20,17 @@ export interface ExecutionEffectsPatch {
 	readonly structuralOutput?: FreshOrdinaryObjectOutput | null | undefined
 }
 
-export type ExecutionEffectsResolver = (
-	previous: ExecutionEffects,
-	params: readonly unknown[],
-	stepMetadata: unknown,
-) => ExecutionEffects
+export const PRESERVE_EXECUTION_EFFECTS = 0
+export const CONSERVATIVE_EXECUTION_EFFECTS = 1
+
+export type ExecutionEffectsResolver =
+	| typeof PRESERVE_EXECUTION_EFFECTS
+	| typeof CONSERVATIVE_EXECUTION_EFFECTS
+	| ((
+		previous: ExecutionEffects,
+		params: readonly unknown[],
+		stepMetadata: unknown,
+	) => ExecutionEffects)
 
 export const neutralExecutionEffects: ExecutionEffects = {
 	identity: 'identity-preserving',

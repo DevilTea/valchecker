@@ -19,7 +19,7 @@ import type {
 	TStepPluginDef,
 } from './types'
 import type { ExecutionEffects, ExecutionEffectsResolver } from './execution-effects'
-import { conservativeExecutionEffects, executionEffectsKey, getStepPluginExecutionEffects, neutralExecutionEffects } from './execution-effects'
+import { CONSERVATIVE_EXECUTION_EFFECTS, conservativeExecutionEffects, executionEffectsKey, getStepPluginExecutionEffects, neutralExecutionEffects, PRESERVE_EXECUTION_EFFECTS } from './execution-effects'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
@@ -778,11 +778,12 @@ function createStepMethodContext({
 				params: methodParams,
 				context,
 			})
-			const executionEffects = registeredStepMethod.resolveExecutionEffects?.(
-				neutralExecutionEffects,
-				methodParams,
-				stepMetadata,
-			) ?? conservativeExecutionEffects
+			const effectsResolution = registeredStepMethod.resolveExecutionEffects
+			const executionEffects = effectsResolution === PRESERVE_EXECUTION_EFFECTS
+				? neutralExecutionEffects
+				: effectsResolution === CONSERVATIVE_EXECUTION_EFFECTS || effectsResolution == null
+					? conservativeExecutionEffects
+					: effectsResolution(neutralExecutionEffects, methodParams, stepMetadata)
 			return createInstance({
 				stepMethods,
 				resolveMessage,
@@ -832,11 +833,12 @@ function createProxyHandler({
 					params,
 					context,
 				})
-				const nextExecutionEffects = registeredStepMethod.resolveExecutionEffects?.(
-					executionEffects,
-					params,
-					stepMetadata,
-				) ?? conservativeExecutionEffects
+				const effectsResolution = registeredStepMethod.resolveExecutionEffects
+				const nextExecutionEffects = effectsResolution === PRESERVE_EXECUTION_EFFECTS
+					? executionEffects
+					: effectsResolution === CONSERVATIVE_EXECUTION_EFFECTS || effectsResolution == null
+						? conservativeExecutionEffects
+						: effectsResolution(executionEffects, params, stepMetadata)
 				return createInstance({
 					stepMethods,
 					resolveMessage,

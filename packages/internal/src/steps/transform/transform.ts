@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { conservativeExecutionEffects, withExecutionEffects } from '../../core/execution-effects'
+import { CONSERVATIVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -75,4 +75,4 @@ export const transform = withExecutionEffects(implStepPlugin<PluginDef>({
 			}
 		}, 'maybe-async')
 	},
-}), { transform: () => conservativeExecutionEffects })
+}), { transform: CONSERVATIVE_EXECUTION_EFFECTS })

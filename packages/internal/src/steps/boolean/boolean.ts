@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { withExecutionEffects } from '../../core/execution-effects'
+import { PRESERVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'boolean'
@@ -66,4 +66,4 @@ export const boolean = withExecutionEffects(implStepPlugin<PluginDef>({
 					),
 		)
 	},
-}, 'sync'), { boolean: previous => previous })
+}, 'sync'), { boolean: PRESERVE_EXECUTION_EFFECTS })

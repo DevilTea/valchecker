@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { withExecutionEffects } from '../../core/execution-effects'
+import { PRESERVE_EXECUTION_EFFECTS, withExecutionEffects } from '../../core/execution-effects'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'number'
@@ -67,4 +67,4 @@ export const number = withExecutionEffects(implStepPlugin<PluginDef>({
 			)
 		})
 	},
-}, 'sync'), { number: previous => previous })
+}, 'sync'), { number: PRESERVE_EXECUTION_EFFECTS })
