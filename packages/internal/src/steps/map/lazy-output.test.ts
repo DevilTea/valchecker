@@ -167,6 +167,37 @@ describe('Map lazy output allocation', () => {
 		expect(result.issues[0]).toMatchObject({ path: [0, 'value'] })
 	})
 
+	it('preserves size lookup and overridden forEach call semantics', () => {
+		const input = new Map([['source', 1]])
+		const order: string[] = []
+		Object.defineProperty(input, 'size', {
+			get() {
+				order.push('size')
+				return 1
+			},
+		})
+		const overriddenForEach = (callback: (value: unknown, key: unknown) => void) => {
+			order.push('call')
+			callback(1, 'a')
+		}
+		Object.defineProperty(overriddenForEach, 'call', {
+			value: () => {
+				throw new Error('Function.call must not be observed.')
+			},
+		})
+		Object.defineProperty(input, 'forEach', {
+			get() {
+				order.push('forEach')
+				return overriddenForEach
+			},
+		})
+
+		expect(v.map({ key: v.string(), value: v.number() }).execute(input)).toEqual({
+			value: new Map([['a', 1]]),
+		})
+		expect(order).toEqual(['size', 'forEach', 'call'])
+	})
+
 	it('retains the original executor for an overridden forEach method', () => {
 		const input = new Map([['source', 1]])
 		let getterCalls = 0

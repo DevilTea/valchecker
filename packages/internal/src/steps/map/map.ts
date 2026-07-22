@@ -96,15 +96,18 @@ export const map = implStepPlugin<PluginDef>({
 
 		const snapshotEntries = (
 			value: Map<unknown, unknown>,
+			size: number,
 			forEach: typeof Map.prototype.forEach,
 		): unknown[] => {
 			// eslint-disable-next-line unicorn/no-new-array
-			const entries = new Array<unknown>(value.size * 2)
+			const entries = new Array<unknown>(size * 2)
 			let offset = 0
-			forEach.call(value, (sourceValue, sourceKey) => {
-				entries[offset++] = sourceKey
-				entries[offset++] = sourceValue
-			})
+			Reflect.apply(forEach, value, [
+				(sourceValue: unknown, sourceKey: unknown) => {
+					entries[offset++] = sourceKey
+					entries[offset++] = sourceValue
+				},
+			])
 			return entries
 		}
 
@@ -203,8 +206,9 @@ export const map = implStepPlugin<PluginDef>({
 				}))
 			}
 
+			const size = value.size
 			const forEach = value.forEach
-			const entries = snapshotEntries(value, forEach)
+			const entries = snapshotEntries(value, size, forEach)
 			const entryCount = entries.length / 2
 
 			if (childrenAreSynchronous && forEach === nativeMapForEach) {
