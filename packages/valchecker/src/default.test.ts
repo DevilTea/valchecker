@@ -68,6 +68,12 @@ describe('default valchecker instance', () => {
 					keypress: v.object({ type: v.literal('keypress'), key: v.string() }),
 				},
 			}),
+			website: v.string()
+				.isUrl(),
+			contactEmail: v.string()
+				.isEmail(),
+			token: v.string()
+				.isUuid(),
 		})
 			.execute({
 				name: '  Ada  ',
@@ -89,6 +95,9 @@ describe('default valchecker instance', () => {
 				mappedScoreKeys: new Map([['a', 1], ['b', 2]]),
 				mappedScoreValues: new Map([['a', 1], ['b', 2]]),
 				event: { type: 'click', x: 1, y: 2 },
+				website: 'https://example.com',
+				contactEmail: 'ada@example.com',
+				token: '123e4567-e89b-12d3-a456-426614174000',
 			})
 
 		expect(result)
@@ -113,6 +122,9 @@ describe('default valchecker instance', () => {
 					mappedScoreKeys: new Map([['A', 1], ['B', 2]]),
 					mappedScoreValues: new Map([['a', 2], ['b', 4]]),
 					event: { type: 'click', x: 1, y: 2 },
+					website: 'https://example.com',
+					contactEmail: 'ada@example.com',
+					token: '123e4567-e89b-12d3-a456-426614174000',
 				},
 			})
 	})

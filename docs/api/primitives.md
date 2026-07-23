@@ -203,6 +203,10 @@ A non-`RegExp` value supplied by a JavaScript caller is rejected while construct
 
 **Issue code:** `isMatching:expected_matching`
 
+### String-format validators
+
+Dedicated `isXxx()` validators cover common string formats (`isEmail()`, `isUrl()`, `isUuid()`, `isIp()`, ISO date and time, `isJwt()`, `isEmoji()`, and more), each with its own semantic issue code. See [String formats](./formats.md).
+
 ## Primitive equality and narrowing
 
 ### `isEqualTo(expected, options?)`
