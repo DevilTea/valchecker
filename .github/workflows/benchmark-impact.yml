@@ -14,7 +14,7 @@ on:
       - 'packages/valchecker/src/**'
       - 'packages/all-steps/src/**'
       - 'benchmarks/**'
-      - '.github/workflows/benchmark-impact.yml'
+      - .github/workflows/benchmark-impact.yml
 
 permissions:
   contents: read

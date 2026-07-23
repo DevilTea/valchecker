@@ -38,8 +38,9 @@ function verifyAdapter(adapter) {
 }
 
 for (const adapter of adapters) {
+	// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 	const result = await verifyAdapter(adapter)
-	console.log(
+	console.error(
 		`[benchmark] verified ${result.name} ${result.version}: ${result.verifiedScenarios}/${result.totalScenarios} scenarios (${result.skippedScenarios.length} unsupported)`,
 	)
 }

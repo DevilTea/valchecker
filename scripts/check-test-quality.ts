@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
-import process from 'node:process'
 import { extname, join, relative } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -24,7 +24,8 @@ async function visit(directory: string): Promise<void> {
 			continue
 		}
 
-		const repositoryPath = relative(root, path).replaceAll('\\', '/')
+		const repositoryPath = relative(root, path)
+			.replaceAll('\\', '/')
 		if (/\.(?:test|spec)\.[cm]?[jt]sx?\.(?:bak|old|orig)$/.test(entry.name)) {
 			failures.push(`${repositoryPath}: stale test backup file`)
 			continue

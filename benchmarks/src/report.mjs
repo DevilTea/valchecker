@@ -184,11 +184,14 @@ function validateResult(raw) {
 }
 
 function formatNumber(value, maximumFractionDigits = 0) {
-	return new Intl.NumberFormat('en-US', { maximumFractionDigits }).format(value)
+	return new Intl.NumberFormat('en-US', { maximumFractionDigits })
+		.format(value)
 }
 
 function markdownCell(value) {
-	return String(value).replaceAll('|', '\\|').replaceAll('\n', ' ')
+	return String(value)
+		.replaceAll('|', '\\|')
+		.replaceAll('\n', ' ')
 }
 
 function htmlEscape(value) {
@@ -197,7 +200,7 @@ function htmlEscape(value) {
 		.replaceAll('<', '&lt;')
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&#39;')
+		.replaceAll('\'', '&#39;')
 }
 
 function scenarioRows(raw, scenario) {
@@ -211,7 +214,8 @@ function scenarioRows(raw, scenario) {
 					version: library.version,
 					...result,
 				}]
-	}).sort((left, right) => right.medianOpsPerSecond - left.medianOpsPerSecond)
+	})
+		.sort((left, right) => right.medianOpsPerSecond - left.medianOpsPerSecond)
 
 	if (rows.length === 0)
 		throw new Error(`No adapter measured scenario ${scenario.id}`)
@@ -263,7 +267,8 @@ function renderMarkdown(raw) {
 		'',
 		'| Field | Value |',
 		'| --- | --- |',
-		...metadataRows(raw).map(([field, value]) => `| ${markdownCell(field)} | ${markdownCell(value)} |`),
+		...metadataRows(raw)
+			.map(([field, value]) => `| ${markdownCell(field)} | ${markdownCell(value)} |`),
 		'',
 		'## Results',
 		'',
@@ -293,7 +298,8 @@ function renderMarkdown(raw) {
 		)
 		if (skipped.length > 0) {
 			lines.push(
-				`Not ranked: ${skipped.map(item => `${markdownCell(item.library)} — ${markdownCell(item.reason)}`).join('; ')}`,
+				`Not ranked: ${skipped.map(item => `${markdownCell(item.library)} — ${markdownCell(item.reason)}`)
+					.join('; ')}`,
 				'',
 			)
 		}
@@ -319,13 +325,16 @@ function renderHtml(raw) {
 		.join('')
 	const sections = raw.scenarioCatalog.map((scenario) => {
 		const rows = scenarioRows(raw, scenario)
-		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}</td><td>${htmlEscape(row.library)}</td><td>${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td><td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : ''}</td></tr>`).join('')
+		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}</td><td>${htmlEscape(row.library)}</td><td>${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td><td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : ''}</td></tr>`)
+			.join('')
 		const skipped = skippedRows(raw, scenario)
 		const skippedText = skipped.length === 0
 			? ''
-			: `<p><strong>Not ranked:</strong> ${skipped.map(item => `${htmlEscape(item.library)} — ${htmlEscape(item.reason)}`).join('; ')}</p>`
+			: `<p><strong>Not ranked:</strong> ${skipped.map(item => `${htmlEscape(item.library)} — ${htmlEscape(item.reason)}`)
+				.join('; ')}</p>`
 		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Library</th><th>Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th><th>vs Valchecker</th><th>RME</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
-	}).join('')
+	})
+		.join('')
 
 	return `<!doctype html>
 <html lang="en">
@@ -351,13 +360,16 @@ ${sections}
 }
 
 const options = parseArguments(process.argv.slice(2))
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 const raw = validateResult(JSON.parse(await readFile(options.input, 'utf8')))
 const markdown = renderMarkdown(raw)
 const html = renderHtml(raw)
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await Promise.all([
 	mkdir(dirname(options.markdown), { recursive: true }),
 	mkdir(dirname(options.html), { recursive: true }),
 ])
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await Promise.all([
 	writeFile(options.markdown, markdown),
 	writeFile(options.html, html),

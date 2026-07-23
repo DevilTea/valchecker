@@ -48,12 +48,18 @@ function run(script, args) {
 
 const options = parseArguments(process.argv.slice(2))
 run(detailedReporter, [
-	'--input', options.input,
-	'--markdown', options.markdown,
-	'--html', options.html,
+	'--input',
+	options.input,
+	'--markdown',
+	options.markdown,
+	'--html',
+	options.html,
 ])
 run(conciseReporter, [
-	'--input', options.input,
-	'--markdown', join(dirname(options.markdown), 'summary.md'),
-	'--html', join(dirname(options.html), 'summary.html'),
+	'--input',
+	options.input,
+	'--markdown',
+	join(dirname(options.markdown), 'summary.md'),
+	'--html',
+	join(dirname(options.html), 'summary.html'),
 ])

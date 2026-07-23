@@ -95,7 +95,8 @@ function parseVersion(version: string): number[] {
 	const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version)
 	if (!match)
 		throw new Error(`Unable to parse version: ${version}`)
-	return match.slice(1).map(Number)
+	return match.slice(1)
+		.map(Number)
 }
 
 function isAtLeast(actual: number[], minimum: readonly number[]): boolean {
@@ -147,7 +148,9 @@ function resolvePreparedTarball(path: string): string {
 }
 
 async function sha256(path: string): Promise<string> {
-	return createHash('sha256').update(await readFile(path)).digest('hex')
+	return createHash('sha256')
+		.update(await readFile(path))
+		.digest('hex')
 }
 
 async function main(): Promise<void> {

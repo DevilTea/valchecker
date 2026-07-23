@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 
 const root = resolve(import.meta.dirname, '..')
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 const repositoryUrl = 'git+https://github.com/DevilTea/valchecker.git'
-const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/
+const semverPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-([0-9A-Z-]+(?:\.[0-9A-Z-]+)*))?(?:\+[0-9A-Z-]+(?:\.[0-9A-Z-]+)*)?$/i
 
 interface PackageDefinition {
 	name: string
@@ -132,7 +132,7 @@ function assertValidSemver(value: unknown, path: string): asserts value is strin
 	const match = semverPattern.exec(value)
 	if (!match)
 		throw new Error(`${path} is not valid semver: ${value}`)
-	const prerelease = match[4]
+	const prerelease = match[1]
 	if (prerelease) {
 		for (const identifier of prerelease.split('.')) {
 			if (/^\d+$/.test(identifier) && identifier.length > 1 && identifier.startsWith('0'))
@@ -181,7 +181,9 @@ function assertPackageManifest(
 }
 
 async function sha256(path: string): Promise<string> {
-	return createHash('sha256').update(await readFile(path)).digest('hex')
+	return createHash('sha256')
+		.update(await readFile(path))
+		.digest('hex')
 }
 
 async function packPackage(definition: PackageDefinition, output: string): Promise<string> {
@@ -262,7 +264,9 @@ async function main(): Promise<void> {
 			name: definition.name,
 			version,
 			directory: definition.directory,
-			tarball: relative(root, tarball).split(sep).join('/'),
+			tarball: relative(root, tarball)
+				.split(sep)
+				.join('/'),
 			sha256: await sha256(tarball),
 			size: (await stat(tarball)).size,
 		})

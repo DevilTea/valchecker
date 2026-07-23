@@ -25,8 +25,10 @@ function canonicalizeOutput(value) {
 		return { type: 'Set', values: [...value].map(canonicalizeOutput) }
 	if (Array.isArray(value))
 		return value.map(canonicalizeOutput)
-	if (value != null && typeof value === 'object')
-		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, canonicalizeOutput(item)]))
+	if (value != null && typeof value === 'object') {
+		return Object.fromEntries(Object.entries(value)
+			.map(([key, item]) => [key, canonicalizeOutput(item)]))
+	}
 	return value
 }
 
@@ -280,14 +282,15 @@ export function getScenarios(mode) {
 }
 
 export function getScenarioCatalog(mode) {
-	return getScenarios(mode).map(scenario => ({
-		id: scenario.id,
-		category: scenario.category,
-		tier: scenario.tier,
-		group: scenario.group,
-		resultKind: scenario.resultKind,
-		issuePolicy: scenario.issuePolicy,
-		comparisonScope: scenario.comparisonScope,
-		diagnosticIssueCount: scenario.diagnosticIssueCount,
-	}))
+	return getScenarios(mode)
+		.map(scenario => ({
+			id: scenario.id,
+			category: scenario.category,
+			tier: scenario.tier,
+			group: scenario.group,
+			resultKind: scenario.resultKind,
+			issuePolicy: scenario.issuePolicy,
+			comparisonScope: scenario.comparisonScope,
+			diagnosticIssueCount: scenario.diagnosticIssueCount,
+		}))
 }

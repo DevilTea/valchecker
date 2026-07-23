@@ -2,7 +2,7 @@ import { access, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
-const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/
+const semverPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-([0-9A-Z-]+(?:\.[0-9A-Z-]+)*))?(?:\+[0-9A-Z-]+(?:\.[0-9A-Z-]+)*)?$/i
 
 interface ReleasePlan {
 	schemaVersion: unknown
@@ -71,7 +71,7 @@ function assertValidSemver(value: unknown, path: string): asserts value is strin
 	const match = semverPattern.exec(value)
 	if (!match)
 		throw new Error(`${path} is not valid semver: ${value}`)
-	const prerelease = match[4]
+	const prerelease = match[1]
 	if (prerelease) {
 		for (const identifier of prerelease.split('.')) {
 			if (/^\d+$/.test(identifier) && identifier.length > 1 && identifier.startsWith('0'))
@@ -100,7 +100,7 @@ function workflowTriggers(workflow: string): string[] {
 	for (const line of lines.slice(onIndex + 1)) {
 		if (line.length > 0 && !line.startsWith(' '))
 			break
-		const match = /^  ([A-Za-z_][A-Za-z0-9_-]*):(?:\s|$)/.exec(line)
+		const match = /^ {2}([A-Z_][\w-]*):(?:\s|$)/i.exec(line)
 		if (match)
 			triggers.push(match[1]!)
 	}

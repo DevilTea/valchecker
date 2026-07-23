@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
@@ -69,7 +69,9 @@ async function listFiles(directory: string): Promise<string[]> {
 }
 
 function toFileSpecifier(from: string, target: string): string {
-	const path = relative(from, target).split(sep).join('/')
+	const path = relative(from, target)
+		.split(sep)
+		.join('/')
 	return `file:${path.startsWith('.') ? path : `./${path}`}`
 }
 

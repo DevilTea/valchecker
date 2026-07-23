@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -5,7 +6,7 @@ import { cpus, platform, release } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib'
 import { rollup, VERSION as rollupVersion } from 'rollup'
 import { minify } from 'terser'
 
@@ -46,21 +47,25 @@ function packageVersion(specifier, expectedName = specifier) {
 	}
 }
 
-const size = code => ({
-	rawBytes: Buffer.byteLength(code),
-	gzipBytes: gzipSync(code, { level: 9 }).byteLength,
-	brotliBytes: brotliCompressSync(code, {
-		params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11 },
-	}).byteLength,
-})
+function size(code) {
+	return {
+		rawBytes: Buffer.byteLength(code),
+		gzipBytes: gzipSync(code, { level: 9 }).byteLength,
+		brotliBytes: brotliCompressSync(code, {
+			params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11 },
+		}).byteLength,
+	}
+}
 const bytes = value => value < 1024 ? `${value} B` : `${(value / 1024).toFixed(2)} KiB`
 const percent = value => `${(value * 100).toFixed(1)}%`
-const html = value => String(value)
-	.replaceAll('&', '&amp;')
-	.replaceAll('<', '&lt;')
-	.replaceAll('>', '&gt;')
-	.replaceAll('"', '&quot;')
-	.replaceAll("'", '&#039;')
+function html(value) {
+	return String(value)
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll('\'', '&#039;')
+}
 
 function resolver(entryCode) {
 	return {
@@ -88,15 +93,17 @@ function resolver(entryCode) {
 	}
 }
 
-const scenario = (id, library, mode, group, code, { forbiddenMarkers = [], requiredMarkers = [] } = {}) => ({
-	id,
-	library,
-	mode,
-	group,
-	code,
-	forbiddenMarkers,
-	requiredMarkers,
-})
+function scenario(id, library, mode, group, code, { forbiddenMarkers = [], requiredMarkers = [] } = {}) {
+	return {
+		id,
+		library,
+		mode,
+		group,
+		code,
+		forbiddenMarkers,
+		requiredMarkers,
+	}
+}
 const scenarios = [
 	scenario('valchecker-selective-string', 'Valchecker', 'Selective chain', 'Minimal string pipeline', `
 import { createValchecker, isLengthAtLeast, string, toTrimmed } from 'valchecker'
@@ -337,13 +344,13 @@ async function bundleScenario(item, output) {
 	}
 }
 
-const byId = (results, id) => {
+function byId(results, id) {
 	const result = results.find(value => value.id === id)
 	if (!result)
 		throw new Error(`Missing scenario result: ${id}`)
 	return result
 }
-const comparison = (subject, reference, label) => {
+function comparison(subject, reference, label) {
 	const difference = subject.brotliBytes / reference.brotliBytes - 1
 	return {
 		difference,
@@ -420,13 +427,16 @@ function analyze(results) {
 }
 
 function table(results) {
-	const rows = results.map(result => `| ${result.library} | ${result.mode} | ${bytes(result.rawBytes)} | ${bytes(result.gzipBytes)} | ${bytes(result.brotliBytes)} |`).join('\n')
+	const rows = results.map(result => `| ${result.library} | ${result.mode} | ${bytes(result.rawBytes)} | ${bytes(result.gzipBytes)} | ${bytes(result.brotliBytes)} |`)
+		.join('\n')
 	return `| Library | API mode | Minified | Gzip | Brotli |\n| --- | --- | ---: | ---: | ---: |\n${rows}`
 }
 
 function markdown(report, concise = false) {
-	const checks = report.analysis.checks.map(check => `- ${check.passed ? 'PASS' : 'WARN'} — ${check.name}: **${check.value}**`).join('\n')
-	const findings = report.analysis.findings.map(value => `- ${value}`).join('\n')
+	const checks = report.analysis.checks.map(check => `- ${check.passed ? 'PASS' : 'WARN'} — ${check.name}: **${check.value}**`)
+		.join('\n')
+	const findings = report.analysis.findings.map(value => `- ${value}`)
+		.join('\n')
 	const headline = report.analysis.status === 'healthy'
 		? 'Selective Valchecker builds show a material tree-shaking benefit.'
 		: 'The current selective-build signal is weaker than the report thresholds and needs investigation.'
@@ -434,13 +444,14 @@ function markdown(report, concise = false) {
 	const body = concise
 		? table(report.results.filter(result => result.group === 'Minimal string pipeline'))
 		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Variant isolation', 'Map and Set isolation', 'Collection capability isolation', 'Collection representation isolation', 'Collection callback isolation', 'Full-library reference']
-			.map(group => `## ${group}\n\n${table(report.results.filter(result => result.group === group))}`)
-			.join('\n\n')
+				.map(group => `## ${group}\n\n${table(report.results.filter(result => result.group === group))}`)
+				.join('\n\n')
 	return `# Tree-shaking ${concise ? 'summary' : 'report'}\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${body}\n\n${context}\n`
 }
 
 function htmlReport(report) {
-	const rows = report.results.map(result => `<tr><td>${html(result.library)}</td><td>${html(result.mode)}</td><td>${bytes(result.rawBytes)}</td><td>${bytes(result.gzipBytes)}</td><td>${bytes(result.brotliBytes)}</td></tr>`).join('')
+	const rows = report.results.map(result => `<tr><td>${html(result.library)}</td><td>${html(result.mode)}</td><td>${bytes(result.rawBytes)}</td><td>${bytes(result.gzipBytes)}</td><td>${bytes(result.brotliBytes)}</td></tr>`)
+		.join('')
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Valchecker tree-shaking report</title></head><body><h1>Tree-shaking report</h1><p>Status: <strong>${html(report.analysis.status)}</strong></p><table><thead><tr><th>Library</th><th>API mode</th><th>Minified</th><th>Gzip</th><th>Brotli</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
 }
 
@@ -453,7 +464,8 @@ async function main() {
 		results.push(await bundleScenario(item, output))
 	const packageData = JSON.parse(await readFile(resolve(repoRoot, 'packages/valchecker/package.json'), 'utf8'))
 	const report = {
-		generatedAt: new Date().toISOString(),
+		generatedAt: new Date()
+			.toISOString(),
 		commit: process.env.REPORT_COMMIT ?? process.env.GITHUB_SHA ?? null,
 		environment: {
 			node: process.version,
@@ -477,12 +489,13 @@ async function main() {
 		writeFile(join(output, 'report.md'), markdown(report)),
 		writeFile(join(output, 'report.html'), htmlReport(report)),
 	])
-	console.log(markdown(report, true))
+	process.stdout.write(`${markdown(report, true)}\n`)
 	if (report.analysis.status !== 'healthy')
 		process.exitCode = 1
 }
 
-main().catch((error) => {
-	console.error(error)
-	process.exitCode = 1
-})
+main()
+	.catch((error) => {
+		console.error(error)
+		process.exitCode = 1
+	})

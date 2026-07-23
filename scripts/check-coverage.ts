@@ -33,7 +33,9 @@ export async function checkPerFileCoverage(): Promise<boolean> {
 		if (filename === 'total')
 			continue
 
-		const path = relative(root, filename).split(sep).join('/')
+		const path = relative(root, filename)
+			.split(sep)
+			.join('/')
 		const { name, thresholds } = resolvePerFileThresholds(path)
 		for (const metric of ['lines', 'statements', 'functions', 'branches'] as const) {
 			const result = coverage[metric]

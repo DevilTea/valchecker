@@ -13,7 +13,7 @@ const errorPath = resolve(artifactDirectory, 'api-surface.error.txt')
 const packages = {
 	'@valchecker/internal': resolve(root, 'packages/internal/dist/index'),
 	'@valchecker/all-steps': resolve(root, 'packages/all-steps/dist/index'),
-	valchecker: resolve(root, 'packages/valchecker/dist/index'),
+	'valchecker': resolve(root, 'packages/valchecker/dist/index'),
 } as const
 
 interface PackageSurface {
@@ -65,14 +65,15 @@ function getDeclarationSurface(declarationPath: string): Pick<PackageSurface, 'd
 }
 
 async function getApiSurface(): Promise<ApiSurface> {
-	const entries = await Promise.all(Object.entries(packages).map(async ([name, entry]) => {
-		const module = await import(pathToFileURL(`${entry}.mjs`).href)
-		const declarations = getDeclarationSurface(`${entry}.d.mts`)
-		return [name, {
-			runtime: sortNames(Object.keys(module)),
-			...declarations,
-		}] as const
-	}))
+	const entries = await Promise.all(Object.entries(packages)
+		.map(async ([name, entry]) => {
+			const module = await import(pathToFileURL(`${entry}.mjs`).href)
+			const declarations = getDeclarationSurface(`${entry}.d.mts`)
+			return [name, {
+				runtime: sortNames(Object.keys(module)),
+				...declarations,
+			}] as const
+		}))
 
 	return Object.fromEntries(entries) as ApiSurface
 }

@@ -1,17 +1,23 @@
-const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
 export function createZodAdapter(z, name, version) {
 	const createFields = () => ({
 		id: z.string(),
 		name: z.string(),
-		age: z.number().int().min(0),
+		age: z.number()
+			.int()
+			.min(0),
 		active: z.boolean(),
 		role: z.literal('admin'),
-		email: z.string().regex(emailPattern),
+		email: z.string()
+			.regex(emailPattern),
 		score: z.number(),
 		verified: z.boolean(),
-		nickname: z.string().optional(),
-		attempts: z.number().int().min(0),
+		nickname: z.string()
+			.optional(),
+		attempts: z.number()
+			.int()
+			.min(0),
 	})
 
 	const createRecord = () => z.object({
@@ -23,20 +29,35 @@ export function createZodAdapter(z, name, version) {
 	const createOptionalFields = () => ({
 		id: z.string(),
 		enabled: z.boolean(),
-		name: z.string().optional(),
-		region: z.string().optional(),
-		retries: z.number().int().optional(),
-		timeout: z.number().optional(),
-		endpoint: z.string().optional(),
-		cache: z.boolean().optional(),
-		debug: z.boolean().optional(),
-		owner: z.string().optional(),
-		team: z.string().optional(),
-		description: z.string().optional(),
-		priority: z.number().optional(),
-		batchSize: z.number().optional(),
-		parallelism: z.number().optional(),
-		tag: z.string().optional(),
+		name: z.string()
+			.optional(),
+		region: z.string()
+			.optional(),
+		retries: z.number()
+			.int()
+			.optional(),
+		timeout: z.number()
+			.optional(),
+		endpoint: z.string()
+			.optional(),
+		cache: z.boolean()
+			.optional(),
+		debug: z.boolean()
+			.optional(),
+		owner: z.string()
+			.optional(),
+		team: z.string()
+			.optional(),
+		description: z.string()
+			.optional(),
+		priority: z.number()
+			.optional(),
+		batchSize: z.number()
+			.optional(),
+		parallelism: z.number()
+			.optional(),
+		tag: z.string()
+			.optional(),
 	})
 
 	const issuePolicyFields = () => ({
@@ -51,18 +72,24 @@ export function createZodAdapter(z, name, version) {
 			issuePolicies: ['all'],
 		},
 		build: {
-			primitive: () => z.string().min(3).max(32).regex(/^[a-z0-9-]+$/),
+			primitive: () => z.string()
+				.min(3)
+				.max(32)
+				.regex(/^[a-z0-9-]+$/),
 			flatObject: () => z.object(createFields()),
-			strictFlatObject: () => z.object(createFields()).strict(),
+			strictFlatObject: () => z.object(createFields())
+				.strict(),
 			nestedObject: () => z.object({
 				id: z.string(),
 				user: z.object({
 					profile: z.object({
 						name: z.string(),
-						email: z.string().regex(emailPattern),
+						email: z.string()
+							.regex(emailPattern),
 						address: z.object({
 							city: z.string(),
-							country: z.string().length(2),
+							country: z.string()
+								.length(2),
 							postalCode: z.string(),
 						}),
 					}),
@@ -89,8 +116,10 @@ export function createZodAdapter(z, name, version) {
 				.transform(value => `user:${value}`),
 			optionalHeavy: () => z.object(createOptionalFields()),
 			issuePolicyObject: () => z.object(issuePolicyFields()),
-			issuePolicyStrictObject: () => z.object(issuePolicyFields()).strict(),
-			issuePolicyLooseObject: () => z.object(issuePolicyFields()).passthrough(),
+			issuePolicyStrictObject: () => z.object(issuePolicyFields())
+				.strict(),
+			issuePolicyLooseObject: () => z.object(issuePolicyFields())
+				.passthrough(),
 			issuePolicyArray: () => z.array(z.string()),
 			issuePolicySet: () => z.set(z.string()),
 			issuePolicyMap: () => z.map(z.string(), z.number()),

@@ -1,45 +1,60 @@
+import process from 'node:process'
+
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 const { v } = await import(valcheckerUrl)
 
-const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
-const createFields = () => ({
-	id: v.string(),
-	name: v.string(),
-	age: v.number().isInteger().isAtLeast(0),
-	active: v.boolean(),
-	role: v.literal('admin'),
-	email: v.string().check(value => emailPattern.test(value)),
-	score: v.number(),
-	verified: v.boolean(),
-	nickname: [v.string()],
-	attempts: v.number().isInteger().isAtLeast(0),
-})
+function createFields() {
+	return {
+		id: v.string(),
+		name: v.string(),
+		age: v.number()
+			.isInteger()
+			.isAtLeast(0),
+		active: v.boolean(),
+		role: v.literal('admin'),
+		email: v.string()
+			.check(value => emailPattern.test(value)),
+		score: v.number(),
+		verified: v.boolean(),
+		nickname: [v.string()],
+		attempts: v.number()
+			.isInteger()
+			.isAtLeast(0),
+	}
+}
 
-const createOptionalFields = () => ({
-	id: v.string(),
-	enabled: v.boolean(),
-	name: [v.string()],
-	region: [v.string()],
-	retries: [v.number().isInteger()],
-	timeout: [v.number()],
-	endpoint: [v.string()],
-	cache: [v.boolean()],
-	debug: [v.boolean()],
-	owner: [v.string()],
-	team: [v.string()],
-	description: [v.string()],
-	priority: [v.number()],
-	batchSize: [v.number()],
-	parallelism: [v.number()],
-	tag: [v.string()],
-})
+function createOptionalFields() {
+	return {
+		id: v.string(),
+		enabled: v.boolean(),
+		name: [v.string()],
+		region: [v.string()],
+		retries: [v.number()
+			.isInteger()],
+		timeout: [v.number()],
+		endpoint: [v.string()],
+		cache: [v.boolean()],
+		debug: [v.boolean()],
+		owner: [v.string()],
+		team: [v.string()],
+		description: [v.string()],
+		priority: [v.number()],
+		batchSize: [v.number()],
+		parallelism: [v.number()],
+		tag: [v.string()],
+	}
+}
 
-const issuePolicyFields = () => ({
-	first: v.string(),
-	second: v.string(),
-})
+function issuePolicyFields() {
+	return {
+		first: v.string(),
+		second: v.string(),
+	}
+}
 
 function structuralOptions(context) {
 	return context?.issuePolicy === 'all'
@@ -71,10 +86,12 @@ export default {
 			user: v.object({
 				profile: v.object({
 					name: v.string(),
-					email: v.string().check(value => emailPattern.test(value)),
+					email: v.string()
+						.check(value => emailPattern.test(value)),
 					address: v.object({
 						city: v.string(),
-						country: v.string().check(value => value.length === 2),
+						country: v.string()
+							.check(value => value.length === 2),
 						postalCode: v.string(),
 					}),
 				}),

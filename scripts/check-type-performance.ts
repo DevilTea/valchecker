@@ -33,16 +33,22 @@ function createFixture(): string {
 		if (index % 3 === 1)
 			return `field${index}: v.number().isFinite().isInteger()`
 		return `field${index}: v.boolean()`
-	}).join(',\n\t')
-	const optionalFields = Array.from({ length: 40 }, (_, index) => `optional${index}: [v.string().toLowercase()]`).join(',\n\t')
-	const unionBranches = Array.from({ length: 40 }, (_, index) => `'status-${index}'`).join(', ')
+	})
+		.join(',\n\t')
+	const optionalFields = Array.from({ length: 40 }, (_, index) => `optional${index}: [v.string().toLowercase()]`)
+		.join(',\n\t')
+	const unionBranches = Array.from({ length: 40 }, (_, index) => `'status-${index}'`)
+		.join(', ')
 	const variants = Array.from({ length: 30 }, (_, index) => `
 		variant${index}: v.object({
 			type: v.literal('variant${index}'),
 			value: v.number().isFinite(),
 			label: [v.string().toTrimmed()],
-		}),`).join('')
-	const chain = Array.from({ length: 12 }, () => '.toTrimmed().toLowercase().isLengthAtLeast(1).isLengthAtMost(256)').join('')
+		}),`)
+		.join('')
+	const chain = Array.from({ length: 12 })
+		.fill('.toTrimmed().toLowercase().isLengthAtLeast(1).isLengthAtMost(256)')
+		.join('')
 	let nested = 'v.string().toTrimmed()'
 	for (let index = 0; index < 12; index++)
 		nested = `v.object({ level${index}: ${nested}, optional${index}: [v.number().isFinite()] })`
@@ -95,7 +101,7 @@ function createTsconfig(): string {
 			skipLibCheck: true,
 			baseUrl: '../../..',
 			paths: {
-				valchecker: ['packages/valchecker/dist/index.d.mts'],
+				'valchecker': ['packages/valchecker/dist/index.d.mts'],
 				'@valchecker/all-steps': ['packages/all-steps/dist/index.d.mts'],
 				'@valchecker/internal': ['packages/internal/dist/index.d.mts'],
 			},
@@ -143,7 +149,13 @@ function markdown(metrics: TypePerformanceMetrics, budget: TypePerformanceBudget
 		['Total time', `${metrics.totalSeconds.toFixed(2)} s`, 'report only'],
 	]
 	const status = failures.length === 0 ? 'passed' : 'failed'
-	return `# Type performance\n\n**${status.toUpperCase()}** with TypeScript ${typescript}.\n\n| Metric | Observed | Budget |\n| --- | ---: | ---: |\n${rows.map(row => `| ${row.join(' | ')} |`).join('\n')}\n\n${budget == null ? 'No committed budget exists yet. Commit the generated metrics as the initial reviewed baseline before marking this pull request ready.\n' : failures.length === 0 ? 'All deterministic compiler-complexity metrics are within budget. Wall-clock timings are reported but intentionally not gated on shared runners.\n' : `## Regressions\n\n${failures.map(failure => `- ${failure}`).join('\n')}\n`}\n`
+	return `# Type performance\n\n**${status.toUpperCase()}** with TypeScript ${typescript}.\n\n| Metric | Observed | Budget |\n| --- | ---: | ---: |\n${rows.map(row => `| ${row.join(' | ')} |`)
+		.join('\n')}\n\n${budget == null
+		? 'No committed budget exists yet. Commit the generated metrics as the initial reviewed baseline before marking this pull request ready.\n'
+		: failures.length === 0
+			? 'All deterministic compiler-complexity metrics are within budget. Wall-clock timings are reported but intentionally not gated on shared runners.\n'
+			: `## Regressions\n\n${failures.map(failure => `- ${failure}`)
+				.join('\n')}\n`}\n`
 }
 
 await rm(generatedRoot, { force: true, recursive: true })
@@ -175,7 +187,10 @@ if (result.error != null) {
 	process.exitCode = 1
 }
 else if (result.status !== 0) {
-	const diagnosticPreview = output.split(/\r?\n/).filter(Boolean).slice(0, 40).join('\n')
+	const diagnosticPreview = output.split(/\r?\n/)
+		.filter(Boolean)
+		.slice(0, 40)
+		.join('\n')
 	await writeFile(summaryPath, `# Type performance\n\n**FAILED** while compiling the generated fixture with TypeScript ${typescriptPackage.version}.\n\nSee \`compiler-output.log\` for complete diagnostics.\n\n\`\`\`text\n${diagnosticPreview}\n\`\`\`\n`)
 	process.stderr.write(output)
 	process.exitCode = result.status ?? 1

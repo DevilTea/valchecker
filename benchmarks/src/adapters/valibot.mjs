@@ -1,45 +1,51 @@
 import * as v from 'valibot'
 
-const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 const integer = () => v.pipe(v.number(), v.integer())
 const nonNegativeInteger = () => v.pipe(v.number(), v.integer(), v.minValue(0))
 
-const createFields = () => ({
-	id: v.string(),
-	name: v.string(),
-	age: nonNegativeInteger(),
-	active: v.boolean(),
-	role: v.literal('admin'),
-	email: v.pipe(v.string(), v.regex(emailPattern)),
-	score: v.number(),
-	verified: v.boolean(),
-	nickname: v.optional(v.string()),
-	attempts: nonNegativeInteger(),
-})
+function createFields() {
+	return {
+		id: v.string(),
+		name: v.string(),
+		age: nonNegativeInteger(),
+		active: v.boolean(),
+		role: v.literal('admin'),
+		email: v.pipe(v.string(), v.regex(emailPattern)),
+		score: v.number(),
+		verified: v.boolean(),
+		nickname: v.optional(v.string()),
+		attempts: nonNegativeInteger(),
+	}
+}
 
-const createOptionalFields = () => ({
-	id: v.string(),
-	enabled: v.boolean(),
-	name: v.optional(v.string()),
-	region: v.optional(v.string()),
-	retries: v.optional(integer()),
-	timeout: v.optional(v.number()),
-	endpoint: v.optional(v.string()),
-	cache: v.optional(v.boolean()),
-	debug: v.optional(v.boolean()),
-	owner: v.optional(v.string()),
-	team: v.optional(v.string()),
-	description: v.optional(v.string()),
-	priority: v.optional(v.number()),
-	batchSize: v.optional(v.number()),
-	parallelism: v.optional(v.number()),
-	tag: v.optional(v.string()),
-})
+function createOptionalFields() {
+	return {
+		id: v.string(),
+		enabled: v.boolean(),
+		name: v.optional(v.string()),
+		region: v.optional(v.string()),
+		retries: v.optional(integer()),
+		timeout: v.optional(v.number()),
+		endpoint: v.optional(v.string()),
+		cache: v.optional(v.boolean()),
+		debug: v.optional(v.boolean()),
+		owner: v.optional(v.string()),
+		team: v.optional(v.string()),
+		description: v.optional(v.string()),
+		priority: v.optional(v.number()),
+		batchSize: v.optional(v.number()),
+		parallelism: v.optional(v.number()),
+		tag: v.optional(v.string()),
+	}
+}
 
-const issuePolicyFields = () => ({
-	first: v.string(),
-	second: v.string(),
-})
+function issuePolicyFields() {
+	return {
+		first: v.string(),
+		second: v.string(),
+	}
+}
 
 export default {
 	name: 'Valibot',

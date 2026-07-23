@@ -150,7 +150,9 @@ function formatDelta(value) {
 }
 
 function markdownCell(value) {
-	return String(value).replaceAll('|', '\\|').replaceAll('\n', ' ')
+	return String(value)
+		.replaceAll('|', '\\|')
+		.replaceAll('\n', ' ')
 }
 
 function htmlEscape(value) {
@@ -159,7 +161,7 @@ function htmlEscape(value) {
 		.replaceAll('<', '&lt;')
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&#39;')
+		.replaceAll('\'', '&#39;')
 }
 
 function compareResults(baseline, candidate) {
@@ -290,7 +292,9 @@ function renderMarkdown(result) {
 		'| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
 	)
 	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta)) {
-		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps).toLocaleString('en-US')} | ${Math.round(row.candidateOps).toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
+		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps)
+			.toLocaleString('en-US')} | ${Math.round(row.candidateOps)
+			.toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
 	}
 
 	lines.push(
@@ -310,20 +314,31 @@ function renderMarkdown(result) {
 }
 
 function renderHtml(result) {
-	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`).join('')
-	const rows = [...result.rows].sort((left, right) => left.delta - right.delta).map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps).toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps).toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`).join('')
+	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`)
+		.join('')
+	const rows = [...result.rows].sort((left, right) => left.delta - right.delta)
+		.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps)
+			.toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps)
+			.toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`)
+		.join('')
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline}</p><h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))
-const baselineRaw = await Promise.all(options.baseline.map(path => readFile(path, 'utf8').then(JSON.parse)))
-const candidateRaw = await Promise.all(options.candidate.map(path => readFile(path, 'utf8').then(JSON.parse)))
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
+const baselineRaw = await Promise.all(options.baseline.map(path => readFile(path, 'utf8')
+	.then(JSON.parse)))
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
+const candidateRaw = await Promise.all(options.candidate.map(path => readFile(path, 'utf8')
+	.then(JSON.parse)))
 const result = compareResults(aggregateRuns(baselineRaw, 'baseline'), aggregateRuns(candidateRaw, 'candidate'))
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await Promise.all([
 	mkdir(dirname(options.markdown), { recursive: true }),
 	mkdir(dirname(options.json), { recursive: true }),
 	mkdir(dirname(options.html), { recursive: true }),
 ])
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await Promise.all([
 	writeFile(options.markdown, renderMarkdown(result)),
 	writeFile(options.json, `${JSON.stringify(result, null, 2)}\n`),

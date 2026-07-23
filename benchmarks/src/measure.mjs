@@ -1,3 +1,5 @@
+import process from 'node:process'
+
 const profiles = {
 	smoke: {
 		warmupMs: 20,
@@ -16,6 +18,7 @@ const profiles = {
 	},
 }
 
+// eslint-disable-next-line no-unused-vars, unused-imports/no-unused-vars -- write-only sink: assigning each result prevents V8 from dead-code-eliminating the benchmarked operation
 let sink
 
 function executeFor(operation, durationMs) {

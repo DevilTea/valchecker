@@ -14,11 +14,13 @@ interface VitestRun {
 }
 
 function printTail(output: string): void {
-	const lines = output.trimEnd().split(/\r?\n/)
+	const lines = output.trimEnd()
+		.split(/\r?\n/)
 	const omitted = Math.max(0, lines.length - retainedLogLines)
 	if (omitted > 0)
 		console.log(`[coverage] omitted ${omitted} earlier Vitest log lines`)
-	console.log(lines.slice(-retainedLogLines).join('\n'))
+	console.log(lines.slice(-retainedLogLines)
+		.join('\n'))
 }
 
 function runVitest(): Promise<VitestRun> {

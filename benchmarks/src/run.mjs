@@ -31,7 +31,9 @@ function parseArguments(argv) {
 			index++
 		}
 		else if (argument === '--adapters' && value) {
-			options.adapters = value.split(',').map(adapter => adapter.trim()).filter(Boolean)
+			options.adapters = value.split(',')
+				.map(adapter => adapter.trim())
+				.filter(Boolean)
 			index++
 		}
 		else if (argument === '--seed' && value) {
@@ -113,11 +115,13 @@ function runWorker(adapter, mode) {
 
 const options = parseArguments(process.argv.slice(2))
 const order = shuffle(options.adapters, options.seed)
-const startedAt = new Date().toISOString()
+const startedAt = new Date()
+	.toISOString()
 const libraries = []
 
 for (const adapter of order) {
 	console.error(`[benchmark] running ${adapter} (${options.mode})`)
+	// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 	libraries.push(await runWorker(adapter, options.mode))
 }
 
@@ -126,7 +130,8 @@ const result = {
 	mode: options.mode,
 	seed: options.seed,
 	startedAt,
-	completedAt: new Date().toISOString(),
+	completedAt: new Date()
+		.toISOString(),
 	profile: getProfile(options.mode),
 	environment: {
 		node: process.version,
@@ -145,6 +150,8 @@ const result = {
 	libraries,
 }
 
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await mkdir(dirname(options.output), { recursive: true })
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await writeFile(options.output, `${JSON.stringify(result, null, 2)}\n`)
 console.error(`[benchmark] wrote ${options.output}`)

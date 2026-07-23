@@ -1,7 +1,7 @@
 {
 	"name": "valchecker-cross-library-benchmarks",
-	"private": true,
 	"type": "module",
+	"private": true,
 	"packageManager": "pnpm@10.34.4",
 	"engines": {
 		"node": ">=22"

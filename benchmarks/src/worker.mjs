@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { measure } from './measure.mjs'
 import { getScenarios } from './scenarios.mjs'
 
@@ -6,11 +7,11 @@ const mode = process.argv[3] ?? 'standard'
 const action = process.argv[4] ?? 'measure'
 
 const adapterPaths = {
-	valchecker: './adapters/valchecker.mjs',
-	zod3: './adapters/zod3.mjs',
-	zod4: './adapters/zod4.mjs',
+	'valchecker': './adapters/valchecker.mjs',
+	'zod3': './adapters/zod3.mjs',
+	'zod4': './adapters/zod4.mjs',
 	'zod4-jitless': './adapters/zod4-jitless.mjs',
-	valibot: './adapters/valibot.mjs',
+	'valibot': './adapters/valibot.mjs',
 }
 
 const adapterPath = adapterPaths[adapterName]
@@ -19,6 +20,7 @@ if (!adapterPath)
 if (action !== 'measure' && action !== 'verify')
 	throw new Error(`Unknown benchmark worker action: ${action}`)
 
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 const adapter = (await import(adapterPath)).default
 const scenarios = getScenarios(action === 'verify' ? 'full' : mode)
 const results = []
