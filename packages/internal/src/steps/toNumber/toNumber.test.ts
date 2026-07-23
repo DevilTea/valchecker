@@ -58,7 +58,7 @@ describe('toNumber step plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'toNumber:conversion_failed',
-					category: 'validation',
+					category: 'operation',
 					message: 'Expected a value convertible to number.',
 					path: [],
 					payload: { value },
@@ -78,11 +78,13 @@ describe('toNumber step plugin', () => {
 	})
 
 	it('infers number output and is unavailable after number()', () => {
-		const schema = v.unknown()
+		const _schema = v.unknown()
 			.toNumber()
-		expectTypeOf<InferOutput<typeof schema>>()
+		expectTypeOf<InferOutput<typeof _schema>>()
 			.toEqualTypeOf<number>()
-		expectTypeOf(v.number().toNumber)
-			.toBeNever()
+		if (false) {
+			// @ts-expect-error toNumber is unavailable once the output is already number
+			v.number().toNumber() // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
+		}
 	})
 })

@@ -55,7 +55,7 @@ describe('toBigint step plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'toBigint:conversion_failed',
-					category: 'validation',
+					category: 'operation',
 					message: 'Expected a value convertible to bigint.',
 					path: [],
 					payload: { value },
@@ -72,7 +72,7 @@ describe('toBigint step plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'toBigint:conversion_failed',
-					category: 'validation',
+					category: 'operation',
 					payload: { value },
 				}],
 			})
@@ -85,7 +85,7 @@ describe('toBigint step plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'toBigint:conversion_failed',
-					category: 'validation',
+					category: 'operation',
 					payload: { value },
 				}],
 			})
@@ -101,11 +101,13 @@ describe('toBigint step plugin', () => {
 	})
 
 	it('infers bigint output and is unavailable after bigint()', () => {
-		const schema = v.unknown()
+		const _schema = v.unknown()
 			.toBigint()
-		expectTypeOf<InferOutput<typeof schema>>()
+		expectTypeOf<InferOutput<typeof _schema>>()
 			.toEqualTypeOf<bigint>()
-		expectTypeOf(v.bigint().toBigint)
-			.toBeNever()
+		if (false) {
+			// @ts-expect-error toBigint is unavailable once the output is already bigint
+			v.bigint().toBigint() // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
+		}
 	})
 })

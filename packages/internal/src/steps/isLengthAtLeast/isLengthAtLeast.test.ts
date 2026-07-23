@@ -24,7 +24,7 @@ describe('isLengthAtLeast step plugin', () => {
 					category: 'validation',
 					message: 'Expected a length of at least 3.',
 					path: [],
-					payload: { length: 2, value: 'hi', minimum: 3 },
+					payload: { length: 2, value: 'hi', minimumLength: 3 },
 				}],
 			})
 	})
@@ -50,7 +50,7 @@ describe('isLengthAtLeast step plugin', () => {
 			if (issue.code !== 'isLengthAtLeast:expected_length_at_least')
 				throw new Error(`Unexpected issue: ${issue.code}`)
 			expect(issue.payload)
-				.toMatchObject({ minimum: 3, length: 1 })
+				.toMatchObject({ minimumLength: 3, length: 1 })
 			expect(issue.payload.value)
 				.toBe(value)
 		}

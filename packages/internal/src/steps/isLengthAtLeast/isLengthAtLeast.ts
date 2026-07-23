@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 declare namespace LengthAtLeastInternal {
 	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<
 		'isLengthAtLeast:expected_length_at_least',
-		{ value: T, minimum: number, length: number }
+		{ value: T, minimumLength: number, length: number }
 	>
 }
 
@@ -36,7 +36,7 @@ interface LengthAtLeastPluginDef extends TStepPluginDef {
 	 *
 	 * ### Issues:
 	 * - `'isLengthAtLeast:expected_length_at_least'`: The observed length is below the minimum.
-	 *   Payload: `{ value, minimum, length }`.
+	 *   Payload: `{ value, minimumLength, length }`.
 	 */
 	isLengthAtLeast: DefineStepMethod<
 		LengthAtLeastMeta,
@@ -63,7 +63,7 @@ export const isLengthAtLeast = implStepPlugin<LengthAtLeastPluginDef>({
 				? success(value)
 				: failure(createIssue({
 						code: 'isLengthAtLeast:expected_length_at_least',
-						payload: { value, minimum, length },
+						payload: { value, minimumLength: minimum, length },
 						customMessage: options?.message,
 						defaultMessage: `Expected a length of at least ${minimum}.`,
 					}))

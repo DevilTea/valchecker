@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 type Meta = DefineStepMethodMeta<{
 	Name: 'toBigint'
 	ExpectedCurrentValchecker: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'toBigint:conversion_failed', { value: unknown, error: unknown }>
+	SelfIssue: ExecutionIssue<'toBigint:conversion_failed', { value: unknown, error: unknown }, 'operation'>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -13,7 +13,7 @@ interface PluginDef extends TStepPluginDef {
 	 * Converts the current value with JavaScript's native `BigInt()` conversion.
 	 *
 	 * This step is unavailable when the current output is already a bigint.
-	 * Native conversion exceptions become structured validation issues; no
+	 * Native conversion exceptions become structured `'operation'` issues; no
 	 * additional parsing grammar or safety policy is applied.
 	 *
 	 * ---
@@ -54,11 +54,15 @@ export const toBigint = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep((value) => {
 			try {
-				return success(BigInt(value))
+				// `value` is `unknown`; delegate directly to native `BigInt()`.
+				// The cast only satisfies the lib's parameter type — invalid inputs
+				// throw and are handled by the catch below.
+				return success(BigInt(value as string | number | bigint | boolean))
 			}
 			catch (error) {
 				return failure(createIssue({
 					code: 'toBigint:conversion_failed',
+					category: 'operation',
 					payload: { value, error },
 					customMessage: options?.message,
 					defaultMessage: 'Expected a value convertible to bigint.',

@@ -99,7 +99,9 @@ describe('toJSONString step plugin', () => {
 			.toBe(getterValue)
 
 		const proxyError = new Error('ownKeys')
-		const proxy = new Proxy({}, { ownKeys() { throw proxyError } })
+		const proxy = new Proxy({}, { ownKeys() {
+			throw proxyError
+		} })
 		const proxyResult = v.toJSONString()
 			.execute(proxy)
 		expect(proxyResult)
@@ -113,7 +115,9 @@ describe('toJSONString step plugin', () => {
 			.toBe(proxy)
 
 		const toJSONError = new Error('toJSON')
-		const toJSONValue = { toJSON() { throw toJSONError } }
+		const toJSONValue = { toJSON() {
+			throw toJSONError
+		} }
 		const toJSONResult = v.toJSONString()
 			.execute(toJSONValue)
 		expect(toJSONResult)
@@ -127,17 +131,30 @@ describe('toJSONString step plugin', () => {
 			.toBe(toJSONValue)
 	})
 
-	it('serializes array values and sparse holes', () => {
-		const sparse = [1, 2, 3]
-		delete sparse[1]
+	it('serializes dense array values', () => {
 		expect(v.toJSONString()
 			.execute([1, { value: true }]))
 			.toEqual({
 				value: '[1,{"value":true}]',
 			})
+	})
+
+	it('rejects array holes at their exact path instead of coercing to null', () => {
+		const sparse = [1, 2, 3]
+		delete sparse[1]
 		expect(v.toJSONString()
 			.execute(sparse))
-			.toEqual({ value: '[1,null,3]' })
+			.toMatchObject({
+				issues: [{
+					code: 'toJSONString:unserializable',
+					category: 'validation',
+					payload: {
+						reason: 'undefined_result',
+						value: sparse,
+						at: [1],
+					},
+				}],
+			})
 	})
 
 	it('reports array element and toJSON property access failures', () => {

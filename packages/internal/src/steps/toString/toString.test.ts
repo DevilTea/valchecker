@@ -114,16 +114,52 @@ describe('toString plugin', () => {
 		})
 	})
 
+	describe('radix option', () => {
+		it('should forward radix to the number instance method', () => {
+			expect(v.any()
+				.toString({ radix: 16 })
+				.execute(255))
+				.toEqual({ value: 'ff' })
+		})
+
+		it('should forward radix to the bigint instance method', () => {
+			expect(v.any()
+				.toString({ radix: 2 })
+				.execute(5n))
+				.toEqual({ value: '101' })
+		})
+	})
+
 	it('should report toString exceptions as operation issues', () => {
 		const error = new Error('toString')
-		const value = { toString() { throw error } }
-		const result = v.any().toString().execute(value)
-		expect(result).toMatchObject({
-			issues: [{
-				code: 'toString:conversion_failed',
-				category: 'operation',
-				payload: { value, error },
-			}],
-		})
+		const value = { toString() {
+			throw error
+		} }
+		const result = v.any()
+			.toString()
+			.execute(value)
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'toString:conversion_failed',
+					category: 'operation',
+					payload: { value, error },
+				}],
+			})
+	})
+
+	it('should support a custom failure message', () => {
+		const value = { toString() {
+			throw new Error('boom')
+		} }
+		expect(v.any()
+			.toString({ message: 'Custom toString' })
+			.execute(value))
+			.toMatchObject({
+				issues: [{
+					code: 'toString:conversion_failed',
+					message: 'Custom toString',
+				}],
+			})
 	})
 })

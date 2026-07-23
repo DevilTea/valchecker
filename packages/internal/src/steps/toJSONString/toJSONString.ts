@@ -27,9 +27,28 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Converts the current value to JSON text after a single-read preflight.
 	 * Unsupported data emits `toJSONString:unserializable`; getter, Proxy, or
 	 * `toJSON` failures emit the operation issue `toJSONString:serialization_failed`.
+	 * Lossy slots are treated uniformly: an explicit `undefined`, an unsupported
+	 * value, or an array hole all fail rather than being silently coerced.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, toJSONString, unknown } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [unknown, toJSONString] })
+	 * const schema = v.unknown().toJSONString()
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toJSONString:unserializable'`: The value (or a nested slot) has no JSON representation.
+	 * - `'toJSONString:serialization_failed'`: A getter, Proxy trap, or `toJSON` threw during serialization.
 	 */
 	toJSONString: DefineStepMethod<
 		Meta,
@@ -97,12 +116,16 @@ function prepareJSON(value: unknown): Prepared {
 			}
 		}
 
+		// eslint-disable-next-line unicorn/no-instanceof-builtins -- detect boxed primitive wrapper objects to unwrap them like JSON.stringify does
 		if (current instanceof Number)
 			return visit(Number.prototype.valueOf.call(current), at, key, false)
+		// eslint-disable-next-line unicorn/no-instanceof-builtins -- detect boxed primitive wrapper objects to unwrap them like JSON.stringify does
 		if (current instanceof String)
 			return visit(String.prototype.valueOf.call(current), at, key, false)
+		// eslint-disable-next-line unicorn/no-instanceof-builtins -- detect boxed primitive wrapper objects to unwrap them like JSON.stringify does
 		if (current instanceof Boolean)
 			return visit(Boolean.prototype.valueOf.call(current), at, key, false)
+		// eslint-disable-next-line unicorn/no-instanceof-builtins -- detect boxed primitive wrapper objects to unwrap them like JSON.stringify does
 		if (current instanceof BigInt)
 			return visit(BigInt.prototype.valueOf.call(current), at, key, false)
 
@@ -122,11 +145,14 @@ function prepareJSON(value: unknown): Prepared {
 			}
 			const output = Array.from({ length })
 			for (let index = 0; index < length; index++) {
-				if (!Object.hasOwn(current, index)) {
-					output[index] = null
-					continue
-				}
 				const childAt = [...at, index]
+				// Array holes carry no serializable value; report them with the same
+				// strictness as an explicit `undefined` element instead of silently
+				// coercing to `null` the way native JSON.stringify would.
+				if (!Object.hasOwn(current, index)) {
+					ancestors.delete(identity)
+					return { ok: false, type: 'validation', reason: 'undefined_result', at: childAt }
+				}
 				let child: unknown
 				try {
 					child = current[index]

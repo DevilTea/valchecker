@@ -24,7 +24,7 @@ describe('isLengthAtMost step plugin', () => {
 					category: 'validation',
 					message: 'Expected a length of at most 3.',
 					path: [],
-					payload: { length: expect.any(Number), value: 'hello', maximum: 3 },
+					payload: { length: expect.any(Number), value: 'hello', maximumLength: 3 },
 				}],
 			})
 	})

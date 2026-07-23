@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 declare namespace LengthAtMostInternal {
 	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<
 		'isLengthAtMost:expected_length_at_most',
-		{ value: T, maximum: number, length: number }
+		{ value: T, maximumLength: number, length: number }
 	>
 }
 
@@ -36,7 +36,7 @@ interface LengthAtMostPluginDef extends TStepPluginDef {
 	 *
 	 * ### Issues:
 	 * - `'isLengthAtMost:expected_length_at_most'`: The observed length exceeds the maximum.
-	 *   Payload: `{ value, maximum, length }`.
+	 *   Payload: `{ value, maximumLength, length }`.
 	 */
 	isLengthAtMost: DefineStepMethod<
 		LengthAtMostMeta,
@@ -63,7 +63,7 @@ export const isLengthAtMost = implStepPlugin<LengthAtMostPluginDef>({
 				? success(value)
 				: failure(createIssue({
 						code: 'isLengthAtMost:expected_length_at_most',
-						payload: { value, maximum, length },
+						payload: { value, maximumLength: maximum, length },
 						customMessage: options?.message,
 						defaultMessage: `Expected a length of at most ${maximum}.`,
 					}))

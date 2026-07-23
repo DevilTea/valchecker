@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 type Meta = DefineStepMethodMeta<{
 	Name: 'toNumber'
 	ExpectedCurrentValchecker: DefineExpectedValchecker
-	SelfIssue: ExecutionIssue<'toNumber:conversion_failed', { value: unknown, error: unknown }>
+	SelfIssue: ExecutionIssue<'toNumber:conversion_failed', { value: unknown, error: unknown }, 'operation'>
 }>
 
 interface PluginDef extends TStepPluginDef {
@@ -28,7 +28,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'toNumber:conversion_failed'`: JavaScript's native `Number()` conversion threw an error.
+	 * - `'toNumber:conversion_failed'`: JavaScript's native `Number()` conversion threw an error. Categorized as an `'operation'` issue because executing the native conversion threw.
 	 */
 	toNumber: DefineStepMethod<
 		Meta,
@@ -60,6 +60,7 @@ export const toNumber = implStepPlugin<PluginDef>({
 				return failure(
 					createIssue({
 						code: 'toNumber:conversion_failed',
+						category: 'operation',
 						payload: { value, error },
 						customMessage: options?.message,
 						defaultMessage: 'Expected a value convertible to number.',

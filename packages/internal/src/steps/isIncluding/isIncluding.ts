@@ -2,7 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 
 declare namespace Internal {
-	export type StringIssue = ExecutionIssue<'isIncluding:expected_including', { target: 'string', value: string, search: string, position: number | undefined }>
+	export type StringIssue = ExecutionIssue<'isIncluding:expected_including', { target: 'string', value: string, expected: string, position: number | undefined }>
 	export type ArrayIssue<Input extends any[] = any[]> = ExecutionIssue<'isIncluding:expected_including', { target: 'array', value: Input, expected: Input[number], fromIndex: number | undefined }>
 	export type SetIssue<Input extends Set<any> = Set<any>> = ExecutionIssue<'isIncluding:expected_including', { target: 'set', value: Input, expected: Input extends Set<infer Item> ? Item : never }>
 	export interface StringOptions extends StepOptions<StringIssue> { readonly position?: number | undefined }
@@ -16,25 +16,49 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that a string, array, or Set includes the expected value. Strings use
+	 * `String.prototype.includes` with an optional `position`; arrays use
+	 * `Array.prototype.includes` with an optional `fromIndex`; Sets use
+	 * `Set.prototype.has`. The failure payload reports the expected value under the
+	 * `expected` key for every variant.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isIncluding, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isIncluding] })
+	 * const schema = v.string().isIncluding('lo')
+	 * const result = schema.execute('hello')
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isIncluding:expected_including'`: The value does not include the expected value.
+	 */
 	isIncluding:
 		| DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<This> extends string
 				? (search: string, options?: Internal.StringOptions) => Next<{ issue: Internal.StringIssue }, This>
 				: never
 			: never>
-		| DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-			? InferOutput<This> extends infer Input extends any[]
-				? (expected: Input[number], options?: Internal.ArrayOptions<Input>) => Next<{ issue: Internal.ArrayIssue<Input> }, This>
-				: never
-			: never>
-		| DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
-			? InferOutput<This> extends infer Input extends Set<any>
-				? (
-						expected: Input extends Set<infer Item> ? Item : never,
-						options?: StepOptions<Internal.SetIssue<Input>>,
-					) => Next<{ issue: Internal.SetIssue<Input> }, This>
-				: never
-			: never>
+			| DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+				? InferOutput<This> extends infer Input extends any[]
+					? (expected: Input[number], options?: Internal.ArrayOptions<Input>) => Next<{ issue: Internal.ArrayIssue<Input> }, This>
+					: never
+				: never>
+				| DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
+					? InferOutput<This> extends infer Input extends Set<any>
+						? (
+								expected: Input extends Set<infer Item> ? Item : never,
+								options?: StepOptions<Internal.SetIssue<Input>>,
+							) => Next<{ issue: Internal.SetIssue<Input> }, This>
+						: never
+					: never>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -47,7 +71,7 @@ export const isIncluding = implStepPlugin<PluginDef>({
 					? success(value)
 					: failure(createIssue({
 							code: 'isIncluding:expected_including',
-							payload: { target: 'string', value, search, position },
+							payload: { target: 'string', value, expected: search, position },
 							customMessage: options?.message,
 							defaultMessage: `Expected the string to include "${search}".`,
 						}))
