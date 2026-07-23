@@ -1,0 +1,323 @@
+name: Performance Impact
+run-name: Performance impact ${{ inputs.before || github.event.pull_request.base.sha }} → ${{ inputs.after || github.event.pull_request.head.sha || github.ref_name }} by @${{ github.actor }}
+
+# Before/after benchmark comparison, used two ways:
+#   - pull_request: automatic performance gate, before = PR base, after = PR head.
+#   - workflow_dispatch: manual comparison of two arbitrary refs, with optional
+#     competitor adapters and scenario selection.
+#
+# The comparison *scripts* always come from the checked-out ref (PR merge ref, or
+# the dispatched ref), so the compare tooling and scenario selection are fixed;
+# `before` and `after` are only two valchecker builds the fixed scripts point at
+# via VALCHECKER_DIST_URL. valchecker before/after is measured with the rigorous
+# paired process comparison; selected competitor adapters are shown as standing
+# vs peers in each build via the ranking report.
+
+on:
+  workflow_dispatch:
+    inputs:
+      before:
+        description: Baseline git ref (branch, tag, or SHA)
+        required: true
+        type: string
+      after:
+        description: Candidate git ref (defaults to the dispatched ref)
+        required: false
+        default: ''
+        type: string
+      adapters:
+        description: Competitor adapters to show alongside valchecker, comma-separated (e.g. valibot,zod3). Empty = valchecker only.
+        required: false
+        default: ''
+        type: string
+      scenarios:
+        description: Scenario ids or group names to run, comma-separated (e.g. primitive/valid,warm/failure/first). Empty = all scenarios for the profile.
+        required: false
+        default: ''
+        type: string
+      profile:
+        description: Sampling profile
+        required: true
+        default: standard
+        type: choice
+        options:
+          - smoke
+          - standard
+          - full
+      runs:
+        description: Paired repetitions for the impact comparison (minimum 3)
+        required: false
+        default: '3'
+        type: string
+      fail_on_regression:
+        description: Fail the job when the impact verdict is a regression
+        required: false
+        default: false
+        type: boolean
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths:
+      - 'packages/internal/src/**'
+      - 'packages/valchecker/src/**'
+      - 'packages/all-steps/src/**'
+      - 'benchmarks/**'
+      - .github/workflows/performance-impact.yml
+      - .github/actions/setup/action.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-impact-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compare:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout comparison tooling
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+          benchmarks: 'true'
+
+      - name: Resolve comparison parameters
+        id: params
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          INPUT_BEFORE: ${{ inputs.before }}
+          INPUT_AFTER: ${{ inputs.after }}
+          INPUT_ADAPTERS: ${{ inputs.adapters }}
+          INPUT_SCENARIOS: ${{ inputs.scenarios }}
+          INPUT_PROFILE: ${{ inputs.profile }}
+          INPUT_RUNS: ${{ inputs.runs }}
+          INPUT_FAIL: ${{ inputs.fail_on_regression }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            {
+              echo "before=$PR_BASE_SHA"
+              echo "after=$PR_HEAD_SHA"
+              echo "adapters="
+              echo "scenarios="
+              echo "profile=standard"
+              echo "runs=3"
+              echo "fail_on_regression=true"
+            } >> "$GITHUB_OUTPUT"
+          else
+            runs="$INPUT_RUNS"
+            if ! [[ "$runs" =~ ^[0-9]+$ ]] || [ "$runs" -lt 3 ]; then
+              runs=3
+            fi
+            {
+              echo "before=$INPUT_BEFORE"
+              echo "after=${INPUT_AFTER:-$GITHUB_SHA}"
+              echo "adapters=$INPUT_ADAPTERS"
+              echo "scenarios=$INPUT_SCENARIOS"
+              echo "profile=$INPUT_PROFILE"
+              echo "runs=$runs"
+              echo "fail_on_regression=$INPUT_FAIL"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build before and after revisions
+        id: builds
+        shell: bash
+        env:
+          BEFORE_REF: ${{ steps.params.outputs.before }}
+          AFTER_REF: ${{ steps.params.outputs.after }}
+        run: |
+          set -euo pipefail
+          git fetch --all --tags --quiet || true
+          before_sha="$(git rev-parse --verify "${BEFORE_REF}^{commit}")"
+          after_sha="$(git rev-parse --verify "${AFTER_REF}^{commit}")"
+          echo "before_sha=$before_sha" >> "$GITHUB_OUTPUT"
+          echo "after_sha=$after_sha" >> "$GITHUB_OUTPUT"
+
+          git worktree add ../valchecker-before "$before_sha"
+          pnpm --dir ../valchecker-before install --frozen-lockfile
+          pnpm --dir ../valchecker-before build
+
+          git worktree add ../valchecker-after "$after_sha"
+          pnpm --dir ../valchecker-after install --frozen-lockfile
+          pnpm --dir ../valchecker-after build
+
+          dist_url() { node -e "console.log(require('node:url').pathToFileURL(require('node:path').resolve(process.argv[1])).href)" "$1"; }
+          {
+            echo "before_dist=$(dist_url ../valchecker-before/packages/valchecker/dist/index.mjs)"
+            echo "after_dist=$(dist_url ../valchecker-after/packages/valchecker/dist/index.mjs)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run interleaved paired benchmarks
+        shell: bash
+        env:
+          PROFILE: ${{ steps.params.outputs.profile }}
+          SCENARIOS: ${{ steps.params.outputs.scenarios }}
+          RUNS: ${{ steps.params.outputs.runs }}
+          BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
+          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
+          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
+          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact
+
+          scenario_args=()
+          if [[ -n "$SCENARIOS" ]]; then
+            scenario_args=(--scenarios "$SCENARIOS")
+          fi
+          seed="compare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          run_side() {
+            local side="$1" dist="$2" repetition="$3" sha="$4"
+            VALCHECKER_DIST_URL="$dist" \
+            BENCHMARK_COMMIT="$sha" \
+            pnpm --dir benchmarks bench \
+              --mode "$PROFILE" \
+              --adapters valchecker \
+              --seed "$seed-$repetition-$side" \
+              --output "../artifacts/performance-impact/$side-$repetition.json" \
+              "${scenario_args[@]}"
+          }
+
+          for repetition in $(seq 1 "$RUNS"); do
+            if (( repetition % 2 == 0 )); then
+              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
+              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
+            else
+              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
+              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
+            fi
+          done
+
+      - name: Compare benchmark impact
+        shell: bash
+        env:
+          RUNS: ${{ steps.params.outputs.runs }}
+          FAIL_ON_REGRESSION: ${{ steps.params.outputs.fail_on_regression }}
+        run: |
+          set -euo pipefail
+          compare_args=()
+          for repetition in $(seq 1 "$RUNS"); do
+            compare_args+=(--baseline "../artifacts/performance-impact/baseline-$repetition.json")
+          done
+          for repetition in $(seq 1 "$RUNS"); do
+            compare_args+=(--candidate "../artifacts/performance-impact/candidate-$repetition.json")
+          done
+          fail_flag=()
+          if [[ "$FAIL_ON_REGRESSION" == "true" ]]; then
+            fail_flag=(--fail-on-regression)
+          fi
+          pnpm --dir benchmarks compare \
+            "${compare_args[@]}" \
+            --markdown ../artifacts/performance-impact/impact.md \
+            --json ../artifacts/performance-impact/impact.json \
+            --html ../artifacts/performance-impact/impact.html \
+            "${fail_flag[@]}"
+
+      - name: Benchmark standing versus competitors
+        if: ${{ steps.params.outputs.adapters != '' }}
+        shell: bash
+        env:
+          PROFILE: ${{ steps.params.outputs.profile }}
+          SCENARIOS: ${{ steps.params.outputs.scenarios }}
+          ADAPTERS: ${{ steps.params.outputs.adapters }}
+          BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
+          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
+          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
+          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          scenario_args=()
+          if [[ -n "$SCENARIOS" ]]; then
+            scenario_args=(--scenarios "$SCENARIOS")
+          fi
+          seed="compare-context-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          # Each build reports into its own directory so report-all's sibling
+          # summary.md files (dirname(markdown)/summary.md) do not collide.
+          context() {
+            local side="$1" dist="$2" sha="$3"
+            mkdir -p "artifacts/performance-impact/$side-context"
+            VALCHECKER_DIST_URL="$dist" \
+            BENCHMARK_COMMIT="$sha" \
+            pnpm --dir benchmarks bench \
+              --mode "$PROFILE" \
+              --adapters "valchecker,$ADAPTERS" \
+              --seed "$seed-$side" \
+              --output "../artifacts/performance-impact/$side-context/raw.json" \
+              "${scenario_args[@]}"
+            pnpm --dir benchmarks report \
+              --input "../artifacts/performance-impact/$side-context/raw.json" \
+              --markdown "../artifacts/performance-impact/$side-context/report.md" \
+              --html "../artifacts/performance-impact/$side-context/report.html"
+          }
+
+          context before "$BEFORE_DIST" "$BEFORE_SHA"
+          context after "$AFTER_DIST" "$AFTER_SHA"
+
+      - name: Publish comparison summary
+        if: always()
+        shell: bash
+        env:
+          BEFORE_REF: ${{ steps.params.outputs.before }}
+          AFTER_REF: ${{ steps.params.outputs.after }}
+          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
+          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+          ADAPTERS: ${{ steps.params.outputs.adapters }}
+          SCENARIOS: ${{ steps.params.outputs.scenarios }}
+          PROFILE: ${{ steps.params.outputs.profile }}
+        run: |
+          set -euo pipefail
+          {
+            echo "# Performance impact"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Before | \`${BEFORE_REF}\` (${BEFORE_SHA:-unresolved}) |"
+            echo "| After | \`${AFTER_REF}\` (${AFTER_SHA:-unresolved}) |"
+            echo "| Profile | ${PROFILE} |"
+            echo "| Scenarios | ${SCENARIOS:-all} |"
+            echo "| Competitors | ${ADAPTERS:-none} |"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f artifacts/performance-impact/impact.md ]]; then
+            cat artifacts/performance-impact/impact.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "> Impact report was not produced; see the job logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          for side in after before; do
+            summary="artifacts/performance-impact/${side}-context/summary.md"
+            if [[ -f "$summary" ]]; then
+              printf '\n## Standing versus competitors — %s build\n\n' "$side" >> "$GITHUB_STEP_SUMMARY"
+              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload benchmark comparison
+        if: always() && hashFiles('artifacts/performance-impact/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-impact-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/performance-impact
+          if-no-files-found: error
+          retention-days: 30

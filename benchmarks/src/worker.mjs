@@ -1,10 +1,14 @@
 import process from 'node:process'
 import { measure } from './measure.mjs'
-import { getScenarios } from './scenarios.mjs'
+import { getScenarios, selectScenarios } from './scenarios.mjs'
 
 const adapterName = process.argv[2]
 const mode = process.argv[3] ?? 'standard'
 const action = process.argv[4] ?? 'measure'
+const scenarioTokens = (process.argv[5] ?? '')
+	.split(',')
+	.map(token => token.trim())
+	.filter(Boolean)
 
 const adapterPaths = {
 	'valchecker': './adapters/valchecker.mjs',
@@ -22,7 +26,11 @@ if (action !== 'measure' && action !== 'verify')
 
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 const adapter = (await import(adapterPath)).default
-const scenarios = getScenarios(action === 'verify' ? 'full' : mode)
+const scenarios = action === 'verify'
+	? getScenarios('full')
+	: scenarioTokens.length > 0
+		? selectScenarios(scenarioTokens)
+		: getScenarios(mode)
 const results = []
 const skippedScenarios = []
 
