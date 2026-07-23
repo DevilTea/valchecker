@@ -10,6 +10,7 @@ Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` b
 
 ### Added
 
+- Date steps: `date()` (initial schema accepting a `Date` and rejecting an Invalid Date, owning `date:expected_date` and `date:invalid_date`), `isAfter(bound)` / `isBefore(bound)` (strict `getTime()` comparison, owning `isAfter:expected_after` / `isBefore:expected_before`), and `toDate()` (converts a `string | number` to a `Date`, owning `toDate:conversion_failed`).
 - `@valchecker/internal` exports `runtimeExecutionStepDefMarker` (also re-exported from the public `valchecker` package), the shared step-plugin discovery symbol previously duplicated as a `Symbol.for()` string in `@valchecker/all-steps`.
 
 ### Changed
