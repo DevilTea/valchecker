@@ -88,7 +88,10 @@ jobs:
           retention-days: 7
 
       - name: Lint
-        run: pnpm lint 2>&1 | tee lint.log
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm lint 2>&1 | tee lint.log
 
       - name: Upload Lint Log
         if: failure() && hashFiles('lint.log') != ''
@@ -100,7 +103,10 @@ jobs:
           retention-days: 7
 
       - name: Typecheck
-        run: pnpm typecheck 2>&1 | tee typecheck.log
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm typecheck 2>&1 | tee typecheck.log
 
       - name: Upload Typecheck Log
         if: failure() && hashFiles('typecheck.log') != ''
