@@ -48,6 +48,8 @@ pnpm lint && pnpm typecheck && pnpm test --coverage && pnpm bench
 
 All commands must complete successfully.
 
+Confirm CI actually fails on error: every check step must propagate its exit code, and any command piped into `tee` must run under `set -o pipefail`. Without it the pipeline reports `tee`'s exit code and silently masks lint, typecheck, and test failures.
+
 ## Commit Message Format
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):

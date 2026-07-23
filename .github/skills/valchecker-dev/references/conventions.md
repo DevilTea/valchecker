@@ -134,6 +134,28 @@ Issue payload field names should describe semantics rather than implementation a
 
 Callback issues should preserve callback phase or operands, serialization issues should preserve `at` and `error`, and length issues should snapshot `length`. If multiple payload variants share one code, keep a discriminant so message handlers narrow precisely.
 
+### Payload key naming
+
+A payload key must be unambiguous to a message handler that reads it without knowing which step produced it. Do not let sibling or cross-family steps reuse the same key for different operands.
+
+- Numeric value bounds stay unqualified: `minimum`, `maximum` (`isAtLeast`, `isAtMost`, and the strict `isGreaterThan` / `isLessThan`).
+- Length-based operands are qualified: `minimumLength`, `maximumLength`, `expectedLength`.
+- Size-based operands are qualified: `minimumSize`, `maximumSize`, `expectedSize`.
+- Exact-match operands use `expected<Thing>` (`expectedLength`, `expectedSize`).
+- Membership and search operands use `expected` across every variant. `isIncluding` for `string`, array, and `Set` is unified on `expected` (not `search`).
+
+Payload keys are public contract. Renaming one is a breaking change and must follow [Public API changes](../../AGENTS.md).
+
+### Issue category
+
+`category` is a public field consumers narrow on, so equivalent semantic events must share a category across the whole step family.
+
+- `'operation'`: executing user or native code that throws or rejects. This covers `check:callback_failed`, `transform:callback_failed`, `to*:callback_failed`, `toString:conversion_failed`, `toJSONString:serialization_failed`, and the native-conversion throws `toNumber:conversion_failed` and `toBigint:conversion_failed`.
+- `'validation'`: statically invalid input or a parse failure, for example `toJSONValue:invalid_json` (a malformed input string, not thrown user code).
+- `'internal'`: core-level faults; recovery steps treat these as fatal.
+
+The two-argument `ExecutionIssue<>` / `SelfIssue` defaults to `'validation'`; pass `'operation'` or `'internal'` explicitly when a code falls in those categories.
+
 ## File layout
 
 A normal step module contains:
@@ -159,13 +181,13 @@ Use the established names:
 
 ## JSDoc
 
-Every public step method documents:
+Every public step's `PluginDef` method carries the three-section template exactly, in this order, separated by `---`:
 
-1. behavior and state requirements,
-2. a selective-import example,
-3. issue codes and failure conditions,
-4. output changes for transformations,
-5. relevant edge cases such as `NaN`, infinity, or TypeScript-compatible loose strings.
+- `### Description:` — behavior, state requirements, output changes for transformations, and relevant edge cases such as `NaN`, infinity, or TypeScript-compatible loose strings;
+- `### Example:` — a selective-import example (`import { createValchecker, ... } from 'valchecker'`);
+- `### Issues:` — every issue code the step owns with its failure condition, or `None.` when the step owns no issue.
+
+The three `###` headings are the single canonical format; do not use bare prose, `@example`, or `@issues` tags. `scripts/check-step-jsdoc.ts` (part of `pnpm test:quality`) scans each step's main file (`<dir>/<dir>.ts`), locates its `*PluginDef` interface by name (prefixed names such as `AtLeastPluginDef` are matched), and fails CI if any of the three headings is missing or if the main file declares no `PluginDef` at all. Secondary step files (for example shorthand variants) are outside this scan by design.
 
 ```ts
 /**

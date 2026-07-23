@@ -44,7 +44,7 @@
 		"test": "pnpm test:quality && vitest --run",
 		"test:coverage": "pnpm test:quality && tsx ./scripts/run-coverage.ts",
 		"test:package": "tsx ./scripts/test-packages.ts",
-		"test:quality": "tsx ./scripts/check-test-quality.ts && tsx ./scripts/check-step-parameter-style.ts",
+		"test:quality": "tsx ./scripts/check-test-quality.ts && tsx ./scripts/check-step-parameter-style.ts && tsx ./scripts/check-step-jsdoc.ts",
 		"test:watch": "vitest --watch",
 		"bench": "vitest bench --run",
 		"bench:watch": "vitest bench",

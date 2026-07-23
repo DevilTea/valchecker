@@ -110,6 +110,13 @@ it.each(['', 'NaN', 'Infinity', 'invalid'])(
 
 Also test primitive pass-through, such as numeric `NaN` and infinity for `looseNumber()`.
 
+Fixtures must include the counter-intuitive template-literal grammar cases, because those are exactly what a well-meaning "tightening" (for example switching to a decimal `RegExp`) would silently break while the rest of the suite stays green:
+
+- `looseNumber` accepts `'+1'` → `1`, `'0b101'` → `5`, `'0o17'` → `15`, `'5.'` → `5`, `'01'` → `1`, and **rejects** `'1_000'` (numeric separators are not part of the `${number}` grammar).
+- `looseBigint` accepts lowercase radix forms such as `'0b101'` → `5n`, not only the uppercase `'0B10'`.
+
+Keep these fixtures synchronized with the TS reference-semantics comments in the loose-primitive implementations (`isValidNumberString`, etc.). Where no repo-wide `expectTypeOf` harness exists, the runtime fixtures plus those comments are the alignment contract.
+
 ## Chaining tests
 
 Test the method in realistic chains and prove that each named validation enforces only its own condition:
@@ -169,6 +176,12 @@ Use `execute()`; there is no `runAsync()` method.
 Prefer complete `toEqual()` assertions for stable public contracts. Use `toMatchObject()` only when a payload contains intentionally unstable objects such as a caught `SyntaxError`.
 
 Avoid inverted checks such as asserting `'issues' in result` is false in a failure test.
+
+## Contract test imports
+
+Cross-step contract tests placed directly in `packages/internal/src/steps/` must import the source barrel (`./index`), never the package self-reference (`../..`). `../..` resolves through the package's `exports` map to the built `dist/`, so the test silently exercises the last build instead of `src` — a stale or missing build produces false passes and false failures. Colocated step tests in `steps/<name>/` correctly reach the source barrel through `../..` and are unaffected.
+
+Source correctness is owned by tests that import `src`; `dist` correctness belongs to the package smoke tests (`pnpm test:package`).
 
 ## Running tests
 

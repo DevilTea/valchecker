@@ -63,6 +63,8 @@ Cross-cutting tests own behavior that cannot be proven by one core or step modul
 - package exports and selective registration;
 - published-package behavior.
 
+Cross-step contract tests import the source barrel (`./index`), never the package self-reference (`../..`), which resolves to the built `dist/` and makes results depend on a stale build. `dist` correctness belongs to the package smoke tests.
+
 ### Regression tests
 
 A regression test records the external symptom or invariant that previously failed. Reference the relevant issue or pull request when available.
@@ -93,6 +95,8 @@ Use `it.each` for inputs that exercise the same behavior. Keep separate cases wh
 - synchronous throws and asynchronous rejections.
 
 For ordered or ranged behavior, cover the exact boundary and one representative value on each side. Avoid enumerating arbitrary values that do not add a new semantic class.
+
+For TypeScript-aligned loose primitives, fixtures must include the counter-intuitive template-literal cases a "tightening" would silently break — for example `looseNumber` accepting `'+1'`, `'0b101'`, `'0o17'`, `'5.'`, `'01'` while rejecting `'1_000'`. See the loose primitive grammar section of the contributor testing guide.
 
 ## Assertions
 

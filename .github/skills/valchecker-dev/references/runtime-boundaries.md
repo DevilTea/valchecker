@@ -29,9 +29,15 @@ When these conditions are met:
 - retain tests for supported persistence, ownership, and execution semantics;
 - prefer compile-time tests over runtime tests that exercise deliberate contract violations.
 
-### Established example
+### Established examples
 
 `~core.runtimeSteps` is a readonly advanced integration surface. Fluent schema operations create independent pipelines, but consumers that cast away `readonly` and mutate the array are outside the supported contract. Freezing every schema pipeline to defend against that deliberate mutation is not required.
+
+`union()` / `variant()` branch validation uses duck typing (`typeof branch['~execute'] === 'function'`) rather than a nominal schema check. Construction still rejects non-arrays, empty arrays, and sparse arrays; only a forged object that carries a fake `~execute` is accepted. Forging that object requires `any`, a type assertion, or untyped JavaScript, and the resulting failure is confined to the violating caller — so the boundary is TypeScript-first and documented rather than defended at runtime.
+
+`constructor`, `toString`, and `valueOf` are intentionally absent from `reservedStepMethodNames`. An advanced plugin author can register a step with one of those names and shadow the corresponding object semantics on the schema Proxy. This is defensible under the boundary policy (an advanced integration surface, reachable only by deliberately naming a step after an `Object.prototype` member) and is documented rather than blocked.
+
+The schema instance Proxy implements only a `get` trap. Step methods are therefore invisible to `in`, `Object.keys`, and `Reflect.ownKeys`, and each property access allocates a fresh bound closure, so `schema.string !== schema.string`. These are build-time-acceptable consequences of the design: no caller may rely on step-method enumeration or on method reference identity.
 
 ## When runtime enforcement must remain
 

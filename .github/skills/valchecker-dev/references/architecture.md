@@ -150,6 +150,8 @@ Steps that work with multiple input types (like `min` for number/bigint/string.l
 
 See `packages/internal/src/steps/min/min.ts` for a complete example of handling multiple types.
 
+A multi-variant step exposes its call signatures as a `DefineStepMethod` union, and the implementation layer recovers each variant's `params` and return type through the `OverloadParametersAndReturnType` / `OverloadReturnType` ladder in `shared.ts` (currently 8 deep). The ladder **silently drops the first overload** once the variant count exceeds its depth — there is no compile error. Keep every step at or below `depth − 1` call signatures; the sentinel type test in `shared/shared.types.test.ts` guards the current maximum.
+
 
 ## Issue typing and finalization
 
@@ -157,9 +159,26 @@ See `packages/internal/src/steps/min/min.ts` for a complete example of handling 
 
 Issue drafts remain internal while nested structures prepend paths and message scopes. Public `execute()` and Standard Schema validation finalize each issue once. Do not eagerly call message handlers in a step implementation.
 
+### Draft-metadata propagation
+
+A draft issue's unresolved message metadata lives on a non-enumerable symbol. A hand-written `{ ...issue }` spread silently drops that metadata and freezes the copy at the step's default message (not `'Invalid value.'`). On any propagation path, clone issues through the `prependIssuePath` / `appendIssueContext` helpers rather than spreading. Diagnostic payload snapshots that intentionally spread — for example `fallback`'s `receivedIssues` — therefore carry the unresolved default message; that is documented behavior, and the issues actually returned to the caller finalize normally.
+
+### Message precedence
+
+The message tier order — custom → context → global → default → `'Invalid value.'` — is encoded across three cross-linked core functions: `resolveMessagePriority`, `resolveStaticIssueMessage`, and `getInitialIssueMessage`, plus the `hasDynamicMessageForCode` classifier. Adding, removing, or reordering a tier requires changing all three in lockstep and updating the matrix test in `message-contracts.test.ts`; a missed site silently resolves the wrong tier or freezes the wrong message.
+
 
 ## Structural and combinator failure rules
 
 Object-family steps must distinguish `Object.hasOwn(value, key)` from the property's value. Missing required keys use the variant-specific `missing_key` issue; present `undefined` runs the child schema. Optional missing keys skip the child and still materialize `undefined` in the declared output.
 
-Within the internal package, use the package-private `hasInternalIssue()` / `isRecoverableFailure()` helpers for category-based propagation. Do not branch on issue-code strings. Union adds branch provenance to `context`, not `path`; fallback must preserve received issues when its callback fails.
+Within the internal package, use the package-private `hasInternalIssue()` / `isRecoverableFailure()` helpers for category-based propagation on cold paths. Do not branch on issue-code strings. Union adds branch provenance to `context`, not `path`; fallback must preserve received issues when its callback fails.
+
+Inside the hot child-issue collection loop, the `category === 'internal'` check is instead fused inline with the single-pass path-prepend; routing it through `isRecoverableFailure()` would force a second traversal of the child issues. `isRecoverableFailure()` remains the correct choice for step authors writing recovery logic on non-hot paths.
+
+### Deliberate performance duplication
+
+Do not "clean up" the following duplication. Each pattern was measured and the shared-abstraction alternative was rejected.
+
+- **Per-file child-issue collection loop.** The single-pass loop that prepends the child path and detects an internal issue in one traversal is duplicated per file across `object`, `strictObject`, `looseObject`, `array`, `map`, `set`, and `intersection`, with the same-shaped inline loop in `union` and `variant` (nine sites). Extracting it into a shared cross-module helper was implemented and benchmarked on 2026-07-22: −12% (Set) / −13% (Map) ops/sec on the recoverable-failure hot path, because V8 inlines the per-schema local closure but not a shared cross-module helper. It was reverted. Each site carries a one-line marker comment.
+- **`map` / `set` doomed-output rebuild.** In `collectAllIssues` mode, after a recoverable child failure the lazy output structure MUST keep being built even though the final result will be a failure: the output structure doubles as the duplicate-detection state, and skipping the rebuild loses `set:duplicate_transformed_item` / `map:duplicate_transformed_key` issues (verified empirically 2026-07-22). Do not drop to an issue-only loop after the first failure.

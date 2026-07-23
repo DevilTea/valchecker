@@ -25,6 +25,8 @@ pnpm docs:build
 
 Run relevant benchmarks for performance or bundle-sensitive changes.
 
+Every CI check step must propagate its failure exit code. A command piped into `tee` (or any pipeline) requires `set -o pipefail`; without it the pipe reports the exit code of `tee`, which masks lint, typecheck, and test failures. On 2026-07-22 this masking had silently accumulated 24 package type errors, 473 test type errors, and 1771 lint errors at `HEAD`.
+
 ## Code style
 
 - TypeScript strict mode
