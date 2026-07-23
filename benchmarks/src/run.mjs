@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { getProfile } from './measure.mjs'
-import { getScenarioCatalog } from './scenarios.mjs'
+import { getScenarioCatalog, selectScenarios, toScenarioCatalog } from './scenarios.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const workerPath = fileURLToPath(new URL('./worker.mjs', import.meta.url))
@@ -17,6 +17,7 @@ function parseArguments(argv) {
 		output: resolve(benchmarkRoot, 'results/raw.json'),
 		adapters: defaultAdapters,
 		seed: process.env.BENCHMARK_SEED ?? String(Date.now()),
+		scenarios: [],
 	}
 
 	for (let index = 0; index < argv.length; index++) {
@@ -33,6 +34,12 @@ function parseArguments(argv) {
 		else if (argument === '--adapters' && value) {
 			options.adapters = value.split(',')
 				.map(adapter => adapter.trim())
+				.filter(Boolean)
+			index++
+		}
+		else if (argument === '--scenarios' && value) {
+			options.scenarios = value.split(',')
+				.map(scenario => scenario.trim())
 				.filter(Boolean)
 			index++
 		}
@@ -83,9 +90,9 @@ function shuffle(values, seed) {
 	return output
 }
 
-function runWorker(adapter, mode) {
+function runWorker(adapter, mode, scenariosArg) {
 	return new Promise((resolvePromise, reject) => {
-		const child = spawn(process.execPath, [workerPath, adapter, mode], {
+		const child = spawn(process.execPath, [workerPath, adapter, mode, 'measure', scenariosArg], {
 			cwd: benchmarkRoot,
 			env: process.env,
 			stdio: ['ignore', 'pipe', 'pipe'],
@@ -114,21 +121,29 @@ function runWorker(adapter, mode) {
 }
 
 const options = parseArguments(process.argv.slice(2))
+// Validate the scenario selection up front so a typo fails fast, before any
+// worker is spawned, and derive the catalog for the selected scenarios only.
+const selectedScenarios = options.scenarios.length > 0 ? selectScenarios(options.scenarios) : null
+const scenarioCatalog = selectedScenarios == null
+	? getScenarioCatalog(options.mode)
+	: toScenarioCatalog(selectedScenarios)
+const scenariosArg = options.scenarios.join(',')
 const order = shuffle(options.adapters, options.seed)
 const startedAt = new Date()
 	.toISOString()
 const libraries = []
 
 for (const adapter of order) {
-	console.error(`[benchmark] running ${adapter} (${options.mode})`)
+	console.error(`[benchmark] running ${adapter} (${options.mode})${selectedScenarios == null ? '' : ` [${selectedScenarios.length} selected scenarios]`}`)
 	// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
-	libraries.push(await runWorker(adapter, options.mode))
+	libraries.push(await runWorker(adapter, options.mode, scenariosArg))
 }
 
 const result = {
 	schemaVersion: 2,
 	mode: options.mode,
 	seed: options.seed,
+	scenarioFilter: options.scenarios.length > 0 ? options.scenarios : null,
 	startedAt,
 	completedAt: new Date()
 		.toISOString(),
@@ -146,7 +161,7 @@ const result = {
 		runnerImageVersion: process.env.ImageVersion ?? null,
 	},
 	order,
-	scenarioCatalog: getScenarioCatalog(options.mode),
+	scenarioCatalog,
 	libraries,
 }
 
