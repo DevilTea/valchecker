@@ -17,9 +17,6 @@
 	},
 	"keywords": [],
 	"sideEffects": false,
-	"engines": {
-		"node": ">=22"
-	},
 	"exports": {
 		".": {
 			"types": "./dist/index.d.mts",
@@ -32,6 +29,9 @@
 	"files": [
 		"dist"
 	],
+	"engines": {
+		"node": ">=22"
+	},
 	"scripts": {
 		"build": "tsdown && pkg-size",
 		"build:pack": "pnpm build && pnpm pack",

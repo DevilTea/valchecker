@@ -30,10 +30,10 @@ const RUNTIME_OPERATION_MODE_MAYBE_ASYNC = 1
 const RUNTIME_OPERATION_MODE_ASYNC = 2
 const OPERATION_MODES = ['sync', 'maybe-async', 'async'] as const
 
-type RuntimeOperationMode =
-	| typeof RUNTIME_OPERATION_MODE_SYNC
-	| typeof RUNTIME_OPERATION_MODE_MAYBE_ASYNC
-	| typeof RUNTIME_OPERATION_MODE_ASYNC
+type RuntimeOperationMode
+	= | typeof RUNTIME_OPERATION_MODE_SYNC
+		| typeof RUNTIME_OPERATION_MODE_MAYBE_ASYNC
+		| typeof RUNTIME_OPERATION_MODE_ASYNC
 
 type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
 	'~operationMode': RuntimeOperationMode
@@ -58,7 +58,7 @@ interface StepMethodContext {
 	createInitialSchema: (method: string, params?: readonly unknown[]) => any
 }
 
-type MessageData = {
+interface MessageData {
 	code: string
 	category?: IssueCategory | undefined
 	payload: unknown
@@ -67,8 +67,15 @@ type MessageData = {
 }
 
 type MessageSource = 'step' | 'context' | 'global' | 'default'
-type RuntimeResolveMessageFn = ResolveMessageFn & {
-	globalMessage?: MessageHandler<any> | undefined
+
+/**
+ * Pairs the runtime message resolver with the global handler it closes over.
+ * The global handler is carried as its own field rather than hung off the
+ * resolver function so a resolver can never silently omit it.
+ */
+interface RuntimeMessageResolver {
+	resolve: ResolveMessageFn
+	globalMessage: MessageHandler<any> | undefined
 }
 
 interface IssueDraftMetadata {
@@ -124,6 +131,8 @@ export function isFailure(result: ExecutionResult): result is ExecutionFailureRe
 	return 'issues' in result
 }
 
+const resolveExternalIssueMessage = createMessageResolver()
+
 /* @__NO_SIDE_EFFECTS__ */
 export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	issue: Issue,
@@ -157,7 +166,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	}
 	else if (hasMessageScope) {
 		setIssueDraftMetadata(nextIssue, {
-			resolveMessage: resolveExternalIssueMessage,
+			resolveMessage: resolveExternalIssueMessage.resolve,
 			contextMessages: [messageScope],
 			defaultMessage: issue.message,
 		})
@@ -165,7 +174,6 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 
 	return nextIssue
 }
-
 
 /* @__NO_SIDE_EFFECTS__ */
 export function appendIssueContext<Issue extends AnyExecutionIssue>(
@@ -200,9 +208,21 @@ export function isRecoverableFailure(
 	return isFailure(result) && !hasInternalIssue(result.issues)
 }
 
-function executeRuntimeSteps(runtimeSteps: RuntimeStep[], value: unknown): MaybePromise<ExecutionResult> {
+/**
+ * Runs a runtime step array over a seed result, switching to promise chaining
+ * as soon as any step turns asynchronous.
+ *
+ * Package-internal (intentionally not re-exported from `core/index.ts`): the
+ * `generic` step imports it directly from `core/core` so lazily-resolved
+ * sub-schema pipelines run through the same loop instead of a hand-rolled copy.
+ */
+/* @__NO_SIDE_EFFECTS__ */
+export function executeRuntimeSteps(
+	runtimeSteps: readonly RuntimeStep[],
+	initialResult: ExecutionResult,
+): MaybePromise<ExecutionResult> {
 	const len = runtimeSteps.length
-	let result: MaybePromise<ExecutionResult> = { value }
+	let result: MaybePromise<ExecutionResult> = initialResult
 
 	for (let i = 0; i < len; i++) {
 		result = runtimeSteps[i]!(result as ExecutionResult)
@@ -214,15 +234,6 @@ function executeRuntimeSteps(runtimeSteps: RuntimeStep[], value: unknown): Maybe
 		}
 	}
 	return result
-}
-
-/* @__NO_SIDE_EFFECTS__ */
-export function createPipeExecutor({
-	runtimeSteps,
-}: {
-	runtimeSteps: RuntimeStep[]
-}): PipeExecutor {
-	return value => executeRuntimeSteps(runtimeSteps, value)
 }
 
 function createFinalizedPipeExecutor(
@@ -259,7 +270,8 @@ function createFinalizedPipeExecutor(
 		return (value) => {
 			const result = first({ value })
 			return isPromiseLike(result)
-				? Promise.resolve(result).then(second)
+				? Promise.resolve(result)
+						.then(second)
 				: second(result)
 		}
 	}
@@ -331,6 +343,21 @@ function handleMessageSource(
 	}
 }
 
+/**
+ * Runtime message resolution (the DYNAMIC path): resolves the final message by
+ * walking the precedence tiers custom -> context -> global -> default ->
+ * 'Invalid value.'.
+ *
+ * This tier order is duplicated across three functions that must stay in
+ * lockstep: `resolveMessagePriority` (this one, dynamic resolution at
+ * finalization), `resolveStaticIssueMessage` (the STATIC fast path that decides
+ * whether a message is determinable up front), and `getInitialIssueMessage`
+ * (placeholder chooser while deferral is pending). `hasDynamicMessageForCode`
+ * defines what counts as "dynamic" for the static path. Any change to the tier
+ * order, the fallback string, or what makes a handler dynamic must be applied to
+ * all of them, or a static/dynamic disagreement silently picks the wrong tier.
+ * `message-contracts.test.ts` asserts the static and dynamic paths agree.
+ */
 /* @__NO_SIDE_EFFECTS__ */
 export function resolveMessagePriority({
 	data,
@@ -367,27 +394,32 @@ export function resolveMessagePriority({
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-function createResolveMessageFunction(
+function createMessageResolver(
 	globalMessage?: MessageHandler<any> | undefined,
-): RuntimeResolveMessageFn {
-	const resolveMessage: RuntimeResolveMessageFn = ({
-		data,
-		customMessage,
-		contextMessages,
-		defaultMessage,
-	}) => resolveMessagePriority({
-		data,
-		customMessage,
-		contextMessages,
-		defaultMessage,
+): RuntimeMessageResolver {
+	return {
+		resolve: ({
+			data,
+			customMessage,
+			contextMessages,
+			defaultMessage,
+		}) => resolveMessagePriority({
+			data,
+			customMessage,
+			contextMessages,
+			defaultMessage,
+			globalMessage,
+		}),
 		globalMessage,
-	})
-	resolveMessage.globalMessage = globalMessage
-	return resolveMessage
+	}
 }
 
-const resolveExternalIssueMessage = createResolveMessageFunction()
-
+/**
+ * Defines what counts as a "dynamic" (deferred) message handler for the static
+ * fast path: a bare function, or a message map with an own function entry for
+ * the issue code. Must agree with how `resolveMessagePriority` treats handlers.
+ * See the lockstep note on `resolveMessagePriority`.
+ */
 function hasDynamicMessageForCode(
 	message: MessageHandler<any> | undefined | null,
 	code: string,
@@ -400,7 +432,15 @@ function hasDynamicMessageForCode(
 		&& typeof (message as any)[code] === 'function'
 }
 
-function resolveStaticIssueMessage(
+/**
+ * Static fast path: returns the final message when it is determinable without
+ * deferral, or `undefined` to signal that dynamic resolution via
+ * `resolveMessagePriority` is required. Encodes the same tier order (custom ->
+ * global -> default -> 'Invalid value.'); context handlers are always dynamic
+ * and force deferral, so they are not considered here. Must stay in lockstep
+ * with `resolveMessagePriority` and `getInitialIssueMessage`.
+ */
+export function resolveStaticIssueMessage(
 	code: string,
 	customMessage: MessageHandler<any> | undefined | null,
 	globalMessage: MessageHandler<any> | undefined,
@@ -419,6 +459,11 @@ function resolveStaticIssueMessage(
 	return 'Invalid value.'
 }
 
+/**
+ * Placeholder chooser used while dynamic resolution is deferred: picks the
+ * first string handler along the same tier order. Must stay in lockstep with
+ * `resolveMessagePriority` and `resolveStaticIssueMessage`.
+ */
 function getInitialIssueMessage(
 	customMessage: MessageHandler<any> | undefined | null,
 	globalMessage: MessageHandler<any> | undefined,
@@ -509,7 +554,9 @@ function finalizeIssue(
 	catch (error) {
 		return createMessageExceptionIssue(
 			issue,
-			error as MessageResolutionError,
+			error instanceof MessageResolutionError
+				? error
+				: new MessageResolutionError('default', error),
 			metadata.resolveMessage,
 		)
 	}
@@ -554,7 +601,7 @@ function hasIssueDraft(issues: readonly AnyExecutionIssue[]): boolean {
 }
 
 function finalizeAsyncResult(result: ExecutionResult): ExecutionResult {
-	return 'issues' in result && hasIssueDraft(result.issues)
+	return isFailure(result) && hasIssueDraft(result.issues)
 		? finalizeFailureResult(result)
 		: result
 }
@@ -566,20 +613,24 @@ function createPublicExecutor(
 	if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
 		return (value) => {
 			const result = executeRaw(value) as ExecutionResult
-			return 'issues' in result && hasIssueDraft(result.issues)
+			return isFailure(result) && hasIssueDraft(result.issues)
 				? finalizeFailureResult(result)
 				: result
 		}
 	}
 
-	if (operationMode === RUNTIME_OPERATION_MODE_ASYNC)
-		return value => Promise.resolve(executeRaw(value)).then(finalizeAsyncResult)
+	if (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {
+		return value => Promise.resolve(executeRaw(value))
+			.then(finalizeAsyncResult)
+	}
 
 	return (value) => {
 		const result = executeRaw(value)
-		if (isPromiseLike(result))
-			return Promise.resolve(result).then(finalizeAsyncResult)
-		return 'issues' in result && hasIssueDraft(result.issues)
+		if (isPromiseLike(result)) {
+			return Promise.resolve(result)
+				.then(finalizeAsyncResult)
+		}
+		return isFailure(result) && hasIssueDraft(result.issues)
 			? finalizeFailureResult(result)
 			: result
 	}
@@ -590,11 +641,11 @@ function createUnknownExceptionFailure(
 	method: string,
 	lastResult: ExecutionResult,
 	error: unknown,
-	resolveMessage: ResolveMessageFn,
+	resolver: RuntimeMessageResolver,
 ): ExecutionFailureResult<CoreIssue> {
 	const code = 'core:unknown_exception'
 	const defaultMessage = 'An unexpected error occurred during step execution'
-	const globalMessage = (resolveMessage as RuntimeResolveMessageFn).globalMessage
+	const globalMessage = resolver.globalMessage
 	const staticMessage = resolveStaticIssueMessage(code, undefined, globalMessage, defaultMessage)
 	const issue: ExecutionIssue<
 		typeof code,
@@ -609,7 +660,7 @@ function createUnknownExceptionFailure(
 	}
 	if (staticMessage == null) {
 		setIssueDraftMetadata(issue, {
-			resolveMessage,
+			resolveMessage: resolver.resolve,
 			contextMessages: [],
 			defaultMessage,
 		})
@@ -621,7 +672,7 @@ function createUnknownExceptionFailure(
 function createExecutionStepMethodUtils(
 	method: string,
 	runtimeExecutions: RuntimeStep[],
-	resolveMessage: ResolveMessageFn,
+	resolver: RuntimeMessageResolver,
 	currentOperationMode: RuntimeOperationMode,
 	defaultOperationMode: RuntimeOperationMode,
 ): RuntimeStepMethodUtils {
@@ -635,7 +686,7 @@ function createExecutionStepMethodUtils(
 					return fn(lastResult) as ExecutionResult
 				}
 				catch (error) {
-					return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
+					return createUnknownExceptionFailure(method, lastResult, error, resolver)
 				}
 			}
 		}
@@ -643,12 +694,13 @@ function createExecutionStepMethodUtils(
 		if (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {
 			return (lastResult) => {
 				try {
-					return Promise.resolve(fn(lastResult)).catch(
-						error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage),
-					)
+					return Promise.resolve(fn(lastResult))
+						.catch(
+							error => createUnknownExceptionFailure(method, lastResult, error, resolver),
+						)
 				}
 				catch (error) {
-					return Promise.resolve(createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
+					return Promise.resolve(createUnknownExceptionFailure(method, lastResult, error, resolver))
 				}
 			}
 		}
@@ -657,18 +709,19 @@ function createExecutionStepMethodUtils(
 			try {
 				const result = fn(lastResult)
 				return isPromiseLike(result)
-					? Promise.resolve(result).catch(error => createUnknownExceptionFailure(method, lastResult, error, resolveMessage))
+					? Promise.resolve(result)
+							.catch(error => createUnknownExceptionFailure(method, lastResult, error, resolver))
 					: result
 			}
 			catch (error) {
-				return createUnknownExceptionFailure(method, lastResult, error, resolveMessage)
+				return createUnknownExceptionFailure(method, lastResult, error, resolver)
 			}
 		}
 	}
 
 	const utils: RuntimeStepMethodUtils = {
 		'~operationMode': currentOperationMode,
-		addStep: (fn, operationMode) => {
+		'addStep': (fn, operationMode) => {
 			const runtimeOperationMode = operationMode == null
 				? defaultOperationMode
 				: toRuntimeOperationMode(operationMode)
@@ -676,7 +729,7 @@ function createExecutionStepMethodUtils(
 			if (runtimeOperationMode > utils['~operationMode'])
 				utils['~operationMode'] = runtimeOperationMode
 		},
-		addSuccessStep: (fn, operationMode) => {
+		'addSuccessStep': (fn, operationMode) => {
 			const runtimeOperationMode = operationMode == null
 				? defaultOperationMode
 				: toRuntimeOperationMode(operationMode)
@@ -684,11 +737,11 @@ function createExecutionStepMethodUtils(
 			if (runtimeOperationMode > utils['~operationMode'])
 				utils['~operationMode'] = runtimeOperationMode
 		},
-		addFailureStep: (fn, operationMode) => {
+		'addFailureStep': (fn, operationMode) => {
 			const runtimeOperationMode = operationMode == null
 				? defaultOperationMode
 				: toRuntimeOperationMode(operationMode)
-			runtimeExecutions.push(wrapWithErrorHandling(result => 'issues' in result ? fn(result.issues) : result, runtimeOperationMode))
+			runtimeExecutions.push(wrapWithErrorHandling(result => isFailure(result) ? fn(result.issues) : result, runtimeOperationMode))
 			if (runtimeOperationMode > utils['~operationMode'])
 				utils['~operationMode'] = runtimeOperationMode
 		},
@@ -696,14 +749,14 @@ function createExecutionStepMethodUtils(
 		isFailure,
 		prependIssuePath,
 		appendIssueContext,
-		success: value => ({ value }),
-		failure: (issueOrIssues) => {
+		'success': value => ({ value }),
+		'failure': (issueOrIssues) => {
 			const issues = Array.isArray(issueOrIssues) ? issueOrIssues : [issueOrIssues]
 			if (issues.length === 0)
 				throw new TypeError('A failure result requires at least one issue.')
 			return { issues: issues as [AnyExecutionIssue, ...AnyExecutionIssue[]] }
 		},
-		createIssue: ({
+		'createIssue': ({
 			code,
 			category = 'validation',
 			payload,
@@ -712,7 +765,7 @@ function createExecutionStepMethodUtils(
 			customMessage,
 			defaultMessage,
 		}: any) => {
-			const globalMessage = (resolveMessage as RuntimeResolveMessageFn).globalMessage
+			const globalMessage = resolver.globalMessage
 			const staticMessage = resolveStaticIssueMessage(
 				code,
 				customMessage,
@@ -734,7 +787,7 @@ function createExecutionStepMethodUtils(
 				issue.context = context
 			if (staticMessage == null) {
 				setIssueDraftMetadata(issue, {
-					resolveMessage,
+					resolveMessage: resolver.resolve,
 					customMessage,
 					contextMessages: [],
 					defaultMessage,
@@ -742,7 +795,7 @@ function createExecutionStepMethodUtils(
 			}
 			return issue
 		},
-		issue: i => i,
+		'issue': i => i,
 	}
 	return utils
 }
@@ -750,10 +803,10 @@ function createExecutionStepMethodUtils(
 /* @__NO_SIDE_EFFECTS__ */
 function createStepMethodContext({
 	stepMethods,
-	resolveMessage,
+	resolver,
 }: {
 	stepMethods: RegisteredStepMethods
-	resolveMessage: ResolveMessageFn
+	resolver: RuntimeMessageResolver
 }): StepMethodContext {
 	const context: StepMethodContext = {
 		createInitialSchema: (method, params = []) => {
@@ -765,7 +818,7 @@ function createStepMethodContext({
 			const utils = createExecutionStepMethodUtils(
 				method,
 				runtimeSteps,
-				resolveMessage,
+				resolver,
 				RUNTIME_OPERATION_MODE_SYNC,
 				registeredStepMethod.defaultOperationMode,
 			)
@@ -776,7 +829,7 @@ function createStepMethodContext({
 			})
 			return createInstance({
 				stepMethods,
-				resolveMessage,
+				resolver,
 				context,
 				currentRuntimeSteps: runtimeSteps,
 				currentOperationMode: utils['~operationMode'],
@@ -789,13 +842,13 @@ function createStepMethodContext({
 /* @__NO_SIDE_EFFECTS__ */
 function createProxyHandler({
 	stepMethods,
-	resolveMessage,
+	resolver,
 	runtimeSteps,
 	operationMode,
 	context,
 }: {
 	stepMethods: RegisteredStepMethods
-	resolveMessage: ResolveMessageFn
+	resolver: RuntimeMessageResolver
 	runtimeSteps: RuntimeStep[]
 	operationMode: RuntimeOperationMode
 	context: StepMethodContext
@@ -811,7 +864,7 @@ function createProxyHandler({
 				const utils = createExecutionStepMethodUtils(
 					p as string,
 					nextRuntimeSteps,
-					resolveMessage,
+					resolver,
 					operationMode,
 					registeredStepMethod.defaultOperationMode,
 				)
@@ -822,7 +875,7 @@ function createProxyHandler({
 				})
 				return createInstance({
 					stepMethods,
-					resolveMessage,
+					resolver,
 					context,
 					currentRuntimeSteps: nextRuntimeSteps,
 					currentOperationMode: utils['~operationMode'],
@@ -846,8 +899,6 @@ function createCoreProperties(
 			validate: execute,
 		},
 		'~core': {
-			executionStepContext: null!,
-			RegisteredStepPluginDefs: null!,
 			runtimeSteps,
 			operationMode: OPERATION_MODES[operationMode],
 		},
@@ -861,13 +912,13 @@ function createCoreProperties(
 /* @__NO_SIDE_EFFECTS__ */
 function createInstance({
 	stepMethods,
-	resolveMessage,
+	resolver,
 	context,
 	currentRuntimeSteps,
 	currentOperationMode,
 }: {
 	stepMethods: RegisteredStepMethods
-	resolveMessage: ResolveMessageFn
+	resolver: RuntimeMessageResolver
 	context: StepMethodContext
 	currentRuntimeSteps: RuntimeStep[]
 	currentOperationMode: RuntimeOperationMode
@@ -877,20 +928,19 @@ function createInstance({
 
 	return new Proxy(coreProperties, createProxyHandler({
 		stepMethods,
-		resolveMessage,
+		resolver,
 		runtimeSteps: currentRuntimeSteps,
 		operationMode: currentOperationMode,
 		context,
 	}))
 }
 
+// Derived from the actual core-property keys so the reserved set can never
+// drift from what `createCoreProperties` installs. `then` is reserved in
+// addition, so an instance is never mistaken for a thenable. Construction-time
+// cost only (computed once at module load).
 const reservedStepMethodNames = new Set<PropertyKey>([
-	'~standard',
-	'~core',
-	'~execute',
-	'execute',
-	'isSuccess',
-	'isFailure',
+	...Object.keys(createCoreProperties([], createFinalizedPipeExecutor([], RUNTIME_OPERATION_MODE_SYNC), RUNTIME_OPERATION_MODE_SYNC)),
 	'then',
 ])
 
@@ -928,15 +978,17 @@ export function createValchecker<
 			const stepMethod = Reflect.get(def, method)
 			if (typeof stepMethod !== 'function')
 				throw new TypeError(`Invalid step method: ${method}`)
-			stepMethods[method] = { run: stepMethod, defaultOperationMode }
+			// The `typeof === 'function'` guard proves callability at runtime, but TS's
+			// `Function` type carries no call signature, so it is not assignable to `AnyFn`.
+			stepMethods[method] = { run: stepMethod as AnyFn, defaultOperationMode }
 		}
 	}
-	const resolveMessage = createResolveMessageFunction(globalMessage as MessageHandler<any> | undefined)
-	const context = createStepMethodContext({ stepMethods, resolveMessage })
+	const resolver = createMessageResolver(globalMessage as MessageHandler<any> | undefined)
+	const context = createStepMethodContext({ stepMethods, resolver })
 
 	return createInstance({
 		stepMethods,
-		resolveMessage,
+		resolver,
 		context,
 		currentRuntimeSteps: [],
 		currentOperationMode: RUNTIME_OPERATION_MODE_SYNC,

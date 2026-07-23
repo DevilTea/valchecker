@@ -1,6 +1,25 @@
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, MessageHandler, Next, TStepPluginDef, TValchecker } from './types'
 import { describe, expect, it } from 'vitest'
 import { array, number, object } from '../steps'
-import { createValchecker, implStepPlugin } from './core'
+import { createValchecker, implStepPlugin, resolveMessagePriority, resolveStaticIssueMessage } from './core'
+
+type MessageFixtureMeta = DefineStepMethodMeta<{
+	Name: 'messageFixture'
+	ExpectedCurrentValchecker: DefineExpectedValchecker
+}>
+
+// One nullary step-method signature shared by every message fixture method.
+type FixtureStep<This extends TValchecker> = () => Next<undefined, This>
+
+interface MessageFixtureDef extends TStepPluginDef {
+	scoped: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	contextual: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	external: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	dynamicDefault: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	dynamicCustom: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	noMessage: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	emptyFailure: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+}
 
 const frozenExternalIssue = Object.freeze({
 	code: 'fixture:external',
@@ -10,7 +29,7 @@ const frozenExternalIssue = Object.freeze({
 	path: Object.freeze([]),
 })
 
-const messageFixturePlugin = implStepPlugin<any>({
+const messageFixturePlugin = implStepPlugin<MessageFixtureDef>({
 	scoped: ({ utils: { addSuccessStep, createIssue, failure, prependIssuePath } }: any) => {
 		addSuccessStep(() => failure(prependIssuePath(createIssue({
 			code: 'fixture:scoped',
@@ -363,7 +382,7 @@ describe('issue message finalization', () => {
 						{ message: messages[1], path: ['second'] },
 					],
 				})
-			if ('issues' in result) {
+			if (result.issues != null) {
 				for (const issue of result.issues) {
 					expect(Object.getOwnPropertySymbols(issue))
 						.toEqual([])
@@ -399,5 +418,73 @@ describe('issue message finalization', () => {
 					payload: { error: expect.any(TypeError) },
 				}],
 			})
+	})
+})
+
+describe('static and dynamic message resolution parity', () => {
+	const code = 'test:matrix'
+	const data = { code, category: 'validation' as const, payload: {}, path: [] }
+
+	// Handler shapes exercised at each precedence tier. `mapMiss` is transparent
+	// (behaves like an absent handler) for both paths; `fn` and `mapHit` are
+	// dynamic and force deferral in the static path.
+	const shapes: { name: string, handler: (tier: string) => MessageHandler<any> | undefined }[] = [
+		{ name: 'absent', handler: () => undefined },
+		{ name: 'string', handler: tier => `S:${tier}` },
+		{ name: 'fn', handler: tier => () => `D:${tier}` },
+		{ name: 'mapHit', handler: tier => ({ [code]: () => `M:${tier}` }) },
+		{ name: 'mapMiss', handler: () => ({ 'other:code': () => 'X' }) },
+	]
+
+	it('never lets statically resolved messages disagree with dynamic resolution', () => {
+		for (const custom of shapes) {
+			for (const global of shapes) {
+				for (const def of shapes) {
+					const label = `${custom.name}/${global.name}/${def.name}`
+					const customMessage = custom.handler('custom')
+					const globalMessage = global.handler('global')
+					const defaultMessage = def.handler('default')
+
+					const staticMessage = resolveStaticIssueMessage(code, customMessage, globalMessage, defaultMessage)
+					const dynamicMessage = resolveMessagePriority({
+						data,
+						customMessage,
+						contextMessages: [],
+						defaultMessage,
+						globalMessage,
+					})
+
+					// Dynamic resolution always yields a concrete string.
+					expect(typeof dynamicMessage, label)
+						.toBe('string')
+					// When static resolution commits to a message, it must match
+					// what dynamic resolution would have produced.
+					if (staticMessage !== undefined) {
+						expect(staticMessage, label)
+							.toBe(dynamicMessage)
+					}
+				}
+			}
+		}
+	})
+
+	it('commits statically for a fully-static handler shape', () => {
+		// The matrix above only checks agreement when static resolution commits;
+		// it would still pass if static resolution always deferred (returned
+		// undefined). Pin one fully-static shape that MUST commit so a regression
+		// killing static resolution entirely turns this red. A plain-string
+		// custom message intentionally defers, so drive the commit through a
+		// string global message with custom and default absent.
+		const staticMessage = resolveStaticIssueMessage(code, undefined, 'S:global', undefined)
+		expect(staticMessage)
+			.toBe('S:global')
+		expect(resolveMessagePriority({
+			data,
+			customMessage: undefined,
+			contextMessages: [],
+			defaultMessage: undefined,
+			globalMessage: 'S:global',
+		}))
+			.toBe('S:global')
 	})
 })

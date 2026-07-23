@@ -105,7 +105,15 @@ describe('message type contracts', () => {
 		createValchecker({
 			steps: [bigint, isAtLeast, number],
 			message: {
-				'isAtLeast:expected_at_least': ({ payload }) => {
+				// Map-form message handlers are not contextually typed through
+				// `createValchecker`'s generic inference (a TypeScript limitation with
+				// `MessageMap` + deferred inference), so the payload is annotated
+				// explicitly to document the expected discriminated union.
+				'isAtLeast:expected_at_least': ({ payload }: {
+					payload:
+						| { target: 'number', value: number, minimum: number }
+						| { target: 'bigint', value: bigint, minimum: bigint }
+				}) => {
 					if (payload.target === 'number') {
 						expectTypeOf(payload.value)
 							.toEqualTypeOf<number>()
@@ -145,7 +153,8 @@ describe('message type contracts', () => {
 			} })
 
 		v.object({ value: v.number() }, { message: {
-			'number:expected_number': ({ payload, path }) => {
+			// See note above: map-form handler params require explicit annotation.
+			'number:expected_number': ({ payload, path }: { payload: { value: unknown }, path: PropertyKey[] }) => {
 				expectTypeOf(payload.value)
 					.toEqualTypeOf<unknown>()
 				expectTypeOf(path)
@@ -157,7 +166,8 @@ describe('message type contracts', () => {
 		createValchecker({
 			steps: [custom],
 			message: {
-				'custom:failed': ({ payload }) => {
+				// See note above: map-form handler params require explicit annotation.
+				'custom:failed': ({ payload }: { payload: { value: number } }) => {
 					expectTypeOf(payload.value)
 						.toEqualTypeOf<number>()
 					return String(payload.value)

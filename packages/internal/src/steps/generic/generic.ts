@@ -1,6 +1,5 @@
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
-import { implStepPlugin } from '../../core'
-import { isPromiseLike } from '../../shared'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import { executeRuntimeSteps, implStepPlugin } from '../../core/core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'generic'
@@ -62,29 +61,16 @@ export const generic = implStepPlugin<PluginDef>({
 		utils: { addStep },
 		params: [stepOrFactory],
 	}) => {
-		// Handle factory function
+		// Handle factory function. The sub-schema is resolved lazily on each
+		// execution, so the parent mode stays conservatively maybe-async and the
+		// shared core loop runs the resolved steps over the current result.
 		if (typeof stepOrFactory === 'function') {
-			addStep((lastResult) => {
-				const runtimeSteps = stepOrFactory()['~core'].runtimeSteps
-				const len = runtimeSteps.length
-				let result: any = lastResult
-
-				for (let i = 0; i < len; i++) {
-					result = runtimeSteps[i]!(result)
-					if (isPromiseLike(result)) {
-						let chain = Promise.resolve(result as PromiseLike<ExecutionResult>)
-						for (let j = i + 1; j < len; j++)
-							chain = chain.then(runtimeSteps[j]!)
-						return chain
-					}
-				}
-				return result
-			}, 'maybe-async')
+			addStep(lastResult => executeRuntimeSteps(stepOrFactory()['~core'].runtimeSteps, lastResult), 'maybe-async')
 		}
 		// Handle direct step
 		else {
 			const runtimeSteps = stepOrFactory['~core'].runtimeSteps
-			const operationMode = stepOrFactory['~core']?.operationMode ?? 'maybe-async'
+			const operationMode = stepOrFactory['~core'].operationMode ?? 'maybe-async'
 			const len = runtimeSteps.length
 			for (let i = 0; i < len; i++) {
 				addStep(runtimeSteps[i]!, operationMode)

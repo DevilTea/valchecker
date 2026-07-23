@@ -51,6 +51,14 @@ export type OperationMode = 'sync' | 'async' | 'maybe-async'
 
 export interface TExecutionContext {
 	initial: boolean
+	/**
+	 * Type-level execution mode read by `InferOperationMode`. This may be
+	 * strictly MORE precise than the conservative runtime `~core.operationMode`;
+	 * the two are NOT guaranteed to be equal. In particular `check`, `transform`,
+	 * and `fallback` register `'maybe-async'` at runtime (a callback's async-ness
+	 * is unobservable at registration), which takes the schema off the sync fast
+	 * path even when the type level infers a narrower mode.
+	 */
 	operationMode: OperationMode
 	input: unknown
 	output: unknown
@@ -61,7 +69,16 @@ export type TExecutionContextPatch = Partial<Omit<TExecutionContext, 'initial'>>
 
 export interface TValchecker {
 	'~core': {
+		/**
+		 * Type-level phantom with no runtime backing. Consulted only by
+		 * `InferExecutionContext`; reading it at runtime yields `undefined`.
+		 */
 		executionStepContext: TExecutionContext
+		/**
+		 * Type-level phantom with no runtime backing. Consulted only by
+		 * `InferRegisteredStepPluginDefs`; reading it at runtime yields
+		 * `undefined`.
+		 */
 		registeredExecutionStepPlugins: TStepPluginDef
 		/** Conservative runtime execution mode used for executor specialization. */
 		readonly operationMode: OperationMode
@@ -75,6 +92,9 @@ export type InferInput<V extends TValchecker> = InferExecutionContext<V>['input'
 export type InferOutput<V extends TValchecker> = InferExecutionContext<V>['output']
 export type InferIssue<V extends TValchecker> = InferExecutionContext<V>['issue']
 export type InferRegisteredStepPluginDefs<V extends TValchecker> = V['~core']['registeredExecutionStepPlugins']
+// `any` is passed as `This` deliberately: this resolution only reads the
+// registered plugin defs, not the current instance, so a concrete `This` would
+// only add instantiation cost without changing the result.
 export type InferAllIssue<V extends TValchecker> = ResolveStepMethodDefs<V, any> extends infer Def
 	? CoreIssue<RegisteredStepMethodName<InferRegisteredStepPluginDefs<V>>>
 	| ValueOf<{
@@ -122,14 +142,13 @@ type PatchExecutionContext<Current extends TExecutionContext, Patch extends TExe
 
 type IsStepMethodDef<M> = [IsEqual<M, any>, IsEqual<M, unknown>, IsEqual<M, never>] extends [false, false, false]
 	// If one of the checks is true, then true
-	? IsEqual<
-		M extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
-			? IsEqual<M['Method'], never> extends true ? false : true
-			: false,
-		false
-	> extends true
-		? false
-		: true
+	? [
+			M extends { Type: 'ExecutionStep', Meta: TStepMethodMeta, Method: AnyFn }
+				? IsEqual<M['Method'], never> extends true ? false : true
+				: false,
+		] extends [false]
+			? false
+			: true
 	: false
 
 type ResolveStepMethodDefs<Instance extends TValchecker, This = Instance> = UnionToIntersection<InferRegisteredStepPluginDefs<Instance>> & { CurrentValchecker: This }
@@ -191,7 +210,7 @@ export interface Valchecker<
 	readonly '~standard': {
 		version: 1
 		vendor: 'valchecker'
-		validate: (value: unknown) => MaybePromise<ExecutionResult>
+		validate: (value: unknown) => MaybePromise<ExecutionResult<CurrentExecutionContext['output'], CurrentExecutionContext['issue']>>
 		types?: CurrentExecutionContext | undefined
 	}
 
@@ -322,6 +341,13 @@ export type DefineExpectedValchecker<ExpectedExecutionContext extends Partial<TE
 	issue: ExpectedExecutionContext extends { issue: infer C extends AnyExecutionIssue } ? C : TExecutionContext['issue']
 }>
 
+/**
+ * Enforcement point for the `${Name}:${string}` issue-code prefix: the
+ * `SelfIssue` constraint here is the ONLY place that requires a step's issue
+ * codes to be prefixed with its method name. Defining a meta by writing a raw
+ * `TStepMethodMeta` instead of going through `DefineStepMethodMeta` bypasses
+ * this check entirely (a step quality test is the backstop).
+ */
 export interface DefineStepMethodMeta<Meta extends {
 	Name: string
 	ExpectedCurrentValchecker: DefineExpectedValchecker<any>
@@ -386,6 +412,16 @@ type MessageMap<Issue extends AnyExecutionIssue> = {
 	) => string | undefined | null
 }
 
+/**
+ * Custom message: a static string, a function receiving the typed issue, or a
+ * map keyed by issue code.
+ *
+ * Map-form handler params are contextually typed only against a concrete issue
+ * union. When the union flows through an unresolved generic (e.g.
+ * `createValchecker`'s inference or structural step options), map-form params
+ * fall back to implicit `any`; annotate the param explicitly or use the
+ * function form, which stays typed through generics.
+ */
 export type MessageHandler<Issue extends AnyExecutionIssue = AnyExecutionIssue>
 	= | string
 		| ((issue: IssueMessageInput<Issue>) => string | undefined | null)

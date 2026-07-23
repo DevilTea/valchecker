@@ -12,15 +12,38 @@ async function consumeStandardSchema<Input, Output>(
 	return await schema['~standard'].validate(input)
 }
 
-describe('Standard Schema V1 contract', () => {
+describe('standard Schema V1 contract', () => {
 	it('exposes the required metadata and structural type contract', () => {
 		const schema = v.string()
-		const standard: StandardSchemaV1<string, string> = schema
+		// `~standard.validate` carries the schema output type per Standard Schema
+		// V1, so a `string`-output schema is assignable to
+		// `StandardSchemaV1<unknown, string>`. Input stays `unknown` by design:
+		// any value can be executed.
+		const standard: StandardSchemaV1<unknown, string> = schema
 
-		expect(standard['~standard'].version).toBe(1)
-		expect(standard['~standard'].vendor).toBe('valchecker')
-		expect(standard['~standard'].validate).toBe(schema.execute)
-		expectTypeOf(standard).toMatchTypeOf<StandardSchemaV1<string, string>>()
+		expect(standard['~standard'].version)
+			.toBe(1)
+		expect(standard['~standard'].vendor)
+			.toBe('valchecker')
+		expect(standard['~standard'].validate)
+			.toBe(schema.execute)
+		expectTypeOf(standard)
+			.toMatchTypeOf<StandardSchemaV1<unknown, string>>()
+	})
+
+	it('infers the schema output type through a generic Standard Schema consumer', () => {
+		function accept<Output>(schema: StandardSchemaV1<unknown, Output>): Output {
+			void schema
+			return undefined as Output
+		}
+
+		expectTypeOf(accept(v.string()))
+			.toEqualTypeOf<string>()
+		expectTypeOf(accept(v.number()))
+			.toEqualTypeOf<number>()
+		expectTypeOf(accept(v.string()
+			.transform(value => value.length)))
+			.toEqualTypeOf<number>()
 	})
 
 	it('returns synchronous success and failure results when the pipeline is synchronous', () => {
@@ -29,24 +52,27 @@ describe('Standard Schema V1 contract', () => {
 
 		const success = schema['~standard'].validate('  Ada  ')
 		expect(success).not.toBeInstanceOf(Promise)
-		expect(success).toEqual({ value: 'Ada' })
+		expect(success)
+			.toEqual({ value: 'Ada' })
 
 		const failure = schema['~standard'].validate(42)
 		expect(failure).not.toBeInstanceOf(Promise)
-		expect(failure).toMatchObject({
-			issues: [{
-				code: 'string:expected_string',
-				category: 'validation',
-				message: 'Expected a string.',
-				path: [],
-			}],
-		})
+		expect(failure)
+			.toMatchObject({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: [],
+				}],
+			})
 	})
 
 	it('preserves transformed output and nested issue paths through a generic consumer', async () => {
 		const schema = v.object({
 			profile: v.object({
-				name: v.string().transform(value => value.toUpperCase()),
+				name: v.string()
+					.transform(value => value.toUpperCase()),
 			}),
 		})
 
@@ -75,12 +101,14 @@ describe('Standard Schema V1 contract', () => {
 
 		const bypassed = schema['~standard'].validate(42)
 		expect(bypassed).not.toBeInstanceOf(Promise)
-		expect(bypassed).toMatchObject({
-			issues: [{ code: 'string:expected_string' }],
-		})
+		expect(bypassed)
+			.toMatchObject({
+				issues: [{ code: 'string:expected_string' }],
+			})
 
 		const validated = schema['~standard'].validate('Ada')
-		expect(validated).toBeInstanceOf(Promise)
+		expect(validated)
+			.toBeInstanceOf(Promise)
 		await expect(validated).resolves.toEqual({ value: 'Ada' })
 	})
 
@@ -93,7 +121,8 @@ describe('Standard Schema V1 contract', () => {
 			}))
 
 		const result = schema['~standard'].validate('ada')
-		expect(result).toBeInstanceOf(Promise)
+		expect(result)
+			.toBeInstanceOf(Promise)
 		await expect(result).resolves.toEqual({ value: 'ADA' })
 	})
 
@@ -120,12 +149,15 @@ describe('Standard Schema V1 contract', () => {
 	})
 
 	it('uses toAsync to guarantee native Promise results for both outcomes', async () => {
-		const schema = v.string().toAsync()
+		const schema = v.string()
+			.toAsync()
 
 		const success = schema['~standard'].validate('Ada')
 		const failure = schema['~standard'].validate(42)
-		expect(success).toBeInstanceOf(Promise)
-		expect(failure).toBeInstanceOf(Promise)
+		expect(success)
+			.toBeInstanceOf(Promise)
+		expect(failure)
+			.toBeInstanceOf(Promise)
 		await expect(success).resolves.toEqual({ value: 'Ada' })
 		await expect(failure).resolves.toMatchObject({
 			issues: [{ code: 'string:expected_string' }],

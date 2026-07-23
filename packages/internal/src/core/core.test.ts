@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { runtimeExecutionStepDefMarker } from '../shared'
 import {
 	appendIssueContext,
-	createPipeExecutor,
 	createValchecker,
 	handleMessage,
 	hasInternalIssue,
@@ -55,9 +54,11 @@ const flowPlugin = implStepPlugin({
 	},
 	inspectResult: ({ utils }: any) => {
 		utils.addStep((result: ExecutionResult) => {
-			if (utils.isSuccess(result))
+			// `utils` is untyped here, so use the imported type-guard helpers to
+			// narrow the result union.
+			if (isSuccess(result))
 				return utils.success(result.value)
-			if (utils.isFailure(result))
+			if (isFailure(result))
 				return utils.failure(result.issues)
 			throw new Error('unreachable')
 		}, 'sync')
@@ -96,8 +97,10 @@ describe('core result contracts', () => {
 		// even when a JavaScript caller constructs an invalid empty issue array.
 		[{ issues: [] }, false, true],
 	] as const)('classifies execution result %j', (result, success, failure) => {
-		expect(isSuccess(result as ExecutionResult)).toBe(success)
-		expect(isFailure(result as ExecutionResult)).toBe(failure)
+		expect(isSuccess(result as ExecutionResult))
+			.toBe(success)
+		expect(isFailure(result as ExecutionResult))
+			.toBe(failure)
 	})
 
 	it('distinguishes recoverable validation failures from internal failures', () => {
@@ -107,11 +110,16 @@ describe('core result contracts', () => {
 			category: 'internal',
 		}
 
-		expect(hasInternalIssue([validation])).toBe(false)
-		expect(hasInternalIssue([validation, internal])).toBe(true)
-		expect(isRecoverableFailure({ issues: [validation] })).toBe(true)
-		expect(isRecoverableFailure({ issues: [internal] })).toBe(false)
-		expect(isRecoverableFailure({ value: 'ok' })).toBe(false)
+		expect(hasInternalIssue([validation]))
+			.toBe(false)
+		expect(hasInternalIssue([validation, internal]))
+			.toBe(true)
+		expect(isRecoverableFailure({ issues: [validation] }))
+			.toBe(true)
+		expect(isRecoverableFailure({ issues: [internal] }))
+			.toBe(false)
+		expect(isRecoverableFailure({ value: 'ok' }))
+			.toBe(false)
 	})
 })
 
@@ -120,9 +128,12 @@ describe('core issue contracts', () => {
 		const plugin = {} as StepPluginImpl<TStepPluginDef>
 		const result = implStepPlugin(plugin)
 
-		expect(result).toBe(plugin)
-		expect((result as any)[runtimeExecutionStepDefMarker]).toBe(true)
-		expect(implStepPlugin(result)).toBe(result)
+		expect(result)
+			.toBe(plugin)
+		expect((result as any)[runtimeExecutionStepDefMarker])
+			.toBe(true)
+		expect(implStepPlugin(result))
+			.toBe(result)
 	})
 
 	it('prepends mixed property keys without mutating the source issue', () => {
@@ -134,13 +145,16 @@ describe('core issue contracts', () => {
 		const result = prependIssuePath(issue, ['root', 1])
 
 		expect(result).not.toBe(issue)
-		expect(result.path).toEqual(['root', 1, symbol, 0])
-		expect(issue.path).toEqual([symbol, 0])
+		expect(result.path)
+			.toEqual(['root', 1, symbol, 0])
+		expect(issue.path)
+			.toEqual([symbol, 0])
 	})
 
 	it('returns the original issue when no path or message scope is added', () => {
 		const issue = validationIssue('test:path', ['leaf'])
-		expect(prependIssuePath(issue, [])).toBe(issue)
+		expect(prependIssuePath(issue, []))
+			.toBe(issue)
 	})
 
 	it('appends context immutably and preserves existing context order', () => {
@@ -151,11 +165,13 @@ describe('core issue contracts', () => {
 		const result = appendIssueContext(issue, { type: 'union', branchIndex: 1 })
 
 		expect(result).not.toBe(issue)
-		expect(result.context).toEqual([
-			{ type: 'existing' },
-			{ type: 'union', branchIndex: 1 },
-		])
-		expect(issue.context).toEqual([{ type: 'existing' }])
+		expect(result.context)
+			.toEqual([
+				{ type: 'existing' },
+				{ type: 'union', branchIndex: 1 },
+			])
+		expect(issue.context)
+			.toEqual([{ type: 'existing' }])
 	})
 })
 
@@ -171,23 +187,29 @@ describe('message contracts', () => {
 		[undefined, undefined],
 		['Static message', 'Static message'],
 	] as const)('returns scalar message handler %j', (handler, expected) => {
-		expect(handleMessage(data, handler)).toBe(expected)
+		expect(handleMessage(data, handler))
+			.toBe(expected)
 	})
 
 	it('normalizes callback data and defaults the issue category', () => {
 		const handler = vi.fn((issue: any) => `${issue.category}:${issue.path.join('.')}:${issue.payload.value}`)
 
-		expect(handleMessage(data, handler)).toBe('validation:root:42')
-		expect(handler).toHaveBeenCalledOnce()
+		expect(handleMessage(data, handler))
+			.toBe('validation:root:42')
+		expect(handler)
+			.toHaveBeenCalledOnce()
 	})
 
 	it('uses only an own function entry from a message map', () => {
 		const inherited = { 'test:error': () => 'inherited' }
 		const map = Object.create(inherited)
 
-		expect(handleMessage(data, map)).toBeNull()
-		expect(handleMessage(data, { 'test:error': 'not a function' } as any)).toBeNull()
-		expect(handleMessage(data, { 'test:error': () => 'own' })).toBe('own')
+		expect(handleMessage(data, map))
+			.toBeNull()
+		expect(handleMessage(data, { 'test:error': 'not a function' } as any))
+			.toBeNull()
+		expect(handleMessage(data, { 'test:error': () => 'own' }))
+			.toBe('own')
 	})
 
 	it('resolves step, nearest context, global, default, and fallback messages in order', () => {
@@ -205,15 +227,20 @@ describe('message contracts', () => {
 			contextMessages: ['context'],
 			globalMessage: 'global',
 			defaultMessage: 'default',
-		})).toBe('step')
+		}))
+			.toBe('step')
 		expect(resolve({
 			contextMessages: [() => null, 'nearest', 'outer'],
 			globalMessage: 'global',
 			defaultMessage: 'default',
-		})).toBe('nearest')
-		expect(resolve({ globalMessage: 'global', defaultMessage: 'default' })).toBe('global')
-		expect(resolve({ defaultMessage: 'default' })).toBe('default')
-		expect(resolve({})).toBe('Invalid value.')
+		}))
+			.toBe('nearest')
+		expect(resolve({ globalMessage: 'global', defaultMessage: 'default' }))
+			.toBe('global')
+		expect(resolve({ defaultMessage: 'default' }))
+			.toBe('default')
+		expect(resolve({}))
+			.toBe('Invalid value.')
 	})
 
 	it('continues message priority when callbacks and maps return no message', () => {
@@ -223,122 +250,100 @@ describe('message contracts', () => {
 			contextMessages: [{ 'test:error': () => null }],
 			globalMessage: { 'test:error': () => 'global' },
 			defaultMessage: 'default',
-		})).toBe('global')
+		}))
+			.toBe('global')
 	})
 })
 
-describe('pipe executor contracts', () => {
-	it('passes the input through an empty pipeline', () => {
-		const executor = createPipeExecutor({ runtimeSteps: [] })
-		expect(executor({ value: true })).toEqual({ value: { value: true } })
-	})
-
-	it('executes synchronous steps in declaration order', () => {
-		const order: number[] = []
-		const executor = createPipeExecutor({
-			runtimeSteps: [
-				(result) => {
-					order.push(1)
-					return { value: (result as any).value + 1 }
-				},
-				(result) => {
-					order.push(2)
-					return { value: (result as any).value * 2 }
-				},
-			],
-		})
-
-		expect(executor(5)).toEqual({ value: 12 })
-		expect(order).toEqual([1, 2])
-	})
-
-	it('continues with later steps after a pipeline becomes asynchronous', async () => {
-		const executor = createPipeExecutor({
-			runtimeSteps: [
-				result => ({ value: (result as any).value + 1 }),
-				async result => ({ value: (result as any).value * 2 }),
-				result => ({ value: (result as any).value + 3 }),
-			],
-		})
-
-		const result = executor(5)
-		expect(result).toBeInstanceOf(Promise)
-		await expect(result).resolves.toEqual({ value: 15 })
-	})
-
-	it('observes later mutations to the dynamic runtime step array', () => {
-		const runtimeSteps = [
-			(result: ExecutionResult) => ({ value: (result as any).value + 1 }),
-		]
-		const executor = createPipeExecutor({ runtimeSteps })
-
-		expect(executor(2)).toEqual({ value: 3 })
-		runtimeSteps.push(result => ({ value: (result as any).value * 2 }))
-		expect(executor(2)).toEqual({ value: 6 })
-	})
-
-	it('does not convert raw executor rejections into structured issues', async () => {
-		const error = new Error('raw rejection')
-		const executor = createPipeExecutor({
-			runtimeSteps: [async () => { throw error }],
-		})
-
-		await expect(executor('value')).rejects.toBe(error)
-	})
-})
-
-describe('Valchecker instance contracts', () => {
+describe('valchecker instance contracts', () => {
 	it('exposes one executable empty-schema contract', () => {
-		const v = createValchecker({ steps: [] })
+		// An empty step list yields a degenerate instance whose type collapses to
+		// `never`; this test only asserts the runtime base-instance contract.
+		const v = createValchecker({ steps: [] }) as any
 
-		expect(v.execute('value')).toEqual({ value: 'value' })
-		expect(v['~execute']('value')).toEqual({ value: 'value' })
-		expect(v['~core'].runtimeSteps).toEqual([])
-		expect(v['~core'].operationMode).toBe('sync')
-		expect(v['~standard']).toEqual({
-			version: 1,
-			vendor: 'valchecker',
-			validate: v.execute,
-		})
+		expect(v.execute('value'))
+			.toEqual({ value: 'value' })
+		expect(v['~execute']('value'))
+			.toEqual({ value: 'value' })
+		expect(v['~core'].runtimeSteps)
+			.toEqual([])
+		expect(v['~core'].operationMode)
+			.toBe('sync')
+		expect(v['~standard'])
+			.toEqual({
+				version: 1,
+				vendor: 'valchecker',
+				validate: v.execute,
+			})
 	})
 
 	it('creates immutable chains and passes method parameters', () => {
 		const v = createValchecker({ steps: [flowPlugin] }) as any
 		const incremented = v.increment(2)
-		const chained = incremented.increment(3).inspectResult()
+		const chained = incremented.increment(3)
+			.inspectResult()
 
-		expect(v.execute(1)).toEqual({ value: 1 })
-		expect(incremented.execute(1)).toEqual({ value: 3 })
-		expect(chained.execute(1)).toEqual({ value: 6 })
-		expect(v['~core'].runtimeSteps).toHaveLength(0)
-		expect(incremented['~core'].runtimeSteps).toHaveLength(1)
-		expect(chained['~core'].runtimeSteps).toHaveLength(3)
-		expect(v['~core'].operationMode).toBe('sync')
-		expect(incremented['~core'].operationMode).toBe('sync')
-		expect(chained['~core'].operationMode).toBe('sync')
-		expect(v.unannotated()['~core'].operationMode).toBe('maybe-async')
-		expect(v.unannotated().execute(1)).toEqual({ value: 1 })
-		expect(v.maybeAsync()['~core'].operationMode).toBe('maybe-async')
-		expect(v.maybeAsync().increment()['~core'].operationMode).toBe('maybe-async')
-		expect(v.asyncMode()['~core'].operationMode).toBe('async')
-		expect(v.asyncMode().maybeAsync()['~core'].operationMode).toBe('async')
+		expect(v.execute(1))
+			.toEqual({ value: 1 })
+		expect(incremented.execute(1))
+			.toEqual({ value: 3 })
+		expect(chained.execute(1))
+			.toEqual({ value: 6 })
+		expect(v['~core'].runtimeSteps)
+			.toHaveLength(0)
+		expect(incremented['~core'].runtimeSteps)
+			.toHaveLength(1)
+		expect(chained['~core'].runtimeSteps)
+			.toHaveLength(3)
+		expect(v['~core'].operationMode)
+			.toBe('sync')
+		expect(incremented['~core'].operationMode)
+			.toBe('sync')
+		expect(chained['~core'].operationMode)
+			.toBe('sync')
+		expect(v.unannotated()['~core'].operationMode)
+			.toBe('maybe-async')
+		expect(v.unannotated()
+			.execute(1))
+			.toEqual({ value: 1 })
+		expect(v.maybeAsync()['~core'].operationMode)
+			.toBe('maybe-async')
+		expect(v.maybeAsync()
+			.increment()['~core'].operationMode)
+			.toBe('maybe-async')
+		expect(v.asyncMode()['~core'].operationMode)
+			.toBe('async')
+		expect(v.asyncMode()
+			.maybeAsync()['~core'].operationMode)
+			.toBe('async')
 	})
 
 	it('composes an initial schema from the same registry without inheriting the current chain', () => {
 		const v = createValchecker({ steps: [flowPlugin] }) as any
-		const schema = v.increment(10).composeInitialIncrement(2)
+		const schema = v.increment(10)
+			.composeInitialIncrement(2)
 
-		expect(schema.execute(1)).toEqual({ value: 13 })
+		expect(schema.execute(1))
+			.toEqual({ value: 13 })
 	})
 
 	it('runs success and failure steps only for their matching result variant', () => {
 		const v = createValchecker({ steps: [flowPlugin] }) as any
 
-		expect(v.increment().recover().execute(1)).toEqual({ value: 2 })
-		expect(v.fail().increment().execute('value')).toMatchObject({
-			issues: [{ code: 'test:failed' }],
-		})
-		expect(v.fail().recover().execute('value')).toEqual({ value: 'recovered:test:failed' })
+		expect(v.increment()
+			.recover()
+			.execute(1))
+			.toEqual({ value: 2 })
+		expect(v.fail()
+			.increment()
+			.execute('value'))
+			.toMatchObject({
+				issues: [{ code: 'test:failed' }],
+			})
+		expect(v.fail()
+			.recover()
+			.execute('value'))
+			.toEqual({ value: 'recovered:test:failed' })
 	})
 
 	it('finalizes paths, context, and a configured global message on actual failures', () => {
@@ -347,42 +352,50 @@ describe('Valchecker instance contracts', () => {
 			message: ({ code, path }) => `global:${code}:${path.join('.')}`,
 		}) as any
 
-		expect(v.fail().execute('value')).toMatchObject({
-			issues: [{ message: 'global:test:failed:', path: [] }],
-		})
-		expect(v.contextFailure().execute('value')).toMatchObject({
-			issues: [{
-				code: 'test:context',
-				path: ['root'],
-				context: [{ type: 'test', marker: true }],
-			}],
-		})
+		expect(v.fail()
+			.execute('value'))
+			.toMatchObject({
+				issues: [{ message: 'global:test:failed:', path: [] }],
+			})
+		expect(v.contextFailure()
+			.execute('value'))
+			.toMatchObject({
+				issues: [{
+					code: 'test:context',
+					path: ['root'],
+					context: [{ type: 'test', marker: true }],
+				}],
+			})
 	})
 
 	it('normalizes synchronous step exceptions into internal issues', () => {
 		const v = createValchecker({ steps: [flowPlugin] }) as any
-		const result = v.throwSync().execute('value')
+		const result = v.throwSync()
+			.execute('value')
 
-		expect(result).toMatchObject({
-			issues: [{
-				code: 'core:unknown_exception',
-				category: 'internal',
-				message: 'An unexpected error occurred during step execution',
-				path: [],
-				payload: {
-					method: 'throwSync',
-					receivedResult: { value: 'value' },
-					error: expect.objectContaining({ message: 'sync error' }),
-				},
-			}],
-		})
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'core:unknown_exception',
+					category: 'internal',
+					message: 'An unexpected error occurred during step execution',
+					path: [],
+					payload: {
+						method: 'throwSync',
+						receivedResult: { value: 'value' },
+						error: expect.objectContaining({ message: 'sync error' }),
+					},
+				}],
+			})
 	})
 
 	it('normalizes asynchronous step rejections into internal issues', async () => {
 		const v = createValchecker({ steps: [flowPlugin] }) as any
-		const result = v.rejectAsync().execute('value')
+		const result = v.rejectAsync()
+			.execute('value')
 
-		expect(result).toBeInstanceOf(Promise)
+		expect(result)
+			.toBeInstanceOf(Promise)
 		await expect(result).resolves.toMatchObject({
 			issues: [{
 				code: 'core:unknown_exception',
@@ -403,6 +416,7 @@ describe('Valchecker instance contracts', () => {
 		['non-function', [{ invalid: true }], 'Invalid step method: invalid'],
 		['symbol name', [{ [Symbol('custom')]() {} }], 'Invalid step method name: Symbol(custom)'],
 	] as const)('rejects %s plugin registrations', (_case, steps, message) => {
-		expect(() => (createValchecker as any)({ steps })).toThrowError(message)
+		expect(() => (createValchecker as any)({ steps }))
+			.toThrowError(message)
 	})
 })

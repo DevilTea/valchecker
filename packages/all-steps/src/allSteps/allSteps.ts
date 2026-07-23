@@ -1,6 +1,8 @@
 import * as _all from '@valchecker/internal'
 
-const runtimeExecutionStepDefMarker = Symbol.for('valchecker:runtimeExecutionStepDefMarker')
+// Shared by value from @valchecker/internal so the discovery marker cannot drift
+// from a second Symbol.for string and silently yield an empty collection.
+const { runtimeExecutionStepDefMarker } = _all
 
 type _All = typeof _all
 
