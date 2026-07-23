@@ -15,7 +15,7 @@ Zod 4 and Zod 4 jitless run in separate Node.js processes because the jitless co
 
 ## Manual GitHub Actions run
 
-Use the repository’s **Benchmark** workflow to run a controlled comparison on `ubuntu-24.04` and Node.js 24. The workflow accepts:
+Use the repository’s **Performance Comparison** workflow to run a controlled cross-library comparison on `ubuntu-24.04` and Node.js 24. The workflow accepts:
 
 - `profile`: `smoke`, `standard`, or `full`
 - `adapters`: a comma-separated subset of `valchecker,zod3,zod4,zod4-jitless,valibot`
@@ -33,7 +33,7 @@ The concise Markdown report is written to the Actions job summary. The artifact 
 
 ## Tree-shaking report
 
-The **Tree Shaking** workflow runs on relevant pull requests and can also be started manually. It bundles equivalent Valchecker, Zod 3, Zod 4 classic, Zod 4 Mini, and Valibot schemas with one Rollup and Terser configuration, then reports minified, gzip, and Brotli sizes.
+The **Bundle Size Impact** workflow runs on relevant pull requests and can also be started manually. It bundles equivalent Valchecker, Zod 3, Zod 4 classic, Zod 4 Mini, and Valibot schemas with one Rollup and Terser configuration, then reports minified, gzip, and Brotli sizes.
 
 Valchecker is measured in two modes:
 
@@ -52,11 +52,23 @@ pnpm --dir benchmarks treeshake --output ../artifacts/tree-shaking
 
 Brotli is the primary automated comparison metric. Cross-library numbers describe bundle cost for the tested schema, not runtime throughput; use the performance suite separately for execution behavior.
 
-## Pull request benchmark impact
+## Before/after benchmark comparison
 
-Pull requests that modify runtime source or benchmark code run the **Benchmark Impact** workflow. It builds the pull request base and candidate on the same runner and measures both with the candidate benchmark harness and standard profile.
+The **Performance Impact** workflow measures the impact of a change and runs two ways:
 
-The workflow performs three paired independent process runs. Each candidate result is divided by the adjacent base result from the same repetition, and base/candidate order alternates to reduce thermal, scheduler, and runner drift. The reported change is the median of the three paired ratios. Paired RME uses a 95% Student’s t interval, which is intentionally conservative for the small sample; separate base/candidate medians, cross-run variation, and within-process sample RME remain in the JSON evidence.
+- **Pull request (automatic gate).** Pull requests that modify runtime source or benchmark code compare the pull request base (`before`) against the head (`after`) with the standard profile, Valchecker only, all scenarios, and `fail_on_regression` enabled.
+- **Manual dispatch.** `workflow_dispatch` compares two arbitrary revisions on demand and lets you choose exactly what to measure:
+  - `before`: baseline git ref (branch, tag, or SHA); required
+  - `after`: candidate git ref; defaults to the dispatched ref
+  - `adapters`: competitor adapters to show alongside Valchecker (for example `valibot,zod3`); empty measures Valchecker only
+  - `scenarios`: scenario ids or group names to run; empty runs every scenario for the profile
+  - `profile`: `smoke`, `standard`, or `full`
+  - `runs`: paired repetitions for the impact comparison (minimum three)
+  - `fail_on_regression`: fail the job when the impact verdict is a regression
+
+The comparison scripts always come from the checked-out ref (the pull request merge ref, or the dispatched ref), so scenario selection and the compare tooling stay fixed; `before` and `after` are only two Valchecker builds the fixed scripts point at via `VALCHECKER_DIST_URL`.
+
+Valchecker before/after uses paired independent process runs. Each candidate result is divided by the adjacent base result from the same repetition, and base/candidate order alternates to reduce thermal, scheduler, and runner drift. The reported change is the median of the paired ratios. Paired RME uses a 95% Student’s t interval, which is intentionally conservative for the small sample; separate base/candidate medians, cross-run variation, and within-process sample RME remain in the JSON evidence.
 
 The impact report classifies a scenario only when its paired-ratio RME is at or below 5%:
 
@@ -66,14 +78,14 @@ The impact report classifies a scenario only when its paired-ratio RME is at or 
 - at least 10% regression: severe scenario regression
 - at least 5% geometric-mean regression across two or more stable scenarios in a benchmark group: severe group regression
 
-Severe regressions fail the workflow. Mixed improvements and regressions remain a reviewer decision. A performance change is valuable only when the target workload and tradeoff are explicit:
+Severe regressions fail the workflow when `fail_on_regression` is enabled (always on for pull requests). Mixed improvements and regressions remain a reviewer decision. A performance change is valuable only when the target workload and tradeoff are explicit:
 
 - construction or fresh-schema cost may increase only when warmed gains are larger and the amortization point is documented
 - warmed success, library-default failure, first-issue failure, and all-issues failure are evaluated as separate groups
 - added implementation complexity or package size should normally buy at least 10% in a representative hot path or broad gains across multiple scenarios
 - semantic correctness, API stability, coverage, and package integrity remain hard constraints
 
-The workflow uploads all six raw results plus Markdown, HTML, and JSON impact reports.
+When `adapters` is set (manual dispatch), the job also publishes each build’s ranking against the selected competitors so the standing versus peers is visible before and after. The job summary shows the impact verdict, per-scenario changes, and any competitor rankings; the artifact retains every raw result and report.
 
 ## Local run
 
@@ -132,6 +144,13 @@ Profiles:
 - `full`: longer samples and large-array scenarios
 
 Raw output defaults to `benchmarks/results/raw.json`. Use `--output <path>`, `--seed <value>`, or `--adapters valchecker,zod4` to customize a run.
+
+Restrict a run to specific scenarios with `--scenarios`, accepting a comma-separated list of scenario ids (for example `primitive/valid`) or benchmark-group names (for example `warm/failure/first`); the union of matches runs and every other scenario is skipped. Explicit selection ignores the sampling tier, so a named scenario always runs regardless of `--mode`, and an unknown id or group is a hard error.
+
+```bash
+pnpm --dir benchmarks bench --mode standard --adapters valchecker,valibot \
+  --scenarios primitive/valid,warm/failure/first
+```
 
 ## Methodology
 
