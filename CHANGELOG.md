@@ -20,6 +20,12 @@ Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` b
 - **Breaking:** `toJSONString` now fails on sparse array holes with `toJSONString:unserializable` (`{ reason: 'undefined_result' }`) at the hole's path instead of serializing them to `null`, matching its existing strictness for explicit `undefined`, function, and symbol values.
 - **Breaking:** `toString` takes a single trailing options object `{ radix?, message? }` instead of native positional arguments (`toString(16)` becomes `toString({ radix: 16 })`) and now supports a custom failure `message`. It continues to delegate to the value's own `toString` instance method.
 - The advanced `~core` runtime object no longer allocates the dead `executionStepContext` and `registeredExecutionStepPlugins` slots. The corresponding `TValchecker['~core']` interface properties are now type-level phantoms with no runtime backing; reading them yields `undefined`.
+- **Breaking (edge):** `map()` and `set()` now iterate the input lazily from the native `Map`/`Set` iterator instead of snapshotting all entries at execution start. Two edge behaviors change: iteration ignores an overridden instance `forEach`/`entries`/`values` (validation always sees the collection's real contents), and there is no longer a mutation-isolation guarantee — a child step that mutates the input during validation observes live iteration, matching valibot/zod. Insertion order, transformed-key/item collision detection, `collectAllIssues`, and sync/maybe-async behavior are unchanged.
+
+### Performance
+
+- Schema instances dispatch through a shared prototype instead of a per-instance `Proxy` `get` trap. This removes a fixed per-property-read cost paid on every `execute`, `~execute`, and `~core` access (including the internal per-child reads structural steps perform), with no change to the public property surface.
+- `map()` / `set()` first-issue short-circuit no longer scans the whole collection (lazy native iteration), and `intersection()` merges disjoint flat plain objects by spread/assignment instead of per-key `Object.defineProperty`.
 
 ### Fixed
 
