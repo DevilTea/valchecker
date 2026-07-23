@@ -47,4 +47,44 @@ describe('map asynchronous value continuation', () => {
 				}],
 			})
 	})
+
+	it('reports a transformed-key collision found while continuing asynchronously', async () => {
+		const key = v.string()
+			.transform(entryKey => Promise.resolve(entryKey === 'b' ? 'a' : entryKey))
+
+		await expect(v.map({ key, value: v.number() })
+			.execute(new Map([['a', 1], ['b', 2]])))
+			.resolves.toMatchObject({
+				issues: [{ code: 'map:duplicate_transformed_key', path: [1, 'key'], payload: { firstSourceKey: 'a', sourceKey: 'b', transformedKey: 'a' } }],
+			})
+	})
+
+	it('reports a collision on the entry whose key resolves asynchronously', async () => {
+		const key = v.string()
+			.transform(entryKey => entryKey === 'b' ? Promise.resolve('a') : entryKey)
+
+		await expect(v.map({ key, value: v.number() })
+			.execute(new Map([['a', 1], ['b', 2]])))
+			.resolves.toMatchObject({
+				issues: [{ code: 'map:duplicate_transformed_key', path: [1, 'key'], payload: { firstSourceKey: 'a', sourceKey: 'b', transformedKey: 'a' } }],
+			})
+	})
+
+	it('stops at a recoverable key failure in a later asynchronous entry', async () => {
+		const key = v.string()
+			.transform(entryKey => Promise.resolve(entryKey))
+
+		await expect(v.map({ key, value: v.number() })
+			.execute(new Map<unknown, unknown>([['a', 1], [2, 3]])))
+			.resolves.toMatchObject({ issues: [{ code: 'string:expected_string', path: [1, 'key'] }] })
+	})
+
+	it('stops at a recoverable value failure in a later asynchronous entry', async () => {
+		const key = v.string()
+			.transform(entryKey => Promise.resolve(entryKey))
+
+		await expect(v.map({ key, value: v.number() })
+			.execute(new Map<unknown, unknown>([['a', 1], ['b', 'x']])))
+			.resolves.toMatchObject({ issues: [{ code: 'number:expected_number', path: [1, 'value'] }] })
+	})
 })

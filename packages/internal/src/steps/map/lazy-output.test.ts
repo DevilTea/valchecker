@@ -17,7 +17,7 @@ describe('map lazy output allocation', () => {
 		expect(result.value).not.toBe(input)
 	})
 
-	it('snapshots the complete workload before synchronous callbacks mutate the source', () => {
+	it('iterates live, so a synchronous callback that mutates the source is observed', () => {
 		const input = new Map([['a', 1]])
 		const key = v.unknown()
 			.syncMap((value: unknown) => {
@@ -28,7 +28,7 @@ describe('map lazy output allocation', () => {
 		expect(v.map({ key, value: v.number() })
 			.execute(input))
 			.toEqual({
-				value: new Map([['a', 1]]),
+				value: new Map([['a', 1], ['later', 2]]),
 			})
 		expect(input)
 			.toEqual(new Map([['a', 1], ['later', 2]]))
@@ -186,46 +186,33 @@ describe('map lazy output allocation', () => {
 			.toMatchObject({ path: [0, 'value'] })
 	})
 
-	it('preserves size lookup and overridden forEach call semantics', () => {
+	it('validates the real entries via the native iterator, ignoring an overridden forEach/size', () => {
+		// Iteration uses Map.prototype.entries, not the instance forEach/size, so a
+		// subclass or tampered instance cannot redirect validation away from its
+		// actual entries.
 		const input = new Map([['source', 1]])
-		const order: string[] = []
 		Object.defineProperty(input, 'size', {
 			get() {
-				order.push('size')
-				return 1
-			},
-		})
-		const overriddenForEach = (callback: (value: unknown, key: unknown) => void) => {
-			order.push('call')
-			callback(1, 'a')
-		}
-		Object.defineProperty(overriddenForEach, 'call', {
-			value: () => {
-				throw new Error('Function.call must not be observed.')
+				throw new Error('size must not be observed')
 			},
 		})
 		Object.defineProperty(input, 'forEach', {
 			get() {
-				order.push('forEach')
-				return overriddenForEach
+				throw new Error('forEach must not be observed')
 			},
 		})
 
 		expect(v.map({ key: v.string(), value: v.number() })
 			.execute(input))
 			.toEqual({
-				value: new Map([['a', 1]]),
+				value: new Map([['source', 1]]),
 			})
-		expect(order)
-			.toEqual(['size', 'forEach', 'call'])
 	})
 
-	it('retains the original executor for an overridden forEach method', () => {
+	it('ignores an overridden forEach that would inject spoofed duplicate entries', () => {
 		const input = new Map([['source', 1]])
-		let getterCalls = 0
 		Object.defineProperty(input, 'forEach', {
 			get() {
-				getterCalls++
 				return function (callback: (value: unknown, key: unknown) => void) {
 					callback(1, 'a')
 					callback(2, 'a')
@@ -233,21 +220,12 @@ describe('map lazy output allocation', () => {
 			},
 		})
 
+		// The spoofed forEach would create a duplicate 'a' key, but native
+		// iteration sees only the real entry, so validation succeeds.
 		expect(v.map({ key: v.string(), value: v.number() })
 			.execute(input))
-			.toMatchObject({
-				issues: [{
-					code: 'map:duplicate_transformed_key',
-					path: [1, 'key'],
-					payload: {
-						firstSourceKey: 'a',
-						sourceKey: 'a',
-						firstIndex: 0,
-						index: 1,
-					},
-				}],
+			.toEqual({
+				value: new Map([['source', 1]]),
 			})
-		expect(getterCalls)
-			.toBe(1)
 	})
 })

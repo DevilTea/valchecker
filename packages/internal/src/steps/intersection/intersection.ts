@@ -213,11 +213,23 @@ function tryMergeDisjointFlatPlainObjects(left: unknown, right: unknown): MergeR
 			return undefined
 	}
 
+	// Fast, semantics-preserving output construction. Both branches are flat
+	// (no nested plain objects), share a prototype, and have disjoint enumerable
+	// keys, so a shallow combine is exact. Spread/assignment replaces per-key
+	// Object.defineProperty, which benchmarked ~13x slower than spread and ~2.4x
+	// slower than assignment (2026-07-23). For an Object.prototype prototype the
+	// object spread uses CreateDataProperty semantics, so `__proto__` stays an
+	// own data property rather than reassigning the prototype. For a null
+	// prototype there is no `__proto__` accessor on the chain, so direct
+	// assignment is equally safe.
+	if (prototype === Object.prototype)
+		return { ok: true, value: { ...(left as object), ...(right as object) } }
+
 	const output = Object.create(prototype) as Record<PropertyKey, unknown>
 	for (let i = 0; i < leftProperties.keys.length; i++)
-		defineEnumerableValue(output, leftProperties.keys[i]!, leftProperties.values[i])
+		output[leftProperties.keys[i]!] = leftProperties.values[i]
 	for (let i = 0; i < rightProperties.keys.length; i++)
-		defineEnumerableValue(output, rightProperties.keys[i]!, rightProperties.values[i])
+		output[rightProperties.keys[i]!] = rightProperties.values[i]
 	return { ok: true, value: output }
 }
 

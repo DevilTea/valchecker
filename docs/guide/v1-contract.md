@@ -339,9 +339,9 @@ By default, the first failing element stops later element work. With `collectAll
 
 ## Map and Set schemas
 
-`set(itemSchema, options?)` accepts `Set` instances, snapshots items at execution start, validates and transforms them in insertion order, and returns a new Set. Child issues receive `[index]` paths.
+`set(itemSchema, options?)` accepts `Set` instances, iterates the native Set iterator lazily, validates and transforms items in insertion order, and returns a new Set. Child issues receive `[index]` paths.
 
-`map({ key, value, message?, collectAllIssues? })` accepts `Map` instances, snapshots entries at execution start, and executes each entry's key schema before its value schema. Child paths are `[index, 'key']` and `[index, 'value']`.
+`map({ key, value, message?, collectAllIssues? })` accepts `Map` instances, iterates the native Map iterator lazily, and executes each entry's key schema before its value schema. Child paths are `[index, 'key']` and `[index, 'value']`.
 
 In default mode, a recoverable Set item failure stops later items. A recoverable Map key failure skips the current value and stops later entries; a value failure also stops later entries. With `collectAllIssues: true`, recoverable issues are collected from later items or entries, and a Map key failure does not hide the corresponding value failure.
 
