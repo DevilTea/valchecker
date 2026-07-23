@@ -195,6 +195,24 @@ Search the full repository for removed method names and issue codes before mergi
 
 Use conventional commit intent, run full verification, inspect the complete diff, resolve review feedback, and confirm CI plus relevant benchmark workflows before merge.
 
+## Issue labels
+
+Labels are namespaced by dimension; keep them consistent when triaging issues
+and PRs:
+
+- `type:` — kind of work, aligned with conventional commits: `feature`, `fix`,
+  `perf`, `refactor`, `docs`, `test`, `chore`.
+- `area:` — where it lands: `core`, `step`, `all-steps`, `public-api`, `types`,
+  `docs`, `benchmarks`, `ci`.
+- `priority:` — `P0` (urgent) → `P2` (opportunistic).
+- `status:` — `needs-triage`, `blocked`, `in-progress` (optional workflow state).
+
+Apply at most one `type:`, one `area:`, and one `priority:` per issue; the
+dimensions are orthogonal (e.g. a docs-site content change is `type: docs` +
+`area: docs`). Performance issues should link durable benchmark evidence (run id
+and the scenario data) so they can be re-verified without re-deriving the
+rationale.
+
 ## Detailed skills
 
 - `.github/skills/valchecker-dev/`
