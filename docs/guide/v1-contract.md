@@ -119,7 +119,7 @@ A validation enforces only its stated condition. `isAtLeast(0)` uses numeric com
 
 Loose primitive initial schemas accept the primitive or a string compatible with the corresponding TypeScript template-literal primitive type, then normalize to the primitive:
 
-```ts
+```text
 looseNumber(): number | `${number}` → number
 looseBoolean(): boolean | `${boolean}` → boolean
 looseBigint(): bigint | `${bigint}` → bigint
@@ -269,6 +269,8 @@ Every schema exposes `~standard`:
 - asynchronous or thenable validation returns a promise,
 - success contains transformed output,
 - failure contains Standard Schema-compatible issues and paths.
+
+`~standard.validate` carries the schema output type, so a schema with output `Output` is assignable to `StandardSchemaV1<unknown, Output>` and its output infers through generic Standard Schema consumers. The input type stays `unknown`: any value can be executed.
 
 Use `execute()` when Valchecker's complete issue payload is required.
 
@@ -431,7 +433,7 @@ Do not rely on `instanceof Promise`; Valchecker intentionally supports thenables
 
 ## Serialization and equality details
 
-`toJSONString()` performs a single-read preflight over own enumerable JSON properties. It reports unsupported values, cycles, and undefined results as validation issues with a nested `at` location; getter, Proxy, `toJSON`, and final stringify errors are operation issues. Sparse array holes become `null`, boxed string/number/boolean values preserve JSON semantics, and boxed BigInt remains unsupported.
+`toJSONString()` performs a single-read preflight over own enumerable JSON properties. It reports unsupported values, cycles, and undefined results as validation issues with a nested `at` location; getter, Proxy, `toJSON`, and final stringify errors are operation issues. Sparse array holes are reported as `undefined_result` validation issues at the hole's path rather than serialized to `null`, boxed string/number/boolean values preserve JSON semantics, and boxed BigInt remains unsupported.
 
 Length validators snapshot the actual `length` used for the decision. `toMappedBoolean()` snapshots its configured mappings at schema creation. `literal()` follows `Object.is`, including `NaN` equality and signed-zero distinction.
 

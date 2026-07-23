@@ -32,7 +32,7 @@ Length constraints expose their own explicit payload:
 ```ts
 const username = v.string()
 	.isLengthAtLeast(3, { message: ({ payload }) =>
-		`Expected at least ${payload.minimum} characters; received ${payload.length}` })
+		`Expected at least ${payload.minimumLength} characters; received ${payload.length}` })
 ```
 
 ## Global message resolver
@@ -61,6 +61,22 @@ const v = createValchecker({
 })
 ```
 
+A `message` may also be a map keyed by issue code:
+
+```ts
+const v = createValchecker({
+	steps: allSteps,
+	message: {
+		'string:expected_string': () => 'This field must be text',
+		'isAtLeast:expected_at_least': ({ payload }) => `Minimum value is ${payload.minimum}`,
+	},
+})
+```
+
+::: tip TypeScript note
+Map-form handler params are contextually typed only when the issue codes are a concrete union. When the union flows through an unresolved generic — as it does through `createValchecker`'s inference and through structural step options such as `object({...}, { message })` — the param falls back to implicit `any`. Either annotate the param explicitly (`({ payload }: { payload: { value: unknown } }) => ...`) or use the function form (`message: (issue) => ...`), which stays fully typed even through generics.
+:::
+
 ## Internationalization
 
 Use issue codes as stable translation keys and payload values as interpolation data:
@@ -69,12 +85,12 @@ Use issue codes as stable translation keys and payload values as interpolation d
 const translations = {
 	en: {
 		'string:expected_string': 'This field must be text',
-		'isLengthAtLeast:expected_length_at_least': 'Enter at least {minimum} characters',
+		'isLengthAtLeast:expected_length_at_least': 'Enter at least {minimumLength} characters',
 		'check:failed': 'Validation failed',
 	},
 	fr: {
 		'string:expected_string': 'Ce champ doit être du texte',
-		'isLengthAtLeast:expected_length_at_least': 'Saisissez au moins {minimum} caractères',
+		'isLengthAtLeast:expected_length_at_least': 'Saisissez au moins {minimumLength} caractères',
 		'check:failed': 'La validation a échoué',
 	},
 }

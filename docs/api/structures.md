@@ -32,8 +32,12 @@ Validates declared own fields. Unknown input properties do not fail validation, 
 ```ts
 const user = v.object({
 	id: v.string(),
-	name: v.string().toTrimmed().isNotEmpty(),
-	age: [v.number().isFinite().isAtLeast(0)],
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty(),
+	age: [v.number()
+		.isFinite()
+		.isAtLeast(0)],
 })
 
 user.execute({
@@ -65,7 +69,8 @@ Validates declared own fields and preserves unknown own properties in output. It
 
 ```ts
 const loose = v.looseObject({
-	name: v.string().toTrimmed(),
+	name: v.string()
+		.toTrimmed(),
 })
 
 loose.execute({
@@ -109,7 +114,8 @@ Validates elements in index order and returns their transformed outputs. By defa
 - element issues with numeric indices prepended to paths
 
 ```ts
-const tags = v.array(v.string().toLowercase())
+const tags = v.array(v.string()
+	.toLowercase())
 	.isLengthAtLeast(1)
 	.isLengthAtMost(5)
 
@@ -131,7 +137,9 @@ Validates Set items in insertion order and returns their transformed outputs in 
 
 ```ts
 const tags = v.set(
-	v.string().toTrimmed().toLowercase(),
+	v.string()
+		.toTrimmed()
+		.toLowercase(),
 )
 
 tags.execute(new Set([' TS ', 'Vue']))
@@ -155,8 +163,10 @@ Validates Map keys and values in insertion order and returns a new Map containin
 
 ```ts
 const scores = v.map({
-	key: v.string().toTrimmed(),
-	value: v.number().isFinite(),
+	key: v.string()
+		.toTrimmed(),
+	value: v.number()
+		.isFinite(),
 })
 
 scores.execute(new Map([
@@ -196,8 +206,13 @@ Evaluates branches in declaration order and returns the first successful branch'
 
 ```ts
 const identifier = v.union([
-	v.string().toTrimmed().transform(value => value.length),
-	v.number().isFinite().isInteger().isAtLeast(0),
+	v.string()
+		.toTrimmed()
+		.transform(value => value.length),
+	v.number()
+		.isFinite()
+		.isInteger()
+		.isAtLeast(0),
 ])
 
 identifier.execute(' abc ')
@@ -226,7 +241,8 @@ const value = v.union([
 	0,
 	null,
 	undefined,
-	v.number().isGreaterThan(0),
+	v.number()
+		.isGreaterThan(0),
 ])
 ```
 

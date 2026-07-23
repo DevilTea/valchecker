@@ -79,9 +79,11 @@ const users = v.object({
 For input containing wrong types in multiple records, issues may include:
 
 ```ts
-{ path: ['users', 0, 'email'], code: 'string:expected_string' }
-{ path: ['users', 0, 'age'], code: 'number:expected_number' }
-{ path: ['users', 2, 'email'], code: 'string:expected_string' }
+[
+	{ path: ['users', 0, 'email'], code: 'string:expected_string' },
+	{ path: ['users', 0, 'age'], code: 'number:expected_number' },
+	{ path: ['users', 2, 'email'], code: 'string:expected_string' },
+]
 ```
 
 ## Form field mapping
@@ -89,8 +91,10 @@ For input containing wrong types in multiple records, issues may include:
 ```ts
 const form = v.object({
 	personalInfo: v.object({
-		firstName: v.string().isNotEmpty(),
-		lastName: v.string().isNotEmpty(),
+		firstName: v.string()
+			.isNotEmpty(),
+		lastName: v.string()
+			.isNotEmpty(),
 	}),
 	contact: v.object({
 		email: v.string()

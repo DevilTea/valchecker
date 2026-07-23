@@ -167,11 +167,13 @@ The generic type parameter is an output assertion. Use `use()` after parsing whe
 
 ### `toJSONString(options?)`
 
-Serializes a supported value with JSON semantics after a single-read preflight. Inherited and symbol-keyed properties are ignored, sparse array holes become `null`, boxed string/number/boolean values are unboxed, and `NaN` or infinity serialize as `null`.
+Serializes a supported value with JSON semantics after a single-read preflight. Inherited and symbol-keyed properties are ignored, boxed string/number/boolean values are unboxed, and `NaN` or infinity serialize as `null`.
+
+Lossy slots are treated uniformly and strictly: an explicit `undefined`, a `function` or `symbol` value, and a sparse array hole all fail rather than being silently coerced. A hole fails with `toJSONString:unserializable` carrying `{ reason: 'undefined_result' }` at the hole's path, the same as an explicit `undefined` element. (Native `JSON.stringify` would instead write `null` for a hole.)
 
 Issue codes:
 
-- `toJSONString:unserializable` (`validation`) — payload `{ reason, value, at, valueType? }`
+- `toJSONString:unserializable` (`validation`) — payload `{ reason, value, at, valueType? }`, where `reason` is `'undefined_result'`, `'unsupported_type'`, or `'circular_reference'`
 - `toJSONString:serialization_failed` (`operation`) — payload `{ value, at, error }`
 
 ## Primitive conversions
@@ -180,7 +182,7 @@ Native conversions are available after outputs that are not already entirely the
 
 ### `toNumber(options?)`
 
-Delegates to `Number(value)`. It does not add parsing, finite-number, or precision-safety policy. Native exceptions become `toNumber:conversion_failed`.
+Delegates to `Number(value)`. It does not add parsing, finite-number, or precision-safety policy. Native exceptions become `toNumber:conversion_failed` (`operation`).
 
 ### `toBoolean()`
 
@@ -188,7 +190,7 @@ Delegates to `Boolean(value)` truthiness coercion. It does not parse semantic bo
 
 ### `toBigint(options?)`
 
-Delegates to `BigInt(value)`. Native conversion exceptions become `toBigint:conversion_failed`.
+Delegates to `BigInt(value)`. Native conversion exceptions become `toBigint:conversion_failed` (`operation`).
 
 ### `bigint().toSafeNumber(options?)`
 
@@ -215,13 +217,20 @@ Mappings use SameValueZero equality. Configuration arrays are immutable schema-t
 
 ## General conversion
 
-### `toString(...nativeArguments)`
+### `toString(options?)`
 
-Calls the current value's `toString` method and preserves its native parameters and return type.
+Converts the current value to a string by delegating to the value's own `toString` instance method (for example `(255).toString(16)`). It deliberately does not use `String(value)` and never consults `Symbol.toPrimitive`.
+
+Supply an optional `radix` (forwarded to the instance method; meaningful for `number` and `bigint`, ignored by other built-in `toString` implementations) and an optional `message` in the trailing options object:
+
+```ts
+v.number()
+	.toString({ radix: 16 })
+	.execute(255)
+// { value: 'ff' }
+```
 
 **Issue code:** `toString:conversion_failed` (`operation`)
-
-Because arguments belong to the native method, this step does not accept a trailing per-step message object. Global and code-map handlers still receive the typed issue.
 
 ## Generic transform
 

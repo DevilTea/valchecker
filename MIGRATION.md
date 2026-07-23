@@ -6,12 +6,16 @@ All built-in positional message parameters have been removed before 1.0. Keep on
 
 ```ts
 // Before
-v.number().isAtLeast(0, 'Must be non-negative.')
-v.array(v.string()).toFiltered(predicate, undefined, 'Filter failed.')
+v.number()
+	.isAtLeast(0, 'Must be non-negative.')
+v.array(v.string())
+	.toFiltered(predicate, undefined, 'Filter failed.')
 
 // After
-v.number().isAtLeast(0, { message: 'Must be non-negative.' })
-v.array(v.string()).toFiltered(predicate, { message: 'Filter failed.' })
+v.number()
+	.isAtLeast(0, { message: 'Must be non-negative.' })
+v.array(v.string())
+	.toFiltered(predicate, { message: 'Filter failed.' })
 ```
 This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases.
 
@@ -159,17 +163,19 @@ Numeric lower-bound payloads now use:
 }
 ```
 
-Length lower-bound payloads now snapshot the actual length used by validation:
+Length lower-bound payloads now snapshot the actual length used by validation and qualify the bound key as `minimumLength` (distinct from the unqualified `minimum` of the numeric-value bounds):
 
 ```ts
 {
-	value: { length: number }
-	minimum: number
+	value: {
+		length: number
+	}
+	minimumLength: number
 	length: number
 }
 ```
 
-Upper-bound payloads analogously use `maximum`; `isEmpty` and `isNotEmpty` expose `{ value, length }`.
+Upper-bound payloads analogously use `maximumLength`; `isEmpty` and `isNotEmpty` expose `{ value, length }`.
 
 ## Callback, conversion, and JSON issue contracts
 
@@ -192,6 +198,26 @@ When `check<AddedIssue>()` uses `addIssue()`, declare the domain issue type expl
 - `toJSONString:serialization_failed` is an operation issue with `{ value, at, error }`.
 
 The `at` field is the nested serialization location. Update snapshots that previously expected only `{ value }`.
+
+`toJSONString()` now treats every lossy slot strictly and uniformly. A sparse array hole such as `[1, , 3]` previously serialized to `'[1,null,3]'`; it now fails with `toJSONString:unserializable` carrying `{ reason: 'undefined_result' }` at the hole's path, consistent with how explicit `undefined`, `function`, and `symbol` values already fail.
+
+`toNumber:conversion_failed` and `toBigint:conversion_failed` moved from `category: 'validation'` to `category: 'operation'`. The rule is now explicit: a step whose executing code throws produces an `operation` issue, while static or parse invalidity (such as `toJSONValue:invalid_json`) remains `validation`. Update message maps or handlers that narrow on the category of these two codes.
+
+`toString()` no longer accepts native radix or locale arguments positionally. Move the radix into the trailing options object and add `message` there as well.
+
+```ts
+// Before
+v.number()
+	.toString(16)
+
+// After
+v.number()
+	.toString({ radix: 16 })
+```
+
+`toString()` delegates to the current value's own `toString` instance method (for example `(255).toString(16)`); it does not call `String(value)` and never consults `Symbol.toPrimitive`.
+
+`isIncluding()` now reports the searched-for value under a single `expected` payload key for the string, array, and Set variants. The string variant previously used `search`. Method parameter names are unchanged.
 
 `toMappedBoolean:unmapped_value` now includes immutable schema-time snapshots as `{ value, trueValues, falseValues }`.
 
@@ -372,7 +398,6 @@ The following accidental implementation exports are no longer public:
 noop
 returnTrue
 isPromiseLike
-runtimeExecutionStepDefMarker
 createPipeExecutor
 handleMessage
 prependIssuePath
@@ -380,6 +405,8 @@ resolveMessagePriority
 ```
 
 Application code should import from `valchecker`. Plugin authors should use root exports from `@valchecker/internal`, not source paths.
+
+`@valchecker/internal` now exports `runtimeExecutionStepDefMarker` (also re-exported from the public `valchecker` package), the shared `Symbol.for('valchecker:runtimeExecutionStepDefMarker')` used to discover registered step-plugin objects. `allSteps` imports this marker instead of re-deriving the symbol string, so the two packages can no longer drift apart.
 
 Plugin method names must be strings, map to functions, remain unique, avoid core method names, and not be `then`. Symbol method names are rejected.
 

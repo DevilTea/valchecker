@@ -4,6 +4,27 @@ All notable changes to Valchecker are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and published versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` baseline.
+
+### Added
+
+- `@valchecker/internal` exports `runtimeExecutionStepDefMarker` (also re-exported from the public `valchecker` package), the shared step-plugin discovery symbol previously duplicated as a `Symbol.for()` string in `@valchecker/all-steps`.
+
+### Changed
+
+- **Breaking:** `isLengthAtLeast` issue payloads use `minimumLength` instead of `minimum`, and `isLengthAtMost` uses `maximumLength` instead of `maximum`, distinguishing length bounds from the unqualified `minimum`/`maximum` of numeric-value bounds. Method parameter names are unchanged.
+- **Breaking:** `isIncluding` reports the searched value under a single `expected` payload key across its string, array, and Set variants; the string variant previously used `search`. Method parameter names are unchanged.
+- **Breaking:** `toNumber:conversion_failed` and `toBigint:conversion_failed` are now `operation` issues instead of `validation`, aligning with the rule that a throwing native conversion is an operation failure while static or parse invalidity remains a validation failure.
+- **Breaking:** `toJSONString` now fails on sparse array holes with `toJSONString:unserializable` (`{ reason: 'undefined_result' }`) at the hole's path instead of serializing them to `null`, matching its existing strictness for explicit `undefined`, function, and symbol values.
+- **Breaking:** `toString` takes a single trailing options object `{ radix?, message? }` instead of native positional arguments (`toString(16)` becomes `toString({ radix: 16 })`) and now supports a custom failure `message`. It continues to delegate to the value's own `toString` instance method.
+- The advanced `~core` runtime object no longer allocates the dead `executionStepContext` and `registeredExecutionStepPlugins` slots. The corresponding `TValchecker['~core']` interface properties are now type-level phantoms with no runtime backing; reading them yields `undefined`.
+
+### Fixed
+
+- `~standard.validate` now carries the schema output type per Standard Schema V1, improving assignability to `StandardSchemaV1<_, Output>` consumers.
+
 ## [1.0.0-rc.0] - Unreleased
 
 This release candidate establishes the intended Valchecker 1.0 compatibility contract. It is a prerelease and is published under the npm `next` tag only after explicit approval.

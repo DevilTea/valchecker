@@ -12,7 +12,8 @@
 - `parseJSON()`, `stringifyJSON()`, and `toSplitted()` become `toJSONValue()`, `toJSONString()`, and `toSplit()`.
 - `number()` now matches TypeScript `number`, including `NaN` and positive or negative infinity. Add `isFinite()` where required.
 - `looseNumber()` now normalizes TypeScript-compatible number strings; `looseBoolean()` and `looseBigint()` apply the same model.
-- Message maps and snapshots must use renamed issue codes and explicit `minimum` or `maximum` payload fields.
+- Message maps and snapshots must use renamed issue codes and explicit payload fields: numeric bounds use `minimum`/`maximum`, while length bounds use `minimumLength`/`maximumLength`.
+- `isIncluding()` reports its searched value under a single `expected` payload key for the string, array, and Set variants (the string variant previously used `search`).
 - `execute()` preserves sync or maybe-async behavior; use `.toAsync()` for an unconditional promise.
 - Callback steps support `PromiseLike` values.
 - `union()` returns the first successful branch's transformed output.
@@ -27,6 +28,9 @@
 - `check<AddedIssue>()` preserves domain issue typing from `addIssue()`.
 - JSON serialization, length validation, and mapped-boolean payloads expose additional diagnostic fields.
 - `literal()` uses `Object.is`; `toBigint:invalid_bigint` becomes `toBigint:conversion_failed`.
+- `toNumber:conversion_failed` and `toBigint:conversion_failed` are now `operation` issues rather than `validation`, because a throwing native conversion is an operation failure.
+- `toJSONString()` fails on sparse array holes with `toJSONString:unserializable` (`{ reason: 'undefined_result' }`) instead of serializing them to `null`.
+- `toString()` takes a trailing options object `{ radix?, message? }`; `toString(16)` becomes `toString({ radix: 16 })`.
 
 ## Common rename example
 

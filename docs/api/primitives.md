@@ -68,17 +68,17 @@ Always fails.
 
 **Issue code:** `never:unexpected_value`
 
-### `null_(options?)` and `undefined_(options?)`
+### `null(options?)` and `undefined(options?)`
 
 Accept only `null` or `undefined` respectively.
 
 **Issue codes:** `null:expected_null`, `undefined:expected_undefined`
 
-# Loose primitives
+## Loose primitives
 
 Loose primitives accept the primitive or its matching TypeScript template-literal string representation, then normalize successful output to the primitive. They do not implement unrestricted JavaScript coercion.
 
-## `looseNumber(options?)`
+### `looseNumber(options?)`
 
 Input: `number | `${number}``  
 Output: `number`
@@ -87,7 +87,7 @@ Output: `number`
 
 Numeric inputs still include `NaN` and infinity. String inputs must represent finite values compatible with TypeScript's template-literal number type. A non-empty whitespace-only string normalizes to `0`; the empty string is invalid.
 
-## `looseBoolean(options?)`
+### `looseBoolean(options?)`
 
 Input: `boolean | `${boolean}``  
 Output: `boolean`
@@ -96,30 +96,30 @@ Only the exact strings `"true"` and `"false"` are accepted.
 
 **Issue code:** `looseBoolean:expected_boolean`
 
-## `looseBigint(options?)`
+### `looseBigint(options?)`
 
 Input: `bigint | `${bigint}``  
 Output: `bigint`
 
 **Issue code:** `looseBigint:expected_bigint`
 
-# Numeric validation
+## Numeric validation
 
 Built-in validation methods preserve the successful value.
 
-## `isFinite(options?)`, `isNaN(options?)`, and `isInteger(options?)`
+### `isFinite(options?)`, `isNaN(options?)`, and `isInteger(options?)`
 
 Follow `Number.isFinite`, `Number.isNaN`, and `Number.isInteger`.
 
 **Issue codes:** `isFinite:expected_finite`, `isNaN:expected_nan`, `isInteger:expected_integer`
 
-## `isSafeInteger(options?)`
+### `isSafeInteger(options?)`
 
 Follows `Number.isSafeInteger`.
 
 **Issue code:** `isSafeInteger:expected_safe_integer`
 
-## Inclusive and strict bounds
+### Inclusive and strict bounds
 
 - `isAtLeast(minimum, options?)` checks `value >= minimum`.
 - `isAtMost(maximum, options?)` checks `value <= maximum`.
@@ -141,7 +141,7 @@ v.number()
 	.execute(Infinity) // failure
 ```
 
-## `isMultipleOf(divisor, options?)`
+### `isMultipleOf(divisor, options?)`
 
 Checks bigint divisibility with exact remainder semantics. Number inputs first accept an exact zero remainder, then compare the quotient with its nearest integer using a small relative tolerance capped by an absolute maximum. This accepts ordinary floating-point decimal noise without allowing tolerance to grow unbounded for huge values.
 
@@ -155,15 +155,15 @@ Non-finite number inputs fail. A zero divisor, non-finite number divisor, or zer
 
 **Issue code:** `isMultipleOf:expected_multiple_of`
 
-# Length validation
+## Length validation
 
-## `isLengthAtLeast(minimum, options?)` and `isLengthAtMost(maximum, options?)`
+### `isLengthAtLeast(minimum, options?)` and `isLengthAtMost(maximum, options?)`
 
 Check inclusive length bounds. Failure payloads include the single observed runtime `length`.
 
 **Issue codes:** `isLengthAtLeast:expected_length_at_least`, `isLengthAtMost:expected_length_at_most`
 
-## `isLengthExactly(expectedLength, options?)`
+### `isLengthExactly(expectedLength, options?)`
 
 Checks one observed `length` read for exact equality.
 
@@ -171,21 +171,21 @@ Checks one observed `length` read for exact equality.
 
 Failure payload: `{ value, expectedLength, length }`.
 
-## `isEmpty(options?)` and `isNotEmpty(options?)`
+### `isEmpty(options?)` and `isNotEmpty(options?)`
 
 Check `length === 0` and `length > 0`.
 
 **Issue codes:** `isEmpty:expected_empty`, `isNotEmpty:expected_not_empty`
 
-# String and collection validation
+## String and collection validation
 
-## `isStartingWith(prefix, options?)` and `isEndingWith(suffix, options?)`
+### `isStartingWith(prefix, options?)` and `isEndingWith(suffix, options?)`
 
 Follow the corresponding string methods.
 
 **Issue codes:** `isStartingWith:expected_starting_with`, `isEndingWith:expected_ending_with`
 
-## `isIncluding(value, options?)`
+### `isIncluding(value, options?)`
 
 For strings, checks `String.prototype.includes` and accepts optional `position`. For arrays, checks `Array.prototype.includes` and accepts optional `fromIndex`.
 
@@ -193,9 +193,9 @@ Array inclusion uses SameValueZero semantics, so `NaN` can match `NaN` and posit
 
 **Issue code:** `isIncluding:expected_including`
 
-The issue payload includes `target: 'string' | 'array'` and the applicable configured and observed values.
+The issue payload includes `target: 'string' | 'array' | 'set'` and the applicable configured and observed values.
 
-## `isMatching(pattern, options?)`
+### `isMatching(pattern, options?)`
 
 Snapshots a `RegExp` source and flags when the schema is constructed. Each execution resets `lastIndex` before and after matching, so global and sticky expressions remain deterministic across repeated calls.
 
@@ -203,9 +203,9 @@ A non-`RegExp` value supplied by a JavaScript caller is rejected while construct
 
 **Issue code:** `isMatching:expected_matching`
 
-# Primitive equality and narrowing
+## Primitive equality and narrowing
 
-## `isEqualTo(expected, options?)`
+### `isEqualTo(expected, options?)`
 
 Available after every primitive initial schema, primitive-capable unions, `unknown()`, and `any()`. It is unavailable on the initial builder and on object-only output.
 
@@ -213,7 +213,7 @@ The expected value must be a primitive: string, number, bigint, boolean, symbol,
 
 **Issue code:** `isEqualTo:expected_equal_to`
 
-## `isOneOf(values, options?)`
+### `isOneOf(values, options?)`
 
 Checks a non-empty readonly tuple of primitive values with `Object.is` semantics. The tuple is copied and frozen when the schema is constructed, and the successful output narrows to the tuple member union.
 
@@ -225,7 +225,7 @@ const status = v.unknown()
 // output: 'draft' | 'published'
 ```
 
-## Nullish narrowing
+### Nullish narrowing
 
 - `isDefined(options?)` removes `undefined` and preserves `null`.
 - `isNonNull(options?)` removes `null` and preserves `undefined`.
@@ -235,11 +235,11 @@ Each method is hidden once its excluded value is no longer possible. On `unknown
 
 **Issue codes:** `isDefined:expected_defined`, `isNonNull:expected_non_null`, `isNonNullish:expected_non_nullish`
 
-# Generic validation
+## Generic validation
 
 `check(predicate, options?)` remains the generic validation escape hatch. It supports predicates, type guards, typed `addIssue()`, synchronous callbacks, and `PromiseLike` callbacks.
 
-# Custom messages
+## Custom messages
 
 Every issue-producing step accepts a static message or typed message handler in its options object:
 

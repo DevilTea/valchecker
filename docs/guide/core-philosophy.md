@@ -57,14 +57,18 @@ The important consequence is that `number()` accepts `NaN`, `Infinity`, and `-In
 Finite-number policy is a validation constraint, not hidden type identity:
 
 ```ts
-v.number().isFinite()
+v.number()
+	.isFinite()
 ```
 
 Each named validation checks only the condition it states:
 
 ```ts
-v.number().isAtLeast(0) // Infinity succeeds
-v.number().isFinite().isAtLeast(0) // Infinity fails
+v.number()
+	.isAtLeast(0) // Infinity succeeds
+v.number()
+	.isFinite()
+	.isAtLeast(0) // Infinity fails
 ```
 
 This keeps steps orthogonal and composition predictable.
@@ -82,9 +86,12 @@ v.looseBigint() // bigint | `${bigint}` → bigint
 They do not mirror JavaScript constructors or truthiness:
 
 ```ts
-v.looseBoolean().execute('false') // { value: false }
-v.looseBoolean().execute(1) // failure
-v.looseNumber().execute('') // failure, not 0
+v.looseBoolean()
+	.execute('false') // { value: false }
+v.looseBoolean()
+	.execute(1) // failure
+v.looseNumber()
+	.execute('') // failure, not 0
 ```
 
 ## Validation and transformation stay distinct
@@ -141,7 +148,9 @@ interface Issue {
 Codes identify the failing contract, while payloads preserve machine-readable context:
 
 ```ts
-v.number().isAtLeast(10).execute(5)
+v.number()
+	.isAtLeast(10)
+	.execute(5)
 // issue code: isAtLeast:expected_at_least
 // payload: { target: 'number', value: 5, minimum: 10 }
 ```
@@ -153,7 +162,8 @@ Nested schemas prepend paths by creating new issue objects rather than mutating 
 Execution mode is determined by reached work, not merely by schema declaration:
 
 ```ts
-const schema = v.string().check(async value => value.length > 0)
+const schema = v.string()
+	.check(async value => value.length > 0)
 
 schema.execute('value') // Promise<ExecutionResult<string>>
 schema.execute(42) // synchronous type failure; callback not reached
@@ -167,8 +177,12 @@ Structural steps orchestrate nested pipelines:
 
 ```ts
 const user = v.object({
-	name: v.string().toTrimmed().isNotEmpty(),
-	age: v.looseNumber().isFinite().isInteger(),
+	name: v.string()
+		.toTrimmed()
+		.isNotEmpty(),
+	age: v.looseNumber()
+		.isFinite()
+		.isInteger(),
 	tags: [v.array(v.string())],
 })
 ```

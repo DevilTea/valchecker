@@ -48,8 +48,8 @@ Message-bearing steps place their message and optional configuration in a traili
 - `bigint()` — bigint values
 - `symbol()` — symbol values
 - `literal(value)` — exact literal match
-- `null_()` — `null`
-- `undefined_()` — `undefined`
+- `null()` — `null`
+- `undefined()` — `undefined`
 - `unknown()` — passthrough typed as `unknown`
 - `any()` — passthrough typed as `any`
 - `never()` — always fails
