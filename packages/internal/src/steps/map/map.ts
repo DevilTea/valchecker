@@ -38,13 +38,27 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Validates and transforms every key and value of a `Map` in insertion order.
 	 * The key and value schemas are supplied through one configuration object.
 	 * Transformed keys must remain unique. Traversal stops after the first
 	 * recoverable issue unless `collectAllIssues` is enabled.
 	 *
-	 * @example `v.map({ key: v.string(), value: v.number() })`
-	 * @issues `map:expected_map`, `map:duplicate_transformed_key`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, map, number, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [map, string, number] })
+	 * const schema = v.map({ key: v.string(), value: v.number() })
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'map:expected_map'`: The value is not a `Map`.
+	 * - `'map:duplicate_transformed_key'`: Two entries produced the same transformed key.
 	 */
 	map: DefineStepMethod<
 		Meta,
@@ -77,6 +91,7 @@ export const map = implStepPlugin<PluginDef>({
 		const childrenAreSynchronous = operationMode === 'sync'
 		const collectAllIssues = options.collectAllIssues === true
 
+		// Deliberately duplicated per-file: V8 inlines this local closure but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 		const appendChildIssues = (
 			result: ExecutionResult,
 			path: PropertyKey[],
@@ -143,7 +158,7 @@ export const map = implStepPlugin<PluginDef>({
 			firstKeyIndex: Map<unknown, number> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
 			resolvedKey?: ExecutionResult,
-		): Promise<ExecutionResult> => {
+		) => {
 			const entryCount = entries.length / 2
 			for (let index = startIndex; index < entryCount; index++) {
 				const offset = index * 2
@@ -240,6 +255,7 @@ export const map = implStepPlugin<PluginDef>({
 					}
 
 					if (keyFailed || valueFailed) {
+						// Keep rebuilding output after a recoverable failure: the output Map doubles as duplicate-detection state, so skipping it drops map:duplicate_transformed_key issues. See architecture.md (2026-07-22).
 						if (!hasFailure && output == null && index > 0) {
 							output = new Map()
 							firstKeyIndex = new Map()
@@ -257,14 +273,16 @@ export const map = implStepPlugin<PluginDef>({
 					const transformedKey = keyResult.value
 					const transformedValue = valueResult.value
 					const keyIsIdentity = transformedKey === sourceKey
+						// eslint-disable-next-line no-self-compare -- intentional NaN self-comparison implementing SameValueZero identity (x !== x is true only for NaN)
 						|| (transformedKey !== transformedKey && sourceKey !== sourceKey)
 					if (
 						output == null
 						&& !hasFailure
 						&& keyIsIdentity
 						&& Object.is(transformedValue, sourceValue)
-					)
+					) {
 						continue
+					}
 
 					if (output == null) {
 						output = new Map()

@@ -8,27 +8,32 @@ const v = createValchecker({
 
 describe('union type-state contracts', () => {
 	it('infers the union of branch outputs and issues for synchronous branches', () => {
-		const schema = v.union([v.string(), v.number()])
+		const _schema = v.union([v.string(), v.number()])
 
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'sync'>()
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string | number>()
-		expectTypeOf<InferIssue<typeof schema>['code']>()
-			.toEqualTypeOf<'string:expected_string' | 'number:expected_number'>()
+		expectTypeOf<InferOperationMode<typeof _schema>>()
+			.toEqualTypeOf<'sync'>()
+		expectTypeOf<InferOutput<typeof _schema>>()
+			.toEqualTypeOf<string | number>()
+		expectTypeOf<InferIssue<typeof _schema>['code']>()
+			.toEqualTypeOf<'string:expected_string' | 'number:expected_number' | 'core:unknown_exception' | 'core:message_exception'>()
 	})
 
 	it('becomes maybe-async when any branch can return a promise', () => {
-		const schema = v.union([
-			v.string().transform(async value => value.toUpperCase()),
+		const _schema = v.union([
+			v.string()
+				.transform(async value => value.toUpperCase()),
 			v.number(),
 		])
 
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'maybe-async'>()
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string | number>()
+		expectTypeOf<InferOperationMode<typeof _schema>>()
+			.toEqualTypeOf<'maybe-async'>()
+		expectTypeOf<InferOutput<typeof _schema>>()
+			.toEqualTypeOf<string | number>()
 	})
 
 	it('infers registered shorthand outputs, issues, and sync mode', () => {
 		const marker = Symbol('marker')
-		const schema = v.union([
+		const _schema = v.union([
 			'draft',
 			1,
 			true,
@@ -39,16 +44,19 @@ describe('union type-state contracts', () => {
 			v.number(),
 		])
 
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'sync'>()
-		expectTypeOf<InferOutput<typeof schema>>()
+		expectTypeOf<InferOperationMode<typeof _schema>>()
+			.toEqualTypeOf<'sync'>()
+		expectTypeOf<InferOutput<typeof _schema>>()
 			.toEqualTypeOf<'draft' | 1 | true | 1n | typeof marker | null | undefined | number>()
-		expectTypeOf<InferIssue<typeof schema>['code']>()
+		expectTypeOf<InferIssue<typeof _schema>['code']>()
 			.toEqualTypeOf<
 				| 'literal:expected_literal'
 				| 'null:expected_null'
 				| 'undefined:expected_undefined'
 				| 'number:expected_number'
-			>()
+				| 'core:unknown_exception'
+				| 'core:message_exception'
+		>()
 	})
 
 	it('enables only shorthands backed by registered provider steps', () => {

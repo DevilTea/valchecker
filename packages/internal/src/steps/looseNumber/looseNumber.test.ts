@@ -9,10 +9,15 @@ describe('looseNumber step plugin', () => {
 		[Number.NaN, Number.NaN],
 		[Infinity, Infinity],
 		['42', 42],
+		['+1', 1],
 		['-1.5', -1.5],
 		['.5', 0.5],
+		['5.', 5],
+		['01', 1],
 		['1e3', 1000],
 		['0x10', 16],
+		['0o17', 15],
+		['0b101', 5],
 		[' 1 ', 1],
 		['   ', 0],
 		['\n', 0],
@@ -22,7 +27,7 @@ describe('looseNumber step plugin', () => {
 			.toEqual({ value: output })
 	})
 
-	it.each(['', 'NaN', 'Infinity', '-Infinity', 'not-a-number', true, 1n])('rejects %p', (value) => {
+	it.each(['', 'NaN', 'Infinity', '-Infinity', 'not-a-number', '1_000', true, 1n])('rejects %p', (value) => {
 		const result = v.looseNumber()
 			.execute(value)
 		expect(result)

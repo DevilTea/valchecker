@@ -1,7 +1,9 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, isInteger, number } from '../..'
 
-const schema = createValchecker({ steps: [number, isInteger] }).number().isInteger()
+const schema = createValchecker({ steps: [number, isInteger] })
+	.number()
+	.isInteger()
 
 describe('isInteger benchmarks', () => {
 	bench('integer', () => {

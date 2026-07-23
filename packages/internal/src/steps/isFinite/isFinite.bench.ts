@@ -1,7 +1,9 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, isFinite, number } from '../..'
 
-const schema = createValchecker({ steps: [number, isFinite] }).number().isFinite()
+const schema = createValchecker({ steps: [number, isFinite] })
+	.number()
+	.isFinite()
 
 describe('isFinite benchmarks', () => {
 	bench('finite number', () => {

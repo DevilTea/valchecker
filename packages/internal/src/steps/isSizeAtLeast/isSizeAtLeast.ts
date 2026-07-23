@@ -12,6 +12,28 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that a size-bearing value such as a Map or Set has a `size` greater
+	 * than or equal to the specified minimum. The runtime reads `size` once and
+	 * snapshots that value in the failure payload.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isSizeAtLeast, set, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [set, string, isSizeAtLeast] })
+	 * const schema = v.set(v.string()).isSizeAtLeast(1)
+	 * const result = schema.execute(new Set(['a']))
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isSizeAtLeast:expected_size_at_least'`: The observed size is below the minimum.
+	 */
 	isSizeAtLeast: DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 		? InferOutput<This> extends infer CurrentOutput extends { size: number }
 			? (minimumSize: number, options?: StepOptions<Internal.Issue<CurrentOutput>>) => Next<{ issue: Internal.Issue<CurrentOutput> }, This>

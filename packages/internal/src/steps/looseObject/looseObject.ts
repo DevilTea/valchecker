@@ -59,6 +59,22 @@ interface PluginDef extends TStepPluginDef {
 	 * An own property whose value is `undefined` is still validated by its child schema.
 	 * Declared-field traversal stops after the first issue unless
 	 * `collectAllIssues` is enabled.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, looseObject, number, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [looseObject, string, number] })
+	 * const schema = v.looseObject({ name: v.string(), age: v.number() })
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'looseObject:expected_object'`: The value is not an object.
+	 * - `'looseObject:missing_key'`: A required key is not an own property of the value.
 	 */
 	looseObject: DefineStepMethod<
 		Meta,
@@ -158,6 +174,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 			return target
 		}
 
+		// Deliberately duplicated per-file: V8 inlines this local closure but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 		const appendChildIssues = (
 			result: ExecutionResult,
 			key: PropertyKey,
@@ -181,7 +198,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 			firstResult: PromiseLike<ExecutionResult>,
 			transformedValues: unknown[],
 			issues: AnyExecutionIssue[] | undefined,
-		): Promise<ExecutionResult> => {
+		) => {
 			for (let i = startIndex; i < keysLen; i++) {
 				const meta = propsMeta[i]!
 				let result: ExecutionResult
@@ -228,6 +245,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				}))
 			}
 
+			// eslint-disable-next-line unicorn/no-new-array -- preallocate fixed-length array; every index is assigned in the loop below
 			const transformedValues = new Array<unknown>(keysLen)
 			let issues: AnyExecutionIssue[] | undefined
 

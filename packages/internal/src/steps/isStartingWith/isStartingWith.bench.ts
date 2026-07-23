@@ -1,7 +1,9 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, isStartingWith, string } from '../..'
 
-const schema = createValchecker({ steps: [string, isStartingWith] }).string().isStartingWith('prefix')
+const schema = createValchecker({ steps: [string, isStartingWith] })
+	.string()
+	.isStartingWith('prefix')
 
 describe('isStartingWith benchmarks', () => {
 	bench('matching prefix', () => {

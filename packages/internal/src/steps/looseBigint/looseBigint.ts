@@ -42,6 +42,8 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+// Mirrors TypeScript's `${bigint}` template-literal grammar (tsc checker `isValidBigIntString(s, /* roundTripOnly */ false)`):
+// optional sign, decimal without leading zeros, or `0x`/`0b`/`0o` radix literals. No numeric separators, no `n` suffix.
 const BIGINT_STRING_RE = /^(?:-?(?:0|[1-9]\d*)|-?0x[\da-f]+|-?0b[01]+|-?0o[0-7]+)$/i
 
 function parseLooseBigint(value: unknown): bigint | undefined {
@@ -51,9 +53,10 @@ function parseLooseBigint(value: unknown): bigint | undefined {
 	if (typeof value !== 'string' || !BIGINT_STRING_RE.test(value)) {
 		return undefined
 	}
-	return value.startsWith('-0x') || value.startsWith('-0X')
-		|| value.startsWith('-0b') || value.startsWith('-0B')
-		|| value.startsWith('-0o') || value.startsWith('-0O')
+	// The regex already validated the string, so any '-0'-prefixed value longer than 2 chars is a negative radix
+	// literal (`-0x`/`-0b`/`-0o`), which `BigInt()` cannot parse directly. Bare '-0' has length 2 and stays on the
+	// direct path (`BigInt('-0') === 0n`).
+	return value.startsWith('-0') && value.length > 2
 		? -BigInt(value.slice(1))
 		: BigInt(value)
 }

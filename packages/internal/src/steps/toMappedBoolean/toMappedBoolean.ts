@@ -20,8 +20,33 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
-	 * Maps configured values to booleans with SameValueZero equality. Failure
-	 * payloads include immutable snapshots of both configured mappings.
+	 * ### Description:
+	 * Maps configured string, number, or bigint values to booleans using
+	 * SameValueZero equality, without coercion, trimming, or case normalization.
+	 * The `trueValues` and `falseValues` arrays are captured as immutable
+	 * schema-time snapshots and included in the failure payload. Supplying two
+	 * empty arrays, or overlapping values, throws a `TypeError` while constructing
+	 * the schema.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, string, toMappedBoolean } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, toMappedBoolean] })
+	 * const schema = v.string().toMappedBoolean({
+	 * 	trueValues: ['Y', 'yes'],
+	 * 	falseValues: ['N', 'no'],
+	 * })
+	 * const result = schema.execute('yes')
+	 * // result.value: true
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toMappedBoolean:unmapped_value'`: The value matches no configured mapping.
 	 */
 	toMappedBoolean: DefineStepMethod<
 		Meta,

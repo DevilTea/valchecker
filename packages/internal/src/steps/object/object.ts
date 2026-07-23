@@ -59,6 +59,22 @@ interface PluginDef extends TStepPluginDef {
 	 * An own property whose value is `undefined` is still validated by its child schema.
 	 * Declared-field traversal stops after the first issue unless
 	 * `collectAllIssues` is enabled.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, number, object, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [object, string, number] })
+	 * const schema = v.object({ name: v.string(), age: v.number() })
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'object:expected_object'`: The value is not an object.
+	 * - `'object:missing_key'`: A required key is not an own property of the value.
 	 */
 	object: DefineStepMethod<
 		Meta,
@@ -145,6 +161,7 @@ export const object = implStepPlugin<PluginDef>({
 			return target
 		}
 
+		// Deliberately duplicated per-file: V8 inlines this local closure but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 		const appendChildIssues = (
 			result: ExecutionResult,
 			key: PropertyKey,
@@ -166,9 +183,9 @@ export const object = implStepPlugin<PluginDef>({
 			value: object,
 			startIndex: number,
 			firstResult: PromiseLike<ExecutionResult>,
-			output: Record<PropertyKey, any>,
+			output: Record<PropertyKey, any> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
-		): Promise<ExecutionResult> => {
+		) => {
 			for (let i = startIndex; i < keysLen; i++) {
 				const meta = propsMeta[i]!
 				let result: ExecutionResult
@@ -177,10 +194,12 @@ export const object = implStepPlugin<PluginDef>({
 				}
 				else if (!Object.hasOwn(value, meta.key)) {
 					if (meta.isOptional) {
-						setOutputValue(output, meta.key, undefined)
+						if (output != null)
+							setOutputValue(output, meta.key, undefined)
 						continue
 					}
 					issues = appendMissingKey(meta.key, issues)
+					output = undefined
 					if (!collectAllIssues)
 						return failure(issues)
 					continue
@@ -192,15 +211,16 @@ export const object = implStepPlugin<PluginDef>({
 				if (isFailure(result)) {
 					const appended = appendChildIssues(result, meta.key, issues)
 					issues = appended.issues
+					output = undefined
 					if (appended.hasInternal || !collectAllIssues)
 						return failure(issues)
 				}
-				else {
+				else if (output != null) {
 					setOutputValue(output, meta.key, result.value)
 				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output!) : failure(issues)
 		}
 
 		addSuccessStep((value) => {
@@ -214,17 +234,19 @@ export const object = implStepPlugin<PluginDef>({
 			}
 
 			let issues: AnyExecutionIssue[] | undefined
-			const output: Record<PropertyKey, any> = {}
+			let output: Record<PropertyKey, any> | undefined = {}
 
 			for (let i = 0; i < keysLen; i++) {
 				const meta = propsMeta[i]!
 				const key = meta.key
 				if (!Object.hasOwn(value, key)) {
 					if (meta.isOptional) {
-						setOutputValue(output, key, undefined)
+						if (output != null)
+							setOutputValue(output, key, undefined)
 						continue
 					}
 					issues = appendMissingKey(key, issues)
+					output = undefined
 					if (!collectAllIssues)
 						return failure(issues)
 					continue
@@ -238,15 +260,16 @@ export const object = implStepPlugin<PluginDef>({
 				if (isFailure(syncResult)) {
 					const appended = appendChildIssues(syncResult, key, issues)
 					issues = appended.issues
+					output = undefined
 					if (appended.hasInternal || !collectAllIssues)
 						return failure(issues)
 				}
-				else {
+				else if (output != null) {
 					setOutputValue(output, key, syncResult.value)
 				}
 			}
 
-			return issues == null ? success(output) : failure(issues)
+			return issues == null ? success(output!) : failure(issues)
 		}, operationMode)
 	},
 })

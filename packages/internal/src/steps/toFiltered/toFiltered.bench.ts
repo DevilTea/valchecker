@@ -9,11 +9,16 @@ import { bench, describe } from 'vitest'
 import { any, array, createValchecker, set, toFiltered } from '../..'
 
 const v = createValchecker({ steps: [toFiltered, array, set, any] })
-const arraySmall = v.array(v.any()).toFiltered(() => true)
-const arrayLarge = v.array(v.any()).toFiltered((_item, index) => index % 2 === 0)
-const setSmall = v.set(v.any()).toFiltered(() => true)
-const setLarge = v.set(v.any()).toFiltered((_item, index) => index % 2 === 0)
-const setFailure = v.set(v.any()).toFiltered(() => { throw new Error('x') })
+const arraySmall = v.array(v.any())
+	.toFiltered(() => true)
+const arrayLarge = v.array(v.any())
+	.toFiltered((_item, index) => index % 2 === 0)
+const setSmall = v.set(v.any())
+	.toFiltered(() => true)
+const setLarge = v.set(v.any())
+	.toFiltered((_item, index) => index % 2 === 0)
+const setFailure = v.set(v.any())
+	.toFiltered(() => { throw new Error('x') })
 const largeArray = Array.from({ length: 1000 }, (_, index) => index)
 const largeSet = new Set(largeArray)
 
@@ -26,15 +31,15 @@ describe('toFiltered benchmarks', () => {
 		arrayLarge.execute(largeArray)
 	})
 
-	bench('Set success - small', () => {
+	bench('set success - small', () => {
 		setSmall.execute(new Set([1, 2, 3]))
 	})
 
-	bench('Set success - large', () => {
+	bench('set success - large', () => {
 		setLarge.execute(largeSet)
 	})
 
-	bench('Set callback failure', () => {
+	bench('set callback failure', () => {
 		setFailure.execute(new Set([1]))
 	})
 })

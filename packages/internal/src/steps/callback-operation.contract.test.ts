@@ -8,7 +8,7 @@ import {
 	toFiltered,
 	toSorted,
 	transform,
-} from '../..'
+} from '../index'
 
 const v = createValchecker({
 	steps: [any, array, check, toFiltered, toSorted, transform],
@@ -21,7 +21,9 @@ describe('callback operation family contracts', () => {
 		const syncError = new Error('sync')
 		const asyncError = new Error('async')
 
-		expect(v.transform(() => { throw syncError })
+		expect(v.transform(() => {
+			throw syncError
+		})
 			.execute('value'))
 			.toMatchObject({
 				issues: [{
@@ -30,7 +32,9 @@ describe('callback operation family contracts', () => {
 					payload: { phase: 'throw', value: 'value', error: syncError },
 				}],
 			})
-		await expect(v.transform(async () => { throw asyncError })
+		await expect(v.transform(async () => {
+			throw asyncError
+		})
 			.execute('value')).resolves.toMatchObject({
 			issues: [{
 				code: 'transform:callback_failed',
@@ -38,7 +42,9 @@ describe('callback operation family contracts', () => {
 				payload: { phase: 'reject', value: 'value', error: asyncError },
 			}],
 		})
-		expect(v.check(() => { throw syncError })
+		expect(v.check(() => {
+			throw syncError
+		})
 			.execute('value'))
 			.toMatchObject({
 				issues: [{
@@ -47,7 +53,9 @@ describe('callback operation family contracts', () => {
 					payload: { phase: 'throw', value: 'value', error: syncError },
 				}],
 			})
-		await expect(v.check(async () => { throw asyncError })
+		await expect(v.check(async () => {
+			throw asyncError
+		})
 			.execute('value')).resolves.toMatchObject({
 			issues: [{
 				code: 'check:callback_failed',
@@ -81,7 +89,7 @@ describe('callback operation family contracts', () => {
 
 		const sortError = new Error('sort')
 		expect(v.array(v.any())
-			.toSorted({ compareFn: (left: number, right: number) => {
+			.toSorted({ compareFn: (_left: number, _right: number) => {
 				throw sortError
 			} })
 			.execute([2, 1]))

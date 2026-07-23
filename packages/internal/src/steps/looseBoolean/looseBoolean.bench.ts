@@ -1,7 +1,8 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, looseBoolean } from '../..'
 
-const schema = createValchecker({ steps: [looseBoolean] }).looseBoolean()
+const schema = createValchecker({ steps: [looseBoolean] })
+	.looseBoolean()
 
 describe('looseBoolean benchmarks', () => {
 	bench('boolean input', () => {

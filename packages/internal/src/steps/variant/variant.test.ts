@@ -16,24 +16,32 @@ describe('variant step plugin', () => {
 				circle: v.object({
 					type: v.literal('circle'),
 					radius: v.number(),
-				}).check(() => {
-					circleCalls++
-					return true
-				}).transform(value => ({ area: Math.PI * value.radius ** 2 })),
+				})
+					.check(() => {
+						circleCalls++
+						return true
+					})
+					.transform(value => ({ area: Math.PI * value.radius ** 2 })),
 				square: v.object({
 					type: v.literal('square'),
 					size: v.number(),
-				}).check(() => {
-					squareCalls++
-					return true
-				}).transform(value => ({ area: value.size ** 2 })),
+				})
+					.check(() => {
+						squareCalls++
+						return true
+					})
+					.transform(value => ({ area: value.size ** 2 })),
 			},
 		})
 
-		expect(schema.execute({ type: 'square', size: 3 })).toEqual({ value: { area: 9 } })
-		expect(circleCalls).toBe(0)
-		expect(squareCalls).toBe(1)
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<{ area: number }>()
+		expect(schema.execute({ type: 'square', size: 3 }))
+			.toEqual({ value: { area: 9 } })
+		expect(circleCalls)
+			.toBe(0)
+		expect(squareCalls)
+			.toBe(1)
+		expectTypeOf<InferOutput<typeof schema>>()
+			.toEqualTypeOf<{ area: number }>()
 	})
 
 	it.each([
@@ -46,15 +54,17 @@ describe('variant step plugin', () => {
 			discriminator: 'type',
 			variants: { circle: v.object({ type: v.literal('circle') }) },
 			message: 'Expected variant object.',
-		}).execute(input)).toEqual({
-			issues: [{
-				code: 'variant:expected_object',
-				category: 'validation',
-				message: 'Expected variant object.',
-				path: [],
-				payload: { value: input },
-			}],
 		})
+			.execute(input))
+			.toEqual({
+				issues: [{
+					code: 'variant:expected_object',
+					category: 'validation',
+					message: 'Expected variant object.',
+					path: [],
+					payload: { value: input },
+				}],
+			})
 	})
 
 	it('requires an own matching discriminator and reports its path', () => {
@@ -64,24 +74,25 @@ describe('variant step plugin', () => {
 				circle: v.object({ type: v.literal('circle') }),
 				square: v.object({ type: v.literal('square') }),
 			},
-			message: issue => `${issue.code}:${String(issue.payload.received)}`,
+			message: issue => `${issue.code}:${String((issue.payload as { received?: unknown }).received)}`,
 		})
 		const inherited = Object.create({ type: 'circle' })
 
-		expect(schema.execute(inherited)).toEqual({
-			issues: [{
-				code: 'variant:invalid_discriminator',
-				category: 'validation',
-				message: 'variant:invalid_discriminator:undefined',
-				path: ['type'],
-				payload: {
-					value: inherited,
-					discriminator: 'type',
-					received: undefined,
-					expected: ['circle', 'square'],
-				},
-			}],
-		})
+		expect(schema.execute(inherited))
+			.toEqual({
+				issues: [{
+					code: 'variant:invalid_discriminator',
+					category: 'validation',
+					message: 'variant:invalid_discriminator:undefined',
+					path: ['type'],
+					payload: {
+						value: inherited,
+						discriminator: 'type',
+						received: undefined,
+						expected: ['circle', 'square'],
+					},
+				}],
+			})
 	})
 
 	it('uses JavaScript property-key canonicalization for numeric values', () => {
@@ -92,23 +103,25 @@ describe('variant step plugin', () => {
 			},
 		})
 
-		expect(schema.execute({ kind: 1, value: 'number' })).toEqual({
-			value: { kind: 1, value: 'number' },
-		})
-		expect(schema.execute({ kind: '1', value: 'string' })).toEqual({
-			issues: [{
-				code: 'number:expected_number',
-				category: 'validation',
-				message: 'Expected a number.',
-				path: ['kind'],
-				context: [{
-					type: 'variant',
-					discriminator: 'kind',
-					discriminatorValue: '1',
+		expect(schema.execute({ kind: 1, value: 'number' }))
+			.toEqual({
+				value: { kind: 1, value: 'number' },
+			})
+		expect(schema.execute({ kind: '1', value: 'string' }))
+			.toEqual({
+				issues: [{
+					code: 'number:expected_number',
+					category: 'validation',
+					message: 'Expected a number.',
+					path: ['kind'],
+					context: [{
+						type: 'variant',
+						discriminator: 'kind',
+						discriminatorValue: '1',
+					}],
+					payload: { value: '1' },
 				}],
-				payload: { value: '1' },
-			}],
-		})
+			})
 	})
 
 	it('supports symbol discriminator fields and symbol variant values', () => {
@@ -124,9 +137,10 @@ describe('variant step plugin', () => {
 			},
 		})
 
-		expect(schema.execute({ [discriminator]: selected, value: 1 })).toEqual({
-			value: { [discriminator]: selected, value: 1 },
-		})
+		expect(schema.execute({ [discriminator]: selected, value: 1 }))
+			.toEqual({
+				value: { [discriminator]: selected, value: 1 },
+			})
 	})
 
 	it('preserves child paths, adds variant context, and applies enclosing messages', () => {
@@ -141,20 +155,21 @@ describe('variant step plugin', () => {
 			message: issue => `variant:${issue.code}:${issue.path.join('.')}`,
 		})
 
-		expect(schema.execute({ type: 'circle', radius: 'invalid' })).toEqual({
-			issues: [{
-				code: 'number:expected_number',
-				category: 'validation',
-				message: 'variant:number:expected_number:radius',
-				path: ['radius'],
-				context: [{
-					type: 'variant',
-					discriminator: 'type',
-					discriminatorValue: 'circle',
+		expect(schema.execute({ type: 'circle', radius: 'invalid' }))
+			.toEqual({
+				issues: [{
+					code: 'number:expected_number',
+					category: 'validation',
+					message: 'variant:number:expected_number:radius',
+					path: ['radius'],
+					context: [{
+						type: 'variant',
+						discriminator: 'type',
+						discriminatorValue: 'circle',
+					}],
+					payload: { value: 'invalid' },
 				}],
-				payload: { value: 'invalid' },
-			}],
-		})
+			})
 	})
 
 	it('keeps originating child messages above the enclosing variant message', () => {
@@ -169,9 +184,10 @@ describe('variant step plugin', () => {
 			message: 'Invalid selected variant.',
 		})
 
-		expect(schema.execute({ type: 'circle', radius: 'invalid' })).toMatchObject({
-			issues: [{ message: 'Radius must be numeric.' }],
-		})
+		expect(schema.execute({ type: 'circle', radius: 'invalid' }))
+			.toMatchObject({
+				issues: [{ message: 'Radius must be numeric.' }],
+			})
 	})
 
 	it('preserves maybe-async execution and runs only the selected async branch', async () => {
@@ -181,43 +197,48 @@ describe('variant step plugin', () => {
 			variants: {
 				async: v.object({ type: v.literal('async'), value: v.number() })
 					.transform(async value => ({ doubled: value.value * 2 })),
-				sync: v.object({ type: v.literal('sync') }).check(() => {
-					syncBranchCalls++
-					return true
-				}),
+				sync: v.object({ type: v.literal('sync') })
+					.check(() => {
+						syncBranchCalls++
+						return true
+					}),
 			},
 		})
 
 		const result = schema.execute({ type: 'async', value: 2 })
-		expect(result).toBeInstanceOf(Promise)
+		expect(result)
+			.toBeInstanceOf(Promise)
 		await expect(result).resolves.toEqual({ value: { doubled: 4 } })
-		expect(syncBranchCalls).toBe(0)
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'maybe-async'>()
+		expect(syncBranchCalls)
+			.toBe(0)
+		expectTypeOf<InferOperationMode<typeof schema>>()
+			.toEqualTypeOf<'maybe-async'>()
 	})
 
 	it('infers owned and selected child issues without widening payload relationships', () => {
-		const schema = v.variant({
+		const _schema = v.variant({
 			discriminator: 'type',
 			variants: {
 				circle: v.object({ type: v.literal('circle'), radius: v.number() }),
 				square: v.object({ type: v.literal('square'), size: v.number() }),
 			},
 		})
-		type Issue = InferIssue<typeof schema>
+		type Issue = InferIssue<typeof _schema>
 
 		expectTypeOf<Extract<Issue, { code: 'variant:invalid_discriminator' }>['payload']>()
 			.toEqualTypeOf<{
-				value: object
-				discriminator: 'type'
-				received: unknown
-				expected: readonly (string | symbol)[]
-			}>()
+			value: object
+			discriminator: 'type'
+			received: unknown
+			expected: readonly (string | symbol)[]
+		}>()
 		expectTypeOf<Extract<Issue, { code: 'number:expected_number' }>['payload']>()
 			.toEqualTypeOf<{ value: unknown }>()
 	})
 
 	it('rejects invalid JavaScript construction arguments', () => {
-		expect(() => (v.variant as any)()).toThrow('configuration object')
+		expect(() => (v.variant as any)())
+			.toThrow('configuration object')
 		expect(() => (v.variant as any)({ discriminator: true, variants: { a: v.string() } }))
 			.toThrow('property key')
 		expect(() => (v.variant as any)({ discriminator: 'type', variants: null }))
@@ -231,7 +252,7 @@ describe('variant step plugin', () => {
 	it('is available only as an initial schema and rejects empty variant maps', () => {
 		if (false) {
 			// @ts-expect-error variant is an initial schema
-			v.string().variant({ discriminator: 'type', variants: { a: v.string() } })
+			v.string().variant({ discriminator: 'type', variants: { a: v.string() } }) // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
 			// @ts-expect-error variants must be non-empty
 			v.variant({ discriminator: 'type', variants: {} })
 		}

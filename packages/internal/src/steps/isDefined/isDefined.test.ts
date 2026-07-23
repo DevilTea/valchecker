@@ -6,22 +6,33 @@ const v = createValchecker({ steps: [isDefined, null_, string, undefined_, union
 
 describe('isDefined step plugin', () => {
 	it('removes undefined while preserving null', () => {
-		const schema = v.union([v.string(), v.null(), v.undefined()]).isDefined()
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string | null>()
-		expect(schema.execute(null)).toEqual({ value: null })
-		expect(schema.execute(undefined)).toMatchObject({
-			issues: [{ code: 'isDefined:expected_defined', payload: { value: undefined } }],
-		})
+		const schema = v.union([v.string(), v.null(), v.undefined()])
+			.isDefined()
+		expectTypeOf<InferOutput<typeof schema>>()
+			.toEqualTypeOf<string | null>()
+		expect(schema.execute(null))
+			.toEqual({ value: null })
+		expect(schema.execute(undefined))
+			.toMatchObject({
+				issues: [{ code: 'isDefined:expected_defined', payload: { value: undefined } }],
+			})
 	})
 
 	it('narrows unknown output and supports custom messages', () => {
-		const schema = v.unknown().isDefined({ message: 'Required' })
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<NonNullable<unknown> | null>()
-		expect(schema.execute(null)).toEqual({ value: null })
-		expect(schema.execute(undefined)).toMatchObject({ issues: [{ message: 'Required' }] })
+		const schema = v.unknown()
+			.isDefined({ message: 'Required' })
+		expectTypeOf<InferOutput<typeof schema>>()
+			.toEqualTypeOf<NonNullable<unknown> | null>()
+		expect(schema.execute(null))
+			.toEqual({ value: null })
+		expect(schema.execute(undefined))
+			.toMatchObject({ issues: [{ message: 'Required' }] })
 	})
 
 	it('is hidden when undefined is impossible', () => {
-		expectTypeOf(v.string().isDefined).toBeNever()
+		if (false) {
+			// @ts-expect-error isDefined is unavailable when undefined is impossible
+			v.string().isDefined() // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
+		}
 	})
 })

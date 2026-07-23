@@ -55,6 +55,20 @@ describe('check step plugin', () => {
 			})
 	})
 
+	it('treats an empty returned string as a failure with an empty message', () => {
+		expect(v.check(() => '')
+			.execute('value'))
+			.toEqual({
+				issues: [{
+					code: 'check:failed',
+					category: 'validation',
+					message: '',
+					path: [],
+					payload: { reason: 'returned_message', returnedMessage: '', value: 'value' },
+				}],
+			})
+	})
+
 	it('returns explicitly added issues even when the predicate otherwise passes', () => {
 		expect(v.check<DomainIssue>((value, { addIssue }) => {
 			addDomainIssue(value, addIssue)
@@ -111,7 +125,9 @@ describe('check step plugin', () => {
 
 	it('reports a synchronous callback throw as an operation issue', () => {
 		const error = new Error('Thrown error')
-		expect(v.check(() => { throw error })
+		expect(v.check(() => {
+			throw error
+		})
 			.execute('value'))
 			.toEqual({
 				issues: [{
@@ -126,7 +142,9 @@ describe('check step plugin', () => {
 
 	it('reports an asynchronous callback rejection as an operation issue', async () => {
 		const error = new Error('Rejected error')
-		await expect(v.check(async () => { throw error })
+		await expect(v.check(async () => {
+			throw error
+		})
 			.execute('value')).resolves.toEqual({
 			issues: [{
 				code: 'check:callback_failed',
@@ -139,7 +157,7 @@ describe('check step plugin', () => {
 	})
 
 	it('uses a custom message handler for owned failures', () => {
-		expect(v.check(() => false, { message: issue => `Custom: ${issue.payload.value}` },
+		expect(v.check(() => false, { message: issue => `Custom: ${(issue.payload as { value: unknown }).value}` },
 		)
 			.execute('value'))
 			.toMatchObject({

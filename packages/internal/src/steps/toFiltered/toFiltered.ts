@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callbackErrorSentinel'
 
 declare namespace Internal {
 	export type Issue<Input = any, Item = any> = ExecutionIssue<
@@ -20,11 +21,25 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Returns array or Set items accepted by the predicate. Predicate return
 	 * values are consumed synchronously; returned promises are ordinary truthy
 	 * values rather than awaited work.
 	 *
-	 * @issues `toFiltered:callback_failed`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { array, createValchecker, number, toFiltered } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [array, number, toFiltered] })
+	 * const schema = v.array(v.number()).toFiltered(item => item > 0)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toFiltered:callback_failed'`: The predicate threw.
 	 */
 	toFiltered:
 		| DefineStepMethod<
@@ -87,14 +102,6 @@ interface PluginDef extends TStepPluginDef {
 		>
 }
 
-class FilterCallbackError {
-	constructor(
-		readonly item: unknown,
-		readonly index: number,
-		readonly error: unknown,
-	) { }
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export const toFiltered = implStepPlugin<PluginDef>({
 	toFiltered: ({
@@ -103,27 +110,23 @@ export const toFiltered = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep((value) => {
 			if (Array.isArray(value)) {
-				try {
-					return success(value.filter((item: unknown, index: number, array: unknown[]) => {
+				return runWithCallbackErrorSentinel(
+					() => success(value.filter((item: unknown, index: number, array: unknown[]) => {
 						try {
 							return predicate.call(options?.thisArg, item, index, array)
 						}
 						catch (error) {
-							throw new FilterCallbackError(item, index, error)
+							throw new CallbackErrorSentinel({ item, index }, error)
 						}
-					}))
-				}
-				catch (error) {
-					if (!(error instanceof FilterCallbackError))
-						throw error
-					return failure(createIssue({
+					})),
+					(context: { item: unknown, index: number }, error) => failure(createIssue({
 						code: 'toFiltered:callback_failed',
 						category: 'operation',
-						payload: { value, item: error.item, index: error.index, error: error.error },
+						payload: { value, item: context.item, index: context.index, error },
 						customMessage: options?.message,
 						defaultMessage: 'Filter callback failed.',
-					}))
-				}
+					})),
+				)
 			}
 
 			const items = [...value]

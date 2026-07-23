@@ -70,6 +70,7 @@ export const array = implStepPlugin<PluginDef>({
 		const execute = item['~execute']
 		const collectAllIssues = options?.collectAllIssues === true
 
+		// Deliberately duplicated per-file: V8 inlines this local closure but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 		const appendChildIssues = (
 			result: ExecutionResult,
 			index: number,
@@ -93,7 +94,7 @@ export const array = implStepPlugin<PluginDef>({
 			firstResult: PromiseLike<ExecutionResult>,
 			output: unknown[],
 			issues: AnyExecutionIssue[] | undefined,
-		): Promise<ExecutionResult> => {
+		) => {
 			for (let index = startIndex; index < value.length; index++) {
 				const result = index === startIndex
 					? await firstResult

@@ -6,24 +6,32 @@ const v = createValchecker({ steps: [check, unknown] })
 
 describe('check type-state contracts', () => {
 	it('narrows output through a type-guard predicate', () => {
-		const schema = v.unknown().check((value): value is string => typeof value === 'string')
+		const _schema = v.unknown()
+			.check((value): value is string => typeof value === 'string')
 
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string>()
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'sync'>()
+		expectTypeOf<InferOutput<typeof _schema>>()
+			.toEqualTypeOf<string>()
+		expectTypeOf<InferOperationMode<typeof _schema>>()
+			.toEqualTypeOf<'sync'>()
 	})
 
 	it('narrows output through the callback utility', () => {
-		const schema = v.unknown().check((value, { narrow }) => (
-			typeof value === 'string' ? narrow<string>() : false
-		))
+		const _schema = v.unknown()
+			.check((value, { narrow }) => (
+				typeof value === 'string' ? narrow<string>() : false
+			))
 
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<string>()
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'sync'>()
+		expectTypeOf<InferOutput<typeof _schema>>()
+			.toEqualTypeOf<string>()
+		expectTypeOf<InferOperationMode<typeof _schema>>()
+			.toEqualTypeOf<'sync'>()
 	})
 
 	it('marks promise-returning predicates as maybe-async', () => {
-		const schema = v.unknown().check(async () => true)
+		const _schema = v.unknown()
+			.check(async () => true)
 
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'maybe-async'>()
+		expectTypeOf<InferOperationMode<typeof _schema>>()
+			.toEqualTypeOf<'maybe-async'>()
 	})
 })

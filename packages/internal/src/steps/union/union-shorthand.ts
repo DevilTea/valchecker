@@ -25,10 +25,10 @@ export type UnionShorthandInput<
 type ApplyUnionShorthand<Def, Branch> = Def extends TUnionShorthandDef
 	? Def & { branch: Branch } extends infer Applied extends TUnionShorthandDef
 		? {
-			operationMode: Applied['operationMode']
-			output: Applied['output']
-			issue: Applied['issue']
-		}
+				operationMode: Applied['operationMode']
+				output: Applied['output']
+				issue: Applied['issue']
+			}
 		: never
 	: never
 

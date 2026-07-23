@@ -31,12 +31,26 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Validates and transforms every item of a `Set` in insertion order.
 	 * Transformed items must remain unique. Traversal stops after the first
 	 * recoverable issue unless `collectAllIssues` is enabled.
 	 *
-	 * @example `v.set(v.string())`
-	 * @issues `set:expected_set`, `set:duplicate_transformed_item`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, set, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [set, string] })
+	 * const schema = v.set(v.string())
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'set:expected_set'`: The value is not a `Set`.
+	 * - `'set:duplicate_transformed_item'`: Two items produced the same transformed value.
 	 */
 	set: DefineStepMethod<
 		Meta,
@@ -71,6 +85,7 @@ export const set = implStepPlugin<PluginDef>({
 		const childIsSynchronous = operationMode === 'sync'
 		const collectAllIssues = options?.collectAllIssues === true
 
+		// Deliberately duplicated per-file: V8 inlines this local closure but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 		const appendChildIssues = (
 			result: ExecutionResult,
 			index: number,
@@ -118,7 +133,7 @@ export const set = implStepPlugin<PluginDef>({
 			output: Set<unknown> | undefined,
 			firstItemIndex: Map<unknown, number> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
-		): Promise<ExecutionResult> => {
+		) => {
 			for (let index = startIndex; index < items.length; index++) {
 				const item = items[index]
 				const result = index === startIndex ? await firstResult : await execute(item)
@@ -176,12 +191,14 @@ export const set = implStepPlugin<PluginDef>({
 						issues = appended.issues
 						if (appended.hasInternal || !collectAllIssues)
 							return failure(issues)
+						// Recoverable failure must not stop the output rebuild below: the output Set doubles as duplicate-detection state, so skipping it drops set:duplicate_transformed_item issues. See architecture.md (2026-07-22).
 						failedIndices ??= new Set()
 						failedIndices.add(index)
 						continue
 					}
 
 					const transformedItem = result.value
+					// eslint-disable-next-line no-self-compare -- intentional NaN self-comparison implementing SameValueZero identity (x !== x is true only for NaN)
 					const isIdentity = transformedItem === item || (transformedItem !== transformedItem && item !== item)
 					if (output == null && isIdentity)
 						continue

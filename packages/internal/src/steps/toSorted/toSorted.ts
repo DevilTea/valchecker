@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callbackErrorSentinel'
 
 declare namespace Internal {
 	export type Issue<Input extends any[] = any[], Item = Input[number]> = ExecutionIssue<
@@ -20,8 +21,24 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Returns a sorted array without mutating the input. Comparator exceptions
 	 * emit `toSorted:callback_failed` with the compared operands.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { array, createValchecker, number, toSorted } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [array, number, toSorted] })
+	 * const schema = v.array(v.number()).toSorted({ compareFn: (a, b) => a - b })
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toSorted:callback_failed'`: The comparator threw.
 	 */
 	toSorted: DefineStepMethod<
 		Meta,
@@ -33,14 +50,6 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-class SortCallbackError {
-	constructor(
-		readonly left: unknown,
-		readonly right: unknown,
-		readonly error: unknown,
-	) { }
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export const toSorted = implStepPlugin<PluginDef>({
 	toSorted: ({
@@ -49,29 +58,29 @@ export const toSorted = implStepPlugin<PluginDef>({
 	}) => {
 		const compareFn = options?.compareFn
 		addSuccessStep((value) => {
+			// No-comparator path assumes the ES2023 Array.prototype.toSorted
+			// baseline. It intentionally stays outside the try/catch below: a
+			// missing method is an environment error for the core boundary, not a
+			// comparator failure to convert into a toSorted:callback_failed issue.
 			if (compareFn == null)
 				return success(value.toSorted())
-			try {
-				return success(value.toSorted((left: unknown, right: unknown) => {
+			return runWithCallbackErrorSentinel(
+				() => success(value.toSorted((left: unknown, right: unknown) => {
 					try {
 						return compareFn(left, right)
 					}
 					catch (error) {
-						throw new SortCallbackError(left, right, error)
+						throw new CallbackErrorSentinel({ left, right }, error)
 					}
-				}))
-			}
-			catch (error) {
-				if (!(error instanceof SortCallbackError))
-					throw error
-				return failure(createIssue({
+				})),
+				(context: { left: unknown, right: unknown }, error) => failure(createIssue({
 					code: 'toSorted:callback_failed',
 					category: 'operation',
-					payload: { value, left: error.left, right: error.right, error: error.error },
+					payload: { value, left: context.left, right: context.right, error },
 					customMessage: options?.message,
 					defaultMessage: 'Sort callback failed.',
-				}))
-			}
+				})),
+			)
 		})
 	},
 }, 'sync')

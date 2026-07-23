@@ -1,7 +1,9 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, isEndingWith, string } from '../..'
 
-const schema = createValchecker({ steps: [string, isEndingWith] }).string().isEndingWith('.txt')
+const schema = createValchecker({ steps: [string, isEndingWith] })
+	.string()
+	.isEndingWith('.txt')
 
 describe('isEndingWith benchmarks', () => {
 	bench('matching suffix', () => {

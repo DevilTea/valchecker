@@ -23,6 +23,27 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the value is neither `null` nor `undefined` and narrows the
+	 * output by removing both.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isNonNullish, unknown } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [unknown, isNonNullish] })
+	 * const schema = v.unknown().isNonNullish()
+	 * const result = schema.execute('value')
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isNonNullish:expected_non_nullish'`: The value is `null` or `undefined`.
+	 */
 	isNonNullish: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
@@ -30,9 +51,9 @@ interface PluginDef extends TStepPluginDef {
 				? InferOutput<This> extends infer Output
 					? Internal.HasTarget<Output> extends true
 						? (options?: StepOptions<Internal.Issue>) => Next<{
-							output: Internal.Narrow<Output>
-							issue: Internal.Issue
-						}, This>
+								output: Internal.Narrow<Output>
+								issue: Internal.Issue
+							}, This>
 						: never
 					: never
 				: never

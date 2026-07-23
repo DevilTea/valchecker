@@ -2,7 +2,8 @@ import { bench, describe } from 'vitest'
 import { createValchecker, isSafeInteger, number } from '../..'
 
 const v = createValchecker({ steps: [isSafeInteger, number] })
-const schema = v.number().isSafeInteger()
+const schema = v.number()
+	.isSafeInteger()
 
 describe('isSafeInteger benchmarks', () => {
 	bench('successful execution', () => {

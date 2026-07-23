@@ -4,7 +4,7 @@ import { implStepPlugin } from '../../core'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'bigint'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: unknown }>
+	ExpectedCurrentValchecker: DefineExpectedValchecker
 	SelfIssue: ExecutionIssue<'bigint:expected_bigint', { value: unknown }>
 }>
 

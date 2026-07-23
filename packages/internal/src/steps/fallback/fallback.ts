@@ -20,9 +20,33 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Recovers validation and operation failures with a fallback value.
 	 * Internal issues are fatal and bypass the callback. If the callback throws
 	 * or rejects, the original issues and an operation issue are both returned.
+	 *
+	 * Note: the `receivedIssues` in the `fallback:failed` payload are defensive
+	 * snapshots and carry the unresolved draft message (the step default, e.g.
+	 * `'Expected a number.'`) for issues with a dynamic (custom/context/global)
+	 * message, rather than the finalized message. The message metadata is
+	 * intentionally non-enumerable and is not copied by the snapshot, so it
+	 * cannot be finalized on this copy. The issues actually returned to the
+	 * caller keep their metadata and finalize normally.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, fallback, number } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [number, fallback] })
+	 * const schema = v.number().fallback(() => 0)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'fallback:failed'`: The fallback callback threw or rejected; the original issues are preserved in the `receivedIssues` payload.
 	 */
 	fallback: DefineStepMethod<
 		Meta,

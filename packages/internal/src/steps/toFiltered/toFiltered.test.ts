@@ -58,7 +58,9 @@ describe('toFiltered step plugin', () => {
 	it('leaves failures outside the array predicate callback to the core boundary', () => {
 		const error = new Error('filter method')
 		const value = [] as any[] & { filter: typeof Array.prototype.filter }
-		value.filter = () => { throw error }
+		value.filter = () => {
+			throw error
+		}
 
 		expect(v.transform(() => value)
 			.toFiltered(() => true)
@@ -77,50 +79,65 @@ describe('toFiltered step plugin', () => {
 		const input = new Set([1, 2, 3])
 		const visited: number[] = []
 		let callbackSet: Set<any> | undefined
-		const schema = v.set(v.any()).toFiltered(function (item: number, index, value) {
-			visited.push(item)
-			callbackSet ??= value
-			expect(value).toBe(callbackSet)
-			if (index === 0)
-				value.add(4)
-			return item >= this.minimum
-		}, { thisArg: context })
+		const schema = v.set(v.any())
+			.toFiltered(function (this: typeof context, item: number, index, value) {
+				visited.push(item)
+				callbackSet ??= value
+				expect(value)
+					.toBe(callbackSet)
+				if (index === 0)
+					value.add(4)
+				return item >= this.minimum
+			}, { thisArg: context })
 
-		expect(schema.execute(input)).toEqual({ value: new Set([2, 3]) })
-		expect(input).toEqual(new Set([1, 2, 3]))
-		expect(callbackSet).toEqual(new Set([1, 2, 3, 4]))
-		expect(visited).toEqual([1, 2, 3])
+		expect(schema.execute(input))
+			.toEqual({ value: new Set([2, 3]) })
+		expect(input)
+			.toEqual(new Set([1, 2, 3]))
+		expect(callbackSet)
+			.toEqual(new Set([1, 2, 3, 4]))
+		expect(visited)
+			.toEqual([1, 2, 3])
 	})
 
 	it('narrows filtered Set item types through a predicate type guard', () => {
-		const schema = v.set(v.any()).toFiltered((item): item is string => typeof item === 'string')
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<Set<string>>()
-		expect(schema.execute(new Set<unknown>(['a', 1, 'b']))).toEqual({ value: new Set(['a', 'b']) })
+		const schema = v.set(v.any())
+			.toFiltered((item): item is string => typeof item === 'string')
+		expectTypeOf<InferOutput<typeof schema>>()
+			.toEqualTypeOf<Set<string>>()
+		expect(schema.execute(new Set<unknown>(['a', 1, 'b'])))
+			.toEqual({ value: new Set(['a', 'b']) })
 	})
 
 	it('reports Set predicate exceptions with the current item and index', () => {
 		const error = new Error('set predicate')
 		const input = new Set([1, 2, 3])
-		expect(v.set(v.any()).toFiltered((_item: number, index) => {
-			if (index === 1)
-				throw error
-			return true
-		}, { message: 'Set filter failed' }).execute(input)).toEqual({
-			issues: [{
-				code: 'toFiltered:callback_failed',
-				category: 'operation',
-				message: 'Set filter failed',
-				path: [],
-				payload: { value: input, item: 2, index: 1, error },
-			}],
-		})
+		expect(v.set(v.any())
+			.toFiltered((_item: number, index) => {
+				if (index === 1)
+					throw error
+				return true
+			}, { message: 'Set filter failed' })
+			.execute(input))
+			.toEqual({
+				issues: [{
+					code: 'toFiltered:callback_failed',
+					category: 'operation',
+					message: 'Set filter failed',
+					path: [],
+					payload: { value: input, item: 2, index: 1, error },
+				}],
+			})
 	})
 
 	it('treats returned promises as synchronous truthy predicate results', () => {
 		const input = new Set([1, 2])
-		const result = v.set(v.any()).toFiltered(async () => false).execute(input)
+		const result = v.set(v.any())
+			.toFiltered(async () => false)
+			.execute(input)
 		expect(result).not.toBeInstanceOf(Promise)
-		expect(result).toEqual({ value: input })
+		expect(result)
+			.toEqual({ value: input })
 		if (v.isSuccess(result))
 			expect(result.value).not.toBe(input)
 	})

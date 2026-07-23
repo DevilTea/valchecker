@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, TStepPluginDef } from '../../core'
 import { describe, expect, it, vi } from 'vitest'
 import { createValchecker, fallback, implStepPlugin, number, string, union } from '../..'
+import { syncResult } from '../../test-utils/helpers'
 
 type FatalIssue = ExecutionIssue<'fatal:failed', { value: unknown }, 'internal'>
 type FatalMeta = DefineStepMethodMeta<{
@@ -153,9 +154,9 @@ describe('fallback plugin', () => {
 	})
 
 	it('stores public-safe snapshots of the issues received by the callback', () => {
-		const result = v.number({ message: () => 'Dynamic number issue' })
+		const result = syncResult(v.number({ message: () => 'Dynamic number issue' })
 			.fallback(() => { throw new Error('failure') })
-			.execute('bad')
+			.execute('bad'))
 		expect(result)
 			.toMatchObject({
 				issues: [
@@ -170,14 +171,22 @@ describe('fallback plugin', () => {
 				expect(Object.getOwnPropertySymbols(snapshot))
 					.toEqual([])
 				expect(snapshot.path).not.toBe(result.issues[0]!.path)
+				// The snapshot drops the non-enumerable message metadata, so a
+				// dynamic message stays at its unresolved draft message (the step
+				// default) even though the returned issue resolves to the dynamic
+				// 'Dynamic number issue'.
+				expect(result.issues[0]!.message)
+					.toBe('Dynamic number issue')
+				expect(snapshot.message)
+					.toBe('Expected a number.')
 			}
 		}
 	})
 
 	it('snapshots union provenance received by a failing callback', () => {
-		const result = v.union([v.string(), v.number()])
+		const result = syncResult(v.union([v.string(), v.number()])
 			.fallback(() => { throw new Error('failure') })
-			.execute(false)
+			.execute(false))
 		if (!v.isFailure(result))
 			throw new Error('Expected failure')
 		const callbackIssue = result.issues[2]

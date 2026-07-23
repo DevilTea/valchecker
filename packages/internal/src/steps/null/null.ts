@@ -30,7 +30,7 @@ interface PluginDef extends TStepPluginDef {
 	 * import { createValchecker, null_ } from 'valchecker'
 	 *
 	 * const v = createValchecker({ steps: [null_] })
-	 * const schema = v.null_()
+	 * const schema = v.null()
 	 * const result = schema.execute(null)
 	 * ```
 	 *

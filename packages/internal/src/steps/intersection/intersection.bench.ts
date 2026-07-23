@@ -4,7 +4,8 @@ import { createValchecker, intersection, isLengthAtLeast, string } from '../..'
 const v = createValchecker({ steps: [intersection, string, isLengthAtLeast] })
 const schema = v.intersection([
 	v.string(),
-	v.string().isLengthAtLeast(5),
+	v.string()
+		.isLengthAtLeast(5),
 ])
 
 describe('intersection benchmarks', () => {

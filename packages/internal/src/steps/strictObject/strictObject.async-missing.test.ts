@@ -6,7 +6,8 @@ const v = createValchecker({ steps: [number, strictObject, string, transform] })
 describe('strictObject asynchronous missing-key contracts', () => {
 	it('materializes a missing optional key after an earlier child becomes asynchronous', async () => {
 		const schema = v.strictObject({
-			first: v.string().transform(async value => value.toUpperCase()),
+			first: v.string()
+				.transform(async value => value.toUpperCase()),
 			optional: [v.number()],
 			last: v.string(),
 		})
@@ -25,7 +26,8 @@ describe('strictObject asynchronous missing-key contracts', () => {
 
 	it('reports a missing required key after an earlier child becomes asynchronous', async () => {
 		const schema = v.strictObject({
-			first: v.string().transform(async value => value.toUpperCase()),
+			first: v.string()
+				.transform(async value => value.toUpperCase()),
 			required: v.number(),
 			last: v.string(),
 		})

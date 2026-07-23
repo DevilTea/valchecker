@@ -1,5 +1,6 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callbackErrorSentinel'
 
 declare namespace Internal {
 	export type CallbackIssue<Input = any, Item = any> = ExecutionIssue<
@@ -30,6 +31,28 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Maps every item of an array or `Set`, preserving order. Mapper return
+	 * values are stored directly; returned promises are not awaited. For a `Set`
+	 * input the mapped items must remain unique.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { array, createValchecker, number, toMapped } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [array, number, toMapped] })
+	 * const schema = v.array(v.number()).toMapped(item => item * 2)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toMapped:callback_failed'`: The mapper threw.
+	 * - `'toMapped:duplicate_mapped_item'`: Two `Set` items produced the same mapped value.
+	 */
 	toMapped:
 		| DefineStepMethod<
 			Meta,
@@ -70,14 +93,6 @@ interface PluginDef extends TStepPluginDef {
 		>
 }
 
-class MapCallbackError {
-	constructor(
-		readonly item: unknown,
-		readonly index: number,
-		readonly error: unknown,
-	) { }
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export const toMapped = implStepPlugin<PluginDef>({
 	toMapped: ({
@@ -86,27 +101,23 @@ export const toMapped = implStepPlugin<PluginDef>({
 	}) => {
 		addSuccessStep((value) => {
 			if (Array.isArray(value)) {
-				try {
-					return success(value.map((item: unknown, index: number, array: unknown[]) => {
+				return runWithCallbackErrorSentinel(
+					() => success(value.map((item: unknown, index: number, array: unknown[]) => {
 						try {
 							return mapper.call(options?.thisArg, item, index, array)
 						}
 						catch (error) {
-							throw new MapCallbackError(item, index, error)
+							throw new CallbackErrorSentinel({ item, index }, error)
 						}
-					}))
-				}
-				catch (error) {
-					if (!(error instanceof MapCallbackError))
-						throw error
-					return failure(createIssue({
+					})),
+					(context: { item: unknown, index: number }, error) => failure(createIssue({
 						code: 'toMapped:callback_failed',
 						category: 'operation',
-						payload: { value, item: error.item, index: error.index, error: error.error },
+						payload: { value, item: context.item, index: context.index, error },
 						customMessage: options?.message,
 						defaultMessage: 'Map callback failed.',
-					}))
-				}
+					})),
+				)
 			}
 
 			const items = [...value]
@@ -140,7 +151,10 @@ export const toMapped = implStepPlugin<PluginDef>({
 							firstIndex: first.index,
 							index,
 						},
-						customMessage: options?.message,
+						// The impl-level `options` type collapses the Set overload's
+						// message union down to the callback issue; the runtime value is
+						// the caller's handler for the full union, so retarget it here.
+						customMessage: options?.message as StepOptions<Internal.DuplicateMappedItemIssue>['message'],
 						defaultMessage: 'Expected mapped Set items to be unique.',
 					}))
 				}

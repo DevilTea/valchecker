@@ -53,22 +53,41 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Checks every branch and recursively merges compatible outputs. A merge
 	 * conflict reports the exact graph path, the pair of branch indices, both
 	 * conflicting values, and a stable reason code. Branch evaluation stops
 	 * after the first issue unless `collectAllIssues` is enabled.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, intersection, number, object, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [object, string, number, intersection] })
+	 * const schema = v.intersection([
+	 * 	v.object({ id: v.string() }),
+	 * 	v.object({ age: v.number() }),
+	 * ])
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'intersection:conflicting_outputs'`: Two branch outputs cannot be merged at the reported path.
 	 */
 	intersection: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? <B extends [Use<Valchecker>, ...Use<Valchecker>[]]>(
-				branches: B,
-				options?: StructuralStepOptions<Internal.Issue<NoInfer<B>>>,
-			) => Next<{
-				operationMode: Internal.OpMode<B>
-				output: Internal.Output<B>
-				issue: Internal.Issue<B>
-			}, this['CurrentValchecker']>
+					branches: B,
+					options?: StructuralStepOptions<Internal.Issue<NoInfer<B>>>,
+				) => Next<{
+					operationMode: Internal.OpMode<B>
+					output: Internal.Output<B>
+					issue: Internal.Issue<B>
+				}, this['CurrentValchecker']>
 			: never
 	>
 }
@@ -207,7 +226,8 @@ function hasPair(
 	left: object,
 	right: object,
 ): boolean {
-	return pairs.get(left)?.has(right) === true
+	return pairs.get(left)
+		?.has(right) === true
 }
 
 function markPair(
@@ -579,6 +599,7 @@ export const intersection = implStepPlugin<PluginDef>({
 			const outputs: unknown[] = []
 			let issues: AnyExecutionIssue[] | undefined
 
+			// Deliberately duplicated per-file: V8 inlines this local closure but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 			const appendIssues = (result: ExecutionResult): boolean => {
 				if (!isFailure(result)) {
 					outputs.push(result.value)

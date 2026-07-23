@@ -11,7 +11,8 @@ import { createValchecker, map, number, string, transform } from '../..'
 const v = createValchecker({ steps: [map, number, string, transform] })
 const schema = v.map({ key: v.string(), value: v.number() })
 const transformed = v.map({
-	key: v.string().transform(value => value.toLowerCase()),
+	key: v.string()
+		.transform(value => value.toLowerCase()),
 	value: v.number(),
 })
 const small = new Map([['a', 1], ['b', 2], ['c', 3]])
@@ -44,7 +45,7 @@ describe('map benchmarks', () => {
 
 	describe('baseline', () => {
 		bench('native Map copy', () => {
-			new Map(small)
+			void new Map(small)
 		})
 	})
 })

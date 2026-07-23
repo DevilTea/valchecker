@@ -1,7 +1,9 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, string, toJSONValue } from '../..'
 
-const schema = createValchecker({ steps: [string, toJSONValue] }).string().toJSONValue()
+const schema = createValchecker({ steps: [string, toJSONValue] })
+	.string()
+	.toJSONValue()
 
 describe('toJSONValue benchmarks', () => {
 	bench('valid JSON', () => {

@@ -50,11 +50,31 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Selects one schema through an own discriminator property and executes only
 	 * that branch. Variant keys use JavaScript property-key canonicalization.
 	 *
-	 * @example `v.variant({ discriminator: 'type', variants: { circle, square } })`
-	 * @issues `variant:expected_object`, `variant:invalid_discriminator`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, literal, number, object, variant } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [variant, object, literal, number] })
+	 * const schema = v.variant({
+	 * 	discriminator: 'type',
+	 * 	variants: {
+	 * 		circle: v.object({ type: v.literal('circle'), radius: v.number() }),
+	 * 		square: v.object({ type: v.literal('square'), size: v.number() }),
+	 * 	},
+	 * })
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'variant:expected_object'`: The value is not an object.
+	 * - `'variant:invalid_discriminator'`: The discriminator property does not match any variant key.
 	 */
 	variant: DefineStepMethod<
 		Meta,
@@ -110,7 +130,8 @@ export const variant = implStepPlugin<PluginDef>({
 		): ExecutionResult => {
 			if (!isFailure(result))
 				return result
-			const issues = new Array<AnyExecutionIssue>(result.issues.length)
+			const issues: AnyExecutionIssue[] = Array.from({ length: result.issues.length })
+			// Deliberately duplicated per-file inline loop: V8 inlines this per-schema loop but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 			for (let index = 0; index < result.issues.length; index++) {
 				const scoped = prependIssuePath(result.issues[index]!, [], message)
 				issues[index] = appendIssueContext(scoped, {
@@ -154,7 +175,8 @@ export const variant = implStepPlugin<PluginDef>({
 			if (operationMode === 'sync')
 				return finishBranch(result as ExecutionResult, received as string | number | symbol)
 			return isPromiseLike(result)
-				? Promise.resolve(result).then(resolved => finishBranch(resolved, received as string | number | symbol))
+				? Promise.resolve(result)
+						.then(resolved => finishBranch(resolved, received as string | number | symbol))
 				: finishBranch(result, received as string | number | symbol)
 		}, operationMode)
 	},

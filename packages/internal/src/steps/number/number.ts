@@ -32,16 +32,16 @@ interface PluginDef extends TStepPluginDef {
 	number: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
-				? (options?: StepOptions<Meta['SelfIssue']>) => Next<
+			?	IsExactlyAnyOrUnknown<InferOutput<this['CurrentValchecker']>> extends true
+				?	(options?: StepOptions<Meta['SelfIssue']>) => Next<
 						{
 							output: number
 							issue: Meta['SelfIssue']
 						},
 						this['CurrentValchecker']
 					>
-				: never
-			: never
+				:	never
+			:	never
 	>
 }
 
@@ -51,18 +51,17 @@ export const number = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep((value) => {
-			if (typeof value === 'number') {
-				return success(value)
-			}
-			return failure(
-				createIssue({
-					code: 'number:expected_number',
-					payload: { value },
-					customMessage: options?.message,
-					defaultMessage: 'Expected a number.',
-				}),
-			)
-		})
+		addSuccessStep(
+			value => typeof value === 'number'
+				?	success(value)
+				:	failure(
+						createIssue({
+							code: 'number:expected_number',
+							payload: { value },
+							customMessage: options?.message,
+							defaultMessage: 'Expected a number.',
+						}),
+					),
+		)
 	},
 }, 'sync')

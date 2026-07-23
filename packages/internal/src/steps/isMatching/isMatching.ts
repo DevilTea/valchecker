@@ -13,6 +13,30 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the string matches the regular expression. The pattern is cloned
+	 * from its `source` and `flags` at construction, and `lastIndex` is reset to
+	 * `0` before and after each test, so stateful `g` or `y` flags do not leak
+	 * between executions. A non-RegExp pattern throws a `TypeError` while
+	 * constructing the schema.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isMatching, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isMatching] })
+	 * const schema = v.string().isMatching(/^\d+$/)
+	 * const result = schema.execute('123')
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isMatching:expected_matching'`: The value does not match the pattern.
+	 */
 	isMatching: DefineStepMethod<Meta, this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 		? (pattern: RegExp, options?: StepOptions<Internal.Issue>) => Next<{ issue: Internal.Issue }, this['CurrentValchecker']>
 		: never>

@@ -12,7 +12,7 @@ import {
 	toJSONString,
 	toMappedBoolean,
 	toSorted,
-} from '../..'
+} from '../index'
 
 const v = createValchecker({
 	steps: [
@@ -36,7 +36,7 @@ type DomainIssue = ExecutionIssue<
 
 describe('step failure payload type contracts', () => {
 	it('preserves check result, callback failure, and added domain issue variants', () => {
-		const schema = v.string()
+		const _schema = v.string()
 			.check<DomainIssue>((value, { addIssue }) => {
 				if (value === 'blocked') {
 					addIssue({
@@ -81,8 +81,9 @@ describe('step failure payload type contracts', () => {
 				return undefined
 			} })
 
-		expectTypeOf<InferIssue<typeof schema>>()
-			.toMatchTypeOf<DomainIssue>()
+		// The added domain issue variant is one member of the schema's issue union.
+		expectTypeOf<DomainIssue>()
+			.toMatchTypeOf<InferIssue<typeof _schema>>()
 	})
 
 	it('keeps audited step message payloads precise', () => {

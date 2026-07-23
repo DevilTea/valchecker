@@ -1,5 +1,4 @@
 import type { InferIssue, InferOutput } from '../core'
-import { createValchecker } from '../core'
 import { describe, expectTypeOf, it } from 'vitest'
 import {
 	array,
@@ -17,6 +16,7 @@ import {
 	string,
 	toSize,
 } from '.'
+import { createValchecker } from '../core'
 
 const v = createValchecker({
 	steps: [
@@ -39,29 +39,34 @@ const v = createValchecker({
 
 describe('collection size and membership type-state contracts', () => {
 	it('preserves collection outputs through validations and returns number from toSize', () => {
-		const setSchema = v.set(v.string())
+		const _setSchema = v.set(v.string())
 			.isNotEmpty()
 			.isSizeAtLeast(1)
 			.isSizeAtMost(3)
 			.isSizeExactly(2)
 			.isIncluding('required')
-		const mapSchema = v.map({ key: v.string(), value: v.number() })
+		const _mapSchema = v.map({ key: v.string(), value: v.number() })
 			.isEmpty()
 			.isIncludingKey('key')
 			.isIncludingValue(1)
 
-		expectTypeOf<InferOutput<typeof setSchema>>().toEqualTypeOf<Set<string>>()
-		expectTypeOf<InferOutput<typeof mapSchema>>().toEqualTypeOf<Map<string, number>>()
-		expectTypeOf<InferOutput<ReturnType<typeof mapSchema.toSize>>>().toEqualTypeOf<number>()
+		expectTypeOf<InferOutput<typeof _setSchema>>()
+			.toEqualTypeOf<Set<string>>()
+		expectTypeOf<InferOutput<typeof _mapSchema>>()
+			.toEqualTypeOf<Map<string, number>>()
+		expectTypeOf<InferOutput<ReturnType<typeof _mapSchema.toSize>>>()
+			.toEqualTypeOf<number>()
 	})
 
 	it('keeps length and size payload variants precise', () => {
-		const stringSchema = v.string().isEmpty()
-		const setSchema = v.set(v.string()).isNotEmpty()
+		const _stringSchema = v.string()
+			.isEmpty()
+		const _setSchema = v.set(v.string())
+			.isNotEmpty()
 
-		expectTypeOf<Extract<InferIssue<typeof stringSchema>, { code: 'isEmpty:expected_empty' }>['payload']>()
+		expectTypeOf<Extract<InferIssue<typeof _stringSchema>, { code: 'isEmpty:expected_empty' }>['payload']>()
 			.toEqualTypeOf<{ value: string, length: number }>()
-		expectTypeOf<Extract<InferIssue<typeof setSchema>, { code: 'isNotEmpty:expected_not_empty' }>['payload']>()
+		expectTypeOf<Extract<InferIssue<typeof _setSchema>, { code: 'isNotEmpty:expected_not_empty' }>['payload']>()
 			.toEqualTypeOf<{ value: Set<string>, size: number }>()
 	})
 
@@ -82,10 +87,12 @@ describe('collection size and membership type-state contracts', () => {
 			mapSchema.isIncludingValue('value')
 			// @ts-expect-error Map membership is intentionally explicit about keys versus values
 			mapSchema.isIncluding('value')
-			// @ts-expect-error array values have length, not size
-			v.array(v.string()).isSizeAtLeast(1)
-			// @ts-expect-error strings have length, not size
-			v.string().toSize()
+			v.array(v.string())
+				// @ts-expect-error array values have length, not size
+				.isSizeAtLeast(1)
+			v.string()
+				// @ts-expect-error strings have length, not size
+				.toSize()
 		}
 	})
 })

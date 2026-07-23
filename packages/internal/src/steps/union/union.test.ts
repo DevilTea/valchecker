@@ -1,25 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { implStepPlugin } from '../../core'
 import { createValchecker, literal, null_, number, string, transform, undefined_, union, unknown } from '../..'
+import { structuralFixture } from '../../test-utils/fixtures'
 
-const unionFixture = implStepPlugin<any>({
-	internalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(() => {
-			throw new Error('internal failure')
-		})
-	},
-	asyncInternalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(async () => {
-			throw new Error('async internal failure')
-		})
-	},
-	observe: ({ utils, params: [callback] }: any) => {
-		utils.addSuccessStep((value: unknown) => {
-			callback(value)
-			return utils.success(value)
-		})
-	},
-})
+const unionFixture = structuralFixture
 
 const v = createValchecker({
 	steps: [literal, null_, number, string, transform, undefined_, union, unionFixture, unknown],
@@ -34,13 +17,15 @@ describe('union step plugin', () => {
 			'transformed',
 			v.union([
 				v.number(),
-				v.string().transform(value => value.toUpperCase()),
+				v.string()
+					.transform(value => value.toUpperCase()),
 			]),
 			'hello',
 			'HELLO',
 		],
 	] as const)('returns the %s successful branch output', (_case, schema, input, output) => {
-		expect(schema.execute(input as never)).toEqual({ value: output })
+		expect(schema.execute(input as never))
+			.toEqual({ value: output })
 	})
 
 	it.each([
@@ -52,56 +37,68 @@ describe('union step plugin', () => {
 		['null', v.union([null]), null],
 		['undefined', v.union([undefined]), undefined],
 	] as const)('normalizes the %s shorthand through its registered provider', (_case, schema, input) => {
-		expect(schema.execute(input as never)).toEqual({ value: input })
+		expect(schema.execute(input as never))
+			.toEqual({ value: input })
 	})
 
 	it('keeps shorthand behavior identical to explicit provider schemas', () => {
 		const shorthand = v.union(['auto', null, undefined])
 		const explicit = v.union([v.literal('auto'), v.null(), v.undefined()])
 
-		expect(shorthand.execute(false as never)).toEqual(explicit.execute(false as never))
+		expect(shorthand.execute(false as never))
+			.toEqual(explicit.execute(false as never))
 	})
 
 	it('uses Object.is semantics inherited from literal shorthand schemas', () => {
-		expect(v.union([Number.NaN]).execute(Number.NaN)).toEqual({ value: Number.NaN })
-		expect(v.union([-0]).execute(0)).toMatchObject({
-			issues: [{ code: 'literal:expected_literal' }],
-		})
-		expect(v.union([0]).execute(-0)).toMatchObject({
-			issues: [{ code: 'literal:expected_literal' }],
-		})
+		expect(v.union([Number.NaN])
+			.execute(Number.NaN))
+			.toEqual({ value: Number.NaN })
+		expect(v.union([-0])
+			.execute(0))
+			.toMatchObject({
+				issues: [{ code: 'literal:expected_literal' }],
+			})
+		expect(v.union([0])
+			.execute(-0))
+			.toMatchObject({
+				issues: [{ code: 'literal:expected_literal' }],
+			})
 	})
 
 	it('preserves declaration order between schemas and shorthand branches', () => {
 		const schema = v.union([
-			v.number().transform(() => 'number-schema' as const),
+			v.number()
+				.transform(() => 'number-schema' as const),
 			1,
 		])
 
-		expect(schema.execute(1)).toEqual({ value: 'number-schema' })
+		expect(schema.execute(1))
+			.toEqual({ value: 'number-schema' })
 	})
 
 	it('aggregates recoverable branch issues with stable branch context', () => {
-		expect(v.union([v.string(), v.number()]).execute(null)).toEqual({
-			issues: [
-				{
-					code: 'string:expected_string',
-					category: 'validation',
-					message: 'Expected a string.',
-					path: [],
-					context: [{ type: 'union', branchIndex: 0 }],
-					payload: { value: null },
-				},
-				{
-					code: 'number:expected_number',
-					category: 'validation',
-					message: 'Expected a number.',
-					path: [],
-					context: [{ type: 'union', branchIndex: 1 }],
-					payload: { value: null },
-				},
-			],
-		})
+		expect(v.union([v.string(), v.number()])
+			.execute(null))
+			.toEqual({
+				issues: [
+					{
+						code: 'string:expected_string',
+						category: 'validation',
+						message: 'Expected a string.',
+						path: [],
+						context: [{ type: 'union', branchIndex: 0 }],
+						payload: { value: null },
+					},
+					{
+						code: 'number:expected_number',
+						category: 'validation',
+						message: 'Expected a number.',
+						path: [],
+						context: [{ type: 'union', branchIndex: 1 }],
+						payload: { value: null },
+					},
+				],
+			})
 	})
 
 	it('uses the same global message resolver for generated shorthand schemas', () => {
@@ -110,48 +107,59 @@ describe('union step plugin', () => {
 			message: ({ code }) => `global:${code}`,
 		})
 
-		expect(custom.union(['ready']).execute('other')).toMatchObject({
-			issues: [{
-				code: 'literal:expected_literal',
-				message: 'global:literal:expected_literal',
-				context: [{ type: 'union', branchIndex: 0 }],
-			}],
-		})
+		expect(custom.union(['ready'])
+			.execute('other'))
+			.toMatchObject({
+				issues: [{
+					code: 'literal:expected_literal',
+					message: 'global:literal:expected_literal',
+					context: [{ type: 'union', branchIndex: 0 }],
+				}],
+			})
 	})
 
 	it('continues after an asynchronous recoverable branch failure', async () => {
 		const later = vi.fn((value: string) => value)
 		const result = v.union([
-			v.string().transform(async () => {
-				throw new Error('recoverable')
-			}),
-			v.string().transform(later),
+			v.string()
+				.transform(async () => {
+					throw new Error('recoverable')
+				}),
+			v.string()
+				.transform(later),
 			v.number(),
-		]).execute('hello')
+		])
+			.execute('hello')
 
-		expect(result).toBeInstanceOf(Promise)
+		expect(result)
+			.toBeInstanceOf(Promise)
 		await expect(result).resolves.toEqual({ value: 'hello' })
-		expect(later).toHaveBeenCalledOnce()
+		expect(later)
+			.toHaveBeenCalledOnce()
 	})
 
 	it('does not evaluate later branches after a synchronous internal failure', () => {
 		const later = vi.fn()
 		const schema = (v as any).union([
 			v.number(),
-			(v as any).unknown().internalFailure(),
-			(v as any).unknown().observe(later),
+			(v as any).unknown()
+				.internalFailure(),
+			(v as any).unknown()
+				.observe(later),
 		])
 		const result = schema.execute('value')
 
-		expect(result).toMatchObject({
-			issues: [{
-				code: 'core:unknown_exception',
-				category: 'internal',
-				context: [{ type: 'union', branchIndex: 1 }],
-				payload: { method: 'internalFailure' },
-			}],
-		})
-		expect((result as any).issues).toHaveLength(1)
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'core:unknown_exception',
+					category: 'internal',
+					context: [{ type: 'union', branchIndex: 1 }],
+					payload: { method: 'internalFailure' },
+				}],
+			})
+		expect((result as any).issues)
+			.toHaveLength(1)
 		expect(later).not.toHaveBeenCalled()
 	})
 
@@ -159,12 +167,15 @@ describe('union step plugin', () => {
 		const later = vi.fn()
 		const schema = (v as any).union([
 			v.number(),
-			(v as any).unknown().asyncInternalFailure(),
-			(v as any).unknown().observe(later),
+			(v as any).unknown()
+				.asyncInternalFailure(),
+			(v as any).unknown()
+				.observe(later),
 		])
 		const result = schema.execute('value')
 
-		expect(result).toBeInstanceOf(Promise)
+		expect(result)
+			.toBeInstanceOf(Promise)
 		await expect(result).resolves.toMatchObject({
 			issues: [{
 				code: 'core:unknown_exception',
@@ -177,7 +188,9 @@ describe('union step plugin', () => {
 	})
 
 	it('rejects invalid branch collections during schema construction', () => {
-		expect(() => (v as any).union([])).toThrowError('union() requires at least one branch.')
+		expect(() => (v as any).union([]))
+			.toThrowError('union() requires at least one branch.')
+		// eslint-disable-next-line no-sparse-arrays -- the array hole at index 0 is the fixture: it asserts union() rejects a missing branch
 		expect(() => (v as any).union([, v.string()]))
 			.toThrowError('union() branch at index 0 is missing.')
 		expect(() => (v as any).union([{}]))
@@ -200,8 +213,10 @@ describe('union step plugin', () => {
 			steps: [union, undefined_, null_, literal],
 		})
 
-		expect(reordered.union(['ready', null, undefined]).execute(undefined)).toEqual({
-			value: undefined,
-		})
+		expect(reordered.union(['ready', null, undefined])
+			.execute(undefined))
+			.toEqual({
+				value: undefined,
+			})
 	})
 })

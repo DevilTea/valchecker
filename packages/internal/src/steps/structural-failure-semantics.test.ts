@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createValchecker, implStepPlugin } from '../core'
+import { createValchecker } from '../core'
+import { structuralFixture } from '../test-utils/fixtures'
 import { array } from './array'
 import { intersection } from './intersection'
 import { looseObject } from './looseObject'
@@ -11,24 +12,7 @@ import { transform } from './transform'
 import { union } from './union'
 import { unknown } from './unknown'
 
-const internalFailurePlugin = implStepPlugin<any>({
-	internalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(() => {
-			throw new Error('child exploded')
-		})
-	},
-	asyncInternalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(async () => {
-			throw new Error('async child exploded')
-		})
-	},
-	observe: ({ utils, params: [callback] }: any) => {
-		utils.addSuccessStep((value: unknown) => {
-			callback(value)
-			return utils.success(value)
-		})
-	},
-})
+const internalFailurePlugin = structuralFixture
 
 const v = createValchecker({
 	steps: [
@@ -147,8 +131,10 @@ describe('structural requiredness contract', () => {
 				.execute({})
 			expect(result)
 				.toEqual({ value: { value: undefined } })
-			if (v.isSuccess(result))
-				expect(Object.hasOwn(result.value as object, 'value')).toBe(true)
+			if (v.isSuccess(result)) {
+				expect(Object.hasOwn(result.value as object, 'value'))
+					.toBe(true)
+			}
 		}
 	})
 
@@ -159,7 +145,8 @@ describe('structural requiredness contract', () => {
 			() => v.strictObject({ value: v.string() }),
 			() => v.looseObject({ value: v.string() }),
 		]) {
-			expect(createSchema().execute(input))
+			expect(createSchema()
+				.execute(input))
 				.toMatchObject({ issues: [{ code: expect.stringMatching(/:missing_key$/), path: ['value'] }] })
 		}
 	})
@@ -171,10 +158,12 @@ describe('structural requiredness contract', () => {
 			() => v.strictObject({ [key]: v.string() }),
 			() => v.looseObject({ [key]: v.string() }),
 		]) {
-			const missing = createSchema().execute({})
+			const missing = createSchema()
+				.execute({})
 			expect(missing)
 				.toMatchObject({ issues: [{ path: [key], payload: { key } }] })
-			const success = createSchema().execute({ [key]: 'ok' })
+			const success = createSchema()
+				.execute({ [key]: 'ok' })
 			expect(success)
 				.toMatchObject({ value: { [key]: 'ok' } })
 		}
@@ -182,11 +171,15 @@ describe('structural requiredness contract', () => {
 
 	it('continues structural requiredness checks after an asynchronous child', async () => {
 		for (const createSchema of [
-			() => v.object({ first: v.string().transform(async value => value), missing: v.string() }),
-			() => v.strictObject({ first: v.string().transform(async value => value), missing: v.string() }),
-			() => v.looseObject({ first: v.string().transform(async value => value), missing: v.string() }),
+			() => v.object({ first: v.string()
+				.transform(async value => value), missing: v.string() }),
+			() => v.strictObject({ first: v.string()
+				.transform(async value => value), missing: v.string() }),
+			() => v.looseObject({ first: v.string()
+				.transform(async value => value), missing: v.string() }),
 		]) {
-			await expect(createSchema().execute({ first: 'ok' }))
+			await expect(createSchema()
+				.execute({ first: 'ok' }))
 				.resolves.toMatchObject({ issues: [{ code: expect.stringMatching(/:missing_key$/), path: ['missing'] }] })
 		}
 	})
@@ -205,9 +198,11 @@ describe('structural requiredness contract', () => {
 					return 'ok'
 				},
 			})
-			expect(createSchema().execute(input))
+			expect(createSchema()
+				.execute(input))
 				.toMatchObject({ value: { value: 'ok' } })
-			expect(reads).toBe(1)
+			expect(reads)
+				.toBe(1)
 		}
 	})
 
@@ -301,8 +296,10 @@ describe('structural requiredness contract', () => {
 	it('union immediately returns an internal branch failure instead of accepting a later branch', () => {
 		const later = vi.fn()
 		const result = (v as any).union([
-			(v as any).unknown().internalFailure(),
-			(v as any).unknown().observe(later),
+			(v as any).unknown()
+				.internalFailure(),
+			(v as any).unknown()
+				.observe(later),
 		])
 			.execute('value')
 
@@ -321,7 +318,8 @@ describe('structural requiredness contract', () => {
 	it('union discards earlier alternative failures when a later branch is internal', () => {
 		const result = (v as any).union([
 			v.string(),
-			(v as any).unknown().internalFailure(),
+			(v as any).unknown()
+				.internalFailure(),
 		])
 			.execute(1)
 
@@ -340,8 +338,10 @@ describe('structural requiredness contract', () => {
 	it('object and array stop evaluating siblings/items after an internal issue', () => {
 		const objectLater = vi.fn()
 		const objectResult = (v as any).object({
-			first: (v as any).unknown().internalFailure(),
-			later: (v as any).unknown().observe(objectLater),
+			first: (v as any).unknown()
+				.internalFailure(),
+			later: (v as any).unknown()
+				.observe(objectLater),
 		})
 			.execute({ first: 'value', later: 'value' })
 		expect(objectResult)
@@ -349,8 +349,10 @@ describe('structural requiredness contract', () => {
 		expect(objectLater).not.toHaveBeenCalled()
 
 		const arrayLater = vi.fn()
-		const internalItem = (v as any).unknown().internalFailure()
-		const observedItem = (v as any).unknown().observe(arrayLater)
+		const internalItem = (v as any).unknown()
+			.internalFailure()
+		const observedItem = (v as any).unknown()
+			.observe(arrayLater)
 		const arrayResult = (v as any).array({
 			'~execute': (value: unknown) => value === 'first'
 				? internalItem['~execute'](value)
@@ -365,50 +367,67 @@ describe('structural requiredness contract', () => {
 	it('object variants and arrays stop after an asynchronous internal issue', async () => {
 		for (const createSchema of [
 			(later: ReturnType<typeof vi.fn>) => (v as any).object({
-				first: (v as any).unknown().asyncInternalFailure(),
-				later: (v as any).unknown().observe(later),
+				first: (v as any).unknown()
+					.asyncInternalFailure(),
+				later: (v as any).unknown()
+					.observe(later),
 			}),
 			(later: ReturnType<typeof vi.fn>) => (v as any).strictObject({
-				first: (v as any).unknown().asyncInternalFailure(),
-				later: (v as any).unknown().observe(later),
+				first: (v as any).unknown()
+					.asyncInternalFailure(),
+				later: (v as any).unknown()
+					.observe(later),
 			}),
 			(later: ReturnType<typeof vi.fn>) => (v as any).looseObject({
-				first: (v as any).unknown().asyncInternalFailure(),
-				later: (v as any).unknown().observe(later),
+				first: (v as any).unknown()
+					.asyncInternalFailure(),
+				later: (v as any).unknown()
+					.observe(later),
 			}),
 		]) {
 			const later = vi.fn()
-			await expect(createSchema(later).execute({ first: 'value', later: 'value' }))
+			await expect(createSchema(later)
+				.execute({ first: 'value', later: 'value' }))
 				.resolves.toMatchObject({ issues: [{ category: 'internal', path: ['first'] }] })
 			expect(later).not.toHaveBeenCalled()
 		}
 
 		const later = vi.fn()
-		const internalItem = (v as any).unknown().asyncInternalFailure()
-		const observedItem = (v as any).unknown().observe(later)
+		const internalItem = (v as any).unknown()
+			.asyncInternalFailure()
+		const observedItem = (v as any).unknown()
+			.observe(later)
 		await expect((v as any).array({
 			'~execute': (value: unknown) => value === 'first'
 				? internalItem['~execute'](value)
 				: observedItem['~execute'](value),
-		}).execute(['first', 'later']))
+		})
+			.execute(['first', 'later']))
 			.resolves.toMatchObject({ issues: [{ category: 'internal', path: [0] }] })
 		expect(later).not.toHaveBeenCalled()
 	})
 
 	it('union handles asynchronous recoverable and internal branch failures', async () => {
-		const recoverable = v.string().transform(async () => {
-			throw new Error('recoverable')
-		})
-		const success = v.unknown().transform(async value => `ok:${String(value)}`)
-		await expect(v.union([recoverable, success]).execute('value'))
+		const recoverable = v.string()
+			.transform(async () => {
+				throw new Error('recoverable')
+			})
+		const success = v.unknown()
+			.transform(async value => `ok:${String(value)}`)
+		await expect(v.union([recoverable, success])
+			.execute('value'))
 			.resolves.toEqual({ value: 'ok:value' })
 
 		const later = vi.fn()
 		await expect((v as any).union([
-			v.string().transform(async () => { throw new Error('recoverable') }),
-			(v as any).unknown().asyncInternalFailure(),
-			(v as any).unknown().observe(later),
-		]).execute('value'))
+			v.string()
+				.transform(async () => { throw new Error('recoverable') }),
+			(v as any).unknown()
+				.asyncInternalFailure(),
+			(v as any).unknown()
+				.observe(later),
+		])
+			.execute('value'))
 			.resolves.toMatchObject({
 				issues: [{ category: 'internal', context: [{ type: 'union', branchIndex: 1 }] }],
 			})
@@ -417,8 +436,10 @@ describe('structural requiredness contract', () => {
 
 	it('reports the nested conflict path and branch pair', () => {
 		const result = v.intersection([
-			v.unknown().transform(() => ({ profile: { age: 1 } })),
-			v.unknown().transform(() => ({ profile: { age: 2 } })),
+			v.unknown()
+				.transform(() => ({ profile: { age: 1 } })),
+			v.unknown()
+				.transform(() => ({ profile: { age: 2 } })),
 		])
 			.execute('value')
 
@@ -440,9 +461,12 @@ describe('structural requiredness contract', () => {
 
 	it('identifies the actual earlier branch that contributed a later conflict', () => {
 		const result = v.intersection([
-			v.unknown().transform(() => ({ leftOnly: true })),
-			v.unknown().transform(() => ({ nested: { value: 'left' } })),
-			v.unknown().transform(() => ({ nested: { value: 'right' } })),
+			v.unknown()
+				.transform(() => ({ leftOnly: true })),
+			v.unknown()
+				.transform(() => ({ nested: { value: 'left' } })),
+			v.unknown()
+				.transform(() => ({ nested: { value: 'right' } })),
 		])
 			.execute('value')
 
@@ -469,9 +493,12 @@ describe('structural requiredness contract', () => {
 			},
 		})
 		const result = v.intersection([
-			v.unknown().transform(() => ({ unrelated: true })),
-			v.unknown().transform(() => left),
-			v.unknown().transform(() => ({ nested: { value: 'right' } })),
+			v.unknown()
+				.transform(() => ({ unrelated: true })),
+			v.unknown()
+				.transform(() => left),
+			v.unknown()
+				.transform(() => ({ nested: { value: 'right' } })),
 		])
 			.execute('value')
 
@@ -479,21 +506,26 @@ describe('structural requiredness contract', () => {
 			.toMatchObject({
 				issues: [{ payload: { leftBranch: 1, rightBranch: 2 } }],
 			})
-		expect(reads).toBe(1)
+		expect(reads)
+			.toBe(1)
 	})
 
 	it('distinguishes incompatible prototypes from distinct references', () => {
 		const samePrototype = v.intersection([
-			v.unknown().transform(() => new Date(0)),
-			v.unknown().transform(() => new Date(0)),
+			v.unknown()
+				.transform(() => new Date(0)),
+			v.unknown()
+				.transform(() => new Date(0)),
 		])
 			.execute('value')
 		expect(samePrototype)
 			.toMatchObject({ issues: [{ payload: { reason: 'different_references' } }] })
 
 		const differentPrototype = v.intersection([
-			v.unknown().transform(() => new Date(0)),
-			v.unknown().transform(() => /value/),
+			v.unknown()
+				.transform(() => new Date(0)),
+			v.unknown()
+				.transform(() => /value/),
 		])
 			.execute('value')
 		expect(differentPrototype)

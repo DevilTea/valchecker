@@ -1,17 +1,17 @@
 import type { IsEqual } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
-import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
 
 interface UnionStepMethodContext {
 	createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
 }
 
 declare namespace Internal {
-	type Branch<This extends Valchecker> =
-		| Use<Valchecker>
-		| UnionShorthandInput<InferRegisteredStepPluginDefs<This>>
+	type Branch<This extends Valchecker>
+		= | Use<Valchecker>
+			| UnionShorthandInput<InferRegisteredStepPluginDefs<This>>
 
 	type Branches<This extends Valchecker> = readonly [
 		Branch<This>,
@@ -45,6 +45,7 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Checks that the value passes at least one branch and returns the first
 	 * successful branch output. Failed branch issues receive a non-data
 	 * `{ type: 'union', branchIndex }` context entry. Internal failures stop
@@ -52,17 +53,32 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * Registered `literal`, `null`, and `undefined` initial-schema steps also
 	 * enable their corresponding shorthand branch values.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, number, string, union } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [union, string, number] })
+	 * const schema = v.union([v.string(), v.number()])
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * None. `union` owns no issue code; every failed branch's issues are aggregated with a `{ type: 'union', branchIndex }` context entry.
 	 */
 	union: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? <const B extends Internal.Branches<This>>(
-				branches: B,
-			) => Next<{
-				operationMode: Internal.OpMode<This, B>
-				output: Internal.Output<This, B>
-				issue: Internal.Issue<This, B>
-			}, This>
+					branches: B,
+				) => Next<{
+					operationMode: Internal.OpMode<This, B>
+					output: Internal.Output<This, B>
+					issue: Internal.Issue<This, B>
+				}, This>
 			: never
 	>
 }
@@ -109,7 +125,7 @@ export const union = implStepPlugin<PluginDef>({
 		if (!Array.isArray(branches) || branches.length === 0)
 			throw new TypeError('union() requires at least one branch.')
 
-		const branchExecutors = new Array(branches.length)
+		const branchExecutors: Use<Valchecker>['~execute'][] = Array.from({ length: branches.length })
 		let operationMode: OperationMode = 'sync'
 		for (let index = 0; index < branches.length; index++) {
 			if (!Object.hasOwn(branches, index))
@@ -160,6 +176,7 @@ export const union = implStepPlugin<PluginDef>({
 
 				const collected = issues ??= []
 				const branchStart = collected.length
+				// Deliberately duplicated per-file inline loop: V8 inlines this per-schema loop but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 				let hasInternal = false
 				for (const issue of syncBranchResult.issues) {
 					if (issue.category === 'internal')

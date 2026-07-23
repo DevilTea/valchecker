@@ -1,3 +1,4 @@
+import type { MaybePromise } from '..'
 import { describe, expect, it, vi } from 'vitest'
 import {
 	array,
@@ -30,7 +31,11 @@ const v = createValchecker({
 	],
 })
 
-function issueCodes(result: { value: unknown } | { issues: Array<{ code: string }> }): string[] {
+function issueCodes(maybe: MaybePromise<{ value: unknown } | { issues: Array<{ code: string }> }>): string[] {
+	// These schemas contain `transform`, so their type is conservatively
+	// `maybe-async`; at runtime the callbacks are synchronous, so the result is
+	// always the synchronous branch.
+	const result = maybe as { value: unknown } | { issues: Array<{ code: string }> }
 	return 'issues' in result
 		? result.issues.map(issue => issue.code)
 		: []
@@ -43,7 +48,8 @@ describe('structural collectAllIssues contract', () => {
 			() => v.strictObject({ first: v.number(), second: v.string() }),
 			() => v.looseObject({ first: v.number(), second: v.string() }),
 		]) {
-			expect(issueCodes(createSchema().execute({ first: 'bad', second: 1 })))
+			expect(issueCodes(createSchema()
+				.execute({ first: 'bad', second: 1 })))
 				.toEqual(['number:expected_number'])
 		}
 	})
@@ -54,7 +60,8 @@ describe('structural collectAllIssues contract', () => {
 			() => v.strictObject({ first: v.number(), second: v.string() }, { collectAllIssues: true }),
 			() => v.looseObject({ first: v.number(), second: v.string() }, { collectAllIssues: true }),
 		]) {
-			expect(issueCodes(createSchema().execute({ first: 'bad', second: 1 })))
+			expect(issueCodes(createSchema()
+				.execute({ first: 'bad', second: 1 })))
 				.toEqual(['number:expected_number', 'string:expected_string'])
 		}
 	})
@@ -68,12 +75,13 @@ describe('structural collectAllIssues contract', () => {
 
 	it('array stops later items by default', () => {
 		const runs: unknown[] = []
-		const result = v.array(v.unknown().transform((value) => {
-			runs.push(value)
-			if (value === 'bad')
-				throw new Error('bad')
-			return value
-		}))
+		const result = v.array(v.unknown()
+			.transform((value) => {
+				runs.push(value)
+				if (value === 'bad')
+					throw new Error('bad')
+				return value
+			}))
 			.execute(['bad', 'later'])
 		expect(issueCodes(result))
 			.toEqual(['transform:callback_failed'])
@@ -81,14 +89,15 @@ describe('structural collectAllIssues contract', () => {
 			.toEqual(['bad'])
 	})
 
-	it('Set stops later items by default', () => {
+	it('set stops later items by default', () => {
 		const runs: unknown[] = []
-		const result = v.set(v.unknown().transform((value) => {
-			runs.push(value)
-			if (value === 'bad')
-				throw new Error('bad')
-			return value
-		}))
+		const result = v.set(v.unknown()
+			.transform((value) => {
+				runs.push(value)
+				if (value === 'bad')
+					throw new Error('bad')
+				return value
+			}))
 			.execute(new Set(['bad', 'later']))
 		expect(issueCodes(result))
 			.toEqual(['transform:callback_failed'])
@@ -98,12 +107,13 @@ describe('structural collectAllIssues contract', () => {
 
 	it('array and Set collect later items when enabled', () => {
 		const arrayRuns: unknown[] = []
-		const arrayResult = v.array(v.unknown().transform((value) => {
-			arrayRuns.push(value)
-			if (value === 'bad')
-				throw new Error('bad')
-			return value
-		}), { collectAllIssues: true })
+		const arrayResult = v.array(v.unknown()
+			.transform((value) => {
+				arrayRuns.push(value)
+				if (value === 'bad')
+					throw new Error('bad')
+				return value
+			}), { collectAllIssues: true })
 			.execute(['bad', 'later'])
 		expect(issueCodes(arrayResult))
 			.toEqual(['transform:callback_failed'])
@@ -111,12 +121,13 @@ describe('structural collectAllIssues contract', () => {
 			.toEqual(['bad', 'later'])
 
 		const setRuns: unknown[] = []
-		const setResult = v.set(v.unknown().transform((value) => {
-			setRuns.push(value)
-			if (value === 'bad')
-				throw new Error('bad')
-			return value
-		}), { collectAllIssues: true })
+		const setResult = v.set(v.unknown()
+			.transform((value) => {
+				setRuns.push(value)
+				if (value === 'bad')
+					throw new Error('bad')
+				return value
+			}), { collectAllIssues: true })
 			.execute(new Set(['bad', 'later']))
 		expect(issueCodes(setResult))
 			.toEqual(['transform:callback_failed'])
@@ -128,16 +139,18 @@ describe('structural collectAllIssues contract', () => {
 		const keyRuns: unknown[] = []
 		const valueRuns: unknown[] = []
 		const result = v.map({
-			key: v.unknown().transform((value) => {
-				keyRuns.push(value)
-				if (value === 'bad')
-					throw new Error('bad')
-				return value
-			}),
-			value: v.unknown().transform((value) => {
-				valueRuns.push(value)
-				return value
-			}),
+			key: v.unknown()
+				.transform((value) => {
+					keyRuns.push(value)
+					if (value === 'bad')
+						throw new Error('bad')
+					return value
+				}),
+			value: v.unknown()
+				.transform((value) => {
+					valueRuns.push(value)
+					return value
+				}),
 		})
 			.execute(new Map([['bad', 1], ['later', 2]]))
 		expect(issueCodes(result))
@@ -152,16 +165,18 @@ describe('structural collectAllIssues contract', () => {
 		const keyRuns: unknown[] = []
 		const valueRuns: unknown[] = []
 		const result = v.map({
-			key: v.unknown().transform((value) => {
-				keyRuns.push(value)
-				if (value === 'bad')
-					throw new Error('bad')
-				return value
-			}),
-			value: v.unknown().transform((value) => {
-				valueRuns.push(value)
-				return value
-			}),
+			key: v.unknown()
+				.transform((value) => {
+					keyRuns.push(value)
+					if (value === 'bad')
+						throw new Error('bad')
+					return value
+				}),
+			value: v.unknown()
+				.transform((value) => {
+					valueRuns.push(value)
+					return value
+				}),
 			collectAllIssues: true,
 		})
 			.execute(new Map([['bad', 1], ['later', 2]]))
@@ -176,8 +191,13 @@ describe('structural collectAllIssues contract', () => {
 	it('intersection stops later synchronous branches by default', () => {
 		const later = vi.fn()
 		const result = v.intersection([
-			v.unknown().transform(() => { throw new Error('first') }),
-			v.unknown().transform((value) => { later(); return value }),
+			v.unknown()
+				.transform(() => { throw new Error('first') }),
+			v.unknown()
+				.transform((value) => {
+					later()
+					return value
+				}),
 		])
 			.execute('value')
 		expect(issueCodes(result))
@@ -188,20 +208,31 @@ describe('structural collectAllIssues contract', () => {
 	it('intersection collects synchronous branch failures when enabled', () => {
 		const later = vi.fn()
 		const result = v.intersection([
-			v.unknown().transform(() => { throw new Error('first') }),
-			v.unknown().transform(() => { later(); throw new Error('second') }),
+			v.unknown()
+				.transform(() => { throw new Error('first') }),
+			v.unknown()
+				.transform(() => {
+					later()
+					throw new Error('second')
+				}),
 		], { collectAllIssues: true })
 			.execute('value')
 		expect(issueCodes(result))
 			.toEqual(['transform:callback_failed', 'transform:callback_failed'])
-		expect(later).toHaveBeenCalledTimes(1)
+		expect(later)
+			.toHaveBeenCalledTimes(1)
 	})
 
 	it('intersection truly short-circuits asynchronous branches by default', async () => {
 		const later = vi.fn()
 		const result = await v.intersection([
-			v.unknown().transform(async () => { throw new Error('first') }),
-			v.unknown().transform((value) => { later(); return value }),
+			v.unknown()
+				.transform(async () => { throw new Error('first') }),
+			v.unknown()
+				.transform((value) => {
+					later()
+					return value
+				}),
 		])
 			.execute('value')
 		expect(issueCodes(result))
@@ -212,12 +243,18 @@ describe('structural collectAllIssues contract', () => {
 	it('intersection starts remaining asynchronous branches when collection is enabled', async () => {
 		const later = vi.fn()
 		const result = await v.intersection([
-			v.unknown().transform(async () => { throw new Error('first') }),
-			v.unknown().transform(async () => { later(); throw new Error('second') }),
+			v.unknown()
+				.transform(async () => { throw new Error('first') }),
+			v.unknown()
+				.transform(async () => {
+					later()
+					throw new Error('second')
+				}),
 		], { collectAllIssues: true })
 			.execute('value')
 		expect(issueCodes(result))
 			.toEqual(['transform:callback_failed', 'transform:callback_failed'])
-		expect(later).toHaveBeenCalledTimes(1)
+		expect(later)
+			.toHaveBeenCalledTimes(1)
 	})
 })

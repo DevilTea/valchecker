@@ -31,11 +31,35 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Runs a custom predicate, type guard, or issue-producing callback.
 	 *
-	 * Returning `false` or a string emits `check:failed`. Throwing or rejecting
+	 * Returning `false` or any string emits `check:failed`; an empty string `''`
+	 * is still a failure (the string is treated as the failure message, not as a
+	 * falsy pass). Only `true`, `undefined`, or `void` pass. Throwing or rejecting
 	 * emits the operation issue `check:callback_failed`. Use `check<AddedIssue>()`
 	 * when `addIssue()` introduces domain-specific issue types.
+	 *
+	 * The runtime cannot observe callback asynchrony, so any schema containing
+	 * `check` leaves the synchronous fast path and runs in the conservative
+	 * `maybe-async` mode (each step then pays an `isPromiseLike` check), even when
+	 * the type level infers a precise `'sync'` operation mode.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { check, createValchecker, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, check] })
+	 * const schema = v.string().check(value => value.length > 0)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'check:failed'`: The callback returned `false` or a failure message string.
+	 * - `'check:callback_failed'`: The callback threw or rejected.
 	 */
 	check:
 		| DefineStepMethod<

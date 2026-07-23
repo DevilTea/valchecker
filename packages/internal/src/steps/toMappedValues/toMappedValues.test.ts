@@ -11,21 +11,28 @@ describe('toMappedValues step plugin', () => {
 		const visited: string[] = []
 		let callbackMap: Map<string, number> | undefined
 		const schema = v.map({ key: v.string(), value: v.number() })
-			.toMappedValues(function (entryValue, key, index, value) {
+			.toMappedValues(function (this: typeof context, entryValue, key, index, value) {
 				visited.push(key)
 				callbackMap ??= value
-				expect(value).toBe(callbackMap)
+				expect(value)
+					.toBe(callbackMap)
 				if (index === 0)
 					value.set('c', 3)
 				return entryValue + index + this.offset
 			}, { thisArg: context })
 
-		expect(schema.execute(input)).toEqual({ value: new Map([['a', 11], ['b', 13]]) })
-		expect(input).toEqual(new Map([['a', 1], ['b', 2]]))
-		expect(callbackMap).toEqual(new Map([['a', 1], ['b', 2], ['c', 3]]))
-		expect(visited).toEqual(['a', 'b'])
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<Map<string, number>>()
-		expectTypeOf<InferOperationMode<typeof schema>>().toEqualTypeOf<'sync'>()
+		expect(schema.execute(input))
+			.toEqual({ value: new Map([['a', 11], ['b', 13]]) })
+		expect(input)
+			.toEqual(new Map([['a', 1], ['b', 2]]))
+		expect(callbackMap)
+			.toEqual(new Map([['a', 1], ['b', 2], ['c', 3]]))
+		expect(visited)
+			.toEqual(['a', 'b'])
+		expectTypeOf<InferOutput<typeof schema>>()
+			.toEqualTypeOf<Map<string, number>>()
+		expectTypeOf<InferOperationMode<typeof schema>>()
+			.toEqualTypeOf<'sync'>()
 	})
 
 	it('converts callback exceptions into an operation issue', () => {
@@ -37,7 +44,8 @@ describe('toMappedValues step plugin', () => {
 					throw error
 				return entryValue
 			}, { message: 'Value mapping failed' })
-			.execute(input)).toEqual({
+			.execute(input))
+			.toEqual({
 				issues: [{
 					code: 'toMappedValues:callback_failed',
 					category: 'operation',
@@ -55,7 +63,8 @@ describe('toMappedValues step plugin', () => {
 
 		expect(result).not.toBeInstanceOf(Promise)
 		const promise = (result as any).value.get('a')
-		expect(promise).toBeInstanceOf(Promise)
+		expect(promise)
+			.toBeInstanceOf(Promise)
 		await expect(promise).resolves.toBe(2)
 	})
 })

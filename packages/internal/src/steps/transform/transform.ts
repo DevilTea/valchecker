@@ -20,9 +20,30 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Applies an arbitrary synchronous or asynchronous transformation.
 	 * Throwing and rejected callbacks emit the operation issue
 	 * `transform:callback_failed` with the callback phase and original error.
+	 *
+	 * The runtime cannot observe callback asynchrony, so any schema containing
+	 * `transform` leaves the synchronous fast path and runs in the conservative
+	 * `maybe-async` mode (each step then pays an `isPromiseLike` check), even when
+	 * the type level infers a precise `'sync'` operation mode.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, string, transform } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, transform] })
+	 * const schema = v.string().transform(value => value.length)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'transform:callback_failed'`: The transform callback threw or rejected.
 	 */
 	transform: DefineStepMethod<
 		Meta,

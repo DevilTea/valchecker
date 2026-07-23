@@ -1,25 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createValchecker, number, object, string, transform, unknown } from '../..'
-import { implStepPlugin } from '../../core'
+import { structuralFixture } from '../../test-utils/fixtures'
 
-const internalFixture = implStepPlugin<any>({
-	internalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(() => {
-			throw new Error('internal failure')
-		})
-	},
-	asyncInternalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(async () => {
-			throw new Error('async internal failure')
-		})
-	},
-	observe: ({ utils, params: [callback] }: any) => {
-		utils.addSuccessStep((value: unknown) => {
-			callback(value)
-			return utils.success(value)
-		})
-	},
-})
+const internalFixture = structuralFixture
 
 const v = createValchecker({
 	steps: [internalFixture, number, object, string, transform, unknown],

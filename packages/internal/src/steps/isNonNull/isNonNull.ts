@@ -17,6 +17,27 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the value is not `null` and narrows the output by removing
+	 * `null`. An `undefined` value passes and is preserved.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isNonNull, unknown } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [unknown, isNonNull] })
+	 * const schema = v.unknown().isNonNull()
+	 * const result = schema.execute('value')
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isNonNull:expected_non_null'`: The value is `null`.
+	 */
 	isNonNull: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
@@ -24,9 +45,9 @@ interface PluginDef extends TStepPluginDef {
 				? InferOutput<This> extends infer Output
 					? Internal.HasTarget<Output> extends true
 						? (options?: StepOptions<Internal.Issue>) => Next<{
-							output: Internal.Narrow<Output>
-							issue: Internal.Issue
-						}, This>
+								output: Internal.Narrow<Output>
+								issue: Internal.Issue
+							}, This>
 						: never
 					: never
 				: never

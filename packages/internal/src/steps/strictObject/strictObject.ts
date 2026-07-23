@@ -60,6 +60,23 @@ interface PluginDef extends TStepPluginDef {
 	 * An own property whose value is `undefined` is still validated by its child schema.
 	 * Structural validation stops after the first issue unless
 	 * `collectAllIssues` is enabled.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, number, strictObject, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [strictObject, string, number] })
+	 * const schema = v.strictObject({ name: v.string(), age: v.number() })
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'strictObject:expected_object'`: The value is not an object.
+	 * - `'strictObject:missing_key'`: A required key is not an own property of the value.
+	 * - `'strictObject:unexpected_keys'`: The value carries own keys not declared by the schema.
 	 */
 	strictObject: DefineStepMethod<
 		Meta,
@@ -164,6 +181,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 			return target
 		}
 
+		// Deliberately duplicated per-file: V8 inlines this local closure but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 		const appendChildIssues = (
 			result: ExecutionResult,
 			key: PropertyKey,
@@ -187,7 +205,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 			firstResult: PromiseLike<ExecutionResult>,
 			output: Record<PropertyKey, any> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
-		): Promise<ExecutionResult> => {
+		) => {
 			for (let i = startIndex; i < keysLen; i++) {
 				const meta = propsMeta[i]!
 				let result: ExecutionResult

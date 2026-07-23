@@ -15,6 +15,27 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that a Map includes the expected value among its entry values using
+	 * SameValueZero equality, so `NaN` matches `NaN`.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isIncludingValue, map, number, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [map, number, string, isIncludingValue] })
+	 * const schema = v.map({ key: v.string(), value: v.number() }).isIncludingValue(1)
+	 * const result = schema.execute(new Map([['id', 1]]))
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isIncludingValue:expected_including_value'`: The Map does not include the expected value.
+	 */
 	isIncludingValue: DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 		? InferOutput<This> extends infer Input extends Map<any, any>
 			? (
@@ -26,6 +47,7 @@ interface PluginDef extends TStepPluginDef {
 }
 
 function isSameValueZero(left: unknown, right: unknown): boolean {
+	// eslint-disable-next-line no-self-compare -- intentional NaN self-comparison implementing SameValueZero identity (x !== x is true only for NaN)
 	return left === right || (left !== left && right !== right)
 }
 

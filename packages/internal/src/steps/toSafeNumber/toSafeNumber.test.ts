@@ -48,11 +48,13 @@ describe('toSafeNumber step plugin', () => {
 	})
 
 	it('infers number output and is unavailable outside bigint()', () => {
-		const schema = v.bigint()
+		const _schema = v.bigint()
 			.toSafeNumber()
-		expectTypeOf<InferOutput<typeof schema>>()
+		expectTypeOf<InferOutput<typeof _schema>>()
 			.toEqualTypeOf<number>()
-		expectTypeOf(v.number().toSafeNumber)
-			.toBeNever()
+		if (false) {
+			// @ts-expect-error toSafeNumber is unavailable once the output is already number
+			v.number().toSafeNumber() // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
+		}
 	})
 })

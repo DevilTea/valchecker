@@ -10,7 +10,8 @@ import { createValchecker, set, string, transform } from '../..'
 
 const v = createValchecker({ steps: [set, string, transform] })
 const schema = v.set(v.string())
-const transformed = v.set(v.string().transform(value => value.toLowerCase()))
+const transformed = v.set(v.string()
+	.transform(value => value.toLowerCase()))
 const small = new Set(['a', 'b', 'c'])
 const large = new Set(Array.from({ length: 1000 }, (_, index) => `item-${index}`))
 
@@ -41,7 +42,7 @@ describe('set benchmarks', () => {
 
 	describe('baseline', () => {
 		bench('native Set copy', () => {
-			new Set(small)
+			void new Set(small)
 		})
 	})
 })

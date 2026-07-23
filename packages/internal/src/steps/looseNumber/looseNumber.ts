@@ -48,6 +48,9 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
+// Mirrors TypeScript's `${number}` template-literal grammar (tsc checker `isValidNumberString(s, /* roundTripOnly */ false)`),
+// not general JS coercion: `Number()` accepts `+1`, `0o17`, `0b101`, `01`, `5.` but rejects numeric separators (`1_000`),
+// `NaN`, and infinite strings via the `Number.isFinite` guard.
 function parseLooseNumber(value: unknown): number | undefined {
 	if (typeof value === 'number') {
 		return value

@@ -16,20 +16,43 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the value equals the expected primitive using `Object.is`.
+	 * Because it uses `Object.is`, `NaN` equals `NaN` and positive zero differs
+	 * from negative zero (`+0` is not equal to `-0`). Only primitive expectations
+	 * are accepted, and the successful output is narrowed to the expected value.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isEqualTo, number } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [number, isEqualTo] })
+	 * const schema = v.number().isEqualTo(42)
+	 * const result = schema.execute(42)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isEqualTo:expected_equal_to'`: The value is not equal to the expected value.
+	 */
 	isEqualTo: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 			? InferExecutionContext<This>['initial'] extends false
 				? InferOutput<This> extends infer Output
 					? [Internal.Comparable<Output>] extends [never]
-						? never
-						: <const Expected extends Internal.Comparable<Output>>(
-							expected: Expected,
-							options?: StepOptions<Internal.Issue<Output, Expected>>,
-						) => Next<{
-							output: Internal.Narrow<Output, Expected>
-							issue: Internal.Issue<Output, Expected>
-						}, This>
+							? never
+							: <const Expected extends Internal.Comparable<Output>>(
+									expected: Expected,
+									options?: StepOptions<Internal.Issue<Output, Expected>>,
+								) => Next<{
+									output: Internal.Narrow<Output, Expected>
+									issue: Internal.Issue<Output, Expected>
+								}, This>
 					: never
 				: never
 			: never

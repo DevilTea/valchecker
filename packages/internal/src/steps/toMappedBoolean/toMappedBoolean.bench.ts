@@ -2,14 +2,16 @@ import { bench, describe } from 'vitest'
 import { createValchecker, number, string, toMappedBoolean } from '../..'
 
 const v = createValchecker({ steps: [number, string, toMappedBoolean] })
-const stringSchema = v.string().toMappedBoolean({
-	trueValues: ['Y', 'yes'],
-	falseValues: ['N', 'no'],
-})
-const numberSchema = v.number().toMappedBoolean({
-	trueValues: [1],
-	falseValues: [0],
-})
+const stringSchema = v.string()
+	.toMappedBoolean({
+		trueValues: ['Y', 'yes'],
+		falseValues: ['N', 'no'],
+	})
+const numberSchema = v.number()
+	.toMappedBoolean({
+		trueValues: [1],
+		falseValues: [0],
+	})
 
 describe('toMappedBoolean benchmarks', () => {
 	bench('mapped string true', () => {

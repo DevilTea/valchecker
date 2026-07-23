@@ -30,7 +30,7 @@ interface PluginDef extends TStepPluginDef {
 	 * import { createValchecker, undefined_ } from 'valchecker'
 	 *
 	 * const v = createValchecker({ steps: [undefined_] })
-	 * const schema = v.undefined_()
+	 * const schema = v.undefined()
 	 * const result = schema.execute(undefined)
 	 * ```
 	 *

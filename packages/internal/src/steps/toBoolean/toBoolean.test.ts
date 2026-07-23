@@ -11,7 +11,10 @@ describe('toBoolean step plugin', () => {
 		['0', true],
 		['no', true],
 	] as const)('applies Boolean() to string %j', (value, expected) => {
-		expect(v.string().toBoolean().execute(value)).toEqual({ value: expected })
+		expect(v.string()
+			.toBoolean()
+			.execute(value))
+			.toEqual({ value: expected })
 	})
 
 	it.each([
@@ -21,7 +24,10 @@ describe('toBoolean step plugin', () => {
 		[1, true],
 		[Infinity, true],
 	] as const)('applies Boolean() to number %s', (value, expected) => {
-		expect(v.number().toBoolean().execute(value)).toEqual({ value: expected })
+		expect(v.number()
+			.toBoolean()
+			.execute(value))
+			.toEqual({ value: expected })
 	})
 
 	it.each([
@@ -29,7 +35,10 @@ describe('toBoolean step plugin', () => {
 		[1n, true],
 		[-1n, true],
 	] as const)('applies Boolean() to bigint %s', (value, expected) => {
-		expect(v.bigint().toBoolean().execute(value)).toEqual({ value: expected })
+		expect(v.bigint()
+			.toBoolean()
+			.execute(value))
+			.toEqual({ value: expected })
 	})
 
 	it.each([
@@ -39,12 +48,20 @@ describe('toBoolean step plugin', () => {
 		[[], true],
 		[Symbol('value'), true],
 	] as const)('applies Boolean() to arbitrary non-boolean values', (value, expected) => {
-		expect(v.unknown().toBoolean().execute(value)).toEqual({ value: expected })
+		expect(v.unknown()
+			.toBoolean()
+			.execute(value))
+			.toEqual({ value: expected })
 	})
 
 	it('infers boolean output and is unavailable after boolean()', () => {
-		const schema = v.unknown().toBoolean()
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<boolean>()
-		expectTypeOf(v.boolean().toBoolean).toBeNever()
+		const _schema = v.unknown()
+			.toBoolean()
+		expectTypeOf<InferOutput<typeof _schema>>()
+			.toEqualTypeOf<boolean>()
+		if (false) {
+			// @ts-expect-error toBoolean is unavailable once the output is already boolean
+			v.boolean().toBoolean() // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
+		}
 	})
 })

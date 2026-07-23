@@ -2,9 +2,12 @@ import { bench, describe } from 'vitest'
 import { bigint, createValchecker, number, string, toBoolean } from '../..'
 
 const v = createValchecker({ steps: [bigint, number, string, toBoolean] })
-const stringSchema = v.string().toBoolean()
-const numberSchema = v.number().toBoolean()
-const bigintSchema = v.bigint().toBoolean()
+const stringSchema = v.string()
+	.toBoolean()
+const numberSchema = v.number()
+	.toBoolean()
+const bigintSchema = v.bigint()
+	.toBoolean()
 
 describe('toBoolean benchmarks', () => {
 	bench('non-empty string', () => {

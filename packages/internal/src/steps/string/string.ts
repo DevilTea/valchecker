@@ -51,19 +51,17 @@ export const string = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep((value) => {
-			// Inline type check for better performance
-			if (typeof value === 'string') {
-				return success(value)
-			}
-			return failure(
-				createIssue({
-					code: 'string:expected_string',
-					payload: { value },
-					customMessage: options?.message,
-					defaultMessage: 'Expected a string.',
-				}),
-			)
-		})
+		addSuccessStep(
+			value => typeof value === 'string'
+				?	success(value)
+				:	failure(
+						createIssue({
+							code: 'string:expected_string',
+							payload: { value },
+							customMessage: options?.message,
+							defaultMessage: 'Expected a string.',
+						}),
+					),
+		)
 	},
 }, 'sync')

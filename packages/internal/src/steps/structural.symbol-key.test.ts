@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createValchecker, looseObject, object, strictObject, string, transform } from '../..'
+import { createValchecker, looseObject, object, strictObject, string, transform } from '../index'
+import { syncResult } from '../test-utils/helpers'
 
 const v = createValchecker({
 	steps: [looseObject, object, strictObject, string, transform],
@@ -13,18 +14,21 @@ describe('structural symbol-key contracts', () => {
 	] as const)('validates and materializes a declared enumerable symbol in %s', (_name, createSchema) => {
 		const key = Symbol('value')
 		const schema = createSchema({
-			[key]: v.string().transform(value => value.toUpperCase()),
+			[key]: v.string()
+				.transform(value => value.toUpperCase()),
 		})
-		const result = schema.execute({ [key]: 'ada' })
+		const result = syncResult(schema.execute({ [key]: 'ada' }))
 
-		expect(result).toEqual({ value: { [key]: 'ADA' } })
+		expect(result)
+			.toEqual({ value: { [key]: 'ADA' } })
 		if (v.isSuccess(result)) {
-			expect(Object.getOwnPropertyDescriptor(result.value, key)).toMatchObject({
-				configurable: true,
-				enumerable: true,
-				value: 'ADA',
-				writable: true,
-			})
+			expect(Object.getOwnPropertyDescriptor(result.value, key))
+				.toMatchObject({
+					configurable: true,
+					enumerable: true,
+					value: 'ADA',
+					writable: true,
+				})
 		}
 	})
 })

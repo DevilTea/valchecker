@@ -12,6 +12,29 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Normalizes a string with `String.prototype.normalize`. `form` may be `'NFC'`,
+	 * `'NFD'`, `'NFKC'`, or `'NFKD'` and defaults to `'NFC'`. An unsupported form
+	 * throws a `TypeError` while constructing the schema.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, string, toNormalized } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, toNormalized] })
+	 * const schema = v.string().toNormalized({ form: 'NFC' })
+	 * const result = schema.execute('é')
+	 * // result.value: 'é'
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * None.
+	 */
 	toNormalized: DefineStepMethod<Meta, this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 		? (options?: Internal.Options) => Next<{ output: string }, this['CurrentValchecker']>
 		: never>

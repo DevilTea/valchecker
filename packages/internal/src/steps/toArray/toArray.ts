@@ -8,9 +8,26 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
-	 * Returns Set items as a new array in insertion order.
+	 * ### Description:
+	 * Replaces a Set with a new array of its items in insertion order. This pure
+	 * transformation does not mutate the source Set.
 	 *
-	 * @example `v.set(v.string()).toArray()`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, set, string, toArray } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [set, string, toArray] })
+	 * const schema = v.set(v.string()).toArray()
+	 * const result = schema.execute(new Set(['b', 'a']))
+	 * // result.value: ['b', 'a']
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * None.
 	 */
 	toArray: DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 		? InferOutput<This> extends Set<infer Item>

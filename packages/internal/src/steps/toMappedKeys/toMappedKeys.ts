@@ -42,10 +42,26 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Maps Map keys while preserving values and insertion order. Mapped keys
 	 * must remain unique under native Map SameValueZero semantics.
 	 *
-	 * @issues `toMappedKeys:callback_failed`, `toMappedKeys:duplicate_mapped_key`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, map, number, string, toMappedKeys } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [map, string, number, toMappedKeys] })
+	 * const schema = v.map({ key: v.string(), value: v.number() })
+	 * 	.toMappedKeys(key => key.toUpperCase())
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toMappedKeys:callback_failed'`: The mapper threw.
+	 * - `'toMappedKeys:duplicate_mapped_key'`: Two entries produced the same mapped key.
 	 */
 	toMappedKeys: DefineStepMethod<
 		Meta,

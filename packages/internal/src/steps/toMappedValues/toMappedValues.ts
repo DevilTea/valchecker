@@ -26,10 +26,25 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Maps Map values while preserving keys and insertion order. Mapper return
 	 * values are stored directly; returned promises are not awaited.
 	 *
-	 * @issues `toMappedValues:callback_failed`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, map, number, string, toMappedValues } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [map, string, number, toMappedValues] })
+	 * const schema = v.map({ key: v.string(), value: v.number() })
+	 * 	.toMappedValues(value => value + 1)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'toMappedValues:callback_failed'`: The mapper threw.
 	 */
 	toMappedValues: DefineStepMethod<
 		Meta,

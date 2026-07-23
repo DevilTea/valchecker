@@ -66,7 +66,9 @@ describe('toSorted step plugin', () => {
 	it('leaves failures outside the comparator callback to the core boundary', () => {
 		const error = new Error('sort method')
 		const value = [] as any[] & { toSorted: typeof Array.prototype.toSorted }
-		value.toSorted = () => { throw error }
+		value.toSorted = () => {
+			throw error
+		}
 
 		expect(v.transform(() => value)
 			.toSorted({ compareFn: () => 0 })

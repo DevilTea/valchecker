@@ -1,10 +1,12 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, isNaN, number } from '../..'
 
-const schema = createValchecker({ steps: [number, isNaN] }).number().isNaN()
+const schema = createValchecker({ steps: [number, isNaN] })
+	.number()
+	.isNaN()
 
 describe('isNaN benchmarks', () => {
-	bench('NaN', () => {
+	bench('naN', () => {
 		schema.execute(Number.NaN)
 	})
 

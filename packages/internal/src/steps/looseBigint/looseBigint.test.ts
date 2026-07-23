@@ -12,6 +12,8 @@ describe('looseBigint step plugin', () => {
 		['0x10', 16n],
 		['-0x10', -16n],
 		['0B10', 2n],
+		['0b101', 5n],
+		['0o17', 15n],
 		['-0o10', -8n],
 	])('normalizes %p to %p', (input, output) => {
 		expect(v.looseBigint()

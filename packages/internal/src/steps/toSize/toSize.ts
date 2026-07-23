@@ -7,6 +7,27 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Replaces a size-bearing value such as a Map or Set with its numeric `size`.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, set, string, toSize } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [set, string, toSize] })
+	 * const schema = v.set(v.string()).toSize()
+	 * const result = schema.execute(new Set(['a', 'b']))
+	 * // result.value: 2
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * None.
+	 */
 	toSize: DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 		? () => Next<{ output: number }, This>
 		: never>

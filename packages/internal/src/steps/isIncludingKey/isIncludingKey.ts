@@ -15,6 +15,26 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that a Map includes the expected key using `Map.prototype.has`.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isIncludingKey, map, number, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [map, number, string, isIncludingKey] })
+	 * const schema = v.map({ key: v.string(), value: v.number() }).isIncludingKey('id')
+	 * const result = schema.execute(new Map([['id', 1]]))
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isIncludingKey:expected_including_key'`: The Map does not include the expected key.
+	 */
 	isIncludingKey: DefineStepMethod<Meta, this['CurrentValchecker'] extends infer This extends Meta['ExpectedCurrentValchecker']
 		? InferOutput<This> extends infer Input extends Map<any, any>
 			? (

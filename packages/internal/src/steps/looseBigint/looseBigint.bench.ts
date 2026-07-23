@@ -1,7 +1,8 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, looseBigint } from '../..'
 
-const schema = createValchecker({ steps: [looseBigint] }).looseBigint()
+const schema = createValchecker({ steps: [looseBigint] })
+	.looseBigint()
 
 describe('looseBigint benchmarks', () => {
 	bench('bigint input', () => {

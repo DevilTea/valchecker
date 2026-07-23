@@ -1,7 +1,9 @@
 import { bench, describe } from 'vitest'
 import { createValchecker, isAtMost, number } from '../..'
 
-const schema = createValchecker({ steps: [number, isAtMost] }).number().isAtMost(100)
+const schema = createValchecker({ steps: [number, isAtMost] })
+	.number()
+	.isAtMost(100)
 
 describe('isAtMost benchmarks', () => {
 	bench('numeric success', () => {

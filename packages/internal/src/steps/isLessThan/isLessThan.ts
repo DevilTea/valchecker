@@ -13,20 +13,40 @@ type Meta<T extends number | bigint> = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
-	/** Checks that a number or bigint is less than the configured bound. */
+	/**
+	 * ### Description:
+	 * Checks that a number or bigint is strictly less than the configured bound.
+	 * The bound itself is rejected.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isLessThan, number } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [number, isLessThan] })
+	 * const schema = v.number().isLessThan(10)
+	 * const result = schema.execute(1)
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isLessThan:expected_less_than'`: The value is not less than the bound.
+	 */
 	isLessThan:
 		| DefineStepMethod<Meta<number>, this['CurrentValchecker'] extends Meta<number>['ExpectedCurrentValchecker']
 			? (maximum: number, options?: StepOptions<Internal.NumberIssue>) => Next<{ issue: Internal.NumberIssue }, this['CurrentValchecker']>
 			: never>
-		| DefineStepMethod<Meta<bigint>, this['CurrentValchecker'] extends Meta<bigint>['ExpectedCurrentValchecker']
-			? (maximum: bigint, options?: StepOptions<Internal.BigIntIssue>) => Next<{ issue: Internal.BigIntIssue }, this['CurrentValchecker']>
-			: never>
+			| DefineStepMethod<Meta<bigint>, this['CurrentValchecker'] extends Meta<bigint>['ExpectedCurrentValchecker']
+				? (maximum: bigint, options?: StepOptions<Internal.BigIntIssue>) => Next<{ issue: Internal.BigIntIssue }, this['CurrentValchecker']>
+				: never>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isLessThan = implStepPlugin<PluginDef>({
 	isLessThan: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [maximum, options] }) => {
-		addSuccessStep((value) => value < maximum
+		addSuccessStep(value => value < maximum
 			? success(value)
 			: failure(createIssue({
 					code: 'isLessThan:expected_less_than',

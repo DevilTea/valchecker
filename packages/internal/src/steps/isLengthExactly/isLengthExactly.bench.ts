@@ -2,7 +2,8 @@ import { bench, describe } from 'vitest'
 import { createValchecker, isLengthExactly, string } from '../..'
 
 const v = createValchecker({ steps: [isLengthExactly, string] })
-const schema = v.string().isLengthExactly(8)
+const schema = v.string()
+	.isLengthExactly(8)
 
 describe('isLengthExactly benchmarks', () => {
 	bench('successful execution', () => {

@@ -1,31 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { implStepPlugin } from '../../core'
 import { createValchecker, number, object, string, transform, unknown } from '../..'
+import { structuralFixture } from '../../test-utils/fixtures'
 
-const fixture = implStepPlugin<any>({
-	internalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(() => {
-			throw new Error('internal failure')
-		})
-	},
-	asyncInternalFailure: ({ utils }: any) => {
-		utils.addSuccessStep(async () => {
-			throw new Error('async internal failure')
-		})
-	},
-	observe: ({ utils, params: [callback] }: any) => {
-		utils.addSuccessStep((value: unknown) => {
-			callback(value)
-			return utils.success(value)
-		})
-	},
-})
+const fixture = structuralFixture
 
 const v = createValchecker({ steps: [fixture, number, object, string, transform, unknown] })
 
 describe('object collectAllIssues', () => {
 	it('retains object classification before field traversal', () => {
-		expect(v.object({}, { collectAllIssues: true }).execute([]))
+		expect(v.object({}, { collectAllIssues: true })
+			.execute([]))
 			.toMatchObject({ issues: [{ code: 'object:expected_object' }] })
 	})
 
@@ -40,10 +24,15 @@ describe('object collectAllIssues', () => {
 		const input: Record<PropertyKey, unknown> = { required: 'ok' }
 		Object.defineProperty(input, '__proto__', { enumerable: true, value: 'safe' })
 
-		const result = v.object(shape, { collectAllIssues: true }).execute(input)
-		expect(result).toMatchObject({ value: { required: 'ok', optional: undefined } })
-		expect(Object.hasOwn((result as any).value, '__proto__')).toBe(true)
-		expect((result as any).value.__proto__).toBe('safe')
+		const result = v.object(shape, { collectAllIssues: true })
+			.execute(input)
+		expect(result)
+			.toMatchObject({ value: { required: 'ok', optional: undefined } })
+		expect(Object.hasOwn((result as any).value, '__proto__'))
+			.toBe(true)
+		// eslint-disable-next-line no-proto, no-restricted-properties -- asserting an own __proto__ data property survives as plain data; reading it via the accessor is the behavior under test
+		expect((result as any).value.__proto__)
+			.toBe('safe')
 	})
 
 	it('collects missing and invalid fields before a synchronous internal issue', () => {
@@ -51,27 +40,34 @@ describe('object collectAllIssues', () => {
 		const result = (v as any).object({
 			missing: v.string(),
 			invalid: v.number(),
-			internal: (v as any).unknown().internalFailure(),
-			later: (v as any).unknown().observe(later),
-		}, { collectAllIssues: true }).execute({ invalid: 'bad', internal: 'value', later: 'later' })
+			internal: (v as any).unknown()
+				.internalFailure(),
+			later: (v as any).unknown()
+				.observe(later),
+		}, { collectAllIssues: true })
+			.execute({ invalid: 'bad', internal: 'value', later: 'later' })
 
-		expect(result).toMatchObject({ issues: [
-			{ code: 'object:missing_key', path: ['missing'] },
-			{ code: 'number:expected_number', path: ['invalid'] },
-			{ code: 'core:unknown_exception', path: ['internal'] },
-		] })
+		expect(result)
+			.toMatchObject({ issues: [
+				{ code: 'object:missing_key', path: ['missing'] },
+				{ code: 'number:expected_number', path: ['invalid'] },
+				{ code: 'core:unknown_exception', path: ['internal'] },
+			] })
 		expect(later).not.toHaveBeenCalled()
 	})
 
 	it('continues after an asynchronous recoverable issue and stops after an internal issue', async () => {
 		await expect(v.object({
-			first: v.string().transform(async () => {
-				throw new Error('recoverable')
-			}),
+			first: v.string()
+				.transform(async () => {
+					throw new Error('recoverable')
+				}),
 			optional: [v.number()],
-			last: v.string().transform(value => value.toUpperCase()),
+			last: v.string()
+				.transform(value => value.toUpperCase()),
 			missing: v.string(),
-		}, { collectAllIssues: true }).execute({ first: 'bad', last: 'ok' }))
+		}, { collectAllIssues: true })
+			.execute({ first: 'bad', last: 'ok' }))
 			.resolves.toMatchObject({ issues: [
 				{ code: 'transform:callback_failed', path: ['first'] },
 				{ code: 'object:missing_key', path: ['missing'] },
@@ -79,9 +75,12 @@ describe('object collectAllIssues', () => {
 
 		const later = vi.fn()
 		await expect((v as any).object({
-			first: (v as any).unknown().asyncInternalFailure(),
-			later: (v as any).unknown().observe(later),
-		}, { collectAllIssues: true }).execute({ first: 'bad', later: 'later' }))
+			first: (v as any).unknown()
+				.asyncInternalFailure(),
+			later: (v as any).unknown()
+				.observe(later),
+		}, { collectAllIssues: true })
+			.execute({ first: 'bad', later: 'later' }))
 			.resolves.toMatchObject({ issues: [{ code: 'core:unknown_exception', path: ['first'] }] })
 		expect(later).not.toHaveBeenCalled()
 	})

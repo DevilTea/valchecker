@@ -73,7 +73,8 @@ describe('looseObject step plugin', () => {
 			.toMatchObject({
 				issues: [{ code: 'string:expected_string' }],
 			})
-		expect(ownKeysCalls).toBe(0)
+		expect(ownKeysCalls)
+			.toBe(0)
 	})
 
 	it('reports the complete missing-key issue contract', () => {

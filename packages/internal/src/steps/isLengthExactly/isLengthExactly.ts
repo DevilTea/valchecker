@@ -16,13 +16,26 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
-	 * Checks that the observed `length` equals the expected length. The runtime
-	 * reads `length` once and snapshots it in the failure payload.
+	 * ### Description:
+	 * Checks that the value's observed `length` equals the expected length. The
+	 * runtime reads `length` once and snapshots that value in the failure payload.
 	 *
-	 * @example
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isLengthExactly, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isLengthExactly] })
 	 * const schema = v.string().isLengthExactly(8)
+	 * const result = schema.execute('password')
+	 * ```
 	 *
-	 * @issues `isLengthExactly:expected_length_exactly`
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isLengthExactly:expected_length_exactly'`: The observed length is not exactly the expected length.
+	 *   Payload: `{ value, expectedLength, length }`.
 	 */
 	isLengthExactly: DefineStepMethod<
 		Meta,

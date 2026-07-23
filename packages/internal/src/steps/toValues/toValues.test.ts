@@ -7,14 +7,20 @@ const v = createValchecker({ steps: [map, number, string, toValues] })
 describe('toValues step plugin', () => {
 	it('returns Map values in insertion order as a new array', () => {
 		const input = new Map([['b', 2], ['a', 1]])
-		const result = v.map({ key: v.string(), value: v.number() }).toValues().execute(input)
+		const result = v.map({ key: v.string(), value: v.number() })
+			.toValues()
+			.execute(input)
 
-		expect(result).toEqual({ value: [2, 1] })
-		expect(input).toEqual(new Map([['b', 2], ['a', 1]]))
+		expect(result)
+			.toEqual({ value: [2, 1] })
+		expect(input)
+			.toEqual(new Map([['b', 2], ['a', 1]]))
 	})
 
 	it('infers the Map value array', () => {
-		const schema = v.map({ key: v.string(), value: v.number() }).toValues()
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<number[]>()
+		const _schema = v.map({ key: v.string(), value: v.number() })
+			.toValues()
+		expectTypeOf<InferOutput<typeof _schema>>()
+			.toEqualTypeOf<number[]>()
 	})
 })

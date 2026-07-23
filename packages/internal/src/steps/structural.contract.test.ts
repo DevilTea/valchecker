@@ -1,6 +1,6 @@
 import type { InferOperationMode } from '../core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { createValchecker, looseObject, object, strictObject, string, transform, unknown } from '../..'
+import { createValchecker, looseObject, object, strictObject, string, transform, unknown } from '../index'
 
 const v = createValchecker({
 	steps: [looseObject, object, strictObject, string, transform, unknown],
@@ -12,7 +12,8 @@ describe('structural step family contracts', () => {
 		Object.defineProperty(struct, '__proto__', {
 			configurable: true,
 			enumerable: true,
-			value: v.unknown().transform(value => value),
+			value: v.unknown()
+				.transform(value => value),
 			writable: true,
 		})
 
@@ -31,12 +32,16 @@ describe('structural step family contracts', () => {
 			v.looseObject(struct),
 		]) {
 			const result = await schema.execute(input as any)
-			expect(v.isSuccess(result)).toBe(true)
+			expect(v.isSuccess(result))
+				.toBe(true)
 			if (v.isSuccess(result)) {
 				const output = result.value as Record<string, unknown>
-				expect(Object.getPrototypeOf(output)).toBe(Object.prototype)
-				expect(Object.hasOwn(output, '__proto__')).toBe(true)
-				expect(Reflect.get(output, '__proto__')).toBe(protoValue)
+				expect(Object.getPrototypeOf(output))
+					.toBe(Object.prototype)
+				expect(Object.hasOwn(output, '__proto__'))
+					.toBe(true)
+				expect(Reflect.get(output, '__proto__'))
+					.toBe(protoValue)
 			}
 		}
 	})
@@ -45,15 +50,21 @@ describe('structural step family contracts', () => {
 		const extra = Symbol('extra')
 		const input = { [extra]: true }
 
-		expect(v.strictObject({}).execute(input)).toMatchObject({
-			issues: [{
-				code: 'strictObject:unexpected_keys',
-				category: 'validation',
-				payload: { keys: [extra] },
-			}],
-		})
-		expect(v.object({}).execute(input)).toEqual({ value: {} })
-		expect(v.looseObject({}).execute(input)).toEqual({ value: input })
+		expect(v.strictObject({})
+			.execute(input))
+			.toMatchObject({
+				issues: [{
+					code: 'strictObject:unexpected_keys',
+					category: 'validation',
+					payload: { keys: [extra] },
+				}],
+			})
+		expect(v.object({})
+			.execute(input))
+			.toEqual({ value: {} })
+		expect(v.looseObject({})
+			.execute(input))
+			.toEqual({ value: input })
 	})
 
 	it('classifies empty structs as synchronous across structural variants', () => {
@@ -61,12 +72,18 @@ describe('structural step family contracts', () => {
 		const strictSchema = v.strictObject({})
 		const looseSchema = v.looseObject({})
 
-		expectTypeOf<InferOperationMode<typeof objectSchema>>().toEqualTypeOf<'sync'>()
-		expectTypeOf<InferOperationMode<typeof strictSchema>>().toEqualTypeOf<'sync'>()
-		expectTypeOf<InferOperationMode<typeof looseSchema>>().toEqualTypeOf<'sync'>()
-		expect(objectSchema.execute({})).toEqual({ value: {} })
-		expect(strictSchema.execute({})).toEqual({ value: {} })
-		expect(looseSchema.execute({})).toEqual({ value: {} })
+		expectTypeOf<InferOperationMode<typeof objectSchema>>()
+			.toEqualTypeOf<'sync'>()
+		expectTypeOf<InferOperationMode<typeof strictSchema>>()
+			.toEqualTypeOf<'sync'>()
+		expectTypeOf<InferOperationMode<typeof looseSchema>>()
+			.toEqualTypeOf<'sync'>()
+		expect(objectSchema.execute({}))
+			.toEqual({ value: {} })
+		expect(strictSchema.execute({}))
+			.toEqual({ value: {} })
+		expect(looseSchema.execute({}))
+			.toEqual({ value: {} })
 	})
 
 	it('does not validate inherited values as declared fields', () => {
@@ -78,14 +95,15 @@ describe('structural step family contracts', () => {
 		] as const
 
 		for (const [code, schema] of schemas) {
-			expect(schema.execute(input)).toMatchObject({
-				issues: [{
-					code,
-					category: 'validation',
-					path: ['name'],
-					payload: { key: 'name' },
-				}],
-			})
+			expect(schema.execute(input))
+				.toMatchObject({
+					issues: [{
+						code,
+						category: 'validation',
+						path: ['name'],
+						payload: { key: 'name' },
+					}],
+				})
 		}
 	})
 
@@ -96,17 +114,21 @@ describe('structural step family contracts', () => {
 			get: () => 'Ada',
 		})
 		const result = v.looseObject({
-			name: v.string().transform(value => value.toUpperCase()),
-		}).execute(input)
+			name: v.string()
+				.transform(value => value.toUpperCase()),
+		})
+			.execute(input)
 
-		expect(result).toEqual({ value: { name: 'ADA', extra: true } })
+		expect(result)
+			.toEqual({ value: { name: 'ADA', extra: true } })
 		if (v.isSuccess(result)) {
-			expect(Object.getOwnPropertyDescriptor(result.value, 'name')).toMatchObject({
-				configurable: true,
-				enumerable: true,
-				value: 'ADA',
-				writable: true,
-			})
+			expect(Object.getOwnPropertyDescriptor(result.value, 'name'))
+				.toMatchObject({
+					configurable: true,
+					enumerable: true,
+					value: 'ADA',
+					writable: true,
+				})
 		}
 	})
 })
