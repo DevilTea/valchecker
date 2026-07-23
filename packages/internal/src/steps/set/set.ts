@@ -125,42 +125,77 @@ export const set = implStepPlugin<PluginDef>({
 			defaultMessage: 'Expected transformed Set items to be unique.',
 		})
 
+		// Iteration is over the live native Set iterator; items are consumed
+		// lazily so a first-issue short-circuit never pays for the tail. Items
+		// are not snapshotted before child execution, so a child step that
+		// mutates the input Set during validation observes the same live
+		// iteration semantics as the underlying Set iterator.
 		const continueAsync = async (
 			value: Set<unknown>,
-			items: unknown[],
-			startIndex: number,
+			iterator: Iterator<unknown>,
 			firstResult: PromiseLike<ExecutionResult>,
+			firstItem: unknown,
 			output: Set<unknown> | undefined,
-			firstItemIndex: Map<unknown, number> | undefined,
+			firstItemMeta: Map<unknown, FirstItemMetadata> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
+			index: number,
 		) => {
-			for (let index = startIndex; index < items.length; index++) {
-				const item = items[index]
-				const result = index === startIndex ? await firstResult : await execute(item)
-				if (isFailure(result)) {
-					const appended = appendChildIssues(result, index, issues)
-					issues = appended.issues
-					if (appended.hasInternal || !collectAllIssues)
-						return failure(issues)
-					continue
-				}
-
+			const result = await firstResult
+			if (isFailure(result)) {
+				const appended = appendChildIssues(result, index, issues)
+				issues = appended.issues
+				if (appended.hasInternal || !collectAllIssues)
+					return failure(issues)
+			}
+			else {
 				const transformedItem = result.value
 				if (output?.has(transformedItem)) {
-					const firstIndex = firstItemIndex!.get(transformedItem)
-					if (firstIndex == null)
+					const first = firstItemMeta!.get(transformedItem)
+					if (first == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
-					target.push(createDuplicateIssue(value, items[firstIndex], firstIndex, item, index, transformedItem))
+					target.push(createDuplicateIssue(value, first.firstItem, first.firstIndex, firstItem, index, transformedItem))
 					if (!collectAllIssues)
 						return failure(target)
 				}
 				else {
 					output ??= new Set()
-					firstItemIndex ??= new Map()
+					firstItemMeta ??= new Map()
 					output.add(transformedItem)
-					firstItemIndex.set(transformedItem, index)
+					firstItemMeta.set(transformedItem, { firstIndex: index, firstItem })
 				}
+			}
+			index++
+
+			for (let step = iterator.next(); !step.done; step = iterator.next()) {
+				const item = step.value
+				const itemResult = await execute(item)
+				if (isFailure(itemResult)) {
+					const appended = appendChildIssues(itemResult, index, issues)
+					issues = appended.issues
+					if (appended.hasInternal || !collectAllIssues)
+						return failure(issues)
+					index++
+					continue
+				}
+
+				const transformedItem = itemResult.value
+				if (output?.has(transformedItem)) {
+					const first = firstItemMeta!.get(transformedItem)
+					if (first == null)
+						throw new Error('Missing transformed Set item metadata.')
+					const target = issues ??= []
+					target.push(createDuplicateIssue(value, first.firstItem, first.firstIndex, item, index, transformedItem))
+					if (!collectAllIssues)
+						return failure(target)
+				}
+				else {
+					output ??= new Set()
+					firstItemMeta ??= new Map()
+					output.add(transformedItem)
+					firstItemMeta.set(transformedItem, { firstIndex: index, firstItem: item })
+				}
+				index++
 			}
 			return issues == null ? success(output ?? new Set()) : failure(issues)
 		}
@@ -175,87 +210,91 @@ export const set = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const values = value.values
-			if (childIsSynchronous && values === nativeSetValues) {
-				const items = [...values.call(value)]
-				let output: Set<unknown> | undefined
-				let firstItemMetadata: Map<unknown, FirstItemMetadata> | undefined
-				let failedIndices: Set<number> | undefined
-				let issues: AnyExecutionIssue[] | undefined
+			const iterator = nativeSetValues.call(value) as Iterator<unknown>
 
-				for (let index = 0; index < items.length; index++) {
-					const item = items[index]
+			if (childIsSynchronous) {
+				// Lazy buffer of consumed identity items: while every item maps to
+				// itself the output equals the input, so items are only buffered
+				// (not added to a Set). The output Set is materialized the first
+				// time a transform differs, seeded from the buffer so duplicate
+				// detection sees earlier items. A first-issue short-circuit
+				// therefore buffers only up to the failing item.
+				let buffer: unknown[] | undefined
+				let bufferCount = 0
+				let output: Set<unknown> | undefined
+				let firstItemMeta: Map<unknown, FirstItemMetadata> | undefined
+				let issues: AnyExecutionIssue[] | undefined
+				let index = 0
+
+				for (let step = iterator.next(); !step.done; step = iterator.next()) {
+					const item = step.value
 					const result = execute(item) as ExecutionResult
 					if (isFailure(result)) {
 						const appended = appendChildIssues(result, index, issues)
 						issues = appended.issues
 						if (appended.hasInternal || !collectAllIssues)
 							return failure(issues)
-						// Recoverable failure must not stop the output rebuild below: the output Set doubles as duplicate-detection state, so skipping it drops set:duplicate_transformed_item issues. See architecture.md (2026-07-22).
-						failedIndices ??= new Set()
-						failedIndices.add(index)
+						index++
 						continue
 					}
 
 					const transformedItem = result.value
-					// eslint-disable-next-line no-self-compare -- intentional NaN self-comparison implementing SameValueZero identity (x !== x is true only for NaN)
-					const isIdentity = transformedItem === item || (transformedItem !== transformedItem && item !== item)
-					if (output == null && isIdentity)
-						continue
-
 					if (output == null) {
+						// eslint-disable-next-line no-self-compare -- intentional NaN self-comparison implementing SameValueZero identity (x !== x is true only for NaN)
+						const isIdentity = transformedItem === item || (transformedItem !== transformedItem && item !== item)
+						if (isIdentity) {
+							buffer ??= []
+							buffer[bufferCount] = item
+							bufferCount++
+							index++
+							continue
+						}
 						output = new Set()
-						firstItemMetadata = new Map()
-						for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
-							if (!failedIndices?.has(prefixIndex)) {
-								const prefixItem = items[prefixIndex]
-								output.add(prefixItem)
-								firstItemMetadata.set(prefixItem, {
-									firstIndex: prefixIndex,
-									firstItem: prefixItem,
-								})
-							}
+						firstItemMeta = new Map()
+						for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
+							const bufferedItem = buffer![bufferIndex]
+							output.add(bufferedItem)
+							firstItemMeta.set(bufferedItem, { firstIndex: bufferIndex, firstItem: bufferedItem })
 						}
 					}
 
 					if (output.has(transformedItem)) {
-						const first = firstItemMetadata!.get(transformedItem)
+						const first = firstItemMeta!.get(transformedItem)
 						if (first == null)
 							throw new Error('Missing transformed Set item metadata.')
 						const target = issues ??= []
-						target.push(createDuplicateIssue(
-							value,
-							first.firstItem,
-							first.firstIndex,
-							item,
-							index,
-							transformedItem,
-						))
+						target.push(createDuplicateIssue(value, first.firstItem, first.firstIndex, item, index, transformedItem))
 						if (!collectAllIssues)
 							return failure(target)
 					}
 					else {
 						output.add(transformedItem)
-						firstItemMetadata!.set(transformedItem, {
-							firstIndex: index,
-							firstItem: item,
-						})
+						firstItemMeta!.set(transformedItem, { firstIndex: index, firstItem: item })
 					}
+					index++
 				}
 
-				return issues == null ? success(output ?? new Set(items)) : failure(issues)
+				if (issues != null)
+					return failure(issues)
+				if (output != null)
+					return success(output)
+
+				output = new Set()
+				for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++)
+					output.add(buffer![bufferIndex])
+				return success(output)
 			}
 
-			const items = [...values.call(value)]
 			let output: Set<unknown> | undefined
-			let firstItemIndex: Map<unknown, number> | undefined
+			let firstItemMeta: Map<unknown, FirstItemMetadata> | undefined
 			let issues: AnyExecutionIssue[] | undefined
+			let index = 0
 
-			for (let index = 0; index < items.length; index++) {
-				const item = items[index]
+			for (let step = iterator.next(); !step.done; step = iterator.next()) {
+				const item = step.value
 				const result = execute(item)
-				if (!childIsSynchronous && isPromiseLike(result))
-					return continueAsync(value, items, index, result, output, firstItemIndex, issues)
+				if (isPromiseLike(result))
+					return continueAsync(value, iterator, result, item, output, firstItemMeta, issues, index)
 
 				const syncResult = result as ExecutionResult
 				if (isFailure(syncResult)) {
@@ -263,25 +302,27 @@ export const set = implStepPlugin<PluginDef>({
 					issues = appended.issues
 					if (appended.hasInternal || !collectAllIssues)
 						return failure(issues)
+					index++
 					continue
 				}
 
 				const transformedItem = syncResult.value
 				if (output?.has(transformedItem)) {
-					const firstIndex = firstItemIndex!.get(transformedItem)
-					if (firstIndex == null)
+					const first = firstItemMeta!.get(transformedItem)
+					if (first == null)
 						throw new Error('Missing transformed Set item metadata.')
 					const target = issues ??= []
-					target.push(createDuplicateIssue(value, items[firstIndex], firstIndex, item, index, transformedItem))
+					target.push(createDuplicateIssue(value, first.firstItem, first.firstIndex, item, index, transformedItem))
 					if (!collectAllIssues)
 						return failure(target)
 				}
 				else {
 					output ??= new Set()
-					firstItemIndex ??= new Map()
+					firstItemMeta ??= new Map()
 					output.add(transformedItem)
-					firstItemIndex.set(transformedItem, index)
+					firstItemMeta.set(transformedItem, { firstIndex: index, firstItem: item })
 				}
+				index++
 			}
 
 			return issues == null ? success(output ?? new Set()) : failure(issues)

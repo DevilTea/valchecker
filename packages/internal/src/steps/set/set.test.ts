@@ -212,7 +212,11 @@ describe('set step plugin', () => {
 		expect(observed).not.toHaveBeenCalled()
 	})
 
-	it('snapshots items before child execution mutates the input Set', () => {
+	it('iterates the input Set live, observing items a child adds during validation', () => {
+		// The step no longer snapshots items before child execution; it consumes
+		// the native Set iterator lazily. A child that mutates the input Set during
+		// validation therefore observes the same live iteration as the underlying
+		// Set iterator, matching valibot/zod collection semantics.
 		const input = new Set(['a'])
 		const item = v.string()
 			.transform((value) => {
@@ -222,6 +226,48 @@ describe('set step plugin', () => {
 
 		expect(v.set(item)
 			.execute(input))
-			.toEqual({ value: new Set(['a']) })
+			.toEqual({ value: new Set(['a', 'later']) })
+	})
+
+	it('reports a transformed-item collision in a maybe-async set resolved synchronously', () => {
+		const item = v.string()
+			.transform(value => value === 'b' ? 'a' : value)
+
+		expect(v.set(item)
+			.execute(new Set(['a', 'b'])))
+			.toMatchObject({
+				issues: [{ code: 'set:duplicate_transformed_item', path: [1], payload: { firstItem: 'a', item: 'b', transformedItem: 'a' } }],
+			})
+	})
+
+	it('reports a collision on the item that resolves asynchronously', async () => {
+		const item = v.string()
+			.transform(value => value === 'b' ? Promise.resolve('a') : value)
+
+		await expect(v.set(item)
+			.execute(new Set(['a', 'b'])))
+			.resolves.toMatchObject({
+				issues: [{ code: 'set:duplicate_transformed_item', path: [1], payload: { firstItem: 'a', item: 'b', transformedItem: 'a' } }],
+			})
+	})
+
+	it('reports a transformed-item collision found while continuing asynchronously', async () => {
+		const item = v.string()
+			.transform(value => Promise.resolve(value === 'b' ? 'a' : value))
+
+		await expect(v.set(item)
+			.execute(new Set(['a', 'b'])))
+			.resolves.toMatchObject({
+				issues: [{ code: 'set:duplicate_transformed_item', path: [1], payload: { firstItem: 'a', item: 'b', transformedItem: 'a' } }],
+			})
+	})
+
+	it('stops at a recoverable failure in a later asynchronous item', async () => {
+		const item = v.string()
+			.transform(value => Promise.resolve(value))
+
+		await expect(v.set(item)
+			.execute(new Set<unknown>(['a', 2])))
+			.resolves.toMatchObject({ issues: [{ code: 'string:expected_string', path: [1] }] })
 	})
 })

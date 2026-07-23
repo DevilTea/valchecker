@@ -17,7 +17,7 @@ describe('set native snapshots', () => {
 		expect(result.value).not.toBe(input)
 	})
 
-	it('snapshots the complete workload before synchronous callbacks mutate the source', () => {
+	it('iterates live, so a synchronous callback that mutates the source is observed', () => {
 		const input = new Set(['a'])
 		const item = v.unknown()
 			.syncMap((value: unknown) => {
@@ -27,7 +27,7 @@ describe('set native snapshots', () => {
 
 		expect(v.set(item)
 			.execute(input))
-			.toEqual({ value: new Set(['a']) })
+			.toEqual({ value: new Set(['a', 'later']) })
 		expect(input)
 			.toEqual(new Set(['a', 'later']))
 	})
@@ -40,6 +40,19 @@ describe('set native snapshots', () => {
 			.execute(new Set(['a', 'b', 'c'])))
 			.toEqual({
 				value: new Set(['x', 'b', 'c']),
+			})
+	})
+
+	it('materializes buffered identity items before a later transformation', () => {
+		// Identity items 'a' and 'b' are buffered; the transform on 'c' forces the
+		// output Set to materialize, seeded from the buffered prefix.
+		const item = v.unknown()
+			.syncMap((value: unknown) => value === 'c' ? 'x' : value)
+
+		expect(v.set(item)
+			.execute(new Set(['a', 'b', 'c'])))
+			.toEqual({
+				value: new Set(['a', 'b', 'x']),
 			})
 	})
 
@@ -122,12 +135,14 @@ describe('set native snapshots', () => {
 			.toMatchObject({ path: [0] })
 	})
 
-	it('retains the array snapshot contract for an overridden values method', () => {
+	it('validates the real items via the native iterator, ignoring an overridden values', () => {
+		// Iteration uses Set.prototype.values, not the instance values, so a
+		// subclass or tampered instance cannot redirect validation away from its
+		// actual items. The spoofed generator would inject a duplicate 'a', but
+		// native iteration sees only the real item.
 		const input = new Set(['source'])
-		let getterCalls = 0
 		Object.defineProperty(input, 'values', {
 			get() {
-				getterCalls++
 				return function* () {
 					yield 'a'
 					yield 'a'
@@ -137,19 +152,6 @@ describe('set native snapshots', () => {
 
 		expect(v.set(v.string())
 			.execute(input))
-			.toMatchObject({
-				issues: [{
-					code: 'set:duplicate_transformed_item',
-					path: [1],
-					payload: {
-						firstItem: 'a',
-						item: 'a',
-						firstIndex: 0,
-						index: 1,
-					},
-				}],
-			})
-		expect(getterCalls)
-			.toBe(1)
+			.toEqual({ value: new Set(['source']) })
 	})
 })

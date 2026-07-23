@@ -3,7 +3,7 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
-const nativeMapForEach = Map.prototype.forEach
+const nativeMapEntries = Map.prototype.entries
 
 declare namespace Internal {
 	type ResolveMode<M extends OperationMode> = IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
@@ -109,26 +109,9 @@ export const map = implStepPlugin<PluginDef>({
 			return { issues: target, hasInternal }
 		}
 
-		const snapshotEntries = (
-			value: Map<unknown, unknown>,
-			size: number,
-			forEach: typeof Map.prototype.forEach,
-		): unknown[] => {
-			// eslint-disable-next-line unicorn/no-new-array
-			const entries = new Array<unknown>(size * 2)
-			let offset = 0
-			Reflect.apply(forEach, value, [
-				(sourceValue: unknown, sourceKey: unknown) => {
-					entries[offset++] = sourceKey
-					entries[offset++] = sourceValue
-				},
-			])
-			return entries
-		}
-
 		const createDuplicateIssue = (
 			value: Map<unknown, unknown>,
-			entries: unknown[],
+			firstSourceKey: unknown,
 			firstIndex: number,
 			sourceKey: unknown,
 			index: number,
@@ -137,7 +120,7 @@ export const map = implStepPlugin<PluginDef>({
 			code: 'map:duplicate_transformed_key',
 			payload: {
 				value,
-				firstSourceKey: entries[firstIndex * 2],
+				firstSourceKey,
 				sourceKey,
 				transformedKey,
 				firstIndex,
@@ -148,64 +131,104 @@ export const map = implStepPlugin<PluginDef>({
 			defaultMessage: 'Expected transformed Map keys to be unique.',
 		})
 
+		// Iteration is over the live native Map iterator; entries are consumed
+		// lazily so a first-issue short-circuit never pays for the tail. Entries
+		// are not snapshotted before child execution, so a child step that
+		// mutates the input Map during validation observes the same live
+		// iteration semantics as the underlying Map iterator.
 		const continueAsync = async (
 			value: Map<unknown, unknown>,
-			entries: unknown[],
-			startIndex: number,
+			iterator: Iterator<[unknown, unknown]>,
 			pending: PromiseLike<ExecutionResult>,
 			phase: 'key' | 'value',
+			sourceKey: unknown,
+			sourceValue: unknown,
+			resolvedKey: ExecutionResult | undefined,
 			output: Map<unknown, unknown> | undefined,
-			firstKeyIndex: Map<unknown, number> | undefined,
+			firstKeyMeta: Map<unknown, { index: number, sourceKey: unknown }> | undefined,
 			issues: AnyExecutionIssue[] | undefined,
-			resolvedKey?: ExecutionResult,
+			index: number,
 		) => {
-			const entryCount = entries.length / 2
-			for (let index = startIndex; index < entryCount; index++) {
-				const offset = index * 2
-				const sourceKey = entries[offset]
-				const sourceValue = entries[offset + 1]
-				const keyWasProcessed = index === startIndex && phase === 'value'
-				const keyResult = index === startIndex
-					? phase === 'key' ? await pending : resolvedKey!
-					: await keyExecute(sourceKey)
-				const keyFailed = isFailure(keyResult)
+			const keyResult = phase === 'key' ? await pending : resolvedKey!
+			const keyFailed = isFailure(keyResult)
+			// When suspension happened on the value, the sync loop already
+			// appended any key failure for this entry; re-appending would duplicate it.
+			if (keyFailed && phase === 'key') {
+				const appended = appendChildIssues(keyResult, [index, 'key'], issues)
+				issues = appended.issues
+				if (appended.hasInternal || !collectAllIssues)
+					return failure(issues)
+			}
 
-				if (!keyWasProcessed && keyFailed) {
-					const appended = appendChildIssues(keyResult, [index, 'key'], issues)
+			const valueResult = phase === 'value' ? await pending : await valueExecute(sourceValue)
+			const valueFailed = isFailure(valueResult)
+			if (valueFailed) {
+				const appended = appendChildIssues(valueResult, [index, 'value'], issues)
+				issues = appended.issues
+				if (appended.hasInternal || !collectAllIssues)
+					return failure(issues)
+			}
+
+			if (!keyFailed && !valueFailed) {
+				const transformedKey = keyResult.value
+				if (output?.has(transformedKey)) {
+					const first = firstKeyMeta!.get(transformedKey)
+					if (first == null)
+						throw new Error('Missing transformed Map key metadata.')
+					const target = issues ??= []
+					target.push(createDuplicateIssue(value, first.sourceKey, first.index, sourceKey, index, transformedKey))
+					if (!collectAllIssues)
+						return failure(target)
+				}
+				else {
+					output ??= new Map()
+					firstKeyMeta ??= new Map()
+					output.set(transformedKey, valueResult.value)
+					firstKeyMeta.set(transformedKey, { index, sourceKey })
+				}
+			}
+			index++
+
+			for (let step = iterator.next(); !step.done; step = iterator.next()) {
+				const currentKey = step.value[0]
+				const currentValue = step.value[1]
+				const currentKeyResult = await keyExecute(currentKey)
+				const currentKeyFailed = isFailure(currentKeyResult)
+				if (currentKeyFailed) {
+					const appended = appendChildIssues(currentKeyResult, [index, 'key'], issues)
 					issues = appended.issues
 					if (appended.hasInternal || !collectAllIssues)
 						return failure(issues)
 				}
 
-				const valueResult = index === startIndex && phase === 'value'
-					? await pending
-					: await valueExecute(sourceValue)
-				const valueFailed = isFailure(valueResult)
-				if (valueFailed) {
-					const appended = appendChildIssues(valueResult, [index, 'value'], issues)
+				const currentValueResult = await valueExecute(currentValue)
+				const currentValueFailed = isFailure(currentValueResult)
+				if (currentValueFailed) {
+					const appended = appendChildIssues(currentValueResult, [index, 'value'], issues)
 					issues = appended.issues
 					if (appended.hasInternal || !collectAllIssues)
 						return failure(issues)
 				}
 
-				if (!keyFailed && !valueFailed) {
-					const transformedKey = keyResult.value
+				if (!currentKeyFailed && !currentValueFailed) {
+					const transformedKey = currentKeyResult.value
 					if (output?.has(transformedKey)) {
-						const firstIndex = firstKeyIndex!.get(transformedKey)
-						if (firstIndex == null)
+						const first = firstKeyMeta!.get(transformedKey)
+						if (first == null)
 							throw new Error('Missing transformed Map key metadata.')
 						const target = issues ??= []
-						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
+						target.push(createDuplicateIssue(value, first.sourceKey, first.index, currentKey, index, transformedKey))
 						if (!collectAllIssues)
 							return failure(target)
 					}
 					else {
 						output ??= new Map()
-						firstKeyIndex ??= new Map()
-						output.set(transformedKey, valueResult.value)
-						firstKeyIndex.set(transformedKey, index)
+						firstKeyMeta ??= new Map()
+						output.set(transformedKey, currentValueResult.value)
+						firstKeyMeta.set(transformedKey, { index, sourceKey: currentKey })
 					}
 				}
+				index++
 			}
 
 			return issues == null ? success(output ?? new Map()) : failure(issues)
@@ -221,21 +244,26 @@ export const map = implStepPlugin<PluginDef>({
 				}))
 			}
 
-			const size = value.size
-			const forEach = value.forEach
-			const entries = snapshotEntries(value, size, forEach)
-			const entryCount = entries.length / 2
+			const iterator = nativeMapEntries.call(value) as Iterator<[unknown, unknown]>
 
-			if (childrenAreSynchronous && forEach === nativeMapForEach) {
+			if (childrenAreSynchronous) {
+				// Lazy buffer of consumed identity entries: while every key and
+				// value maps to itself the output equals the input, so entries are
+				// only buffered (not set into a Map). The output Map is
+				// materialized the first time a transform differs, seeded from the
+				// buffer so duplicate detection sees earlier keys. A first-issue
+				// short-circuit therefore buffers only up to the failing entry.
+				let bufferKeys: unknown[] | undefined
+				let bufferValues: unknown[] | undefined
+				let bufferCount = 0
 				let output: Map<unknown, unknown> | undefined
-				let firstKeyIndex: Map<unknown, number> | undefined
-				let hasFailure = false
+				let firstKeyMeta: Map<unknown, { index: number, sourceKey: unknown }> | undefined
 				let issues: AnyExecutionIssue[] | undefined
+				let index = 0
 
-				for (let index = 0; index < entryCount; index++) {
-					const offset = index * 2
-					const sourceKey = entries[offset]
-					const sourceValue = entries[offset + 1]
+				for (let step = iterator.next(); !step.done; step = iterator.next()) {
+					const sourceKey = step.value[0]
+					const sourceValue = step.value[1]
 					const keyResult = keyExecute(sourceKey) as ExecutionResult
 					const keyFailed = isFailure(keyResult)
 					if (keyFailed) {
@@ -254,62 +282,46 @@ export const map = implStepPlugin<PluginDef>({
 							return failure(issues)
 					}
 
-					if (keyFailed || valueFailed) {
-						// Keep rebuilding output after a recoverable failure: the output Map doubles as duplicate-detection state, so skipping it drops map:duplicate_transformed_key issues. See architecture.md (2026-07-22).
-						if (!hasFailure && output == null && index > 0) {
+					if (!keyFailed && !valueFailed) {
+						const transformedKey = keyResult.value
+						const transformedValue = valueResult.value
+						if (output == null) {
+							const keyIsIdentity = transformedKey === sourceKey
+								// eslint-disable-next-line no-self-compare -- intentional NaN self-comparison implementing SameValueZero identity (x !== x is true only for NaN)
+								|| (transformedKey !== transformedKey && sourceKey !== sourceKey)
+							if (keyIsIdentity && Object.is(transformedValue, sourceValue)) {
+								bufferKeys ??= []
+								bufferValues ??= []
+								bufferKeys[bufferCount] = sourceKey
+								bufferValues[bufferCount] = sourceValue
+								bufferCount++
+								index++
+								continue
+							}
 							output = new Map()
-							firstKeyIndex = new Map()
-							for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
-								const prefixOffset = prefixIndex * 2
-								const prefixKey = entries[prefixOffset]
-								output.set(prefixKey, entries[prefixOffset + 1])
-								firstKeyIndex.set(prefixKey, prefixIndex)
+							firstKeyMeta = new Map()
+							for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
+								const bufferedKey = bufferKeys![bufferIndex]
+								output.set(bufferedKey, bufferValues![bufferIndex])
+								firstKeyMeta.set(bufferedKey, { index: bufferIndex, sourceKey: bufferedKey })
 							}
 						}
-						hasFailure = true
-						continue
-					}
 
-					const transformedKey = keyResult.value
-					const transformedValue = valueResult.value
-					const keyIsIdentity = transformedKey === sourceKey
-						// eslint-disable-next-line no-self-compare -- intentional NaN self-comparison implementing SameValueZero identity (x !== x is true only for NaN)
-						|| (transformedKey !== transformedKey && sourceKey !== sourceKey)
-					if (
-						output == null
-						&& !hasFailure
-						&& keyIsIdentity
-						&& Object.is(transformedValue, sourceValue)
-					) {
-						continue
-					}
-
-					if (output == null) {
-						output = new Map()
-						firstKeyIndex = new Map()
-						if (!hasFailure) {
-							for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
-								const prefixOffset = prefixIndex * 2
-								const prefixKey = entries[prefixOffset]
-								output.set(prefixKey, entries[prefixOffset + 1])
-								firstKeyIndex.set(prefixKey, prefixIndex)
-							}
+						if (output.has(transformedKey)) {
+							const first = firstKeyMeta!.get(transformedKey)
+							if (first == null)
+								throw new Error('Missing transformed Map key metadata.')
+							const target = issues ??= []
+							target.push(createDuplicateIssue(value, first.sourceKey, first.index, sourceKey, index, transformedKey))
+							if (!collectAllIssues)
+								return failure(target)
+						}
+						else {
+							output.set(transformedKey, transformedValue)
+							firstKeyMeta!.set(transformedKey, { index, sourceKey })
 						}
 					}
-
-					if (output.has(transformedKey)) {
-						const firstIndex = firstKeyIndex!.get(transformedKey)
-						if (firstIndex == null)
-							throw new Error('Missing transformed Map key metadata.')
-						const target = issues ??= []
-						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
-						if (!collectAllIssues)
-							return failure(target)
-					}
-					else {
-						output.set(transformedKey, transformedValue)
-						firstKeyIndex!.set(transformedKey, index)
-					}
+					index++
 				}
 
 				if (issues != null)
@@ -318,31 +330,22 @@ export const map = implStepPlugin<PluginDef>({
 					return success(output)
 
 				output = new Map()
-				for (let offset = 0; offset < entries.length; offset += 2)
-					output.set(entries[offset], entries[offset + 1])
+				for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++)
+					output.set(bufferKeys![bufferIndex], bufferValues![bufferIndex])
 				return success(output)
 			}
 
 			let output: Map<unknown, unknown> | undefined
-			let firstKeyIndex: Map<unknown, number> | undefined
+			let firstKeyMeta: Map<unknown, { index: number, sourceKey: unknown }> | undefined
 			let issues: AnyExecutionIssue[] | undefined
+			let index = 0
 
-			for (let index = 0; index < entryCount; index++) {
-				const offset = index * 2
-				const sourceKey = entries[offset]
-				const sourceValue = entries[offset + 1]
+			for (let step = iterator.next(); !step.done; step = iterator.next()) {
+				const sourceKey = step.value[0]
+				const sourceValue = step.value[1]
 				const keyResult = keyExecute(sourceKey)
-				if (!childrenAreSynchronous && isPromiseLike(keyResult)) {
-					return continueAsync(
-						value,
-						entries,
-						index,
-						keyResult,
-						'key',
-						output,
-						firstKeyIndex,
-						issues,
-					)
+				if (isPromiseLike(keyResult)) {
+					return continueAsync(value, iterator, keyResult, 'key', sourceKey, sourceValue, undefined, output, firstKeyMeta, issues, index)
 				}
 
 				const syncKeyResult = keyResult as ExecutionResult
@@ -355,18 +358,8 @@ export const map = implStepPlugin<PluginDef>({
 				}
 
 				const valueResult = valueExecute(sourceValue)
-				if (!childrenAreSynchronous && isPromiseLike(valueResult)) {
-					return continueAsync(
-						value,
-						entries,
-						index,
-						valueResult,
-						'value',
-						output,
-						firstKeyIndex,
-						issues,
-						syncKeyResult,
-					)
+				if (isPromiseLike(valueResult)) {
+					return continueAsync(value, iterator, valueResult, 'value', sourceKey, sourceValue, syncKeyResult, output, firstKeyMeta, issues, index)
 				}
 
 				const syncValueResult = valueResult as ExecutionResult
@@ -381,21 +374,22 @@ export const map = implStepPlugin<PluginDef>({
 				if (!keyFailed && !valueFailed) {
 					const transformedKey = syncKeyResult.value
 					if (output?.has(transformedKey)) {
-						const firstIndex = firstKeyIndex!.get(transformedKey)
-						if (firstIndex == null)
+						const first = firstKeyMeta!.get(transformedKey)
+						if (first == null)
 							throw new Error('Missing transformed Map key metadata.')
 						const target = issues ??= []
-						target.push(createDuplicateIssue(value, entries, firstIndex, sourceKey, index, transformedKey))
+						target.push(createDuplicateIssue(value, first.sourceKey, first.index, sourceKey, index, transformedKey))
 						if (!collectAllIssues)
 							return failure(target)
 					}
 					else {
 						output ??= new Map()
-						firstKeyIndex ??= new Map()
+						firstKeyMeta ??= new Map()
 						output.set(transformedKey, syncValueResult.value)
-						firstKeyIndex.set(transformedKey, index)
+						firstKeyMeta.set(transformedKey, { index, sourceKey })
 					}
 				}
+				index++
 			}
 
 			return issues == null ? success(output ?? new Map()) : failure(issues)

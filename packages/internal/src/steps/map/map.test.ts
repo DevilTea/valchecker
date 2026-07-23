@@ -232,7 +232,11 @@ describe('map step plugin', () => {
 		expect(observed).not.toHaveBeenCalled()
 	})
 
-	it('snapshots entries before child execution mutates the input Map', () => {
+	it('iterates the input Map live, observing entries a child adds during validation', () => {
+		// The step no longer snapshots entries before child execution; it consumes
+		// the native Map iterator lazily. A child that mutates the input Map during
+		// validation therefore observes the same live iteration as the underlying
+		// Map iterator, matching valibot/zod collection semantics.
 		const input = new Map([['a', 1]])
 		const key = v.string()
 			.transform((value) => {
@@ -243,7 +247,45 @@ describe('map step plugin', () => {
 		expect(v.map({ key, value: v.number() })
 			.execute(input))
 			.toEqual({
-				value: new Map([['a', 1]]),
+				value: new Map([['a', 1], ['later', 2]]),
 			})
+	})
+
+	it('stops at the first invalid key, returning only the first-entry issue', () => {
+		const result = v.map({ key: v.string(), value: v.number() })
+			.execute(new Map<unknown, unknown>([[1, 'a'], [2, 'b']]))
+
+		expect(result)
+			.toEqual({ issues: [{
+				code: 'string:expected_string',
+				category: 'validation',
+				message: 'Expected a string.',
+				path: [0, 'key'],
+				payload: { value: 1 },
+			}] })
+	})
+
+	it('stops at an invalid value and does not validate later entries', () => {
+		expect(v.map({ key: v.string(), value: v.number() })
+			.execute(new Map<unknown, unknown>([['a', 'x'], ['b', 2]])))
+			.toMatchObject({ issues: [{ code: 'number:expected_number', path: [0, 'value'] }] })
+	})
+
+	it('reports a transformed-key collision in a maybe-async map resolved synchronously', () => {
+		const key = v.string()
+			.transform(entryKey => entryKey === 'b' ? 'a' : entryKey)
+		expect(v.map({ key, value: v.number() })
+			.execute(new Map([['a', 1], ['b', 2]])))
+			.toMatchObject({
+				issues: [{ code: 'map:duplicate_transformed_key', path: [1, 'key'], payload: { firstSourceKey: 'a', sourceKey: 'b', transformedKey: 'a' } }],
+			})
+	})
+
+	it('stops at an invalid value while the map is maybe-async', () => {
+		const value = v.number()
+			.transform(entryValue => Promise.resolve(entryValue))
+		expect(v.map({ key: v.string(), value })
+			.execute(new Map<unknown, unknown>([['a', 'x'], ['b', 2]])))
+			.toMatchObject({ issues: [{ code: 'number:expected_number', path: [0, 'value'] }] })
 	})
 })

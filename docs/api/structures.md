@@ -146,7 +146,7 @@ tags.execute(new Set([' TS ', 'Vue']))
 // { value: new Set(['ts', 'vue']) }
 ```
 
-Items are snapshotted at execution start. Fully synchronous child schemas keep the Set schema synchronous; after a reached thenable, remaining items continue sequentially in insertion order. By default, the first recoverable item or transformed-item collision stops traversal. `collectAllIssues: true` preserves complete recoverable issue collection, while an internal child issue always stops later items.
+Items are consumed lazily from the native Set iterator, so a first-issue short-circuit never scans the remaining items and a child step that mutates the input Set during validation observes the same live iteration as the underlying Set iterator. Fully synchronous child schemas keep the Set schema synchronous; after a reached thenable, remaining items continue sequentially in insertion order. By default, the first recoverable item or transformed-item collision stops traversal. `collectAllIssues: true` preserves complete recoverable issue collection, while an internal child issue always stops later items.
 
 If two source items transform to the same value under the native Set SameValueZero comparison, `set:duplicate_transformed_item` is returned instead of silently reducing Set cardinality.
 
@@ -178,7 +178,7 @@ scores.execute(new Map([
 
 For each entry, the key schema executes before the value schema. In the default mode, a key failure skips that entry's value and stops later entries; a value failure also stops later entries. With `collectAllIssues: true`, a recoverable key failure does not hide a value failure from the same entry, and later entries are still checked. An internal key issue stops before the current value schema, and any internal child issue stops later entries.
 
-Entries are snapshotted at execution start. Fully synchronous key and value schemas keep the Map schema synchronous; reached thenables continue sequentially. If two successful source keys transform to the same value under the native Map SameValueZero comparison, `map:duplicate_transformed_key` is returned instead of applying last-write-wins data loss.
+Entries are consumed lazily from the native Map iterator, so a first-issue short-circuit never scans the remaining entries and a child step that mutates the input Map during validation observes the same live iteration as the underlying Map iterator. Fully synchronous key and value schemas keep the Map schema synchronous; reached thenables continue sequentially. If two successful source keys transform to the same value under the native Map SameValueZero comparison, `map:duplicate_transformed_key` is returned instead of applying last-write-wins data loss.
 
 The enclosing `message` on `map()` and the options message on `set()` participate in normal structure message resolution for both owned and nested child issues after their collection paths are prepended.
 
