@@ -160,6 +160,20 @@ v.number().isAtLeast(0).isAtMost(100)
 
 `isAtLeast()` and `isAtMost()` apply to numbers and bigints. Length and size constraints are intentionally separate and explicit.
 
+## File and Blob
+
+`file()` and `blob()` validate `File` and `Blob` values with feature-detected globals, so they fail gracefully in environments where the constructors are absent. MIME validation uses `isMimeType()`, and size validation reuses the collection size steps because both expose a numeric `size`.
+
+```ts
+v.file()
+	.isMimeType(['image/*', 'application/pdf'])
+	.isSizeAtMost(5 * 1024 * 1024)
+
+v.blob().isMimeType('application/json')
+```
+
+`isMimeType()` matches a single type or a list, supports `image/*`-style wildcards, and compares case-insensitively.
+
 ## Primitive conversions
 
 Native coercion steps delegate directly to JavaScript and are exposed after any output that is not already the target primitive type:

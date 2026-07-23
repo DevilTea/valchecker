@@ -349,6 +349,42 @@ dateSchema.execute(new Date()) // success
 dateSchema.execute('2026-01-01') // failure
 ```
 
+## `file(options?)` and `blob(options?)`
+
+Validate that the value is a `File` or a `Blob`, preserving the value and inferring the `File` or `Blob` output type. Every `File` is also a `Blob`, so `blob()` accepts both.
+
+The global constructors are feature-detected. In an environment without `File` or `Blob` (such as some server runtimes), the schema fails with its owned issue instead of throwing.
+
+**Issues:** `file:expected_file`, `blob:expected_blob`
+
+```ts
+const avatar = v.file()
+
+avatar.execute(new File(['data'], 'a.png')) // success
+avatar.execute('a.png') // failure
+```
+
+Size validation reuses the collection size steps because `File` and `Blob` expose a numeric `size`:
+
+```ts
+v.file()
+	.isSizeAtMost(5 * 1024 * 1024) // at most 5 MiB
+```
+
+## `isMimeType(types, options?)`
+
+Checks that a value's `type` string matches one of the allowed MIME types. Pass a single type or a list. A trailing `/*` matches any subtype, and matching is case-insensitive following MIME semantics. The successful value is preserved. Any output with a `type` string qualifies, including `File` and `Blob`.
+
+**Issue:** `isMimeType:unexpected_mime_type`
+
+Failure payload: `{ value, expected, actual }`, where `expected` is the configured type or list and `actual` is the observed `type`.
+
+```ts
+v.file()
+	.isMimeType(['image/*', 'application/pdf'])
+	.execute(new File(['data'], 'a.png', { type: 'image/png' })) // success
+```
+
 ## Nested issue paths
 
 ```ts

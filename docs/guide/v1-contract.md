@@ -167,6 +167,7 @@ Built-in validations preserve the successful value.
 - `isNotEmpty()` checks the current output's numeric `length` or `size` for a value greater than zero.
 - `isSizeAtLeast()`, `isSizeAtMost()`, and `isSizeExactly()` apply to outputs with numeric `size`.
 - `isStartingWith()` and `isEndingWith()` follow the corresponding string methods.
+- `isMimeType()` applies to outputs with a `type` string, matches it against one or a list of MIME types with case-insensitive `image/*`-style wildcards, and preserves the value.
 - `check()` is the generic validation escape hatch and may use a predicate, type guard, or typed `addIssue()` callback. Returned failures use `check:failed`; thrown or rejected callbacks use the operation issue `check:callback_failed`.
 
 ## Transformation contract

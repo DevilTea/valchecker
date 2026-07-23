@@ -10,6 +10,8 @@ Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` b
 
 ### Added
 
+- `file()` and `blob()` initial schemas validate `File` and `Blob` values with feature-detected globals, preserving the value and inferring the matching output type. They own `file:expected_file` and `blob:expected_blob`.
+- `isMimeType(types, options?)` validates a value's `type` string against one or a list of MIME types with case-insensitive `image/*`-style wildcards, preserving the value. It owns `isMimeType:unexpected_mime_type` with payload `{ value, expected, actual }` and applies to any output with a `type` string, including `File` and `Blob`. Size validation reuses the existing `isSizeAtLeast`/`isSizeAtMost`/`isSizeExactly` steps.
 - `@valchecker/internal` exports `runtimeExecutionStepDefMarker` (also re-exported from the public `valchecker` package), the shared step-plugin discovery symbol previously duplicated as a `Symbol.for()` string in `@valchecker/all-steps`.
 
 ### Changed
