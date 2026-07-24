@@ -13,6 +13,7 @@ The `utils` object passed to step implementations provides essential functions f
 | `failure(issue)` | Return a failure with single issue | `FailureResult` |
 | `failure([issues])` | Return a failure with a non-empty issue tuple | `FailureResult` |
 | `createIssue(opts)` | Create a structured issue object | `Issue` |
+| `setMetadata(key, value)` | Attach a construction-time metadata entry to the schema being built | `void` |
 
 
 ## Operation mode
@@ -114,6 +115,24 @@ Users can provide custom messages in multiple ways:
 // No message (uses default)
 .min(5)
 ```
+
+## setMetadata
+
+Attach a construction-time metadata entry onto the schema currently being built. Entries land on `~core.metadata` (a symbol-keyed record) and are read back by well-known symbol from another step's implementation:
+
+```typescript
+// Owned by the declaring step module; never barrel-exported, imported
+// cross-step by direct relative path.
+const partMarker = Symbol.for('valchecker:templateLiteralPart')
+
+utils.setMetadata(partMarker, descriptor)
+```
+
+Notes:
+
+- Metadata describes only the FINAL step. It is NOT carried forward on chaining; each fluent call gets fresh `utils`, so a later step that does not redeclare drops it (`~core.metadata` becomes `undefined`).
+- `~core.metadata` is `Readonly`-typed but not frozen. The declaring step is responsible for freezing any mutable value (e.g. `Object.freeze([...members])`) whose mutation could alter later validation.
+- Type-level mirrors, when a consumer must read metadata in the type system, are explicit named optional fields on `TExecutionContext` (each with its own drop-by-default line), added only when such a consumer exists.
 
 ## Complete Example
 

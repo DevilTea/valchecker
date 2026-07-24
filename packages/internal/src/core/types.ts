@@ -63,6 +63,14 @@ export interface TExecutionContext {
 	input: unknown
 	output: unknown
 	issue: AnyExecutionIssue
+	/**
+	 * Type-level mirror of the runtime literal-members metadata entry
+	 * (`~core.metadata[Symbol.for('valchecker:literalMembers')]`): the exact
+	 * finite accepted and output value set advertised by the final step, if any.
+	 * Dropped by every step that does not redeclare it. Optional so external
+	 * `DefineExpectedValchecker` contexts stay valid.
+	 */
+	literalMembers?: readonly unknown[] | undefined
 }
 
 export type TExecutionContextPatch = Partial<Omit<TExecutionContext, 'initial'>>
@@ -114,6 +122,7 @@ type PatchExecutionContext<Current extends TExecutionContext, Patch extends TExe
 				input: Patch extends { input: infer I } ? I : unknown
 				output: Patch extends { output: infer O } ? O : unknown
 				issue: Patch extends { issue: infer I extends AnyExecutionIssue } ? I : AnyExecutionIssue
+				literalMembers: Patch extends { literalMembers: infer M extends readonly unknown[] } ? M : undefined
 			}
 		: {
 				initial: false
@@ -135,6 +144,10 @@ type PatchExecutionContext<Current extends TExecutionContext, Patch extends TExe
 				issue: Patch extends { issue: infer I extends AnyExecutionIssue }
 					? (Current['issue'] | I)
 					: Current['issue']
+				// Deliberate deviation from preserve-by-default: construction-time
+				// metadata describes only the FINAL step, so any step that does not
+				// redeclare `literalMembers` drops it rather than inheriting it.
+				literalMembers: Patch extends { literalMembers: infer M extends readonly unknown[] } ? M : undefined
 			}
 ) extends infer Patched extends TExecutionContext
 	? Patched
@@ -220,6 +233,16 @@ export interface Valchecker<
 		readonly runtimeSteps: readonly RuntimeStep[]
 		/** Conservative runtime execution mode used for executor specialization. */
 		readonly operationMode: OperationMode
+		/**
+		 * Generic construction-time metadata channel: a symbol-keyed record a
+		 * step may populate via `utils.setMetadata(key, value)` while a schema is
+		 * being built, then consumers read by well-known symbol. `undefined` when
+		 * no step wrote any entry. Consumers today: `templateLiteral` part
+		 * descriptors and finite literal-member sets. Read-only from a consumer's
+		 * perspective; construction-time only, never touched on the execution
+		 * hot path.
+		 */
+		readonly metadata: Readonly<Record<symbol, unknown>> | undefined
 	}
 
 	'~execute': (value: unknown) => MaybePromise<ExecutionResult<unknown, AnyExecutionIssue>>
@@ -288,6 +311,14 @@ export interface StepMethodUtils<
 		context: IssueContext,
 	) => I
 
+	/**
+	 * Writes a construction-time metadata entry onto the schema being built,
+	 * stored under `~core.metadata[key]`. Keys are well-known symbols owned by
+	 * the declaring step module. The declarer is responsible for freezing any
+	 * mutable value it stores.
+	 */
+	setMetadata: (key: symbol, value: unknown) => void
+
 	success: (value: Output) => ExecutionSuccessResult<Output>
 	failure: (issue: AnyExecutionIssue | AnyExecutionIssue[]) => ExecutionFailureResult<Issue>
 	createIssue: <Content extends CreateIssueContent<SelfIssue>>(
@@ -311,11 +342,13 @@ export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToInter
 						payload: {
 							utils: StepMethodUtils<
 								InferOutput<Def[M]['Meta']['ExpectedCurrentValchecker']>,
-								// If return type is Next<{ output: ... }>
-								MethodTuple[1] extends Next<{ output: infer O }, any>
-									// Extract the new output type
-									? O
-									// Fallback to current output type
+								// The method return is always a `Use<Valchecker>`; read its
+								// output context directly. (A prior `Next<{ output: infer O }>`
+								// pattern match broke whenever the returned context carried a
+								// non-`undefined` field the pattern did not name, e.g.
+								// `literalMembers`.)
+								MethodTuple[1] extends Valchecker
+									? InferOutput<MethodTuple[1]>
 									: InferOutput<ResolveExpectedThis<StepPluginDef>>,
 								InferIssue<MethodTuple[1]>,
 								Def[M]['Meta']['SelfIssue']
