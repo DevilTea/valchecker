@@ -1,4 +1,4 @@
-import type { InferIssue, InferOperationMode, InferOutput } from './types'
+import type { InferExecutionContext, InferIssue, InferOperationMode, InferOutput, InitialValchecker, Next, TStepPluginDef } from './types'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { check, fallback, looseObject, object, strictObject, string, toAsync, transform, unknown, use } from '../steps'
 import { createValchecker } from './core'
@@ -167,5 +167,16 @@ describe('schema type-state contracts', () => {
 		expect(result)
 			.toBeInstanceOf(Promise)
 		await expect(result).resolves.toEqual({ value: 'fallback' })
+	})
+})
+
+describe('construction-time metadata type contracts', () => {
+	it('emits literalMembers on a redeclaring patch and drops it by default on chaining', () => {
+		type WithMembers = Next<{ output: 'a' | 'b', literalMembers: readonly ['a', 'b'] }, InitialValchecker<TStepPluginDef>>
+		type Chained = Next<{ output: string }, WithMembers>
+		expectTypeOf<InferExecutionContext<WithMembers>['literalMembers']>()
+			.toEqualTypeOf<readonly ['a', 'b']>()
+		expectTypeOf<InferExecutionContext<Chained>['literalMembers']>()
+			.toEqualTypeOf<undefined>()
 	})
 })

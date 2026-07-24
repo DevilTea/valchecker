@@ -27,6 +27,9 @@ function validationIssue(
 	}
 }
 
+const metaKeyA = Symbol.for('valchecker-test:metaA')
+const metaKeyB = Symbol.for('valchecker-test:metaB')
+
 const flowPlugin = implStepPlugin({
 	increment: ({ utils, params: [amount = 1] }: any) => {
 		utils.addSuccessStep((value: number) => utils.success(value + amount), 'sync')
@@ -84,6 +87,11 @@ const flowPlugin = implStepPlugin({
 	},
 	asyncMode: ({ utils }: any) => {
 		utils.addStep(async (result: ExecutionResult) => result, 'async')
+	},
+	attachMeta: ({ utils }: any) => {
+		utils.addSuccessStep((value: unknown) => utils.success(value), 'sync')
+		utils.setMetadata(metaKeyA, ['a', 'b'])
+		utils.setMetadata(metaKeyB, { tag: 'meta' })
 	},
 } as any) as StepPluginImpl<TStepPluginDef>
 
@@ -316,6 +324,26 @@ describe('valchecker instance contracts', () => {
 		expect(v.asyncMode()
 			.maybeAsync()['~core'].operationMode)
 			.toBe('async')
+	})
+
+	it('exposes construction-time metadata on ~core and drops it on chaining', () => {
+		const v = createValchecker({ steps: [flowPlugin] }) as any
+
+		// No step wrote metadata: the field is present but undefined.
+		expect(v['~core'].metadata)
+			.toBeUndefined()
+
+		// Two different symbol keys set in the same construction call coexist.
+		const withMeta = v.attachMeta()
+		expect(withMeta['~core'].metadata[metaKeyA])
+			.toEqual(['a', 'b'])
+		expect(withMeta['~core'].metadata[metaKeyB])
+			.toEqual({ tag: 'meta' })
+
+		// A later step that does not redeclare drops the metadata (fresh utils
+		// per call; not carried forward on chaining).
+		expect(withMeta.increment()['~core'].metadata)
+			.toBeUndefined()
 	})
 
 	it('composes an initial schema from the same registry without inheriting the current chain', () => {

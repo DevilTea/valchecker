@@ -37,6 +37,7 @@ type RuntimeOperationMode
 
 type RuntimeStepMethodUtils = StepMethodUtils<any, any, any, any> & {
 	'~operationMode': RuntimeOperationMode
+	'~metadata': Record<symbol, unknown> | undefined
 }
 
 interface RegisteredStepMethod {
@@ -721,6 +722,10 @@ function createExecutionStepMethodUtils(
 
 	const utils: RuntimeStepMethodUtils = {
 		'~operationMode': currentOperationMode,
+		'~metadata': undefined,
+		'setMetadata': (key, value) => {
+			(utils['~metadata'] ??= {})[key] = value
+		},
 		'addStep': (fn, operationMode) => {
 			const runtimeOperationMode = operationMode == null
 				? defaultOperationMode
@@ -862,12 +867,15 @@ export function createValchecker<
 	const buildInstance = (
 		runtimeSteps: RuntimeStep[],
 		operationMode: RuntimeOperationMode,
+		metadata: Record<symbol, unknown> | undefined,
 	): any => {
 		const executeRaw = createFinalizedPipeExecutor(runtimeSteps, operationMode)
 		const execute = createPublicExecutor(executeRaw, operationMode)
 		const instance: any = Object.create(prototype)
 		instance['~standard'] = { version: 1, vendor: 'valchecker', validate: execute }
-		instance['~core'] = { runtimeSteps, operationMode: OPERATION_MODES[operationMode] }
+		// `metadata` is assigned unconditionally (even when `undefined`) so every
+		// `~core` object keeps the same shape and V8's hidden class stays monomorphic.
+		instance['~core'] = { runtimeSteps, operationMode: OPERATION_MODES[operationMode], metadata }
 		instance['~execute'] = executeRaw
 		instance.execute = execute
 		instance.isSuccess = isSuccess
@@ -894,7 +902,7 @@ export function createValchecker<
 				params: [...params],
 				context,
 			})
-			return buildInstance(runtimeSteps, utils['~operationMode'])
+			return buildInstance(runtimeSteps, utils['~operationMode'], utils['~metadata'])
 		},
 	}
 
@@ -918,10 +926,10 @@ export function createValchecker<
 					params,
 					context,
 				})
-				return buildInstance(nextRuntimeSteps, utils['~operationMode'])
+				return buildInstance(nextRuntimeSteps, utils['~operationMode'], utils['~metadata'])
 			},
 		})
 	}
 
-	return buildInstance([], RUNTIME_OPERATION_MODE_SYNC) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
+	return buildInstance([], RUNTIME_OPERATION_MODE_SYNC, undefined) as InitialValchecker<NonNullable<ExecutionSteps[number]['~def']>>
 }

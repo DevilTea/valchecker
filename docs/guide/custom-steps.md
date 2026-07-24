@@ -272,6 +272,7 @@ The method implementation receives utilities such as:
 | `success(value)` | Produce a successful step result |
 | `failure(issueOrIssues)` | Produce a failed step result |
 | `createIssue(options)` | Resolve and create a structured issue |
+| `setMetadata(key, value)` | Attach construction-time metadata to the schema being built (read back by well-known symbol; dropped on chaining) |
 
 Only root exports from `@valchecker/internal` are supported plugin API. Package-private source paths and unexported runtime helpers are not semver-covered.
 
