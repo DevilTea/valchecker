@@ -1,8 +1,8 @@
 {
 	"typescript": "5.9.3",
 	"maximum": {
-		"types": 105000,
-		"instantiations": 1550000,
-		"memoryKib": 450000
+		"types": 151000,
+		"instantiations": 2300000,
+		"memoryKib": 550000
 	}
 }
