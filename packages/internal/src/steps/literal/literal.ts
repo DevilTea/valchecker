@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 declare namespace Internal {
 	export type LiteralType = bigint | boolean | number | string | symbol
@@ -61,9 +62,13 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const literal = implStepPlugin<PluginDef>({
 	literal: ({
-		utils: { addSuccessStep, success, createIssue, failure },
+		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [literalValue, options],
 	}) => {
+		// A symbol literal has no template-literal representation, so it never
+		// becomes a `templateLiteral` part (the descriptor is simply not attached).
+		if (typeof literalValue !== 'symbol')
+			setMetadata(templateLiteralPartMarker, { kind: 'literal', value: literalValue })
 		addSuccessStep(value => Object.is(value, literalValue)
 			? success(value as typeof literalValue)
 			: failure(createIssue({

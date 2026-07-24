@@ -141,6 +141,15 @@ type LooseBigintInput = bigint | `${bigint}`
 
 They do not perform unrestricted JavaScript coercion. For example, `looseBoolean()` rejects `'TRUE'`, `1`, and arbitrary truthy values.
 
+## Template literals
+
+`templateLiteral(parts)` validates a string against an assembled TypeScript template-literal type and infers that exact output type, with cross-product union expansion. Matching mirrors the TypeScript checker's placeholder split rule, not a regex.
+
+```ts
+v.templateLiteral(['ID-', v.number()]).execute('ID-42') // { value: 'ID-42' }, output `ID-${number}`
+v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]) // output `${number}px` | `${number}em` | `${number}rem`
+```
+
 ## Built-in validations
 
 ```ts

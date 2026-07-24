@@ -103,6 +103,28 @@ Output: `bigint`
 
 **Issue code:** `looseBigint:expected_bigint`
 
+## Template literals
+
+### `templateLiteral(parts, options?)`
+
+Checks that the value is a string matching an assembled TypeScript template-literal type, and infers that exact template-literal output type.
+
+Each part is either an interpolatable literal (`string | number | bigint | boolean | null | undefined`) or a bare initial schema whose output is interpolatable: `string()`, `number()`, `bigint()`, `boolean()`, `literal(...)`, `null()`, `undefined()`, `union([...])`, or a nested `templateLiteral([...])`. Union parts expand into a cross-product union.
+
+```ts
+const v = createValchecker({ steps: [templateLiteral, number, union] })
+
+v.templateLiteral(['ID-', v.number()])
+	.execute('ID-42') // { value: 'ID-42' }, output `ID-${number}`
+v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]) // output `${number}px` | `${number}em` | `${number}rem`
+```
+
+**Issue code:** `templateLiteral:expected_template_literal` (payload `{ value, template }`).
+
+Matching and inference follow the TypeScript checker exactly, including the leftmost, one-character, no-backtracking split rule for adjacent placeholders. For example `` `${string}x${number}` `` rejects `'axbx1'` (the leftmost `x` leaves `'bx1'` for `${number}`), and `` `${string}${number}` `` rejects `'abc1'` (the `${string}` slot captures a single character). `` `${string}${string}` `` reduces to plain `string`, matching TypeScript.
+
+Parts must be bare initial schemas of the supported kinds. A refined or chained schema (for example `string().toTrimmed()`), a symbol, a non-finite number, or a non-interpolatable schema throws a `TypeError` at construction. The eager cross-product is capped at 10000 members (TypeScript itself errors around 100000).
+
 ## Numeric validation
 
 Built-in validation methods preserve the successful value.

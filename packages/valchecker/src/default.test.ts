@@ -86,6 +86,7 @@ describe('default valchecker instance', () => {
 				.isSizeAtMost(1024),
 			attachment: v.blob()
 				.isMimeType(['application/pdf', 'text/*']),
+			ref: v.templateLiteral(['#', v.number()]),
 		})
 			.execute({
 				name: '  Ada  ',
@@ -114,6 +115,7 @@ describe('default valchecker instance', () => {
 				token: '123e4567-e89b-12d3-a456-426614174000',
 				avatar,
 				attachment,
+				ref: '#42',
 			})
 
 		expect(result)
@@ -145,6 +147,7 @@ describe('default valchecker instance', () => {
 					token: '123e4567-e89b-12d3-a456-426614174000',
 					avatar,
 					attachment,
+					ref: '#42',
 				},
 			})
 	})

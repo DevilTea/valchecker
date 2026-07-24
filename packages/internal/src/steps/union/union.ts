@@ -1,8 +1,10 @@
 import type { IsEqual } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { TemplateLiteralPartDescriptor } from '../templateLiteral/template-literal-part'
 import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
+import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 interface UnionStepMethodContext {
 	createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
@@ -118,7 +120,7 @@ function normalizeBranch(
 /* @__NO_SIDE_EFFECTS__ */
 export const union = implStepPlugin<PluginDef>({
 	union: ({
-		utils: { addSuccessStep, appendIssueContext, failure, isFailure },
+		utils: { addSuccessStep, appendIssueContext, failure, isFailure, setMetadata },
 		params: [branches],
 		context,
 	}) => {
@@ -127,6 +129,12 @@ export const union = implStepPlugin<PluginDef>({
 
 		const branchExecutors: Use<Valchecker>['~execute'][] = Array.from({ length: branches.length })
 		let operationMode: OperationMode = 'sync'
+		// Derive a `templateLiteral` part descriptor from the branches. Every
+		// normalized branch (including literal/null/undefined shorthands) carries
+		// its own descriptor when it is a supported part; if any branch lacks one
+		// (e.g. a refined schema, or a symbol literal), the union is not a usable
+		// template-literal part and no descriptor is attached.
+		let templatePartMembers: TemplateLiteralPartDescriptor[] | undefined = []
 		for (let index = 0; index < branches.length; index++) {
 			if (!Object.hasOwn(branches, index))
 				throw new TypeError(`union() branch at index ${index} is missing.`)
@@ -134,7 +142,16 @@ export const union = implStepPlugin<PluginDef>({
 			branchExecutors[index] = branch['~execute']
 			if (branch['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'
+			if (templatePartMembers !== undefined) {
+				const descriptor = branch['~core']?.metadata?.[templateLiteralPartMarker] as TemplateLiteralPartDescriptor | undefined
+				if (descriptor === undefined)
+					templatePartMembers = undefined
+				else
+					templatePartMembers.push(descriptor)
+			}
 		}
+		if (templatePartMembers !== undefined)
+			setMetadata(templateLiteralPartMarker, { kind: 'union', members: templatePartMembers })
 		const len = branchExecutors.length
 		const branchesAreSynchronous = operationMode === 'sync'
 
