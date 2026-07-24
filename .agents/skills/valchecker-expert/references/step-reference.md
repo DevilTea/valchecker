@@ -1,262 +1,95 @@
-# Step Reference
+# Built-in Step Inventory
 
-This reference groups the built-in public API by pipeline role.
+This inventory lists the public fluent plugins shipped by the current Valchecker package. Exact parameter, issue, and structural semantics are documented in the VitePress API pages and the canonical JSDoc on each plugin definition.
 
-## Initial primitive schemas
+## Initial schemas
 
-| Step | Successful runtime domain | Output |
-| --- | --- | --- |
-| `string()` | `typeof value === 'string'` | `string` |
-| `number()` | `typeof value === 'number'`, including `NaN` and infinity | `number` |
-| `boolean()` | `typeof value === 'boolean'` | `boolean` |
-| `bigint()` | `typeof value === 'bigint'` | `bigint` |
-| `symbol()` | `typeof value === 'symbol'` | `symbol` |
-| `literal(value)` | exact literal match | literal type |
-| `null_()` | `null` | `null` |
-| `undefined_()` | `undefined` | `undefined` |
-| `unknown()` | any input | `unknown` |
-| `any()` | any input | `any` |
-| `never()` | never succeeds | `never` |
-| `json()` | JSON-compatible runtime value | JSON value |
+### Primitive and general
 
-`number()` identifies the TypeScript primitive; add `isFinite()` for finite-number policy.
+`any`, `unknown`, `never`, `string`, `number`, `boolean`, `bigint`, `symbol`, `literal`, `null`, `undefined`, `date`, `file`, `blob`, `instance`, `templateLiteral`
 
-## Loose primitive schemas
+`number()` accepts every JavaScript number. `date()` additionally rejects Invalid Date.
 
-Loose primitives accept the primitive or its TypeScript template-literal string representation, then normalize output:
+### Loose primitives
 
-| Step | Input model | Output |
-| --- | --- | --- |
-| `looseNumber()` | `number | `${number}`` | `number` |
-| `looseBoolean()` | `boolean | `${boolean}`` | `boolean` |
-| `looseBigint()` | `bigint | `${bigint}`` | `bigint` |
+`looseNumber`, `looseBoolean`, `looseBigint`
 
-```ts
-v.looseNumber().execute('1e3') // { value: 1000 }
-v.looseBoolean().execute('false') // { value: false }
-v.looseBigint().execute('-0x10') // { value: -16n }
-```
+They accept the primitive or the documented TypeScript-template-compatible string grammar and normalize to the primitive.
 
-They reject representations outside the corresponding TypeScript contract and do not use unrestricted JavaScript coercion.
+### Structures and combinators
 
-## Template-literal schema
+`object`, `strictObject`, `looseObject`, `array`, `tuple`, `set`, `map`, `record`, `union`, `variant`, `intersection`
 
-`templateLiteral(parts)` validates a string against an assembled TypeScript template-literal type and infers that exact output type, with cross-product union expansion:
-
-| Step | Input model | Output |
-| --- | --- | --- |
-| `templateLiteral(parts)` | matching template-literal string | assembled template-literal type |
-
-```ts
-v.templateLiteral(['ID-', v.number()]).execute('ID-42') // { value: 'ID-42' }, output `ID-${number}`
-v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]) // output `${number}px` | `${number}em` | `${number}rem`
-```
-
-Parts are interpolatable literals (`string | number | bigint | boolean | null | undefined`) or bare initial schemas whose output is interpolatable: `string()`, `number()`, `bigint()`, `boolean()`, `literal()`, `null()`, `undefined()`, `union()`, or a nested `templateLiteral()`. Matching mirrors the TypeScript checker's placeholder split (leftmost, one-character adjacent-placeholder capture, no backtracking, all-string reduction), NOT a composed regex; runtime fixtures and compile-time output assertions stay synchronized. Participating schemas advertise a part descriptor through the construction-time `utils.setMetadata` channel (`~core.metadata`); a refined or chained schema part drops that descriptor and is rejected at construction. Issue code `templateLiteral:expected_template_literal` (payload `{ value, template }`) covers non-string input and non-matching strings; construction throws a `TypeError` for unsupported parts or a cross-product exceeding 10000 members.
-
-## Structural initial schemas
-
-### `object(shape)`
-
-Validates declared own fields and omits unknown output properties.
-
-### `strictObject(shape)`
-
-Validates declared own fields and rejects unknown enumerable own string and symbol keys.
-
-### `looseObject(shape)`
-
-Validates declared own fields and preserves unknown own properties.
-
-### `array(elementSchema)`
-
-Validates and transforms each array element in index order.
-
-### `union(schemas)`
-
-Returns the first successful branch's transformed output.
-
-### `intersection(schemas)`
-
-Executes every branch and composes compatible outputs.
-
-### `instance(constructor)`
-
-Checks `instanceof constructor`.
-
-### `file()` and `blob()`
-
-Check that the value is a `File` or `Blob`, preserving it and inferring the matching output type. The global constructors are feature-detected, so absent globals fail with `file:expected_file` / `blob:expected_blob` instead of throwing. `File` is also a `Blob`.
-
-A one-element tuple marks an object field optional:
-
-```ts
-v.object({
-	required: v.string(),
-	optional: [v.number()],
-})
-```
+Optional object fields use `[schema]`. Tuple rest uses a single `'...'` followed by an array schema. Map and record take one configuration object containing key and value schemas.
 
 ## Built-in validations
 
-Built-in validations use `isXxx` names and preserve successful values.
+### Primitive equality and nullish narrowing
 
-### Number validations
+`isEqualTo`, `isOneOf`, `isDefined`, `isNonNull`, `isNonNullish`
 
-| Step | Condition |
-| --- | --- |
-| `isFinite()` | `Number.isFinite(value)` |
-| `isNaN()` | `Number.isNaN(value)` |
-| `isInteger()` | `Number.isInteger(value)` |
-| `isAtLeast(minimum)` | `value >= minimum`, number or bigint |
-| `isAtMost(maximum)` | `value <= maximum`, number or bigint |
+### Numbers and bigints
 
-```ts
-const port = v.number()
-	.isFinite()
-	.isInteger()
-	.isAtLeast(1)
-	.isAtMost(65535)
-```
+`isFinite`, `isNaN`, `isInteger`, `isSafeInteger`, `isAtLeast`, `isAtMost`, `isGreaterThan`, `isLessThan`, `isMultipleOf`
 
-A constraint enforces only its named condition. `isAtLeast(0)` accepts positive infinity.
+### Dates
 
-### Length validations
+`isAfter`, `isBefore`
 
-| Step | Condition |
-| --- | --- |
-| `isEmpty()` | `value.length === 0` |
-| `isNotEmpty()` | `value.length > 0` |
-| `isLengthAtLeast(minimum)` | `value.length >= minimum` |
-| `isLengthAtMost(maximum)` | `value.length <= maximum` |
+### Length, size, and membership
 
-```ts
-const username = v.string()
-	.isNotEmpty()
-	.isLengthAtLeast(3)
-	.isLengthAtMost(32)
-```
+`isEmpty`, `isNotEmpty`, `isLengthAtLeast`, `isLengthAtMost`, `isLengthExactly`, `isSizeAtLeast`, `isSizeAtMost`, `isSizeExactly`, `isIncluding`, `isIncludingKey`, `isIncludingValue`
 
-### String validations
+### Strings and formats
 
-| Step | Condition |
-| --- | --- |
-| `isStartingWith(prefix)` | `value.startsWith(prefix)` |
-| `isEndingWith(suffix)` | `value.endsWith(suffix)` |
+`json`, `isStartingWith`, `isEndingWith`, `isMatching`, `isEmail`, `isUrl`, `isUuid`, `isIp`, `isIsoDate`, `isIsoTime`, `isIsoDateTime`, `isJwt`, `isEmoji`, `isHex`, `isMac`, `isHostname`, `isBase64`, `isBase64Url`, `isCuid2`, `isUlid`, `isNanoid`
 
-### MIME validation
+`json()` validates that a string is parseable JSON while preserving the string; `toJSONValue()` performs the parsing transformation.
 
-| Step | Condition |
-| --- | --- |
-| `isMimeType(types)` | `value.type` matches one type or a list, case-insensitive, `image/*` wildcards |
+### File-like values
 
-Applies to any output with a `type` string, including `File` and `Blob`. Owns `isMimeType:unexpected_mime_type` with payload `{ value, expected, actual }`.
-
-### `check(predicate, message?)`
-
-Generic validation or type-guard escape hatch. It intentionally retains `check()` because the callback defines the condition.
-
-```ts
-v.string().check(value => value.includes('@'), { message: 'Must contain @' })
-```
+`isMimeType`
 
 ## Concrete transformations
 
-Concrete transformations use `toXxx` names and change the successful output.
+### Strings and JSON
 
-### String transformations
+`toTrimmed`, `toTrimmedStart`, `toTrimmedEnd`, `toLowercase`, `toUppercase`, `toNormalized`, `toSplit`, `toJSONValue`, `toJSONString`, `toString`
 
-- `toTrimmed()`
-- `toTrimmedStart()`
-- `toTrimmedEnd()`
-- `toLowercase()`
-- `toUppercase()`
-- `toSplit(separator, limit?)`
+### Primitive/date conversions
 
-```ts
-v.string().toTrimmed().toSplit(',')
-```
+`toNumber`, `toBoolean`, `toBigint`, `toSafeNumber`, `toMappedBoolean`, `toDate`
 
-### Collection and length transformations
+Native conversions retain native coercion semantics; policy conversions are explicit. Identity primitive conversions are hidden by the state-aware API.
 
-- `toFiltered(predicate)`
-- `toSorted(compare?)`
-- `toSliced(start, end?)`
-- `toLength()`
+### Arrays and collections
 
-### General transformations
+`toFiltered`, `toMapped`, `toSorted`, `toSliced`, `toLength`, `toSize`, `toArray`, `toKeys`, `toValues`, `toEntries`, `toMappedKeys`, `toMappedValues`
 
-- `toString()`
-- `toJSONValue<T = unknown>(message?)`
-- `toJSONString(message?)`
+`toArray()` is the Set representation transform. Map representations use `toKeys`, `toValues`, or `toEntries`.
 
-```ts
-const config = v.string()
-	.toJSONValue()
-	.use(v.object({ port: v.number().isFinite() }))
-```
+## Generic and flow-control operations
 
-### `transform(fn)`
+`check`, `transform`, `fallback`, `use`, `generic`, `as`, `toAsync`
 
-Generic arbitrary-output escape hatch.
-
-```ts
-v.string().transform(value => ({ raw: value }))
-```
-
-## Flow control and type utilities
-
-### `fallback(getValue)`
-
-Recovers from an earlier pipeline failure with a replacement value.
-
-### `use(schema)`
-
-Delegates the current value to another Valchecker schema and preserves transformed output and issues.
-
-### `generic(factory)`
-
-Creates lazy or recursive schema references.
-
-### `as<T>()`
-
-Changes compile-time output only; performs no runtime validation.
-
-### `toAsync()`
-
-Forces every execution of the complete schema to return a native promise.
+- `check()` validates, can narrow via a type guard, and supports typed added issues.
+- `transform()` changes arbitrary output and normalizes callback throw/rejection into an operation issue.
+- `fallback()` recovers validation/operation failures; internal failures are fatal.
+- `use()` delegates to another schema.
+- `generic()` supplies lazy or recursive schema references.
+- `as<T>()` changes compile-time output only.
+- `toAsync()` forces every execution to return a native promise.
 
 ## Results
 
 ```ts
-type ExecutionResult<T, Issue>
-	= | { value: T }
-		| { issues: Issue[] }
+type ExecutionResult<Value, Issue>
+	= | { value: Value }
+		| { issues: [Issue, ...Issue[]] }
 ```
 
-Each issue includes:
-
-```ts
-interface ExecutionIssue {
-	code: string
-	message: string
-	path: PropertyKey[]
-	payload: unknown
-}
-```
-
-Use `v.isSuccess()` and `v.isFailure()` to narrow results.
+Every public issue includes `code`, `category`, `payload`, `message`, `path`, and optional `context`.
 
 ## Selective registration
 
-```ts
-import {
-	createValchecker,
-	isFinite,
-	number,
-} from 'valchecker'
-
-const v = createValchecker({ steps: [number, isFinite] })
-```
-
-The default exported `v` includes every built-in step.
+Every name above is a public plugin export. Register only the plugins needed by a custom instance, or use the default `v`/`allSteps` for the complete set. `allSteps` is discovered from runtime-marked exports rather than a maintained static list.

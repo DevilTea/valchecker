@@ -41,9 +41,10 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Checks that the string is an ISO 8601 date-time: a calendar date and
 	 * time joined by `T`, with optional fractional seconds and an optional
-	 * `Z` or `±HH:MM` time-zone offset. Impossible calendar dates and
-	 * out-of-range time or offset fields are rejected via a `Date`
-	 * round-trip, not by shape alone.
+	 * `Z` or `±HH:MM` time-zone offset. Impossible calendar dates are
+	 * rejected with a UTC calendar round-trip; time and offset fields are
+	 * checked against their numeric ranges rather
+	 * than accepted by shape alone.
 	 *
 	 * ---
 	 *
