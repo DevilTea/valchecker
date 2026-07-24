@@ -1,75 +1,48 @@
 # Migrating to Valchecker 1.0
 
-## Step messages now use options objects
-
-All built-in positional message parameters have been removed before 1.0. Keep one required semantic operand positional and move the message into the trailing options object. Callback configuration such as `thisArg` and `compareFn` belongs to that object as well.
-
-```ts
-// Before
-v.number()
-	.isAtLeast(0, 'Must be non-negative.')
-v.array(v.string())
-	.toFiltered(predicate, undefined, 'Filter failed.')
-
-// After
-v.number()
-	.isAtLeast(0, { message: 'Must be non-negative.' })
-v.array(v.string())
-	.toFiltered(predicate, { message: 'Filter failed.' })
-```
-This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases.
-
-Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative post-migration behavior.
+This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases. Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative post-migration behavior.
 
 ## Migration checklist
 
-1. Upgrade to Node.js 22 or newer.
-2. Convert synchronous CommonJS imports to ESM or dynamic `import()`.
-3. Replace renamed built-in methods and selective plugin imports.
-4. Update code that assumed `number()` rejected `NaN`.
-5. Review every `looseNumber()` use and adopt the new normalization contract.
-6. Add `isFinite()` where finite numbers are required.
-7. Audit every `execute()` call for sync or maybe-async behavior.
-8. Add `.toAsync()` where an API requires an unconditional promise.
-9. Verify unions, intersections, object variants, and issue-path handling.
-10. Add `collectAllIssues: true` where consumers require issues from every structural child.
-11. Remove imports of implementation helpers that are no longer exported.
-12. Update message maps for renamed issue codes, payload fields, and the required issue `category`.
-13. Replace assumptions that failure issue arrays may be empty.
-14. Update callback, conversion, JSON, length, and mapped-boolean issue payload handling.
-15. Run installed-package consumer tests, not only workspace source tests.
+1. Upgrade to Node.js 22 or newer and use ESM or dynamic `import()`.
+2. Replace renamed built-in methods and selective plugin imports.
+3. Move built-in messages and optional callback configuration into trailing options objects.
+4. Review every `number()` and loose-primitive boundary.
+5. Audit `execute()` callers for synchronous or maybe-asynchronous completion.
+6. Add `.toAsync()` where an API requires an unconditional native promise.
+7. Review structural first-issue behavior and add `collectAllIssues: true` where complete collection is required.
+8. Update issue-code, category, payload, path, context, and message handling.
+9. Remove imports of accidental implementation exports.
+10. Run installed-package consumer tests, not only workspace source tests.
 
-## Structural schemas now stop after the first issue
+## Step messages use options objects
 
-`array()a, `set()`, `map()`, `object()`, `strictObject()`, `looseObject()`, and `intersection()` now stop after the first recoverable structural or child failure by default. This avoids executing later work that cannot change the failed result and makes the default path suitable for performance-sensitive validation.
-
-A failing child can still return multiple issues from its own execution. The change controls whether the parent structure continues to later siblings, items, entries, or intersection branches.
-
-Before, complete structural collection was implicit:
+A message-bearing built-in keeps at most one required semantic operand positional. Optional configuration and `message` belong to one trailing options object.
 
 ```ts
-const schema = v.object({
-	name: v.string(),
-	age: v.number(),
-})
+// Before
+v.number().isAtLeast(0, 'Must be non-negative.')
+v.array(v.string()).toFiltered(predicate, undefined, 'Filter failed.')
 
-schema.execute({ name: 1, age: 'old' })
-// Previously contained issues for both fields.
+// After
+v.number().isAtLeast(0, { message: 'Must be non-negative.' })
+v.array(v.string()).toFiltered(predicate, { message: 'Filter failed.' })
 ```
 
-Preserve that behavior explicitly:
+## Structural schemas stop after the first recoverable failure
+
+`array()`, `set()`, `map()`, `object()`, `strictObject()`, `looseObject()`, and `intersection()` stop after the first recoverable structural or child failure by default. A failing child may still return multiple issues from its own execution; the parent does not continue to later siblings, items, entries, or branches.
+
+Preserve complete collection explicitly:
 
 ```ts
 const schema = v.object({
 	name: v.string(),
 	age: v.number(),
 }, { collectAllIssues: true })
-
-schema.execute({ name: 1, age: 'old' })
-// Contains issues for both fields.
 ```
 
-The same trailing option applies to `array()`, `set()`, `strictObject()`, `looseObject()`, and `intersection()`. `map()` keeps all configuration in its required object:
+The same option applies to arrays, Sets, strict/loose objects, and intersections. `map()` keeps all configuration in its required object:
 
 ```ts
 const schema = v.map({
@@ -79,15 +52,11 @@ const schema = v.map({
 })
 ```
 
-Map defaults are now particularly strict: a failing key skips the current value and stops later entries. With `collectAllIssues: true`, the value is still validated and later entries continue.
-
-Default asynchronous intersections now evaluate branches sequentially after the first reached thenable, so a failed branch does not start later branches. `collectAllIssues: true` keeps complete branch validation and may start remaining asynchronous branches together.
-
-Internal issues remain fatal and always stop later structural work. `union()` and `variant()` are unchanged by this option.
+Internal issues are always fatal. `union()` and `variant()` are not changed by this option.
 
 ## Built-in step renames
 
-Built-in names now identify their pipeline role: initial schemas use nouns, built-in validations use `isXxx`, and concrete transformations use `toXxx`. Generic `check()` and `transform()` are unchanged.
+Built-in names now expose their pipeline role: initial schemas use nouns, validations use `isXxx`, and concrete transformations use `toXxx`. Generic `check()` and `transform()` remain unchanged.
 
 | Before | After |
 | --- | --- |
@@ -103,42 +72,11 @@ Built-in names now identify their pipeline role: initial schemas use nouns, buil
 | `stringifyJSON()` | `toJSONString()` |
 | `toSplitted()` | `toSplit()` |
 
-Before:
+No compatibility aliases are provided. Selective instances must rename imported plugin values as well.
 
-```ts
-const schema = v.string()
-	.min(3)
-	.max(20)
-	.startsWith('user_')
-```
+## Issue codes and payloads
 
-After:
-
-```ts
-const schema = v.string()
-	.isLengthAtLeast(3)
-	.isLengthAtMost(20)
-	.isStartingWith('user_')
-```
-
-Selective instances must rename imported plugin values as well:
-
-```ts
-import {
-	createValchecker,
-	isAtLeast,
-	isFinite,
-	number,
-} from 'valchecker'
-
-const v = createValchecker({ steps: [number, isFinite, isAtLeast] })
-```
-
-No compatibility aliases are provided in the 1.0 contract.
-
-## Renamed issue codes and payloads
-
-Issue codes now use the public method name. Update localization maps, monitoring rules, snapshots, and API clients.
+Issue codes use the public step name. Update localization maps, monitoring, snapshots, and API clients.
 
 Examples:
 
@@ -147,39 +85,14 @@ Examples:
 | `min:expected_min` | `isAtLeast:expected_at_least` or `isLengthAtLeast:expected_length_at_least` |
 | `max:expected_max` | `isAtMost:expected_at_most` or `isLengthAtMost:expected_length_at_most` |
 | `integer:expected_integer` | `isInteger:expected_integer` |
-| `empty:expected_empty` | `isEmpty:expected_empty` |
 | `parseJSON:invalid_json` | `toJSONValue:invalid_json` |
 | `stringifyJSON:unserializable` | `toJSONString:unserializable` |
 | `transform:failed` | `transform:callback_failed` |
 | `toBigint:invalid_bigint` | `toBigint:conversion_failed` |
 
-Numeric lower-bound payloads now use:
+Numeric bounds use `{ target, value, minimum }` or `{ target, value, maximum }`. Length bounds use qualified keys such as `minimumLength`, `maximumLength`, and snapshot the observed `length`.
 
-```ts
-{
-	target: 'number' | 'bigint'
-	value: number | bigint
-	minimum: number | bigint
-}
-```
-
-Length lower-bound payloads now snapshot the actual length used by validation and qualify the bound key as `minimumLength` (distinct from the unqualified `minimum` of the numeric-value bounds):
-
-```ts
-{
-	value: {
-		length: number
-	}
-	minimumLength: number
-	length: number
-}
-```
-
-Upper-bound payloads analogously use `maximumLength`; `isEmpty` and `isNotEmpty` expose `{ value, length }`.
-
-## Callback, conversion, and JSON issue contracts
-
-Callback result failures remain validation issues, while callback exceptions are operation issues:
+Callback result failures remain validation issues; callback throws and rejections are operation issues:
 
 | Step | Issue | Payload |
 | --- | --- | --- |
@@ -190,4 +103,121 @@ Callback result failures remain validation issues, while callback exceptions are
 | `toSorted()` comparator threw | `toSorted:callback_failed` | `{ value, left, right, error }` |
 | `toString()` threw | `toString:conversion_failed` | `{ value, error }` |
 
-When `check<AddedIssue>()` uses `addIssue()`, declare the domain issue type explicitly. Added issues remain in the inferred issue and message-handle\ˆÕ¹¥½¹Ì°…¹Ñ¡•ä…É”ÁÉ•Í•ÉÙ•¥˜Ñ¡”…±±‰…¬±…Ñ•ÈÑ¡É½ÝÌ½ÈÉ•©•ÑÌ¸()Ñ½)M=9MÑÉ¥¹œ ¥€¹½Ü‘¥ÍÑ¥¹Õ¥Í¡•Ì¥¹Ù…±¥‘…Ñ„™É½´•á•ÕÑ¥½¸™…¥±ÕÉ•Ìè((´Ñ½)M=9MÑÉ¥¹œéÕ¹Í•É¥…±¥é…‰±•€¥Ì„Ù…±¥‘…Ñ¥½¸¥ÍÍÕ”Ý¥Ñ ìÉ•…Í½¸°Ù…±Õ”°…Ð°Ù…±Õ•QåÁ”üõ€¸(´Ñ½)M
+`toJSONString()` distinguishes invalid data from execution failure:
+
+- `toJSONString:unserializable` is `validation` with `{ reason, value, at, valueType? }`.
+- `toJSONString:serialization_failed` is `operation` with `{ value, at, error }`.
+
+`toNumber:conversion_failed` and `toBigint:conversion_failed` are operation issues. `toJSONValue:invalid_json` remains validation because it represents malformed input.
+
+`toString()` now receives radix through its options object:
+
+```ts
+v.number().toString({ radix: 16 })
+```
+
+It delegates to the value's own `toString` method; it does not call `String(value)`.
+
+## Primitive semantics
+
+`number()` now matches the TypeScript primitive and checks only `typeof value === 'number'`. It accepts `NaN`, positive infinity, negative infinity, and negative zero.
+
+```ts
+const percentage = v.number()
+	.isFinite()
+	.isAtLeast(0)
+	.isAtMost(100)
+```
+
+A named validation enforces only its named condition. `isAtLeast(0)` accepts positive infinity; combine it with `isFinite()` when required.
+
+Loose primitives accept the primitive or the corresponding TypeScript-template-compatible string representation, then normalize output. They are not unrestricted constructor coercions.
+
+```ts
+v.looseNumber().execute('1e3') // { value: 1000 }
+v.looseBoolean().execute('false') // { value: false }
+v.looseBigint().execute('-0x10') // { value: -16n }
+```
+
+Review counter-intuitive grammar such as whitespace-only loose numbers, radix strings, and rejected empty strings.
+
+## ESM and execution mode
+
+Published packages are ESM-only and require Node.js 22 or newer. Synchronous `require('valchecker')` is unsupported; CommonJS can use dynamic import.
+
+A synchronous schema returns directly. A callback-driven schema returns a promise only when asynchronous work is reached, so an earlier type failure may remain synchronous.
+
+```ts
+const schema = v.string().check(async value => value.length > 0)
+
+schema.execute('value') // Promise<ExecutionResult<string>>
+schema.execute(42) // direct early failure
+```
+
+Awaiting either is safe. Append `.toAsync()` when every invocation must return a native promise. PromiseLike values, including custom thenables and cross-realm promises, are assimilated.
+
+## Composition changes
+
+- `union()` returns the first successful branch's transformed output. Internal branch issues are fatal and stop branch fallback.
+- `variant()` directly selects one branch through an own discriminator and records branch provenance in `issue.context`.
+- `intersection()` recursively composes compatible plain-object outputs. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference.
+- Declared object fields are read from own properties only. Missing required fields use the variant-specific `missing_key` issue; present `undefined` still runs the child schema.
+- `object()` omits unknown output properties, `strictObject()` rejects unknown enumerable own string and symbol keys, and `looseObject()` preserves unknown own properties and descriptors.
+- Optional one-element tuple fields still materialize `undefined` in output when absent.
+- `fallback()` recovers validation and operation failures only. Internal issues bypass its callback. A throwing or rejecting callback appends operation issue `fallback:failed` after the original issues.
+
+## Public issue shape and messages
+
+Every public issue includes:
+
+```ts
+interface Issue {
+	code: string
+	category: 'validation' | 'operation' | 'internal'
+	payload: unknown
+	message: string
+	path: PropertyKey[]
+	context?: IssueContext[]
+}
+```
+
+Failure results use a non-empty tuple: `[Issue, ...Issue[]]`.
+
+Message priority is:
+
+1. originating step message,
+2. nearest enclosing structure message,
+3. further enclosing structure messages,
+4. originating instance global resolver,
+5. originating step default,
+6. `"Invalid value."`.
+
+Structures clone child issues while applying their documented path mapping. Union and variant preserve the child data path and append branch provenance to `context`. Frozen or reused child issues are supported.
+
+## Public API cleanup
+
+Application code imports from `valchecker`. Plugin authors use root exports from `@valchecker/internal`, not source paths. Accidental implementation exports such as `noop`, `returnTrue`, `isPromiseLike`, `createPipeExecutor`, `handleMessage`, `prependIssuePath`, and `resolveMessagePriority` are no longer public.
+
+Plugin method names must be strings, map to functions, remain unique, avoid core method names, and not be `then`. Symbol method names are rejected.
+
+## Standard Schema
+
+Every schema exposes `~standard` for Standard Schema V1. Native application code can continue to use `execute()` for complete Valchecker issue payloads. `use(schema)` preserves delegated output, issue types, paths, and maybe-async behavior.
+
+## Verification after migration
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm api:surface
+pnpm publint
+pnpm test:package
+pnpm lint
+pnpm typecheck
+pnpm test:coverage
+pnpm docs:build
+```
+
+Also test an installed tarball or registry package under the production module resolution. Workspace imports can hide missing files, invalid export maps, and dependency rewrite problems.
+
+When reporting release-candidate issues, include exact Valchecker, Node.js, and TypeScript versions; module resolution; a minimal schema and input; actual and expected results; and whether execution used `execute()` or `~standard`.

@@ -12,7 +12,7 @@ npm install @valchecker/all-steps @valchecker/internal
 import { allSteps } from '@valchecker/all-steps'
 import { createValchecker } from '@valchecker/internal'
 
-const v = createValcheckker({ steps: allSteps })
+const v = createValchecker({ steps: allSteps })
 const schema = v.string().toTrimmed().isNotEmpty()
 ```
 

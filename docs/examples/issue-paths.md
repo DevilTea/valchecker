@@ -82,7 +82,7 @@ With `collectAllIssues: true` at each structure that must continue, input contai
 ```ts
 [
 	{ path: ['users', 0, 'email'], code: 'string:expected_string' },
-	{ path: ['users', 0, 'age'], code: number:expected_number' },
+	{ path: ['users', 0, 'age'], code: 'number:expected_number' },
 	{ path: ['users', 2, 'email'], code: 'string:expected_string' },
 ]
 ```
