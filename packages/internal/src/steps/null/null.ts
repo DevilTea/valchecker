@@ -2,6 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import type { TUnionShorthandDef } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
+import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 type Issue = ExecutionIssue<'null:expected_null', { value: unknown }>
 
@@ -58,9 +59,10 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const null_ = implStepPlugin<PluginDef>({
 	null: ({
-		utils: { addSuccessStep, success, createIssue, failure },
+		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [options],
 	}) => {
+		setMetadata(templateLiteralPartMarker, { kind: 'literal', value: null })
 		addSuccessStep(
 			value => value === null
 				?	success(value)

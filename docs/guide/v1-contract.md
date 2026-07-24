@@ -154,6 +154,25 @@ v.looseBigint()
 	.execute('1.0') // failure
 ```
 
+## Template-literal contract
+
+`templateLiteral(parts)` validates a string against an assembled TypeScript template-literal type and infers that exact output type. Parts are interpolatable literals (`string | number | bigint | boolean | null | undefined`) or bare initial schemas whose output is interpolatable (`string()`, `number()`, `bigint()`, `boolean()`, `literal()`, `null()`, `undefined()`, `union()`, nested `templateLiteral()`). Union parts expand into a cross-product union.
+
+Matching and inference mirror the TypeScript checker's placeholder split — leftmost delimiter, a single-character capture for adjacent placeholders, no backtracking — not a regular expression:
+
+```ts
+v.templateLiteral(['ID-', v.number()])
+	.execute('ID-42') // { value: 'ID-42' }, output `ID-${number}`
+v.templateLiteral([v.string(), 'x', v.number()])
+	.execute('axbx1') // failure (leftmost `x` leaves `bx1` for `${number}`)
+v.templateLiteral([v.string(), v.number()])
+	.execute('abc1') // failure (`${string}` captures a single character)
+v.templateLiteral([v.string(), v.string()])
+	.execute('anything') // success (`${string}${string}` reduces to `string`)
+```
+
+`templateLiteral:expected_template_literal` covers both a non-string input and a non-matching string. Construction throws a `TypeError` for a refined or chained schema part, a symbol, a non-finite number, a non-interpolatable schema, or a cross-product exceeding 10000 members.
+
 ## Validation contract
 
 Built-in validations preserve the successful value.

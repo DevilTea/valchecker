@@ -67,6 +67,10 @@ Loose primitives accept the primitive or its corresponding TypeScript template-l
 
 They do not perform unrestricted JavaScript coercion. In accordance with TypeScript's ```${number}``` behavior, a non-empty whitespace-only string is accepted by `looseNumber()` and normalized to `0`; the empty string is rejected.
 
+## Template literals
+
+- `templateLiteral(parts)` — validates a string against an assembled TypeScript template-literal type and infers that exact output type, with cross-product union expansion. Parts are interpolatable literals or bare initial schemas (`string()`, `number()`, `bigint()`, `boolean()`, `literal()`, `null()`, `undefined()`, `union()`, nested `templateLiteral()`). Matching mirrors the TypeScript checker's split rule, not a regex.
+
 ## Structure validators
 
 - `object(shape)` — validates declared own properties and omits unknown properties from output
