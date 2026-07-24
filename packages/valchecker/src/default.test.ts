@@ -19,6 +19,11 @@ describe('default valchecker instance', () => {
 					trueValues: ['Y'],
 					falseValues: ['N'],
 				}),
+			createdAt: v.date()
+				.isAfter(new Date('2000-01-01T00:00:00.000Z'))
+				.isBefore(new Date('2100-01-01T00:00:00.000Z')),
+			parsedAt: v.string()
+				.toDate(),
 			identifier: v.string()
 				.toBigint(),
 			safeIdentifier: v.bigint()
@@ -71,6 +76,8 @@ describe('default valchecker instance', () => {
 		})
 			.execute({
 				name: '  Ada  ',
+				createdAt: new Date('2020-06-15T00:00:00.000Z'),
+				parsedAt: '2020-06-15T00:00:00.000Z',
 				age: '37',
 				count: '3',
 				enabled: 'Y',
@@ -95,6 +102,8 @@ describe('default valchecker instance', () => {
 			.toEqual({
 				value: {
 					name: 'Ada',
+					createdAt: new Date('2020-06-15T00:00:00.000Z'),
+					parsedAt: new Date('2020-06-15T00:00:00.000Z'),
 					age: 37,
 					count: 3,
 					enabled: true,
