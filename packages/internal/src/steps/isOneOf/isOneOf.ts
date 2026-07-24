@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferExecutionContext, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { declareLiteralMembers } from '../literal/literal-members'
 
 declare namespace Internal {
 	export type Primitive = bigint | boolean | null | number | string | symbol | undefined
@@ -53,6 +54,7 @@ interface PluginDef extends TStepPluginDef {
 								) => Next<{
 									output: Internal.Narrow<Output, Values[number]>
 									issue: Internal.Issue<Output, Values[number]>
+									literalMembers: Values
 								}, This>
 					: never
 				: never
@@ -63,12 +65,13 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isOneOf = implStepPlugin<PluginDef>({
 	isOneOf: ({
-		utils: { addSuccessStep, success, createIssue, failure },
+		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [values, options],
 	}) => {
 		if (values.length === 0)
 			throw new TypeError('isOneOf() requires at least one expected value.')
 		const expectedValues: readonly (typeof values)[number][] = Object.freeze([...values])
+		declareLiteralMembers(setMetadata, expectedValues)
 		addSuccessStep((value) => {
 			for (let index = 0; index < expectedValues.length; index++) {
 				if (Object.is(value, expectedValues[index]))

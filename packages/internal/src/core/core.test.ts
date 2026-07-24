@@ -11,6 +11,7 @@ import {
 	isRecoverableFailure,
 	isSuccess,
 	prependIssuePath,
+	replaceIssuePath,
 	resolveMessagePriority,
 } from './core'
 
@@ -180,6 +181,31 @@ describe('core issue contracts', () => {
 			])
 		expect(issue.context)
 			.toEqual([{ type: 'existing' }])
+	})
+
+	it('replaces the issue path unconditionally without mutating the source', () => {
+		const issue = validationIssue('test:path', ['old', 0])
+		const result = replaceIssuePath(issue, ['new'])
+
+		expect(result).not.toBe(issue)
+		expect(result.path)
+			.toEqual(['new'])
+		expect(issue.path)
+			.toEqual(['old', 0])
+	})
+
+	it('replaces an existing path with an empty path', () => {
+		const issue = validationIssue('test:path', ['old'])
+		expect(replaceIssuePath(issue, []).path)
+			.toEqual([])
+	})
+
+	it('attaches a message scope when replacing the path of an unscoped issue', () => {
+		const issue = validationIssue('test:path', ['old'])
+		const result = replaceIssuePath(issue, ['new'], 'scope')
+		expect(result).not.toBe(issue)
+		expect(result.path)
+			.toEqual(['new'])
 	})
 })
 

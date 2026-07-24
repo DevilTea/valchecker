@@ -79,6 +79,17 @@ Use `toArray()` for Set items and `toKeys()`, `toValues()`, or `toEntries()` for
 
 Set schemas expose `toMapped()` and `toFiltered()`. Map schemas expose explicit `toMappedKeys()` and `toMappedValues()` transforms. These callbacks traverse a step-start snapshot synchronously; mapped Set items and Map keys must remain unique under SameValueZero.
 
+## Records and tuples
+
+```ts
+const ratings = v.record({ key: v.string(), value: v.number() }) // { [k: string]: number }
+const flags = v.record({ key: v.union(['read', 'write']), value: v.boolean() }) // { read: boolean, write: boolean }
+
+const point = v.tuple([v.string(), v.number(), '...', v.array(v.number())]) // [string, number, ...number[]]
+```
+
+`record()` validates every own enumerable entry as a plain object `Record<K, V>`. Finite literal-union keys produce an all-required, exhaustive object; wide keys produce an open index signature and must transform uniquely. `tuple()` validates a fixed-shape array positionally, with a single optional `'...'` rest region whose array output is spread. The object optional-field `[schema]` shorthand never collides with `tuple()`.
+
 ## Direct variant dispatch
 
 ```ts

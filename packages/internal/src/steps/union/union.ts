@@ -1,8 +1,9 @@
 import type { IsEqual } from 'type-fest'
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferExecutionContext, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
+import { declareLiteralMembers, getLiteralMembers } from '../literal/literal-members'
 
 interface UnionStepMethodContext {
 	createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
@@ -36,6 +37,20 @@ declare namespace Internal {
 
 	type Output<This extends Valchecker, B extends Branches<This>> = Resolved<This, B>['output']
 	type Issue<This extends Valchecker, B extends Branches<This>> = Resolved<This, B>['issue']
+
+	// A union advertises a finite member set only when every branch does. A
+	// schema branch contributes its own `literalMembers`; a literal shorthand
+	// contributes itself; a `null`/`undefined` shorthand (or anything else)
+	// contributes `undefined`, which collapses the whole union to non-finite.
+	type BranchMembers<Branch> = Branch extends Use<Valchecker>
+		? InferExecutionContext<Branch>['literalMembers']
+		: Branch extends bigint | boolean | number | string | symbol
+			? readonly [Branch]
+			: undefined
+	export type CombinedMembers<This extends Valchecker, B extends Branches<This>>
+		= undefined extends BranchMembers<B[number]>
+			? undefined
+			: readonly Exclude<BranchMembers<B[number]>, undefined>[number][]
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -78,6 +93,7 @@ interface PluginDef extends TStepPluginDef {
 					operationMode: Internal.OpMode<This, B>
 					output: Internal.Output<This, B>
 					issue: Internal.Issue<This, B>
+					literalMembers: Internal.CombinedMembers<This, B>
 				}, This>
 			: never
 	>
@@ -118,7 +134,7 @@ function normalizeBranch(
 /* @__NO_SIDE_EFFECTS__ */
 export const union = implStepPlugin<PluginDef>({
 	union: ({
-		utils: { addSuccessStep, appendIssueContext, failure, isFailure },
+		utils: { addSuccessStep, appendIssueContext, failure, isFailure, setMetadata },
 		params: [branches],
 		context,
 	}) => {
@@ -127,6 +143,9 @@ export const union = implStepPlugin<PluginDef>({
 
 		const branchExecutors: Use<Valchecker>['~execute'][] = Array.from({ length: branches.length })
 		let operationMode: OperationMode = 'sync'
+		// A union advertises finite members only when every branch does; a single
+		// non-finite branch collapses the whole union to non-finite (undefined).
+		let combinedMembers: unknown[] | undefined = []
 		for (let index = 0; index < branches.length; index++) {
 			if (!Object.hasOwn(branches, index))
 				throw new TypeError(`union() branch at index ${index} is missing.`)
@@ -134,7 +153,14 @@ export const union = implStepPlugin<PluginDef>({
 			branchExecutors[index] = branch['~execute']
 			if (branch['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'
+			const branchMembers = getLiteralMembers(branch)
+			if (branchMembers == null)
+				combinedMembers = undefined
+			else if (combinedMembers != null)
+				combinedMembers.push(...branchMembers)
 		}
+		if (combinedMembers != null)
+			declareLiteralMembers(setMetadata, combinedMembers)
 		const len = branchExecutors.length
 		const branchesAreSynchronous = operationMode === 'sync'
 

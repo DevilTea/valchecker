@@ -275,6 +275,27 @@ const payload = v.blob().isMimeType('application/json')
 
 `file()` and `blob()` validate `File` and `Blob` values, preserving the input and inferring the matching output type. The global constructors are feature-detected, so absent globals produce `file:expected_file` or `blob:expected_blob` instead of throwing. `isMimeType()` matches a value's `type` against one or a list of MIME types with case-insensitive `image/*`-style wildcards, and size validation reuses `isSizeAtMost()`/`isSizeAtLeast()`/`isSizeExactly()` because both expose a numeric `size`.
 
+## Records and tuples
+
+`record({ key, value })` validates and transforms every own enumerable entry of a plain object, aligning with `Record<K, V>`.
+
+```ts
+const ratings = v.record({ key: v.string(), value: v.number() }) // { [k: string]: number }
+const flags = v.record({ key: v.union(['read', 'write']), value: v.boolean() }) // { read: boolean, write: boolean }
+```
+
+A wide key domain (`string`/`number`/`symbol`/template) produces an open index signature and validates every key; transformed keys must stay unique. A finite key domain (a `literal`, a union of literals, or `isOneOf`) produces an all-required, exhaustive object: every member key is required and extra keys are rejected. Numeric members canonicalize to string keys.
+
+`tuple(elements)` validates a fixed-shape array positionally. A single `'...'` marker declares the next entry as a rest region whose array output is spread into the result.
+
+```ts
+v.tuple([v.string(), v.number()]) // [string, number]
+v.tuple([v.string(), '...', v.array(v.number())]) // [string, ...number[]]
+v.tuple([v.string(), '...', v.array(v.boolean()), v.number()]) // [string, ...boolean[], number]
+```
+
+The `[schema]` one-element-array optional-field shorthand stays scoped to object property position and never collides with `tuple()`.
+
 ## Composition
 
 ### Union

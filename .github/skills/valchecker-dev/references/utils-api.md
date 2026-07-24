@@ -14,6 +14,9 @@ The `utils` object passed to step implementations provides essential functions f
 | `failure([issues])` | Return a failure with a non-empty issue tuple | `FailureResult` |
 | `createIssue(opts)` | Create a structured issue object | `Issue` |
 | `setMetadata(key, value)` | Attach a construction-time metadata entry to the schema being built | `void` |
+| `prependIssuePath(issue, path, message?)` | Prepend path segments to a child issue (advanced, structure plugins) | `Issue` |
+| `replaceIssuePath(issue, path, message?)` | Replace a child issue's path outright, e.g. remapping a tuple rest index (advanced) | `Issue` |
+| `appendIssueContext(issue, context)` | Append a non-data provenance context entry (advanced) | `Issue` |
 
 
 ## Operation mode

@@ -306,6 +306,16 @@ export interface StepMethodUtils<
 		path: AnyExecutionIssue['path'],
 		messageScope?: MessageHandler<any> | undefined,
 	) => I
+	/**
+	 * Rebuilds an issue with `path` REPLACING (not prepending to) its existing
+	 * path, preserving draft-metadata and message-tier handling. Needed by steps
+	 * that remap child paths, such as `tuple`'s rest region.
+	 */
+	replaceIssuePath: <I extends AnyExecutionIssue>(
+		issue: I,
+		path: AnyExecutionIssue['path'],
+		messageScope?: MessageHandler<any> | undefined,
+	) => I
 	appendIssueContext: <I extends AnyExecutionIssue>(
 		issue: I,
 		context: IssueContext,

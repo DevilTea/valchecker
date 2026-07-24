@@ -1,6 +1,7 @@
 import type { InferOutput } from '../..'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createValchecker, isOneOf, number, object, string, unknown } from '../..'
+import { getLiteralMembers } from '../literal/literal-members'
 
 const v = createValchecker({ steps: [isOneOf, number, object, string, unknown] })
 
@@ -57,5 +58,14 @@ describe('isOneOf step plugin', () => {
 			// @ts-expect-error isOneOf is unavailable for object-only output
 			v.object({}).isOneOf([]) // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
 		}
+	})
+
+	it('advertises its candidates as a frozen member set', () => {
+		const schema = v.string()
+			.isOneOf(['x', 'y'])
+		expect(getLiteralMembers(schema))
+			.toEqual(['x', 'y'])
+		expect(Object.isFrozen(getLiteralMembers(schema)))
+			.toBe(true)
 	})
 })

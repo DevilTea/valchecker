@@ -86,6 +86,8 @@ describe('default valchecker instance', () => {
 				.isSizeAtMost(1024),
 			attachment: v.blob()
 				.isMimeType(['application/pdf', 'text/*']),
+			ratings: v.record({ key: v.string(), value: v.number() }),
+			coordinate: v.tuple([v.string(), v.number(), '...', v.array(v.number())]),
 		})
 			.execute({
 				name: '  Ada  ',
@@ -114,6 +116,8 @@ describe('default valchecker instance', () => {
 				token: '123e4567-e89b-12d3-a456-426614174000',
 				avatar,
 				attachment,
+				ratings: { a: 1, b: 2 },
+				coordinate: ['origin', 0, 1, 2],
 			})
 
 		expect(result)
@@ -145,6 +149,8 @@ describe('default valchecker instance', () => {
 					token: '123e4567-e89b-12d3-a456-426614174000',
 					avatar,
 					attachment,
+					ratings: { a: 1, b: 2 },
+					coordinate: ['origin', 0, 1, 2],
 				},
 			})
 	})

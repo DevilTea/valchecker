@@ -100,6 +100,8 @@ const schema = v.object({
 
 The input property may be absent. The declared output property is `undefined` when absent.
 
+This one-element-array shorthand is scoped to object property position. It does not collide with `tuple()`, whose argument is the whole element array; a one-element `tuple([schema])` is a 1-tuple, never an optional field.
+
 ## Safe `__proto__` fields
 
 A declared `__proto__` key is written as an own enumerable data property. Valchecker does not invoke the legacy prototype setter.
@@ -124,6 +126,37 @@ await tags.execute(['JS', 'TS', 'NODE'])
 ```
 
 Common array steps include `isEmpty`, `isNotEmpty`, `isLengthAtLeast`, `isLengthAtMost`, `toFiltered`, `toSorted`, `toSliced`, and `toLength`.
+
+## `tuple(elements, options?)`
+
+Validates a fixed-shape array with per-position schemas, aligning with a TypeScript tuple. A single `'...'` marker declares the NEXT entry as a rest region whose output must be an array; that array is spread into the result. So `v.array(X)` after `'...'` yields a variadic `...X[]`, and `v.tuple([A, B])` after `'...'` yields a fixed spread. One rest region is allowed in leading, middle, or trailing position.
+
+**Issues:**
+
+- `tuple:expected_array`
+- `tuple:unexpected_length` (rest-less tuple, wrong length)
+- `tuple:expected_length_at_least` (tuple with a rest region, too few elements)
+- element issues with the absolute index prepended to their paths
+- rest-region issues with the numeric head offset into the tuple and a `{ type: 'tuple', part: 'rest' }` context entry
+
+```ts
+v.tuple([v.string(), v.number()]) // [string, number]
+v.tuple([v.string(), '...', v.array(v.number())]) // [string, ...number[]]
+v.tuple([v.string(), '...', v.array(v.boolean()), v.number()]) // [string, ...boolean[], number]
+
+const schema = v.tuple([v.string(), '...', v.array(v.number())])
+schema.execute(['id', 1, 2, 3])
+// { value: ['id', 1, 2, 3] }
+```
+
+The rest region receives the remaining slice as one array value (built by index copy, never via `Array.prototype.slice`, so a subclass that overrides `slice` cannot corrupt it). By default the first failing element stops later element validation; `collectAllIssues: true` traverses the rest. Fully synchronous elements keep the tuple synchronous.
+
+Optional tuple elements (`[A, B?]`) are not expressible today: TypeScript mapped tuples cannot conditionally emit `?` slots. Use a union of tuples as the rest to model exactly that shape:
+
+```ts
+// [string] | [string, number]
+const schema = v.tuple([v.string(), '...', v.union([v.tuple([]), v.tuple([v.number()])])])
+```
 
 ## `set(itemSchema, options?)`
 
@@ -199,6 +232,35 @@ const scoreCount = v.map({ key: v.string(), value: v.number() })
 	.isIncludingValue(1)
 	.toSize()
 ```
+
+## `record({ key, value, message?, collectAllIssues? })`
+
+Validates and transforms every own enumerable entry of a plain object, aligning with TypeScript's `Record<K, V>`. The key schema, value schema, enclosing message, and issue-collection policy are supplied through one configuration object.
+
+The key schema's output domain decides the mode:
+
+- **Open domain** (`string`, `number`, `symbol`, template literal): the key schema runs on every own enumerable key, and transformed keys must remain unique. Output is an index signature such as `{ [k: string]: V }`.
+- **Finite domain** (a `literal`, a union of literals, or `isOneOf` — a key schema that advertises a finite member set): the record is CLOSED and EXHAUSTIVE. Every member key is required, extra keys are rejected, and the key schema is never executed. Output is an all-required mapped object such as `{ a: V, b: V }`, matching `Record<'a' | 'b', V>`.
+
+**Issues:**
+
+- `record:expected_object`
+- `record:missing_key` (finite domain, a member key is absent) — path `[key]`
+- `record:unexpected_keys` (finite domain, keys outside the member set) — path `[]`
+- `record:duplicate_transformed_key` (open domain, two source keys collapse to one transformed key) — path `[transformedKey]`
+- key-schema issues (open domain) with `[sourceKey]` prepended and a `{ type: 'record', part: 'key' }` context entry
+- value-schema issues with `[sourceKey]` prepended
+
+```ts
+const ratings = v.record({ key: v.string(), value: v.number() })
+ratings.execute({ a: 1, b: 2 })
+// { value: { a: 1, b: 2 } }
+
+const flags = v.record({ key: v.union(['read', 'write']), value: v.boolean() })
+// output: { read: boolean, write: boolean }
+```
+
+Numeric members canonicalize to string keys (`1` becomes `'1'`), matching `Record<1 | '1', V>`. Own `__proto__` keys are written as safe own data properties. Inherited and non-enumerable keys are ignored. `collectAllIssues: true` continues through later entries; an internal child issue always stops.
 
 ## `union(branches)`
 

@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { declareLiteralMembers } from './literal-members'
 
 declare namespace Internal {
 	export type LiteralType = bigint | boolean | number | string | symbol
@@ -52,6 +53,7 @@ interface PluginDef extends TStepPluginDef {
 				? <L extends Internal.LiteralType>(value: L, options?: StepOptions<Internal.Issue<L>>) => Next<{
 						output: L
 						issue: Internal.Issue<L>
+						literalMembers: readonly [L]
 					}, this['CurrentValchecker']>
 				: never
 			: never
@@ -61,9 +63,10 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const literal = implStepPlugin<PluginDef>({
 	literal: ({
-		utils: { addSuccessStep, success, createIssue, failure },
+		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [literalValue, options],
 	}) => {
+		declareLiteralMembers(setMetadata, [literalValue])
 		addSuccessStep(value => Object.is(value, literalValue)
 			? success(value as typeof literalValue)
 			: failure(createIssue({

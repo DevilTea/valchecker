@@ -176,6 +176,49 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	return nextIssue
 }
 
+/**
+ * Rebuilds an issue with `path` REPLACING its existing path unconditionally,
+ * preserving message-scope and draft-metadata handling. Unlike
+ * `prependIssuePath` (which merges the new path in front of the existing one),
+ * this overwrites the path outright — needed by steps that remap child paths,
+ * such as `tuple`'s rest region.
+ *
+ * Package-internal: not re-exported from `core/index.ts` (parity with
+ * `prependIssuePath`); steps reach it through `utils`.
+ */
+/* @__NO_SIDE_EFFECTS__ */
+export function replaceIssuePath<Issue extends AnyExecutionIssue>(
+	issue: Issue,
+	path: Issue['path'],
+	messageScope?: MessageHandler<any> | undefined,
+): Issue {
+	const metadata = getIssueDraftMetadata(issue)
+	const hasMessageScope = messageScope != null
+
+	const nextIssue = {
+		...issue,
+		path: [...path],
+	}
+
+	if (metadata != null) {
+		setIssueDraftMetadata(nextIssue, {
+			...metadata,
+			contextMessages: hasMessageScope
+				? [...metadata.contextMessages, messageScope]
+				: metadata.contextMessages,
+		})
+	}
+	else if (hasMessageScope) {
+		setIssueDraftMetadata(nextIssue, {
+			resolveMessage: resolveExternalIssueMessage.resolve,
+			contextMessages: [messageScope],
+			defaultMessage: issue.message,
+		})
+	}
+
+	return nextIssue
+}
+
 /* @__NO_SIDE_EFFECTS__ */
 export function appendIssueContext<Issue extends AnyExecutionIssue>(
 	issue: Issue,
@@ -753,6 +796,7 @@ function createExecutionStepMethodUtils(
 		isSuccess,
 		isFailure,
 		prependIssuePath,
+		replaceIssuePath,
 		appendIssueContext,
 		'success': value => ({ value }),
 		'failure': (issueOrIssues) => {
