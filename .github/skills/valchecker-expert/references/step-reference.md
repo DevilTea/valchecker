@@ -69,6 +69,10 @@ Executes every branch and composes compatible outputs.
 
 Checks `instanceof constructor`.
 
+### `file()` and `blob()`
+
+Check that the value is a `File` or `Blob`, preserving it and inferring the matching output type. The global constructors are feature-detected, so absent globals fail with `file:expected_file` / `blob:expected_blob` instead of throwing. `File` is also a `Blob`.
+
 A one-element tuple marks an object field optional:
 
 ```ts
@@ -124,6 +128,14 @@ const username = v.string()
 | --- | --- |
 | `isStartingWith(prefix)` | `value.startsWith(prefix)` |
 | `isEndingWith(suffix)` | `value.endsWith(suffix)` |
+
+### MIME validation
+
+| Step | Condition |
+| --- | --- |
+| `isMimeType(types)` | `value.type` matches one type or a list, case-insensitive, `image/*` wildcards |
+
+Applies to any output with a `type` string, including `File` and `Blob`. Owns `isMimeType:unexpected_mime_type` with payload `{ value, expected, actual }`.
 
 ### `check(predicate, message?)`
 

@@ -155,6 +155,36 @@ Non-finite number inputs fail. A zero divisor, non-finite number divisor, or zer
 
 **Issue code:** `isMultipleOf:expected_multiple_of`
 
+## Date validation
+
+### `date(options?)`
+
+Checks that the value is a `Date` instance and rejects an Invalid Date (a `Date` whose `getTime()` is `NaN`, such as `new Date('nope')`). Output type is `Date`.
+
+Unlike `instance(Date)`, `date()` also rejects Invalid Date and emits its own `date:*` issues instead of `instance:expected_instance`.
+
+**Issue codes:** `date:expected_date`, `date:invalid_date`
+
+```ts
+v.date()
+	.execute(new Date()) // success
+
+v.date()
+	.execute(new Date('nope')) // failure: date:invalid_date
+```
+
+### `isAfter(bound, options?)` and `isBefore(bound, options?)`
+
+Compare a `Date` against a bound using `getTime()`. `isAfter` checks `value > bound` and `isBefore` checks `value < bound`; both are strict, so the bound itself is rejected. The successful value is preserved. Only strict variants are provided; adjust the bound when an inclusive edge is required.
+
+**Issue codes:** `isAfter:expected_after`, `isBefore:expected_before`
+
+```ts
+v.date()
+	.isAfter(new Date('2020-01-01'))
+	.isBefore(new Date('2020-12-31'))
+```
+
 ## Length validation
 
 ### `isLengthAtLeast(minimum, options?)` and `isLengthAtMost(maximum, options?)`

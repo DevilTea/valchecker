@@ -3,6 +3,8 @@ import { v } from './default'
 
 describe('default valchecker instance', () => {
 	it('exposes all bundled steps through the public default instance', () => {
+		const avatar = new File(['img'], 'avatar.png', { type: 'image/png' })
+		const attachment = new Blob(['%PDF'], { type: 'application/pdf' })
 		const result = v.object({
 			name: v.string()
 				.toTrimmed()
@@ -19,6 +21,11 @@ describe('default valchecker instance', () => {
 					trueValues: ['Y'],
 					falseValues: ['N'],
 				}),
+			createdAt: v.date()
+				.isAfter(new Date('2000-01-01T00:00:00.000Z'))
+				.isBefore(new Date('2100-01-01T00:00:00.000Z')),
+			parsedAt: v.string()
+				.toDate(),
 			identifier: v.string()
 				.toBigint(),
 			safeIdentifier: v.bigint()
@@ -74,9 +81,16 @@ describe('default valchecker instance', () => {
 				.isEmail(),
 			token: v.string()
 				.isUuid(),
+			avatar: v.file()
+				.isMimeType('image/*')
+				.isSizeAtMost(1024),
+			attachment: v.blob()
+				.isMimeType(['application/pdf', 'text/*']),
 		})
 			.execute({
 				name: '  Ada  ',
+				createdAt: new Date('2020-06-15T00:00:00.000Z'),
+				parsedAt: '2020-06-15T00:00:00.000Z',
 				age: '37',
 				count: '3',
 				enabled: 'Y',
@@ -98,12 +112,16 @@ describe('default valchecker instance', () => {
 				website: 'https://example.com',
 				contactEmail: 'ada@example.com',
 				token: '123e4567-e89b-12d3-a456-426614174000',
+				avatar,
+				attachment,
 			})
 
 		expect(result)
 			.toEqual({
 				value: {
 					name: 'Ada',
+					createdAt: new Date('2020-06-15T00:00:00.000Z'),
+					parsedAt: new Date('2020-06-15T00:00:00.000Z'),
 					age: 37,
 					count: 3,
 					enabled: true,
@@ -125,6 +143,8 @@ describe('default valchecker instance', () => {
 					website: 'https://example.com',
 					contactEmail: 'ada@example.com',
 					token: '123e4567-e89b-12d3-a456-426614174000',
+					avatar,
+					attachment,
 				},
 			})
 	})

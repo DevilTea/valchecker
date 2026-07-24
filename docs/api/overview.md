@@ -47,6 +47,7 @@ Message-bearing steps place their message and optional configuration in a traili
 - `boolean()` — boolean values
 - `bigint()` — bigint values
 - `symbol()` — symbol values
+- `date()` — `Date` instances, rejecting an Invalid Date
 - `literal(value)` — exact literal match
 - `null()` — `null`
 - `undefined()` — `undefined`
@@ -75,6 +76,7 @@ They do not perform unrestricted JavaScript coercion. In accordance with TypeScr
 - `union(schemas)` — returns the first successful branch's transformed output
 - `intersection(schemas)` — composes compatible branch outputs
 - `instance(constructor)` — validates a class instance
+- `file()` / `blob()` — validate a `File` or `Blob`, with feature-detected globals
 
 A one-element tuple marks an object property as optional:
 
@@ -89,6 +91,7 @@ const schema = v.object({
 
 - `isAtLeast(value)` / `isAtMost(value)` — inclusive number or bigint bounds
 - `isGreaterThan(value)` / `isLessThan(value)` — strict number or bigint bounds
+- `isAfter(bound)` / `isBefore(bound)` — strict `Date` bounds
 - `isMultipleOf(divisor)` — number or bigint divisibility
 - `isInteger()` / `isSafeInteger()` / `isFinite()` / `isNaN()` — explicit number policies
 - `isLengthAtLeast(length)` / `isLengthAtMost(length)` / `isLengthExactly(length)` — length constraints
@@ -96,6 +99,7 @@ const schema = v.object({
 - `isStartingWith(prefix)` / `isEndingWith(suffix)` — string prefix and suffix
 - `isIncluding(value, options?)` — native string or array inclusion semantics
 - `isMatching(pattern)` — regular-expression matching with deterministic state reset
+- `isMimeType(types)` — matches a value's `type` against allowed MIME types, with `image/*` wildcards
 - string-format validators — `isEmail()`, `isUrl()`, `isUuid()`, `isIp()`, `isIsoDate()` / `isIsoTime()` / `isIsoDateTime()`, `isJwt()`, `isEmoji()`, `isHex()`, `isMac()`, `isHostname()`, `isBase64()` / `isBase64Url()`, `isCuid2()`, `isUlid()`, `isNanoid()` (see [String formats](./formats.md))
 - `isEqualTo(value)` / `isOneOf(values)` — primitive `Object.is` checks with output narrowing
 - `isDefined()` / `isNonNull()` / `isNonNullish()` — nullish output narrowing
@@ -120,6 +124,7 @@ Each validation step checks only the condition expressed by its name. For exampl
 - `toBoolean()` — native `Boolean(value)` conversion after any non-boolean output
 - `toBigint(options?)` — native `BigInt(value)` conversion after any non-bigint output
 - `toSafeNumber(options?)` — bigint to number only within the safe integer range
+- `toDate(options?)` — `Date` from epoch milliseconds or an ISO string, after a `string | number` output
 - `toMappedBoolean(options)` — explicit true/false value mappings for string, number, or bigint
 - `toString()` — convert a supported value through its `toString` method
 - `toSorted(options?)` — sorted array output

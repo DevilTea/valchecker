@@ -198,6 +198,18 @@ Converts only values within JavaScript's safe integer range.
 
 **Issue code:** `toSafeNumber:out_of_safe_integer_range`
 
+### `toDate(options?)`
+
+Converts a `number` (epoch milliseconds) or ISO `string` to a `Date` with `new Date(value)`. Available after a `string | number` output. A native exception, or a result that is an Invalid Date (for example from an unparseable string), becomes `toDate:conversion_failed` (`operation`). The payload `error` holds the thrown exception when the native conversion threw, and is `undefined` for an Invalid Date result.
+
+**Issue code:** `toDate:conversion_failed`
+
+```ts
+v.string()
+	.toDate()
+	.execute('2020-01-01') // { value: Date }
+```
+
 ### `toMappedBoolean(options)`
 
 Maps configured string, number, or bigint values to booleans without coercion, trimming, or case normalization.
