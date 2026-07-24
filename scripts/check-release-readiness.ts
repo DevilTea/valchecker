@@ -86,7 +86,11 @@ function assertContains(text: string, fragment: string, path: string): void {
 }
 
 function assertNoPlaceholders(text: string, path: string): void {
-	const match = /\b(?:TODO|TBD|FIXME|PLACEHOLDER)\b/i.exec(text)
+	// `TODO`/`TBD`/`FIXME` are unambiguous dev sentinels (any case). `PLACEHOLDER`
+	// is matched case-sensitively (all-caps only) so the legitimate lowercase word
+	// "placeholder" — a real domain term, e.g. template-literal placeholders — does
+	// not trip the release guard.
+	const match = /\b(?:TODO|TBD|FIXME)\b/i.exec(text) ?? /\bPLACEHOLDER\b/.exec(text)
 	if (match)
 		throw new Error(`${path} contains unresolved placeholder ${JSON.stringify(match[0])}`)
 }
