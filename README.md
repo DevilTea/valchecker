@@ -263,6 +263,18 @@ const normalizedScores = scores
 
 Collection callbacks are synchronous and receive the current transformed collection. Traversal uses a step-start snapshot. Set item and Map key mapping reject SameValueZero collisions rather than silently losing data.
 
+## File and Blob
+
+```ts
+const upload = v.file()
+	.isMimeType(['image/*', 'application/pdf'])
+	.isSizeAtMost(5 * 1024 * 1024)
+
+const payload = v.blob().isMimeType('application/json')
+```
+
+`file()` and `blob()` validate `File` and `Blob` values, preserving the input and inferring the matching output type. The global constructors are feature-detected, so absent globals produce `file:expected_file` or `blob:expected_blob` instead of throwing. `isMimeType()` matches a value's `type` against one or a list of MIME types with case-insensitive `image/*`-style wildcards, and size validation reuses `isSizeAtMost()`/`isSizeAtLeast()`/`isSizeExactly()` because both expose a numeric `size`.
+
 ## Composition
 
 ### Union

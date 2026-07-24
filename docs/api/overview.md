@@ -76,6 +76,7 @@ They do not perform unrestricted JavaScript coercion. In accordance with TypeScr
 - `union(schemas)` — returns the first successful branch's transformed output
 - `intersection(schemas)` — composes compatible branch outputs
 - `instance(constructor)` — validates a class instance
+- `file()` / `blob()` — validate a `File` or `Blob`, with feature-detected globals
 
 A one-element tuple marks an object property as optional:
 
@@ -98,6 +99,7 @@ const schema = v.object({
 - `isStartingWith(prefix)` / `isEndingWith(suffix)` — string prefix and suffix
 - `isIncluding(value, options?)` — native string or array inclusion semantics
 - `isMatching(pattern)` — regular-expression matching with deterministic state reset
+- `isMimeType(types)` — matches a value's `type` against allowed MIME types, with `image/*` wildcards
 - `isEqualTo(value)` / `isOneOf(values)` — primitive `Object.is` checks with output narrowing
 - `isDefined()` / `isNonNull()` / `isNonNullish()` — nullish output narrowing
 - `check(predicate)` — generic custom validation escape hatch

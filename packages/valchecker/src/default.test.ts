@@ -3,6 +3,8 @@ import { v } from './default'
 
 describe('default valchecker instance', () => {
 	it('exposes all bundled steps through the public default instance', () => {
+		const avatar = new File(['img'], 'avatar.png', { type: 'image/png' })
+		const attachment = new Blob(['%PDF'], { type: 'application/pdf' })
 		const result = v.object({
 			name: v.string()
 				.toTrimmed()
@@ -73,6 +75,11 @@ describe('default valchecker instance', () => {
 					keypress: v.object({ type: v.literal('keypress'), key: v.string() }),
 				},
 			}),
+			avatar: v.file()
+				.isMimeType('image/*')
+				.isSizeAtMost(1024),
+			attachment: v.blob()
+				.isMimeType(['application/pdf', 'text/*']),
 		})
 			.execute({
 				name: '  Ada  ',
@@ -96,6 +103,8 @@ describe('default valchecker instance', () => {
 				mappedScoreKeys: new Map([['a', 1], ['b', 2]]),
 				mappedScoreValues: new Map([['a', 1], ['b', 2]]),
 				event: { type: 'click', x: 1, y: 2 },
+				avatar,
+				attachment,
 			})
 
 		expect(result)
@@ -122,6 +131,8 @@ describe('default valchecker instance', () => {
 					mappedScoreKeys: new Map([['A', 1], ['B', 2]]),
 					mappedScoreValues: new Map([['a', 2], ['b', 4]]),
 					event: { type: 'click', x: 1, y: 2 },
+					avatar,
+					attachment,
 				},
 			})
 	})
