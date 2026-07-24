@@ -357,4 +357,6 @@ Symbol method names are rejected so schemas cannot accidentally become promise-l
 
 A structure plugin that intentionally provides a message scope for delegated child issues may pass that handler as the third argument to `prependIssuePath(issue, path, message)`. The nearest enclosing scope wins. This is advanced infrastructure behavior; ordinary validation plugins should use `createIssue()` only.
 
+When a plugin must rewrite a child path rather than prepend to it — for example remapping a rest-region index into an absolute tuple index — use `replaceIssuePath(issue, path, message)`. It behaves like `prependIssuePath` for message-scope and draft-metadata handling but replaces the existing `path` outright instead of prepending. It is also exposed only through `utils`.
+
 Registered plugin issues are collected through `Meta.SelfIssue`, which is why a selective instance's global message callback and message map can provide exact issue-code and payload autocomplete. Dynamic issues created only inside a later schema cannot retroactively alter the global handler type of an existing Valchecker instance.

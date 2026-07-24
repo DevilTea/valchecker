@@ -77,6 +77,8 @@ They do not perform unrestricted JavaScript coercion. In accordance with TypeScr
 - `strictObject(shape)` — validates declared own properties and rejects unknown enumerable own string and symbol keys
 - `looseObject(shape)` — validates declared own properties and preserves unknown own properties
 - `array(elementSchema)` — validates and transforms each array element
+- `record({ key, value })` — validates and transforms every own enumerable entry (`Record<K, V>`); finite literal-union keys become an all-required, exhaustive object
+- `tuple(elements)` — validates a fixed-shape array positionally, with an optional `'...'` rest region
 - `union(schemas)` — returns the first successful branch's transformed output
 - `intersection(schemas)` — composes compatible branch outputs
 - `instance(constructor)` — validates a class instance

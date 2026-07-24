@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createValchecker, literal, null_, number, string, transform, undefined_, union, unknown } from '../..'
 import { structuralFixture } from '../../test-utils/fixtures'
+import { getLiteralMembers } from '../literal/literal-members'
 
 const unionFixture = structuralFixture
 
@@ -218,5 +219,22 @@ describe('union step plugin', () => {
 			.toEqual({
 				value: undefined,
 			})
+	})
+
+	describe('literal member declaration', () => {
+		it('combines member sets when every branch advertises one', () => {
+			expect(getLiteralMembers(v.union(['a', 'b'])))
+				.toEqual(['a', 'b'])
+			expect(getLiteralMembers(v.union([v.literal('a'), 1])))
+				.toEqual(['a', 1])
+		})
+
+		it('drops the member set when any branch is open', () => {
+			expect(getLiteralMembers(v.union([v.string(), 'a'])))
+				.toBeUndefined()
+			// null/undefined shorthands do not advertise members.
+			expect(getLiteralMembers(v.union(['a', null])))
+				.toBeUndefined()
+		})
 	})
 })

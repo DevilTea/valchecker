@@ -18,6 +18,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { check, createValchecker, literal } from '../..'
+import { getLiteralMembers } from './literal-members'
 
 const v = createValchecker({ steps: [literal, check] })
 
@@ -254,6 +255,22 @@ describe('literal step plugin', () => {
 						payload: { reason: 'returned_false', value: 'hi' },
 					}],
 				})
+		})
+	})
+
+	describe('literal member declaration', () => {
+		it('advertises the literal as a frozen single-member set', () => {
+			const schema = v.literal('a')
+			expect(getLiteralMembers(schema))
+				.toEqual(['a'])
+			expect(Object.isFrozen(getLiteralMembers(schema)))
+				.toBe(true)
+		})
+
+		it('drops the member set after a further step chains', () => {
+			expect(getLiteralMembers(v.literal('a')
+				.check(() => true)))
+				.toBeUndefined()
 		})
 	})
 })

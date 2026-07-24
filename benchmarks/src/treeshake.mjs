@@ -17,7 +17,7 @@ const aliases = new Map([
 	['@valchecker/all-steps', resolve(repoRoot, 'packages/all-steps/dist/index.mjs')],
 	['@valchecker/internal', resolve(repoRoot, 'packages/internal/dist/index.mjs')],
 ])
-const unrelatedMarkers = ['strictObject', 'intersection', 'toUppercase', 'toJSONValue', 'toSorted']
+const unrelatedMarkers = ['strictObject', 'intersection', 'toUppercase', 'toJSONValue', 'toSorted', 'record:', 'tuple:']
 
 function args(argv) {
 	const outputIndex = argv.indexOf('--output')
@@ -221,6 +221,18 @@ export const result = {
 }
 `, {
 		requiredMarkers: ['map:expected_map', 'map:duplicate_transformed_key', 'set:expected_set', 'set:duplicate_transformed_item'],
+	}),
+	scenario('valchecker-record-tuple-selective', 'Valchecker', 'Selective record and tuple schemas', 'Record and tuple isolation', `
+import { array, createValchecker, number, record, string, tuple } from 'valchecker'
+const v = createValchecker({ steps: [array, number, record, string, tuple] })
+export const recordSchema = v.record({ key: v.string(), value: v.number() })
+export const tupleSchema = v.tuple([v.string(), '...', v.array(v.number())])
+export const result = {
+	record: recordSchema.execute({ a: 1 }),
+	tuple: tupleSchema.execute(['a', 1, 2]),
+}
+`, {
+		requiredMarkers: ['record:expected_object', 'record:duplicate_transformed_key', 'tuple:expected_array', 'tuple:unexpected_length'],
 	}),
 	scenario('valchecker-collection-capabilities-free', 'Valchecker', 'Collections without size and membership plugins', 'Collection capability isolation', `
 import { createValchecker, map, number, set, string } from 'valchecker'

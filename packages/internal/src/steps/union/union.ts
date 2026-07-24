@@ -1,9 +1,10 @@
 import type { IsEqual } from 'type-fest'
-import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferExecutionContext, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { TemplateLiteralPartDescriptor } from '../templateLiteral/template-literal-part'
 import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
+import { declareLiteralMembers, getLiteralMembers } from '../literal/literal-members'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 interface UnionStepMethodContext {
@@ -38,6 +39,20 @@ declare namespace Internal {
 
 	type Output<This extends Valchecker, B extends Branches<This>> = Resolved<This, B>['output']
 	type Issue<This extends Valchecker, B extends Branches<This>> = Resolved<This, B>['issue']
+
+	// A union advertises a finite member set only when every branch does. A
+	// schema branch contributes its own `literalMembers`; a literal shorthand
+	// contributes itself; a `null`/`undefined` shorthand (or anything else)
+	// contributes `undefined`, which collapses the whole union to non-finite.
+	type BranchMembers<Branch> = Branch extends Use<Valchecker>
+		? InferExecutionContext<Branch>['literalMembers']
+		: Branch extends bigint | boolean | number | string | symbol
+			? readonly [Branch]
+			: undefined
+	export type CombinedMembers<This extends Valchecker, B extends Branches<This>>
+		= undefined extends BranchMembers<B[number]>
+			? undefined
+			: readonly Exclude<BranchMembers<B[number]>, undefined>[number][]
 }
 
 type Meta = DefineStepMethodMeta<{
@@ -80,6 +95,7 @@ interface PluginDef extends TStepPluginDef {
 					operationMode: Internal.OpMode<This, B>
 					output: Internal.Output<This, B>
 					issue: Internal.Issue<This, B>
+					literalMembers: Internal.CombinedMembers<This, B>
 				}, This>
 			: never
 	>
@@ -129,6 +145,9 @@ export const union = implStepPlugin<PluginDef>({
 
 		const branchExecutors: Use<Valchecker>['~execute'][] = Array.from({ length: branches.length })
 		let operationMode: OperationMode = 'sync'
+		// A union advertises finite members only when every branch does; a single
+		// non-finite branch collapses the whole union to non-finite (undefined).
+		let combinedMembers: unknown[] | undefined = []
 		// Derive a `templateLiteral` part descriptor from the branches. Every
 		// normalized branch (including literal/null/undefined shorthands) carries
 		// its own descriptor when it is a supported part; if any branch lacks one
@@ -142,6 +161,11 @@ export const union = implStepPlugin<PluginDef>({
 			branchExecutors[index] = branch['~execute']
 			if (branch['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'
+			const branchMembers = getLiteralMembers(branch)
+			if (branchMembers == null)
+				combinedMembers = undefined
+			else if (combinedMembers != null)
+				combinedMembers.push(...branchMembers)
 			if (templatePartMembers !== undefined) {
 				const descriptor = branch['~core']?.metadata?.[templateLiteralPartMarker] as TemplateLiteralPartDescriptor | undefined
 				if (descriptor === undefined)
@@ -150,6 +174,8 @@ export const union = implStepPlugin<PluginDef>({
 					templatePartMembers.push(descriptor)
 			}
 		}
+		if (combinedMembers != null)
+			declareLiteralMembers(setMetadata, combinedMembers)
 		if (templatePartMembers !== undefined)
 			setMetadata(templateLiteralPartMarker, { kind: 'union', members: templatePartMembers })
 		const len = branchExecutors.length
