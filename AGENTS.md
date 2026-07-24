@@ -52,7 +52,7 @@ Preserve runtime validation when any ordinary public API can receive the value, 
 
 Before removing a freeze or defensive copy, determine whether the same reference is used by private execution state and public issue payloads. Separate those representations first when consumer mutation could alter future validation. A pull request that changes runtime enforcement must document the boundary, TypeScript guarantee, JavaScript bypass, blast radius, ownership, benchmark evidence, and preserved tests.
 
-Follow [the complete runtime boundary policy](.github/skills/valchecker-dev/references/runtime-boundaries.md).
+Follow [the complete runtime boundary policy](.agents/skills/valchecker-dev/references/runtime-boundaries.md).
 
 ## Step naming contract
 
@@ -128,7 +128,7 @@ Steps use three layers:
 
 ## Testing requirements
 
-Follow [`.github/TESTING.md`](.github/TESTING.md). Tests must protect observable runtime, type-state, interoperability, or regression contracts. Coverage is a guardrail and must not be the sole reason for a case.
+Follow [the Valchecker testing strategy](.agents/skills/valchecker-dev/references/testing.md). Tests must protect observable runtime, type-state, interoperability, or regression contracts. Coverage is a guardrail and must not be the sole reason for a case.
 
 For every modified step:
 
@@ -215,5 +215,5 @@ rationale.
 
 ## Detailed skills
 
-- `.github/skills/valchecker-dev/`
-- `.github/skills/valchecker-expert/`
+- `.agents/skills/valchecker-dev/`
+- `.agents/skills/valchecker-expert/`

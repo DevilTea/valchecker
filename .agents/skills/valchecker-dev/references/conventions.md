@@ -99,6 +99,7 @@ v.array(v.number()).toSorted({ compareFn, message })
 ```
 
 Built-in step definitions are checked by `pnpm test:quality`; new optional positional parameters or direct `MessageHandler` parameters fail CI. Steps without message support may preserve a native positional signature when it is semantically clearer.
+
 ## Issue codes
 
 Format:
@@ -144,7 +145,7 @@ A payload key must be unambiguous to a message handler that reads it without kno
 - Exact-match operands use `expected<Thing>` (`expectedLength`, `expectedSize`).
 - Membership and search operands use `expected` across every variant. `isIncluding` for `string`, array, and `Set` is unified on `expected` (not `search`).
 
-Payload keys are public contract. Renaming one is a breaking change and must follow [Public API changes](../../AGENTS.md).
+Payload keys are public contract. Renaming one is a breaking change and must follow [Public API changes](../../../../AGENTS.md).
 
 ### Issue category
 

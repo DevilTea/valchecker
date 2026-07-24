@@ -3,7 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 // Enforces the canonical PluginDef JSDoc template documented in
-// .github/skills/valchecker-dev/references/conventions.md: every public step's
+// .agents/skills/valchecker-dev/references/conventions.md: every public step's
 // PluginDef must carry the three sections `### Description`, `### Example`, and
 // `### Issues`. This guard prevents the terse/prose/@tag formats from regressing.
 
