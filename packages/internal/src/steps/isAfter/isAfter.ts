@@ -46,13 +46,14 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isAfter = implStepPlugin<PluginDef>({
 	isAfter: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [bound, options] }) => {
+		const boundText = Number.isNaN(bound.getTime()) ? 'Invalid Date' : bound.toISOString()
 		addSuccessStep(value => value.getTime() > bound.getTime()
 			? success(value)
 			: failure(createIssue({
 					code: 'isAfter:expected_after',
 					payload: { value, bound },
 					customMessage: options?.message,
-					defaultMessage: `Expected a date after ${bound.toISOString()}.`,
+					defaultMessage: `Expected a date after ${boundText}.`,
 				})))
 	},
 }, 'sync')

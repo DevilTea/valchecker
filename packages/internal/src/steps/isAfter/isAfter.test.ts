@@ -37,4 +37,21 @@ describe('isAfter step plugin', () => {
 			.execute(bound))
 			.toMatchObject({ issues: [{ message: 'Too early' }] })
 	})
+
+	it('reports the owned issue instead of throwing when the bound is an Invalid Date', () => {
+		const value = new Date('2020-01-02T00:00:00.000Z')
+		const invalidBound = new Date('invalid')
+		expect(v.date()
+			.isAfter(invalidBound)
+			.execute(value))
+			.toEqual({
+				issues: [{
+					code: 'isAfter:expected_after',
+					category: 'validation',
+					message: 'Expected a date after Invalid Date.',
+					path: [],
+					payload: { value, bound: invalidBound },
+				}],
+			})
+	})
 })

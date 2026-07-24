@@ -37,4 +37,21 @@ describe('isBefore step plugin', () => {
 			.execute(bound))
 			.toMatchObject({ issues: [{ message: 'Too late' }] })
 	})
+
+	it('reports the owned issue instead of throwing when the bound is an Invalid Date', () => {
+		const value = new Date('2020-01-01T00:00:00.000Z')
+		const invalidBound = new Date('invalid')
+		expect(v.date()
+			.isBefore(invalidBound)
+			.execute(value))
+			.toEqual({
+				issues: [{
+					code: 'isBefore:expected_before',
+					category: 'validation',
+					message: 'Expected a date before Invalid Date.',
+					path: [],
+					payload: { value, bound: invalidBound },
+				}],
+			})
+	})
 })
