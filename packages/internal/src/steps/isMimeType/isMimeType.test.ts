@@ -63,6 +63,12 @@ describe('isMimeType step plugin', () => {
 			})
 	})
 
+	it('rejects an empty type list during schema construction', () => {
+		expect(() => v.blob()
+			.isMimeType([]))
+			.toThrowError('isMimeType() requires at least one MIME type.')
+	})
+
 	it('supports custom messages', () => {
 		expect(v.blob()
 			.isMimeType('image/png', { message: 'Custom mime' })

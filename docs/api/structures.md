@@ -375,6 +375,8 @@ v.file()
 
 Checks that a value's `type` string matches one of the allowed MIME types. Pass a single type or a list. A trailing `/*` matches any subtype, and matching is case-insensitive following MIME semantics. The successful value is preserved. Any output with a `type` string qualifies, including `File` and `Blob`.
 
+Matching compares the bare `type/subtype` only and does not parse MIME parameters: `text/plain` does not match `text/plain;charset=utf-8`, though a `text/*` wildcard would. An empty type list throws a `TypeError` during schema construction.
+
 **Issue:** `isMimeType:unexpected_mime_type`
 
 Failure payload: `{ value, expected, actual }`, where `expected` is the configured type or list and `actual` is the observed `type`.

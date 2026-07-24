@@ -20,6 +20,10 @@ interface PluginDef extends TStepPluginDef {
 	 * type semantics. The successful value is preserved. `File` and `Blob`
 	 * outputs qualify because both expose a `type` string.
 	 *
+	 * Matching compares the bare `type/subtype` only and does not parse MIME
+	 * parameters: `'text/plain'` does not match `'text/plain;charset=utf-8'`,
+	 * though a `'text/*'` wildcard would.
+	 *
 	 * ---
 	 *
 	 * ### Example:
@@ -55,6 +59,8 @@ function matchesMimeType(actual: string, pattern: string): boolean {
 export const isMimeType = implStepPlugin<PluginDef>({
 	isMimeType: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [types, options] }) => {
 		const patterns = Array.isArray(types) ? types : [types]
+		if (patterns.length === 0)
+			throw new TypeError('isMimeType() requires at least one MIME type.')
 		addSuccessStep((value) => {
 			const actual = value.type
 			return patterns.some(pattern => matchesMimeType(actual, pattern))
