@@ -47,6 +47,7 @@ Message-bearing steps place their message and optional configuration in a traili
 - `boolean()` — boolean values
 - `bigint()` — bigint values
 - `symbol()` — symbol values
+- `date()` — `Date` instances, rejecting an Invalid Date
 - `literal(value)` — exact literal match
 - `null()` — `null`
 - `undefined()` — `undefined`
@@ -90,6 +91,7 @@ const schema = v.object({
 
 - `isAtLeast(value)` / `isAtMost(value)` — inclusive number or bigint bounds
 - `isGreaterThan(value)` / `isLessThan(value)` — strict number or bigint bounds
+- `isAfter(bound)` / `isBefore(bound)` — strict `Date` bounds
 - `isMultipleOf(divisor)` — number or bigint divisibility
 - `isInteger()` / `isSafeInteger()` / `isFinite()` / `isNaN()` — explicit number policies
 - `isLengthAtLeast(length)` / `isLengthAtMost(length)` / `isLengthExactly(length)` — length constraints
@@ -121,6 +123,7 @@ Each validation step checks only the condition expressed by its name. For exampl
 - `toBoolean()` — native `Boolean(value)` conversion after any non-boolean output
 - `toBigint(options?)` — native `BigInt(value)` conversion after any non-bigint output
 - `toSafeNumber(options?)` — bigint to number only within the safe integer range
+- `toDate(options?)` — `Date` from epoch milliseconds or an ISO string, after a `string | number` output
 - `toMappedBoolean(options)` — explicit true/false value mappings for string, number, or bigint
 - `toString()` — convert a supported value through its `toString` method
 - `toSorted(options?)` — sorted array output
