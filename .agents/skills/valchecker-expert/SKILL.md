@@ -57,13 +57,13 @@ Message priority is step custom message, nearest enclosing structure message, fu
 
 ## Type inference
 
-Advanced helpers are exported from the semver-covered `@valchecker/internal` root:
+Application-facing type helpers are re-exported by `valchecker`:
 
 ```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
+import type { InferInput, InferOutput } from 'valchecker'
 ```
 
-Transforms update output inference. One-element tuples mark object fields optional and materialize `undefined` when absent.
+Transforms update output inference. One-element tuples mark object fields optional and materialize `undefined` when absent. Plugin authors can use the semver-covered `@valchecker/internal` root for advanced plugin APIs.
 
 ## Selective registration
 

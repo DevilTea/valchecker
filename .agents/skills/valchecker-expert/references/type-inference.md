@@ -4,8 +4,10 @@ Valchecker tracks input, successful output, issue union, registered fluent metho
 
 ## Input and output
 
+Application-facing helpers are re-exported by `valchecker`:
+
 ```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
+import type { InferInput, InferOutput } from 'valchecker'
 
 const schema = v.object({
 	name: v.string().toTrimmed().isNotEmpty(),
@@ -15,6 +17,8 @@ const schema = v.object({
 type Input = InferInput<typeof schema>
 type Output = InferOutput<typeof schema>
 ```
+
+Plugin authors can use the semver-covered `@valchecker/internal` root for advanced plugin APIs. Do not import package-private source paths.
 
 Strict primitive and loose-primitive schemas output the primitive. Supported loose string representations are normalized and do not remain in the output union.
 
@@ -83,4 +87,4 @@ Async work changes execution mode rather than successful output. A maybe-async s
 - use `check()` type-guard overloads only when runtime work proves the narrower type;
 - treat `toJSONValue<T>()` and `as<T>()` as assertions;
 - keep transformations explicit so the input/output transition remains reviewable;
-- use the exported result guards rather than ad hoc casts.
+- use exported result guards rather than ad hoc casts.

@@ -118,7 +118,7 @@ Message priority is step message, nearest enclosing structure, outer structures,
 ## Type inference and packages
 
 ```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
+import type { InferInput, InferOutput } from 'valchecker'
 
 type Input = InferInput<typeof userSchema>
 type Output = InferOutput<typeof userSchema>

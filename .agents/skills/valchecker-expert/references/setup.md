@@ -59,16 +59,16 @@ Use `await schema.execute(input)` when either direct or promise completion is ac
 
 ## Type helpers
 
-Advanced semver-covered helpers are exported from the `@valchecker/internal` root and re-exported by `valchecker` where recorded in `api-surface.json`:
+Application-facing type helpers are re-exported by `valchecker`:
 
 ```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
+import type { InferInput, InferOutput } from 'valchecker'
 
 type Input = InferInput<typeof schema>
 type Output = InferOutput<typeof schema>
 ```
 
-Do not import package-private source paths.
+Plugin authors can install and import the semver-covered `@valchecker/internal` root for advanced plugin APIs. Do not import package-private source paths.
 
 ## TypeScript
 

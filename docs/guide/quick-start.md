@@ -37,7 +37,7 @@ import {
 	number,
 } from 'valchecker'
 
-const v = createValchecker({
+const v = createValcheckker({
 	steps: [number, isFinite, isAtLeast],
 })
 ```
@@ -168,7 +168,7 @@ const schema = v.string()
 const result = await schema.execute(input)
 ```
 
-`await` is safe for either completion mode. `.toAsync()` changes the execution contract so every call returns a native promise.
+`await is safe for either completion mode. `.toAsync()` changes the execution contract so every call returns a native promise.
 
 ## Result values
 
@@ -270,7 +270,7 @@ const configSchema = v.string()
 ## Type inference
 
 ```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
+import type { InferInput, InferOutput } from 'valchecker'
 import { v } from 'valchecker'
 
 const schema = v.object({
@@ -283,7 +283,7 @@ type Input = InferInput<typeof schema>
 type Output = InferOutput<typeof schema>
 ```
 
-`@valchecker/internal` is the semver-covered advanced package for plugin authors and type helpers.
+`InferInput` and `InferOutput` are re-exported by `valchecker`. Plugin authors can use the semver-covered `@valchecker/internal` root for advanced plugin APIs.
 
 ## Message priority
 

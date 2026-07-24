@@ -5,7 +5,7 @@ This example covers primitives, explicit constraints, objects, arrays, unions, t
 ## Setup
 
 ```ts
-import type { InferOutput } from '@valchecker/internal'
+import type { InferOutput } from 'valchecker'
 import { v } from 'valchecker'
 ```
 

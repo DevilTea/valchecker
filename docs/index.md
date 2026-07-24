@@ -127,7 +127,7 @@ if (v.isSuccess(result)) {
 The method name identifies the step's role, while the available methods narrow as the pipeline output changes.
 
 ```ts
-import type { InferOutput } from '@valchecker/internal'
+import type { InferOutput } from 'valchecker'
 import { v } from 'valchecker'
 
 const UserSchema = v.object({
