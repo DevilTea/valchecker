@@ -135,7 +135,7 @@ v.bigint().toNumber().execute(9007199254740993n)
 // { value: 9007199254740992 }
 ```
 
-`toBigint()` converts native `BigInt()` exceptions into structured validation issues. Explicit policy conversions remain separate:
+`toBigint()` converts native `BigInt()` exceptions into structured `operation` issues. Explicit policy conversions remain separate:
 
 ```ts
 v.bigint().toSafeNumber()
@@ -189,17 +189,24 @@ type Success<T> = { value: T }
 Failure returns structured issues:
 
 ```ts
-type Failure<Issue> = { issues: Issue[] }
+type Failure<Issue> = { issues: [Issue, ...Issue[]] }
 
 interface Issue {
 	code: string
-	path: PropertyKey[]
+	category: 'validation' | 'operation' | 'internal'
 	message: string
+	path: PropertyKey[]
 	payload: unknown
+	context?: IssueContext[]
+}
+
+interface IssueContext {
+	type: string
+	[key: string]: unknown
 }
 ```
 
-Validation failures are values rather than thrown validation exceptions. Nested validators prepend issue paths without mutating issue objects returned by child schemas.
+Validation failures are values rather than thrown validation exceptions. Failure tuples are non-empty. Structures clone child issues while applying their documented path or context mapping.
 
 ## Objects
 
@@ -254,7 +261,7 @@ scores.toValues() // number[]
 scores.toEntries() // Array<[string, number]>
 ```
 
-These transformations return new arrays and do not mutate the source collection. Map-to-object conversion is intentionally not implied because it requires separate key, prototype, and collision policies.
+These transformations return new array²È="25sion policies.
 
 Callback transforms preserve the same state-aware collection APIs:
 
@@ -354,16 +361,18 @@ const configSchema = v.string()
 	}))
 ```
 
-Transform, check, fallback, and plugin callbacks may return direct or `PromiseLike` values according to their step contract.
+Transform, check, fallback, and plugin callbacks may return direct or `PromiseLike` values according to their step contract. `fallback()` recovers only validation and operation failures; internal issues are fatal and bypass its callback.
 
 ## Message priority
 
 Issue messages resolve in this order:
 
-1. custom step message,
-2. global `createValchecker` message handler,
-3. built-in default message,
-4. `"Invalid value."`.
+1. originating step message,
+2. nearest enclosing structure message,
+3. further enclosing structure messages,
+4. originating `createValchecker` global resolver,
+5. originating built-in default,
+6. `"Invalid value."`.
 
 ## Type inference
 
@@ -422,10 +431,15 @@ Runtime and declaration exports are recorded in `api-surface.json`; CI rejects u
 ```bash
 git clone https://github.com/DevilTea/valchecker.git
 cd valchecker
-pnpm install
+pnpm install --frozen-lockfile
 pnpm build
-pnpm test
-pnpm docs:dev
+pnpm api:surface
+pnpm publint
+pnpm test:package
+pnpm lint
+pnpm typecheck
+pnpm test:coverage
+pnpm docs:build
 ```
 
 Before opening a pull request, run the repository checks documented in `AGENTS.md`.

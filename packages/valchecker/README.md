@@ -274,7 +274,7 @@ const positive = v.number().check(value => value > 0, { message: 'Must be positi
 )
 ```
 
-Callbacks may be synchronous or asynchronous according to the individual step contract.
+Callbacks may be synchronous or asynchronous according to the individual step contract. Built-in callback throws and rejections become their documented `operation` issues.
 
 ## Results
 
@@ -287,13 +287,20 @@ type Success<T> = { value: T }
 Failure returns structured issues:
 
 ```ts
-type Failure<Issue> = { issues: Issue[] }
+type Failure<Issue> = { issues: [Issue, ...Issue[]] }
 
 interface Issue {
 	code: string
+	category: 'validation' | 'operation' | 'internal'
 	message: string
 	path: PropertyKey[]
 	payload: unknown
+	context?: IssueContext[]
+}
+
+interface IssueContext {
+	type: string
+	[key: string]: unknown
 }
 ```
 
