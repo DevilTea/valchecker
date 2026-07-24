@@ -33,6 +33,7 @@ export default defineConfig({
 				items: [
 					{ text: 'Overview', link: '/api/overview' },
 					{ text: 'Primitives', link: '/api/primitives' },
+					{ text: 'String Formats', link: '/api/formats' },
 					{ text: 'Structures', link: '/api/structures' },
 					{ text: 'Transforms', link: '/api/transforms' },
 					{ text: 'Helpers & Utilities', link: '/api/helpers' },

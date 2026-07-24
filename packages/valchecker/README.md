@@ -160,6 +160,22 @@ v.number().isAtLeast(0).isAtMost(100)
 
 `isAtLeast()` and `isAtMost()` apply to numbers and bigints. Length and size constraints are intentionally separate and explicit.
 
+## String formats
+
+Dedicated `isXxx()` validators cover common string formats, each with its own semantic issue code (`isEmail:expected_email`, `isUrl:expected_url`, …):
+
+```ts
+v.string().isEmail()
+v.string().isUrl() // http/https; override with { protocols: [...] }
+v.string().isUuid()
+v.string().isIp({ version: 6 })
+v.string().isIsoDateTime()
+v.string().isJwt()
+v.string().isEmoji()
+```
+
+Also available: `isHex()`, `isMac()`, `isHostname()`, `isBase64()`, `isBase64Url()`, `isCuid2()`, `isUlid()`, `isNanoid()`, `isIsoDate()`, and `isIsoTime()`. Each is value-preserving and enforces only its named format.
+
 ## File and Blob
 
 `file()` and `blob()` validate `File` and `Blob` values with feature-detected globals, so they fail gracefully in environments where the constructors are absent. MIME validation uses `isMimeType()`, and size validation reuses the collection size steps because both expose a numeric `size`.

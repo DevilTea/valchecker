@@ -89,7 +89,7 @@ const v = createValchecker({
 Built-in steps follow a predictable fluent API:
 
 - initial steps use nouns, such as `string()`, `number()`, and `looseBoolean()`,
-- validation steps use `isXxx()`, such as `isFinite()` and `isLengthAtLeast()`,
+- validation steps use `isXxx()`, such as `isFinite()` and `isLengthAtLeast()`, including string-format validators like `isEmail()`, `isUrl()`, and `isUuid()`,
 - concrete transformations use `toXxx()`, such as `toTrimmed()`, `toNumber()`, and `toJSONValue()`,
 - generic escape hatches retain the direct names `check()` and `transform()`.
 

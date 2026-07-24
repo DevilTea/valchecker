@@ -100,6 +100,7 @@ const schema = v.object({
 - `isIncluding(value, options?)` — native string or array inclusion semantics
 - `isMatching(pattern)` — regular-expression matching with deterministic state reset
 - `isMimeType(types)` — matches a value's `type` against allowed MIME types, with `image/*` wildcards
+- string-format validators — `isEmail()`, `isUrl()`, `isUuid()`, `isIp()`, `isIsoDate()` / `isIsoTime()` / `isIsoDateTime()`, `isJwt()`, `isEmoji()`, `isHex()`, `isMac()`, `isHostname()`, `isBase64()` / `isBase64Url()`, `isCuid2()`, `isUlid()`, `isNanoid()` (see [String formats](./formats.md))
 - `isEqualTo(value)` / `isOneOf(values)` — primitive `Object.is` checks with output narrowing
 - `isDefined()` / `isNonNull()` / `isNonNullish()` — nullish output narrowing
 - `check(predicate)` — generic custom validation escape hatch
