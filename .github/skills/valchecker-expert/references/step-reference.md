@@ -39,6 +39,21 @@ v.looseBigint().execute('-0x10') // { value: -16n }
 
 They reject representations outside the corresponding TypeScript contract and do not use unrestricted JavaScript coercion.
 
+## Template-literal schema
+
+`templateLiteral(parts)` validates a string against an assembled TypeScript template-literal type and infers that exact output type, with cross-product union expansion:
+
+| Step | Input model | Output |
+| --- | --- | --- |
+| `templateLiteral(parts)` | matching template-literal string | assembled template-literal type |
+
+```ts
+v.templateLiteral(['ID-', v.number()]).execute('ID-42') // { value: 'ID-42' }, output `ID-${number}`
+v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]) // output `${number}px` | `${number}em` | `${number}rem`
+```
+
+Parts are interpolatable literals (`string | number | bigint | boolean | null | undefined`) or bare initial schemas whose output is interpolatable: `string()`, `number()`, `bigint()`, `boolean()`, `literal()`, `null()`, `undefined()`, `union()`, or a nested `templateLiteral()`. Matching mirrors the TypeScript checker's placeholder split (leftmost, one-character adjacent-placeholder capture, no backtracking, all-string reduction), NOT a composed regex; runtime fixtures and compile-time output assertions stay synchronized. Participating schemas advertise a part descriptor through the construction-time `utils.setMetadata` channel (`~core.metadata`); a refined or chained schema part drops that descriptor and is rejected at construction. Issue code `templateLiteral:expected_template_literal` (payload `{ value, template }`) covers non-string input and non-matching strings; construction throws a `TypeError` for unsupported parts or a cross-product exceeding 10000 members.
+
 ## Structural initial schemas
 
 ### `object(shape)`

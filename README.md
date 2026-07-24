@@ -105,6 +105,13 @@ v.looseBigint().execute('0x10') // { value: 16n }
 
 They do not perform general JavaScript truthiness or unrestricted coercion.
 
+`templateLiteral(parts)` validates a string against an assembled TypeScript template-literal type and infers that exact output type, mirroring the TypeScript checker (not a regex) with cross-product union expansion:
+
+```ts
+v.templateLiteral(['ID-', v.number()]).execute('ID-42') // { value: 'ID-42' }, output `ID-${number}`
+v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]) // output `${number}px` | `${number}em` | `${number}rem`
+```
+
 ### Primitive conversions
 
 Native coercion transformations delegate directly to JavaScript:

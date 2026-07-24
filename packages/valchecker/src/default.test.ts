@@ -88,6 +88,7 @@ describe('default valchecker instance', () => {
 				.isMimeType(['application/pdf', 'text/*']),
 			ratings: v.record({ key: v.string(), value: v.number() }),
 			coordinate: v.tuple([v.string(), v.number(), '...', v.array(v.number())]),
+			ref: v.templateLiteral(['#', v.number()]),
 		})
 			.execute({
 				name: '  Ada  ',
@@ -118,6 +119,7 @@ describe('default valchecker instance', () => {
 				attachment,
 				ratings: { a: 1, b: 2 },
 				coordinate: ['origin', 0, 1, 2],
+				ref: '#42',
 			})
 
 		expect(result)
@@ -151,6 +153,7 @@ describe('default valchecker instance', () => {
 					attachment,
 					ratings: { a: 1, b: 2 },
 					coordinate: ['origin', 0, 1, 2],
+					ref: '#42',
 				},
 			})
 	})

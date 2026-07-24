@@ -1,9 +1,11 @@
 import type { IsEqual } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferExecutionContext, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
+import type { TemplateLiteralPartDescriptor } from '../templateLiteral/template-literal-part'
 import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 import { declareLiteralMembers, getLiteralMembers } from '../literal/literal-members'
+import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 interface UnionStepMethodContext {
 	createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
@@ -146,6 +148,12 @@ export const union = implStepPlugin<PluginDef>({
 		// A union advertises finite members only when every branch does; a single
 		// non-finite branch collapses the whole union to non-finite (undefined).
 		let combinedMembers: unknown[] | undefined = []
+		// Derive a `templateLiteral` part descriptor from the branches. Every
+		// normalized branch (including literal/null/undefined shorthands) carries
+		// its own descriptor when it is a supported part; if any branch lacks one
+		// (e.g. a refined schema, or a symbol literal), the union is not a usable
+		// template-literal part and no descriptor is attached.
+		let templatePartMembers: TemplateLiteralPartDescriptor[] | undefined = []
 		for (let index = 0; index < branches.length; index++) {
 			if (!Object.hasOwn(branches, index))
 				throw new TypeError(`union() branch at index ${index} is missing.`)
@@ -158,9 +166,18 @@ export const union = implStepPlugin<PluginDef>({
 				combinedMembers = undefined
 			else if (combinedMembers != null)
 				combinedMembers.push(...branchMembers)
+			if (templatePartMembers !== undefined) {
+				const descriptor = branch['~core']?.metadata?.[templateLiteralPartMarker] as TemplateLiteralPartDescriptor | undefined
+				if (descriptor === undefined)
+					templatePartMembers = undefined
+				else
+					templatePartMembers.push(descriptor)
+			}
 		}
 		if (combinedMembers != null)
 			declareLiteralMembers(setMetadata, combinedMembers)
+		if (templatePartMembers !== undefined)
+			setMetadata(templateLiteralPartMarker, { kind: 'union', members: templatePartMembers })
 		const len = branchExecutors.length
 		const branchesAreSynchronous = operationMode === 'sync'
 
