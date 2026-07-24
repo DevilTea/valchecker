@@ -1,21 +1,19 @@
 # Migrating to Valchecker 1.0
 
-This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases. Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative post-migration behavior.
+This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases. Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative behavior.
 
-## Migration checklist
+## Checklist
 
-1. Upgrade to Node.js 22 or newer and use ESM or dynamic `import()`.
-2. Replace renamed built-in methods and selective plugin imports.
+1. Upgrade to Node.js 22 or newer; packages are ESM-only. CommonJS must use dynamic `import()`.
+2. Replace renamed methods and selective plugin imports.
 3. Move built-in messages and optional callback configuration into trailing options objects.
 4. Review every `number()` and loose-primitive boundary.
-5. Audit `execute()` callers for synchronous or maybe-asynchronous completion.
-6. Add `.toAsync()` where an API requires an unconditional native promise.
-7. Review structural first-issue behavior and add `collectAllIssues: true` where complete collection is required.
-8. Update issue-code, category, payload, path, context, and message handling.
-9. Remove imports of accidental implementation exports.
-10. Run installed-package consumer tests, not only workspace source tests.
+5. Audit `execute()` callers for synchronous or maybe-asynchronous completion; add `.toAsync()` where every call must return a native promise.
+6. Add `collectAllIssues: true` where complete structural issue collection is required.
+7. Update issue codes, categories, payloads, paths, contexts, and message handling.
+8. Remove accidental implementation imports and test the installed package.
 
-## Step messages use options objects
+## Messages and options
 
 A message-bearing built-in keeps at most one required semantic operand positional. Optional configuration and `message` belong to one trailing options object.
 
@@ -29,34 +27,28 @@ v.number().isAtLeast(0, { message: 'Must be non-negative.' })
 v.array(v.string()).toFiltered(predicate, { message: 'Filter failed.' })
 ```
 
-## Structural schemas stop after the first recoverable failure
+## Structural issue collection
 
 `array()`, `set()`, `map()`, `object()`, `strictObject()`, `looseObject()`, and `intersection()` stop after the first recoverable structural or child failure by default. A failing child may still return multiple issues from its own execution; the parent does not continue to later siblings, items, entries, or branches.
-
-Preserve complete collection explicitly:
 
 ```ts
 const schema = v.object({
 	name: v.string(),
 	age: v.number(),
 }, { collectAllIssues: true })
-```
 
-The same option applies to arrays, Sets, strict/loose objects, and intersections. `map()` keeps all configuration in its required object:
-
-```ts
-const schema = v.map({
+const mapSchema = v.map({
 	key: v.string(),
 	value: v.number(),
 	collectAllIssues: true,
 })
 ```
 
-Internal issues are always fatal. `union()` and `variant()` are not changed by this option.
+Internal issues always stop later work. `union()` and `variant()` are not changed by this option.
 
-## Built-in step renames
+## Renamed built-ins
 
-Built-in names now expose their pipeline role: initial schemas use nouns, validations use `isXxx`, and concrete transformations use `toXxx`. Generic `check()` and `transform()` remain unchanged.
+Initial schemas use nouns, validations use `isXxx`, and concrete transformations use `toXxx`. Generic `check()` and `transform()` remain unchanged.
 
 | Before | After |
 | --- | --- |
@@ -74,11 +66,9 @@ Built-in names now expose their pipeline role: initial schemas use nouns, valida
 
 No compatibility aliases are provided. Selective instances must rename imported plugin values as well.
 
-## Issue codes and payloads
+## Issue contracts
 
-Issue codes use the public step name. Update localization maps, monitoring, snapshots, and API clients.
-
-Examples:
+Issue codes use the public step name. Examples:
 
 | Before | After |
 | --- | --- |
@@ -90,37 +80,21 @@ Examples:
 | `transform:failed` | `transform:callback_failed` |
 | `toBigint:invalid_bigint` | `toBigint:conversion_failed` |
 
-Numeric bounds use `{ target, value, minimum }` or `{ target, value, maximum }`. Length bounds use qualified keys such as `minimumLength`, `maximumLength`, and snapshot the observed `length`.
+Numeric bounds use `minimum`/`maximum`; length and size bounds use qualified keys such as `minimumLength` and `maximumSize`, and snapshot the observed length or size.
 
-Callback result failures remain validation issues; callback throws and rejections are operation issues:
+Callback negative results remain validation issues. Throws and rejections are operation issues:
 
-| Step | Issue | Payload |
-| --- | --- | --- |
-| `check()` returned `false` or a string | `check:failed` | `{ reason, value, returnedMessage? }` |
-| `check()` threw or rejected | `check:callback_failed` | `{ phase, value, error }` |
-| `transform()` threw or rejected | `transform:callback_failed` | `{ phase, value, error }` |
-| `toFiltered()` predicate threw | `toFiltered:callback_failed` | `{ value, item, index, error }` |
-| `toSorted()` comparator threw | `toSorted:callback_failed` | `{ value, left, right, error }` |
-| `toString()` threw | `toString:conversion_failed` | `{ value, error }` |
+- `check:failed` — `{ reason, value, returnedMessage? }`
+- `check:callback_failed` — `{ phase, value, error }`
+- `transform:callback_failed` — `{ phase, value, error }`
+- `toFiltered:callback_failed` — `{ value, item, index, error }`
+- `toSorted:callback_failed` — `{ value, left, right, error }`
 
-`toJSONString()` distinguishes invalid data from execution failure:
-
-- `toJSONString:unserializable` is `validation` with `{ reason, value, at, valueType? }`.
-- `toJSONString:serialization_failed` is `operation` with `{ value, at, error }`.
-
-`toNumber:conversion_failed` and `toBigint:conversion_failed` are operation issues. `toJSONValue:invalid_json` remains validation because it represents malformed input.
-
-`toString()` now receives radix through its options object:
-
-```ts
-v.number().toString({ radix: 16 })
-```
-
-It delegates to the value's own `toString` method; it does not call `String(value)`.
+`toJSONString:unserializable` is validation; `toJSONString:serialization_failed`, `toNumber:conversion_failed`, and `toBigint:conversion_failed` are operation issues. `toJSONValue:invalid_json` remains validation.
 
 ## Primitive semantics
 
-`number()` now matches the TypeScript primitive and checks only `typeof value === 'number'`. It accepts `NaN`, positive infinity, negative infinity, and negative zero.
+`number()` accepts every JavaScript number, including `NaN`, infinities, and negative zero. Add policy explicitly:
 
 ```ts
 const percentage = v.number()
@@ -129,23 +103,13 @@ const percentage = v.number()
 	.isAtMost(100)
 ```
 
-A named validation enforces only its named condition. `isAtLeast(0)` accepts positive infinity; combine it with `isFinite()` when required.
+A named validation enforces only its stated condition. `isAtLeast(0)` accepts positive infinity.
 
-Loose primitives accept the primitive or the corresponding TypeScript-template-compatible string representation, then normalize output. They are not unrestricted constructor coercions.
+Loose primitives accept the primitive or the corresponding TypeScript-template-compatible string representation and normalize output. They are not unrestricted constructor coercions.
 
-```ts
-v.looseNumber().execute('1e3') // { value: 1000 }
-v.looseBoolean().execute('false') // { value: false }
-v.looseBigint().execute('-0x10') // { value: -16n }
-```
+## Execution mode
 
-Review counter-intuitive grammar such as whitespace-only loose numbers, radix strings, and rejected empty strings.
-
-## ESM and execution mode
-
-Published packages are ESM-only and require Node.js 22 or newer. Synchronous `require('valchecker')` is unsupported; CommonJS can use dynamic import.
-
-A synchronous schema returns directly. A callback-driven schema returns a promise only when asynchronous work is reached, so an earlier type failure may remain synchronous.
+A synchronous schema returns directly. A callback-driven schema returns a promise only when async work is reached, so an earlier failure may remain synchronous.
 
 ```ts
 const schema = v.string().check(async value => value.length > 0)
@@ -154,21 +118,18 @@ schema.execute('value') // Promise<ExecutionResult<string>>
 schema.execute(42) // direct early failure
 ```
 
-Awaiting either is safe. Append `.toAsync()` when every invocation must return a native promise. PromiseLike values, including custom thenables and cross-realm promises, are assimilated.
+Awaiting either is safe. `.toAsync()` forces every invocation to return a native promise. PromiseLike values are assimilated.
 
-## Composition changes
+## Composition and recovery
 
-- `union()` returns the first successful branch's transformed output. Internal branch issues are fatal and stop branch fallback.
-- `variant()` directly selects one branch through an own discriminator and records branch provenance in `issue.context`.
-- `intersection()` recursively composes compatible plain-object outputs. Distinct class, `Date`, `Map`, or other non-plain instances conflict unless they are the same reference.
-- Declared object fields are read from own properties only. Missing required fields use the variant-specific `missing_key` issue; present `undefined` still runs the child schema.
-- `object()` omits unknown output properties, `strictObject()` rejects unknown enumerable own string and symbol keys, and `looseObject()` preserves unknown own properties and descriptors.
-- Optional one-element tuple fields still materialize `undefined` in output when absent.
-- `fallback()` recovers validation and operation failures only. Internal issues bypass its callback. A throwing or rejecting callback appends operation issue `fallback:failed` after the original issues.
+- `union()` returns the first successful transformed output; internal branch issues are fatal.
+- `variant()` selects one branch from an own discriminator and records provenance in `issue.context`.
+- `intersection()` composes compatible plain-object outputs. Incompatible outputs fail with `intersection:conflicting_outputs`.
+- Declared object fields are read from own properties only. Present `undefined` still runs the child schema.
+- `object()` omits unknown output properties, `strictObject()` rejects unknown enumerable own keys, and `looseObject()` preserves unknown own properties.
+- `fallback()` recovers validation and operation failures only; internal issues bypass its callback. A callback throw/rejection appends `fallback:failed` after the original issues.
 
 ## Public issue shape and messages
-
-Every public issue includes:
 
 ```ts
 interface Issue {
@@ -181,30 +142,17 @@ interface Issue {
 }
 ```
 
-Failure results use a non-empty tuple: `[Issue, ...Issue[]]`.
+Failure results use `[Issue, ...Issue[]]`.
 
-Message priority is:
+Message priority is step message, nearest enclosing structure, outer structures, originating instance global resolver, step default, then `"Invalid value."`.
 
-1. originating step message,
-2. nearest enclosing structure message,
-3. further enclosing structure messages,
-4. originating instance global resolver,
-5. originating step default,
-6. `"Invalid value."`.
+Structures clone child issues while applying path mapping. Union and variant preserve child data paths and append branch provenance to `context`.
 
-Structures clone child issues while applying their documented path mapping. Union and variant preserve the child data path and append branch provenance to `context`. Frozen or reused child issues are supported.
+## Public API and Standard Schema
 
-## Public API cleanup
+Application code imports from `valchecker`. Plugin authors use root exports from `@valchecker/internal`, not source paths. Every schema exposes `~standard` for Standard Schema V1; native application code can continue to use `execute()` for complete Valchecker issues.
 
-Application code imports from `valchecker`. Plugin authors use root exports from `@valchecker/internal`, not source paths. Accidental implementation exports such as `noop`, `returnTrue`, `isPromiseLike`, `createPipeExecutor`, `handleMessage`, `prependIssuePath`, and `resolveMessagePriority` are no longer public.
-
-Plugin method names must be strings, map to functions, remain unique, avoid core method names, and not be `then`. Symbol method names are rejected.
-
-## Standard Schema
-
-Every schema exposes `~standard` for Standard Schema V1. Native application code can continue to use `execute()` for complete Valchecker issue payloads. `use(schema)` preserves delegated output, issue types, paths, and maybe-async behavior.
-
-## Verification after migration
+## Verification
 
 ```bash
 pnpm install --frozen-lockfile
@@ -218,6 +166,4 @@ pnpm test:coverage
 pnpm docs:build
 ```
 
-Also test an installed tarball or registry package under the production module resolution. Workspace imports can hide missing files, invalid export maps, and dependency rewrite problems.
-
-When reporting release-candidate issues, include exact Valchecker, Node.js, and TypeScript versions; module resolution; a minimal schema and input; actual and expected results; and whether execution used `execute()` or `~standard`.
+Test an installed tarball or registry package under production module resolution; workspace imports can hide missing files and export-map errors.
