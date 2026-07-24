@@ -2,9 +2,9 @@
 
 These steps provide generic validation, arbitrary transformation, recovery, delegation, recursion, type assertions, and execution-mode control.
 
-## `check<AddedIssue = never>(callback, message?)`
+## `check<AddedIssue = never>(callback, options?)`
 
-`check()` is the generic validation escape hatch. The callback may return `true`, `false`, a failure message, a type-guard result, or a supported `PromiseLike` equivalent.
+`check()` is the generic validation escape hatch. Under its supported callback contract, `true`, `undefined`/`void`, or a value returned by `utils.narrow()` passes. Returning `false` or any string—including an empty string—fails. The callback and its supported results may be direct or `PromiseLike`; other return types require bypassing the TypeScript contract and are unsupported.
 
 Built-in issues:
 
@@ -63,7 +63,7 @@ v.number()
 	.isAtLeast(0)
 ```
 
-## `transform(fn, message?)`
+## `transform(fn, options?)`
 
 `transform()` is the generic arbitrary-output escape hatch. The inferred output follows the callback result. A thrown or rejected callback emits the operation issue `transform:callback_failed` with `{ phase, value, error }`.
 
@@ -73,9 +73,9 @@ const schema = v.string()
 	.transform(value => ({ value }))
 ```
 
-## `fallback(getValue)`
+## `fallback(getValue, options?)`
 
-`fallback()` recovers from any earlier failure in the current pipeline by supplying a replacement value.
+`fallback()` recovers earlier `validation` and `operation` failures in the current pipeline by supplying a replacement value. An `internal` issue is fatal and bypasses the fallback callback.
 
 ```ts
 const safeNumber = v.number()
@@ -86,7 +86,7 @@ safeNumber.execute(-5) // { value: 0 }
 safeNumber.execute('invalid') // { value: 0 }
 ```
 
-A fallback callback may return direct or asynchronous values according to its step contract.
+The fallback result must be assignable to the pipeline's current output type. It may be direct or `PromiseLike`; a callback whose return type is definitely synchronous keeps a synchronous type-level mode, while a promise-like result makes the schema maybe-async.
 
 ```ts
 const config = v.string()
@@ -223,10 +223,14 @@ const v = createValchecker({
 
 Message priority:
 
-1. per-step message,
-2. global resolver,
-3. built-in default,
-4. `"Invalid value."`.
+1. originating step message,
+2. nearest enclosing structure message,
+3. further enclosing structure messages,
+4. originating instance global resolver,
+5. originating built-in default,
+6. `"Invalid value."`.
+
+A throwing message handler becomes a `core:message_exception` internal issue at the public boundary.
 
 ```ts
 v.number()
@@ -249,4 +253,4 @@ else {
 }
 ```
 
-Validation failures are returned values. Applications that prefer exceptions may build a wrapper around `execute()` while retaining structured issues.
+Validation failures are returned values with a non-empty issue tuple. Built-in callback execution failures are normalized into their documented operation issues; unexpected reached step failures are normalized into core internal issues. Schema-construction misuse may still throw synchronously.

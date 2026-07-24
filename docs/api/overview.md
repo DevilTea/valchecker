@@ -77,9 +77,12 @@ They do not perform unrestricted JavaScript coercion. In accordance with TypeScr
 - `strictObject(shape)` — validates declared own properties and rejects unknown enumerable own string and symbol keys
 - `looseObject(shape)` — validates declared own properties and preserves unknown own properties
 - `array(elementSchema)` — validates and transforms each array element
+- `tuple(elements)` — validates positional arrays with an optional rest region
+- `set(itemSchema)` — validates and transforms Set items
+- `map({ key, value })` — validates and transforms Map keys and values
 - `record({ key, value })` — validates and transforms every own enumerable entry (`Record<K, V>`); finite literal-union keys become an all-required, exhaustive object
-- `tuple(elements)` — validates a fixed-shape array positionally, with an optional `'...'` rest region
 - `union(schemas)` — returns the first successful branch's transformed output
+- `variant({ discriminator, variants })` — directly selects one configured branch
 - `intersection(schemas)` — composes compatible branch outputs
 - `instance(constructor)` — validates a class instance
 - `file()` / `blob()` — validate a `File` or `Blob`, with feature-detected globals
@@ -101,15 +104,18 @@ const schema = v.object({
 - `isMultipleOf(divisor)` — number or bigint divisibility
 - `isInteger()` / `isSafeInteger()` / `isFinite()` / `isNaN()` — explicit number policies
 - `isLengthAtLeast(length)` / `isLengthAtMost(length)` / `isLengthExactly(length)` — length constraints
-- `isEmpty()` / `isNotEmpty()` — empty and non-empty length-bearing values
+- `isEmpty()` / `isNotEmpty()` — empty and non-empty values exposing numeric `length` or `size`
 - `isStartingWith(prefix)` / `isEndingWith(suffix)` — string prefix and suffix
-- `isIncluding(value, options?)` — native string or array inclusion semantics
+- `isIncluding(value, options?)` — native string, array, or Set inclusion semantics
+- `isIncludingKey(value)` / `isIncludingValue(value)` — Map membership
+- `isSizeAtLeast(size)` / `isSizeAtMost(size)` / `isSizeExactly(size)` — collection/file/blob size constraints
 - `isMatching(pattern)` — regular-expression matching with deterministic state reset
 - `isMimeType(types)` — matches a value's `type` against allowed MIME types, with `image/*` wildcards
 - string-format validators — `isEmail()`, `isUrl()`, `isUuid()`, `isIp()`, `isIsoDate()` / `isIsoTime()` / `isIsoDateTime()`, `isJwt()`, `isEmoji()`, `isHex()`, `isMac()`, `isHostname()`, `isBase64()` / `isBase64Url()`, `isCuid2()`, `isUlid()`, `isNanoid()` (see [String formats](./formats.md))
 - `isEqualTo(value)` / `isOneOf(values)` — primitive `Object.is` checks with output narrowing
 - `isDefined()` / `isNonNull()` / `isNonNullish()` — nullish output narrowing
-- `check(predicate)` — generic custom validation escape hatch
+- `json(options?)` — validate that the current string is parseable JSON while preserving the string
+- `check(predicate, options?)` — generic custom validation escape hatch
 
 Each validation step checks only the condition expressed by its name. For example, `isGreaterThan(0)` accepts positive infinity; use `isFinite().isGreaterThan(0)` when both constraints are required.
 
@@ -130,17 +136,21 @@ Each validation step checks only the condition expressed by its name. For exampl
 - `toBoolean()` — native `Boolean(value)` conversion after any non-boolean output
 - `toBigint(options?)` — native `BigInt(value)` conversion after any non-bigint output
 - `toSafeNumber(options?)` — bigint to number only within the safe integer range
-- `toDate(options?)` — `Date` from epoch milliseconds or an ISO string, after a `string | number` output
+- `toDate(options?)` — `Date` from epoch milliseconds or any string accepted by `new Date(value)`, after a `string | number` output
 - `toMappedBoolean(options)` — explicit true/false value mappings for string, number, or bigint
 - `toString()` — convert a supported value through its `toString` method
 - `toSorted(options?)` — sorted array output
-- `toFiltered(predicate, options?)` — filtered array output
-- `toMapped(mapper, options?)` — mapped array output with structured callback failures
+- `toFiltered(predicate, options?)` — filtered array or Set output
+- `toMapped(mapper, options?)` — mapped array or Set output with structured callback failures; Set outputs remain unique
 - `toSliced(start, end?)` — sliced output
 - `toSplit(separator, limit?)` — split string output
 - `toLength()` — length output
 - `toJSONValue(options?)` — parse a JSON string
 - `toJSONString(options?)` — stringify a supported value
+- `toSize()` — extract a `size` value
+- `toArray()` — convert a Set to an item array
+- `toKeys()` / `toValues()` / `toEntries()` — explicit Map representations
+- `toMappedKeys()` / `toMappedValues()` — Map callback transforms
 - `toAsync()` — force the complete schema to return a native promise
 
 Native coercion steps deliberately follow JavaScript semantics. For example, `string().toNumber()` may produce `NaN`, and `string().toBoolean()` converts the non-empty string `'false'` to `true`. Native exceptions from `Number()` and `BigInt()` become structured issues. Use explicit validation or policy conversions when a narrower contract is required.
@@ -149,11 +159,9 @@ Identity conversions are not exposed: `number().toNumber()`, `boolean().toBoolea
 
 `toMapped()` follows synchronous `Array.prototype.map` semantics. A mapper's returned promise remains an array item; it is not awaited. Mapper exceptions become `toMapped:callback_failed` operation issues, while failures outside the mapper remain core internal failures.
 
-`json()` is an initial validator for JSON-compatible values, not a transformation.
-
 ## Flow control and type utilities
 
-- `fallback(getValue)` — recover from an earlier failure
+- `fallback(getValue, options?)` — recover earlier validation and operation failures; internal issues are fatal
 - `use(schema)` — delegate to another schema
 - `as<T>()` — compile-time assertion with no runtime validation
 - `generic<T>(factory)` — lazy or recursive schema construction
@@ -174,6 +182,11 @@ interface ExecutionIssue {
 	path: PropertyKey[]
 	payload: unknown
 	context?: IssueContext[]
+}
+
+interface IssueContext {
+	type: string
+	[key: string]: unknown
 }
 ```
 

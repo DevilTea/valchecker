@@ -200,7 +200,7 @@ Converts only values within JavaScript's safe integer range.
 
 ### `toDate(options?)`
 
-Converts a `number` (epoch milliseconds) or ISO `string` to a `Date` with `new Date(value)`. Available after a `string | number` output. A native exception, or a result that is an Invalid Date (for example from an unparseable string), becomes `toDate:conversion_failed` (`operation`). The payload `error` holds the thrown exception when the native conversion threw, and is `undefined` for an Invalid Date result.
+Converts a `number` (epoch milliseconds) or any `string` accepted by the host `Date` constructor to a `Date` with `new Date(value)`. Available after a `string | number` output. A native exception, or a result that is an Invalid Date (for example from an unparseable string), becomes `toDate:conversion_failed` (`operation`). The payload `error` holds the thrown exception when the native conversion threw, and is `undefined` for an Invalid Date result.
 
 **Issue code:** `toDate:conversion_failed`
 

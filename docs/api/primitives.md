@@ -66,7 +66,7 @@ Use `unknown()` as the safer starting point for narrowing, `use()`, `check()`, o
 
 Always fails.
 
-**Issue code:** `never:unexpected_value`
+**Issue code:** `never:expected_never`
 
 ### `null(options?)` and `undefined(options?)`
 
@@ -123,7 +123,7 @@ v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]) // output `${numbe
 
 Matching and inference follow the TypeScript checker exactly, including the leftmost, one-character, no-backtracking split rule for adjacent placeholders. For example `` `${string}x${number}` `` rejects `'axbx1'` (the leftmost `x` leaves `'bx1'` for `${number}`), and `` `${string}${number}` `` rejects `'abc1'` (the `${string}` slot captures a single character). `` `${string}${string}` `` reduces to plain `string`, matching TypeScript.
 
-Parts must be bare initial schemas of the supported kinds. A refined or chained schema (for example `string().toTrimmed()`), a symbol, a non-finite number, or a non-interpolatable schema throws a `TypeError` at construction. The eager cross-product is capped at 10000 members (TypeScript itself errors around 100000).
+Parts must be bare initial schemas of the supported kinds. A refined or chained schema (for example `string().toTrimmed()`), a symbol, a non-finite number, or a non-interpolatable schema throws a `TypeError` at construction. The eager cross-product is capped at 10000 members.
 
 ## Numeric validation
 
@@ -225,7 +225,7 @@ Failure payload: `{ value, expectedLength, length }`.
 
 ### `isEmpty(options?)` and `isNotEmpty(options?)`
 
-Check `length === 0` and `length > 0`.
+Check whether the observed numeric `length` or `size` is zero or greater than zero. The applicable property is read once and included in the failure payload as `length` or `size`.
 
 **Issue codes:** `isEmpty:expected_empty`, `isNotEmpty:expected_not_empty`
 
@@ -239,9 +239,9 @@ Follow the corresponding string methods.
 
 ### `isIncluding(value, options?)`
 
-For strings, checks `String.prototype.includes` and accepts optional `position`. For arrays, checks `Array.prototype.includes` and accepts optional `fromIndex`.
+For strings, checks `String.prototype.includes` and accepts optional `position`. For arrays, checks `Array.prototype.includes` and accepts optional `fromIndex`. For Sets, checks `Set.prototype.has` and accepts only message configuration.
 
-Array inclusion uses SameValueZero semantics, so `NaN` can match `NaN` and positive zero matches negative zero.
+Array and Set inclusion use SameValueZero semantics, so `NaN` can match `NaN` and positive zero matches negative zero.
 
 **Issue code:** `isIncluding:expected_including`
 
@@ -291,6 +291,14 @@ Each method is hidden once its excluded value is no longer possible. On `unknown
 
 **Issue codes:** `isDefined:expected_defined`, `isNonNull:expected_non_null`, `isNonNullish:expected_non_nullish`
 
+## JSON-string validation
+
+### `json(options?)`
+
+Validates that the current string can be parsed by `JSON.parse` and preserves the original string. It is a validation step available after a string output, not an initial schema and not the parsing transform. Use `toJSONValue()` when the successful output should become the parsed value.
+
+**Issue code:** `json:invalid_json` with payload `{ value, error }`.
+
 ## Generic validation
 
 `check(predicate, options?)` remains the generic validation escape hatch. It supports predicates, type guards, typed `addIssue()`, synchronous callbacks, and `PromiseLike` callbacks.
@@ -307,4 +315,3 @@ const schema = v.string()
 		message: ({ payload }) =>
 			`Expected ${payload.value} to start with ${payload.prefix}`,
 	})
-```

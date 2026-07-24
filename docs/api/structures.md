@@ -221,6 +221,8 @@ Map and Set outputs expose `isEmpty()`, `isNotEmpty()`, `isSizeAtLeast()`, `isSi
 
 Set membership uses `isIncluding(item)`. Map membership is explicit about the searched domain through `isIncludingKey(key)` and `isIncludingValue(value)`. All three membership forms use SameValueZero equality, so `NaN` matches `NaN` and `0` matches `-0`.
 
+**Issue codes:** `isSizeAtLeast:expected_size_at_least`, `isSizeAtMost:expected_size_at_most`, `isSizeExactly:expected_size_exactly`, `isIncluding:expected_including`, `isIncludingKey:expected_including_key`, and `isIncludingValue:expected_including_value`.
+
 ```ts
 const tags = v.set(v.string())
 	.isNotEmpty()
@@ -398,7 +400,7 @@ Equal primitives and the same non-plain reference are preserved. Distinct `Date`
 
 Output merging runs only when all branches succeed. Merge conflicts are singular structural failures because no later branch validation remains to collect.
 
-## `instance(constructor, message?)`
+## `instance(constructor, options?)`
 
 Validates with `instanceof`.
 

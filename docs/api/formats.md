@@ -57,8 +57,7 @@ identifiers are not accepted. Restrict to one family with `version` (`4` or
 
 ### `isIsoDate(options?)`, `isIsoTime(options?)`, `isIsoDateTime(options?)`
 
-Validate ISO 8601 shapes and reject impossible calendar values (for example
-`2026-02-30`) via a `Date` round-trip rather than a pattern alone.
+Validate the documented ISO 8601 shapes and reject impossible values. `isIsoDate` and the date portion of `isIsoDateTime` use a UTC calendar round-trip; time and offset fields are checked numerically against their allowed ranges.
 
 - `isIsoDate` — `YYYY-MM-DD`.
 - `isIsoTime` — `HH:MM:SS` with optional fractional seconds and no time-zone.
@@ -114,8 +113,7 @@ even-length policy.
 
 ### `isMac(options?)`
 
-EUI-48 MAC address as six colon- or hyphen-separated hexadecimal octets.
-Case-insensitive.
+EUI-48 MAC address as six hexadecimal octets, each followed by either `:` or `-` except the last. Matching is case-insensitive; the current pattern does not require the same separator at every position.
 
 **Issue code:** `isMac:expected_mac`
 
