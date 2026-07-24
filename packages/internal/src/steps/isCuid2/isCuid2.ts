@@ -14,7 +14,8 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Checks that the string is a CUID2 as produced by `@paralleldrive/cuid2`:
 	 * a lowercase base-36 string starting with a letter, 2 to 32 characters
-	 * long.
+	 * long. This is a pragmatic pattern capped at 32 characters, so cuid2 IDs
+	 * configured with a length greater than 32 are not accepted.
 	 *
 	 * ---
 	 *

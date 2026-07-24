@@ -5,6 +5,10 @@ function isCalendarDate(year: number, month: number, day: number): boolean {
 	if (month < 1 || month > 12 || day < 1 || day > 31)
 		return false
 	const date = new Date(Date.UTC(year, month - 1, day))
+	// `Date.UTC` maps years 0..99 to 1900..1999; `setUTCFullYear` does not,
+	// so correct the year before the round-trip check.
+	if (year >= 0 && year <= 99)
+		date.setUTCFullYear(year)
 	return date.getUTCFullYear() === year
 		&& date.getUTCMonth() === month - 1
 		&& date.getUTCDate() === day

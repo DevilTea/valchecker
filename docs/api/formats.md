@@ -34,8 +34,8 @@ These validators do more than match a pattern.
 
 Parses the string with the WHATWG `URL` constructor and checks the scheme
 against an allow-list. The default allow-list is `['http', 'https']`. Override
-it with `protocols` (scheme names without the trailing colon). The allowed
-protocols are included in the failure payload.
+it with `protocols` (scheme names without the trailing colon; matched
+case-insensitively). The allowed protocols are included in the failure payload.
 
 ```ts
 v.string()
@@ -139,7 +139,9 @@ Both accept the empty string.
 ### `isCuid2(options?)`
 
 A CUID2 as produced by `@paralleldrive/cuid2`: a lowercase base-36 string
-starting with a letter, 2–32 characters long.
+starting with a letter, 2–32 characters long. This is a pragmatic pattern
+capped at 32 characters, so cuid2 IDs configured with a length greater than 32
+are not accepted.
 
 **Issue code:** `isCuid2:expected_cuid2`
 

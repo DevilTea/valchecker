@@ -61,4 +61,11 @@ describe('isUrl step plugin', () => {
 		expect(schema.execute('https://example.com'))
 			.toMatchObject({ issues: [{ code: 'isUrl:expected_url' }] })
 	})
+
+	it('normalizes supplied protocols to lowercase', () => {
+		expect(v.string()
+			.isUrl({ protocols: ['HTTP'] })
+			.execute('http://example.com'))
+			.toEqual({ value: 'http://example.com' })
+	})
 })

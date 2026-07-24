@@ -10,6 +10,7 @@ Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` b
 
 ### Added
 
+- String-format validators: `isEmail`, `isUrl(options?)` (WHATWG `URL` parse with a case-insensitive scheme allow-list, default `['http', 'https']`), `isUuid`, `isNanoid`, `isCuid2`, `isUlid`, `isBase64`, `isBase64Url`, `isHex`, `isJwt`, `isIp(options?)` (optional `version` `4`/`6`), `isHostname`, `isMac`, `isEmoji`, `isIsoDate`, `isIsoTime`, and `isIsoDateTime`. Each validates its named string format and preserves the value, owning a single `<step>:expected_<format>` issue (for example `isEmail:expected_email`, `isUuid:expected_uuid`, `isIp:expected_ip`).
 - `@valchecker/internal` exports `runtimeExecutionStepDefMarker` (also re-exported from the public `valchecker` package), the shared step-plugin discovery symbol previously duplicated as a `Symbol.for()` string in `@valchecker/all-steps`.
 
 ### Changed

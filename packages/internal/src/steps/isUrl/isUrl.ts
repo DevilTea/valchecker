@@ -31,8 +31,8 @@ interface PluginDef extends TStepPluginDef {
 	 * Checks that the string parses as a URL via the WHATWG `URL` constructor
 	 * and that its scheme is in an allow-list. The default allow-list is
 	 * `['http', 'https']`; override it with the `protocols` option (scheme
-	 * names without the trailing colon). The allowed protocols are included in
-	 * the failure payload.
+	 * names without the trailing colon, matched case-insensitively). The
+	 * allowed protocols are included in the failure payload.
 	 *
 	 * ---
 	 *
@@ -66,7 +66,9 @@ export const isUrl = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const protocols = Object.freeze([...(options?.protocols ?? ['http', 'https'])])
+		const protocols = Object.freeze(
+			(options?.protocols ?? ['http', 'https']).map(protocol => protocol.toLowerCase()),
+		)
 		addSuccessStep(value => isUrlValue(value, protocols)
 			? success(value)
 			: failure(
