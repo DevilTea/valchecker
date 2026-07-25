@@ -17,7 +17,7 @@ This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for app
 
 A message-bearing built-in keeps at most one required semantic operand positional. Optional configuration and `message` belong to one trailing options object.
 
-```ts
+```text
 // Before
 v.number().isAtLeast(0, 'Must be non-negative.')
 v.array(v.string()).toFiltered(predicate, undefined, 'Filter failed.')
@@ -112,10 +112,11 @@ Loose primitives accept the primitive or the corresponding TypeScript-template-c
 A synchronous schema returns directly. A callback-driven schema returns a promise only when async work is reached, so an earlier failure may remain synchronous.
 
 ```ts
-const schema = v.string().check(async value => value.length > 0)
+const schema = v.string()
+	.check(async value => value.length > 0)
 
-schema.execute('value') // Promise<ExecutionResult<string>>
-schema.execute(42) // direct early failure
+const reachedCallback = schema.execute('value') // Promise<ExecutionResult<string>>
+const earlyFailure = schema.execute(42) // direct early failure
 ```
 
 Awaiting either is safe. `.toAsync()` forces every invocation to return a native promise. PromiseLike values are assimilated.
