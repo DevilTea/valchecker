@@ -76,6 +76,7 @@ export const toDate = implStepPlugin<PluginDef>({
 					customMessage: options?.message,
 					defaultMessage: 'Expected a value convertible to a valid Date.',
 				}))
+			}
 		})
 	},
 }, 'sync')

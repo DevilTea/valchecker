@@ -138,7 +138,7 @@ Each validation step checks only the condition expressed by its name. For exampl
 - `toSafeNumber(options?)` — bigint to number only within the safe integer range
 - `toDate(options?)` — `Date` from epoch milliseconds or any string accepted by `new Date(value)`, after a `string | number` output
 - `toMappedBoolean(options)` — explicit true/false value mappings for string, number, or bigint
-- `toString()` — convert a supported value through its `toString` method
+- `toString(options?)` — convert a supported value through its `toString` method
 - `toSorted(options?)` — sorted array output
 - `toFiltered(predicate, options?)` — filtered array or Set output
 - `toMapped(mapper, options?)` — mapped array or Set output with structured callback failures; Set outputs remain unique
@@ -157,7 +157,7 @@ Native coercion steps deliberately follow JavaScript semantics. For example, `st
 
 Identity conversions are not exposed: `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware API. A union or unknown output remains convertible when it is not already entirely the target primitive type.
 
-`toMapped()` follows synchronous `Array.prototype.map` semantics. A mapper's returned promise remains an array item; it is not awaited. Mapper exceptions become `toMapped:callback_failed` operation issues, while failures outside the mapper remain core internal failures.
+For arrays, `toMapped()` follows synchronous `Array.prototype.map` semantics. A mapper's returned promise remains an array item and is not awaited. The Set variant is also synchronous, preserves returned values as Set items, and rejects SameValueZero collisions. Mapper exceptions become `toMapped:callback_failed` operation issues, while failures outside the mapper remain core internal failures.
 
 ## Flow control and type utilities
 
