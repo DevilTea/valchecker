@@ -141,23 +141,18 @@ Every schema exposes `~standard` for Standard Schema V1 integrations. Public exp
 - [API Reference](https://deviltea.github.io/valchecker/api/overview)
 - [Complete migration guide](./MIGRATION.md)
 - [Support policy](./SUPPORT.md)
+- [Contributing](./CONTRIBUTING.md)
 - [Release process](./RELEASING.md)
 
 ## Development
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm build
-pnpm api:surface
-pnpm publint
-pnpm test:package
-pnpm lint
-pnpm typecheck
-pnpm test:coverage
-pnpm docs:build
+pnpm verify
 ```
 
-Follow `AGENTS.md` before opening a pull request.
+`pnpm verify` is the complete gate and runs the same commands as CI. See
+[Contributing](./CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
