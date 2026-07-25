@@ -74,9 +74,9 @@ interface PluginDef extends TStepPluginDef {
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? (options?: StepOptions<Meta['SelfIssue']>) => Next<
-				{ issue: Meta['SelfIssue'] },
-				this['CurrentValchecker']
-			>
+					{ issue: Meta['SelfIssue'] },
+					this['CurrentValchecker']
+				>
 			: never
 	>
 }
