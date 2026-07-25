@@ -1,11 +1,11 @@
 ---
 name: valchecker-expert
-description: Guide for using Valchecker schemas, state-aware steps, type inference, structured issues, async validation, and integrations.
+description: Use Valchecker schemas, state-aware steps, structured issues, async execution, selective registration, and TypeScript inference in application code.
 ---
 
 # Valchecker Expert Guide
 
-Use this skill when implementing application validation with Valchecker.
+Use this skill for application code that consumes Valchecker. Repository maintenance uses `valchecker-dev`.
 
 ## Quick start
 
@@ -13,161 +13,75 @@ Use this skill when implementing application validation with Valchecker.
 import { v } from 'valchecker'
 
 const userSchema = v.object({
-	name: v.string()
-		.toTrimmed()
-		.isNotEmpty(),
-	email: v.string()
-		.toLowercase(),
-	age: v.looseNumber()
-		.isFinite()
-		.isInteger()
-		.isAtLeast(0),
+	name: v.string().toTrimmed().isNotEmpty(),
+	email: v.string().toLowercase(),
+	age: v.looseNumber().isFinite().isInteger().isAtLeast(0),
 })
 
 const result = await userSchema.execute(input)
 
-if (v.isSuccess(result)) {
+if (v.isSuccess(result))
 	console.log(result.value)
-}
-else {
+else
 	console.error(result.issues)
-}
 ```
 
 ## Mental model
 
-Method names identify their role:
+- initial schemas use nouns: `string()`, `number()`, `object()`, `looseBoolean()`;
+- validations use `isXxx()` and preserve successful values;
+- concrete transformations use `toXxx()` and change representation;
+- generic escape hatches remain `check()` and `transform()`;
+- autocomplete narrows available methods as output type changes;
+- every fluent call creates a new reusable schema.
 
-- initial schemas use nouns: `string()`, `number()`, `object()`, `looseBoolean()`,
-- built-in validations use `isXxx()`: `isFinite()`, `isNotEmpty()`, `isLengthAtMost()`,
-- concrete transformations use `toXxx()`: `toTrimmed()`, `toSplit()`, `toJSONValue()`,
-- generic escape hatches remain `check()` and `transform()`.
+`number()` accepts every JavaScript number, including `NaN` and infinities. Add `isFinite()`, `isInteger()`, bounds, or other policy explicitly.
 
-Editor autocomplete narrows available methods as the current output type changes.
+Loose primitives accept the primitive or their supported TypeScript template-literal string representation and normalize to the primitive; they are not unrestricted constructor coercions.
 
-## Primitive semantics
+## Execution and results
 
-`number()` accepts every JavaScript number because it matches TypeScript `number`, including `NaN` and positive or negative infinity.
-
-```ts
-v.number().isFinite()
-v.number().isNaN()
-v.number().isInteger()
-```
-
-A named validation enforces only its stated condition. Combine constraints explicitly.
-
-Loose primitives accept a primitive or its TypeScript template-literal string representation and normalize the output:
+A reached callback can make a schema maybe-async; an earlier synchronous failure may still return directly. `await schema.execute(input)` is safe for either. Append `.toAsync()` only when every call must return a native promise.
 
 ```ts
-v.looseNumber() // number | `${number}` → number
-v.looseBoolean() // boolean | `${boolean}` → boolean
-v.looseBigint() // bigint | `${bigint}` → bigint
+type Result<Value, Issue>
+	= | { value: Value }
+		| { issues: [Issue, ...Issue[]] }
 ```
 
-They do not use unrestricted JavaScript coercion.
+Public issues contain `code`, `category`, `payload`, `message`, `path`, and optional `context`. Use `v.isSuccess()` and `v.isFailure()` rather than parsing messages.
 
-## Common schemas
+Message priority is step custom message, nearest enclosing structure message, further enclosing messages, originating instance global resolver, step default, then `"Invalid value."`.
 
-### Strings
-
-```ts
-const username = v.string()
-	.toTrimmed()
-	.toLowercase()
-	.isNotEmpty()
-	.isLengthAtLeast(3)
-	.isLengthAtMost(32)
-	.check(value => /^[a-z0-9_-]+$/.test(value))
-```
-
-### Numbers
-
-```ts
-const port = v.looseNumber()
-	.isFinite()
-	.isInteger()
-	.isAtLeast(1)
-	.isAtMost(65535)
-```
-
-### Arrays
-
-```ts
-const tags = v.array(v.string().toLowercase())
-	.isNotEmpty()
-	.isLengthAtMost(10)
-	.toSorted()
-```
-
-### JSON input
-
-```ts
-const config = v.string()
-	.toJSONValue()
-	.use(v.object({ port }))
-```
-
-### Async validation
-
-```ts
-const email = v.string()
-	.toLowercase()
-	.check(async (value) => {
-		const exists = await checkEmailExists(value)
-		return exists ? 'Email already exists' : true
-	})
-```
-
-A callback-driven schema can be maybe-async. Append `.toAsync()` when every invocation must return a native promise.
-
-## Results
-
-```ts
-type Result<T, Issue>
-	= | { value: T }
-		| { issues: Issue[] }
-```
-
-Each issue contains `code`, `message`, `path`, and `payload`. Prefer `v.isSuccess()` and `v.isFailure()` over parsing messages.
+`fallback()` recovers validation and operation failures. Internal issues are fatal and bypass the callback.
 
 ## Type inference
 
-Advanced type helpers are exported from `@valchecker/internal`:
+Application-facing type helpers are re-exported by `valchecker`:
 
 ```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
-
-type Input = InferInput<typeof userSchema>
-type Output = InferOutput<typeof userSchema>
+import type { InferInput, InferOutput } from 'valchecker'
 ```
 
-Transforms update output inference. One-element tuples mark object fields optional.
+Transforms update output inference. One-element tuples mark object fields optional and materialize `undefined` when absent. Plugin authors can use the semver-covered `@valchecker/internal` root for advanced plugin APIs.
 
-## Selective imports
+## Selective registration
 
 ```ts
-import {
-	createValchecker,
-	isAtLeast,
-	isFinite,
-	number,
-} from 'valchecker'
+import { createValchecker, isAtLeast, isFinite, number } from 'valchecker'
 
-const v = createValchecker({
-	steps: [number, isFinite, isAtLeast],
-})
+const v = createValchecker({ steps: [number, isFinite, isAtLeast] })
 ```
 
-Use selective instances for bundle-sensitive applications. The default `v` contains every built-in step.
+The default `v` registers all built-ins. Use selective instances for bundle-sensitive applications.
 
 ## References
 
 - [Setup](./references/setup.md)
-- [Core Concepts](./references/core-concepts.md)
-- [Type Inference](./references/type-inference.md)
-- [Common Patterns](./references/patterns.md)
-- [Error Handling](./references/error-handling.md)
+- [Core concepts](./references/core-concepts.md)
+- [Type inference](./references/type-inference.md)
+- [Common patterns](./references/patterns.md)
+- [Error handling](./references/error-handling.md)
 - [Performance](./references/performance.md)
-- [Step Reference](./references/step-reference.md)
+- [Step inventory](./references/step-reference.md)
 - [Documentation site](../../../docs/index.md)

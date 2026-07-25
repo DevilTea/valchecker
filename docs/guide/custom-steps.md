@@ -1,67 +1,44 @@
 # Custom Steps
 
-Custom step plugins extend Valchecker's state-aware fluent API while preserving runtime behavior, output inference, issue types, and tree-shaking.
+Custom step plugins extend Valchecker's state-aware fluent API while preserving runtime behavior, output and issue inference, operation mode, and tree-shaking.
 
-Use a custom plugin when a domain operation is reused broadly or deserves a discoverable named API. For one-off logic, prefer the generic `check()` or `transform()` escape hatches.
+Use a custom plugin for a reusable domain operation that deserves a named fluent method. Prefer `check()` or `transform()` for one-off callback logic.
 
-## Naming a custom step
+## Naming and issue contracts
 
-Follow the same conventions as built-ins when they fit:
+Follow built-in conventions when they fit:
 
 - initial schemas use nouns or noun phrases,
-- validations use natural `isXxx` boolean propositions,
+- validations use natural `isXxx` propositions,
 - concrete transformations use `toXxx`,
 - generic or flow-control operations use the most direct verb.
 
-For example, a positive-number validation should be `isPositive()`, not `positive()`.
-
-Issue codes use the public step name:
+Issue codes use the public method name:
 
 ```text
-isPositive:expected_positive
+<public-step-name>:<snake_case_description>
 ```
 
-`ExecutionIssue<'code', Payload>` defaults to the `validation` category. Use the third generic only when the failure is operational or internal:
-
-```ts
-type CallbackIssue = ExecutionIssue<
-	'toDomain:callback_failed',
-	{ value: Input, error: unknown },
-	'operation'
->
-```
-
-Every runtime issue created by `createIssue()` receives the declared category. Its `code`, `payload`, and non-default `category` are checked against `Meta.SelfIssue` at compile time.
-
-## Use `check()` first
-
-```ts
-const positive = v.number()
-	.check(value => value > 0, { message: 'Expected a positive number' })
-```
-
-Create a plugin when the operation needs reusable parameters, typed issue payloads, optimized runtime logic, or first-class editor discovery.
+`ExecutionIssue<'code', Payload>` defaults to category `validation`. Pass the third generic argument for `operation` or `internal` issues.
 
 ## Plugin architecture
 
-A built-in-style plugin has three layers:
+A normal plugin has three layers:
 
-1. `Meta` defines the public method name, valid current schema state, and self issue.
-2. `PluginDef` defines the state-aware TypeScript method signature.
-3. `implStepPlugin()` registers runtime behavior.
+1. `Meta` declares the public method name, valid current schema state, and issues owned by the method.
+2. `PluginDef` declares the state-aware TypeScript signature and public JSDoc.
+3. `implStepPlugin()` registers construction-time behavior and the default operation mode.
 
-## Validation plugin example
+## Synchronous validation example
 
-The following plugin adds `isPositive()` only after the pipeline output is a number.
-
-```ts
+````ts
 import type {
 	DefineExpectedValchecker,
 	DefineStepMethod,
 	DefineStepMethodMeta,
 	ExecutionIssue,
-	MessageHandler,
 	Next,
+	StepOptions,
 	TStepPluginDef,
 } from '@valchecker/internal'
 import { implStepPlugin } from '@valchecker/internal'
@@ -77,14 +54,26 @@ type Meta = DefineStepMethodMeta<{
 
 interface PluginDef extends TStepPluginDef {
 	/**
+	 * ### Description:
 	 * Checks that the number is greater than zero.
 	 *
-	 * Issue: `isPositive:expected_positive`
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * const schema = v.number()
+	 * 	.isPositive()
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isPositive:expected_positive'`: The number is not positive.
 	 */
 	isPositive: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
+			? (options?: StepOptions<Meta['SelfIssue']>) => Next<
 					{ issue: Meta['SelfIssue'] },
 					this['CurrentValchecker']
 				>
@@ -95,99 +84,60 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isPositive = implStepPlugin<PluginDef>({
 	isPositive: ({
-		utils: { addSuccessStep, success, createIssue, failure },
-		params: [message],
+		utils: { addSuccessStep, createIssue, failure, success },
+		params: [options],
 	}) => {
-		addSuccessStep(value => value > 0
-			? success(value)
-			: failure(
-					createIssue({
-						code: 'isPositive:expected_positive',
-						payload: { value },
-						customMessage: message,
-						defaultMessage: 'Expected a positive number.',
-					}),
-				))
-	},
-})
-```
+		addSuccessStep((value) => {
+			if (value <= 0) {
+				return failure(createIssue({
+					code: 'isPositive:expected_positive',
+					payload: { value },
+					customMessage: options?.message,
+					defaultMessage: 'Expected a positive number.',
+				}))
+			}
 
-Register and use it selectively:
+			return success(value)
+		})
+	},
+}, 'sync')
+````
+
+Register the plugin with the initial step it depends on:
 
 ```ts
 import { createValchecker, number } from 'valchecker'
 import { isPositive } from './isPositive'
 
-const v = createValchecker({
-	steps: [number, isPositive],
-})
-
-v.number()
+const v = createValchecker({ steps: [number, isPositive] })
+const schema = v.number()
 	.isPositive()
-	.execute(5) // { value: 5 }
-v.number()
-	.isPositive()
-	.execute(0) // failure
 ```
 
-## Parameters and typed payloads
+## Parameters
 
-A parameterized validation should expose the parameter in its issue payload:
+A message-bearing method keeps at most one required semantic operand positional. Optional configuration and `message` belong to one trailing options object.
 
 ```ts
-type Meta = DefineStepMethodMeta<{
-	Name: 'isMultipleOf'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
-	SelfIssue: ExecutionIssue<
-		'isMultipleOf:expected_multiple',
-		{ value: number, divisor: number }
-	>
-}>
+type Options = StepOptions<Meta['SelfIssue']>
 
-interface PluginDef extends TStepPluginDef {
-	isMultipleOf: DefineStepMethod<
-		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (
-					divisor: number,
-					message?: MessageHandler<Meta['SelfIssue']>,
-				) => Next<
-					{ issue: Meta['SelfIssue'] },
-					this['CurrentValchecker']
-				>
-			: never
-	>
-}
+// PluginDef method
+(divisor: number, options?: Options) => Next<
+	{ issue: Meta['SelfIssue'] },
+	this['CurrentValchecker']
+>
+
+// Runtime parameters
+params: [divisor, options]
 ```
 
-Runtime implementation. `createIssue()` is constrained by this plugin's `Meta.SelfIssue`, so misspelled codes and incompatible payloads are compile errors:
+Do not use direct positional messages. Snapshot mutable caller-owned configuration at schema construction when later mutation could alter validation.
 
-```ts
-/* @__NO_SIDE_EFFECTS__ */
-export const isMultipleOf = implStepPlugin<PluginDef>({
-	isMultipleOf: ({
-		utils: { addSuccessStep, success, createIssue, failure },
-		params: [divisor, message],
-	}) => {
-		addSuccessStep(value => value % divisor === 0
-			? success(value)
-			: failure(
-					createIssue({
-						code: 'isMultipleOf:expected_multiple',
-						payload: { value, divisor },
-						customMessage: message,
-						defaultMessage: `Expected a multiple of ${divisor}.`,
-					}),
-				))
-	},
-})
-```
+## Transformation example
 
-## Transformation plugin example
+A pure transformation patches the output and owns no issue:
 
-A concrete transformation changes the output type and uses a `toXxx` name:
-
-```ts
+````ts
 import type {
 	DefineExpectedValchecker,
 	DefineStepMethod,
@@ -203,10 +153,27 @@ type Meta = DefineStepMethodMeta<{
 }>
 
 interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Converts the string to Unicode code points.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * const schema = v.string().toCodePoints()
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * None.
+	 */
 	toCodePoints: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? () => Next<
+			? () =>
+				Next<
 					{ output: number[] },
 					this['CurrentValchecker']
 				>
@@ -217,146 +184,100 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const toCodePoints = implStepPlugin<PluginDef>({
 	toCodePoints: ({ utils: { addSuccessStep, success } }) => {
-		addSuccessStep(value =>
-			success([...value].map(character => character.codePointAt(0)!)),
+		addSuccessStep(
+			value => success([...value].map(character => character.codePointAt(0)!)),
 		)
 	},
-})
-```
+}, 'sync')
+````
 
-The next available methods are inferred from `number[]`, not `string`.
+Do not generalize this into “transformations cannot fail.” Callback transforms, native conversions, parsing, and serialization may own validation or operation issues.
 
-## Initial schema plugins
+## Async and operation modes
 
-An initial plugin is available only while the current output is still `any` or `unknown`. Built-in primitive steps use `IsExactlyAnyOrUnknown<InferOutput<...>>` to enforce this state.
+`implStepPlugin()` defaults unannotated plugins to `maybe-async`. Pass `'sync'` only when every registration inheriting the default cannot return a thenable. Individual `addStep()`, `addSuccessStep()`, and `addFailureStep()` registrations may override the mode with `'sync'`, `'maybe-async'`, or `'async'`.
 
-Initial plugins may normalize an explicitly documented input representation. For example, built-in `looseBoolean()` accepts `boolean | "true" | "false"` and outputs `boolean`; it does not perform unrestricted truthiness coercion.
+A callback-driven pipeline may still return a direct early failure before asynchronous work is reached. Users can append `.toAsync()` when every invocation must return a native promise.
 
-## Async and thenable work
+## Callback operation issues
 
-Step callbacks may return direct or supported `PromiseLike` values according to their declared contract.
+A thrown or rejected user/native callback is an `operation` issue:
 
 ```ts
-addSuccessStep(async (value) => {
-	const available = await repository.isAvailable(value)
-	return available
-		? success(value)
-		: failure(createIssue({
-				code: 'isAvailable:unavailable',
-				payload: { value },
-				defaultMessage: 'Value is unavailable.',
-			}))
-})
+type CallbackIssue = ExecutionIssue<
+	'toDomain:callback_failed',
+	{ phase: 'throw' | 'reject', value: Input, error: unknown },
+	'operation'
+>
 ```
 
-A callback-driven pipeline can be maybe-async because an earlier synchronous failure may prevent the callback from running. Users can append `.toAsync()` when every invocation must return a native promise.
+Pass `category: 'operation'` to `createIssue()` for that code. The code, category, and payload are checked against the current method's `Meta.SelfIssue`.
 
 ## Recovery plugins
 
-Use `addFailureStep()` only when the step is intentionally a recovery or flow-control operation:
+Use `addFailureStep()` only for an intentional recovery or flow-control operation. Internal issues are fatal and must not be hidden:
 
 ```ts
-addFailureStep(issues => success(createReplacement(issues)))
-```
-
-Do not use failure recovery to conceal ordinary validation constraints.
-
-## Implementation utilities
-
-The method implementation receives utilities such as:
-
-| Utility | Purpose |
-| --- | --- |
-| `addSuccessStep(fn)` | Run work while the pipeline is successful |
-| `addFailureStep(fn)` | Run recovery work while the pipeline is failed |
-| `success(value)` | Produce a successful step result |
-| `failure(issueOrIssues)` | Produce a failed step result |
-| `createIssue(options)` | Resolve and create a structured issue |
-| `setMetadata(key, value)` | Attach construction-time metadata to the schema being built (read back by well-known symbol; dropped on chaining) |
-
-Only root exports from `@valchecker/internal` are supported plugin API. Package-private source paths and unexported runtime helpers are not semver-covered.
-
-## Testing requirements
-
-Every built-in contribution should include:
-
-- success and failure cases,
-- exact issue code, payload, path, and default message,
-- custom message handling,
-- state-aware method availability,
-- output inference for transformations,
-- synchronous, asynchronous, and early-failure paths where relevant,
-- edge cases matching the documented runtime grammar,
-- a benchmark file,
-- 100% implementation coverage.
-
-Example:
-
-```ts
-import { createValchecker, number } from 'valchecker'
-import { describe, expect, it } from 'vitest'
-import { isPositive } from './isPositive'
-
-const v = createValchecker({ steps: [number, isPositive] })
-
-describe('isPositive', () => {
-	it('accepts positive numbers', () => {
-		expect(v.number()
-			.isPositive()
-			.execute(1))
-			.toEqual({ value: 1 })
-	})
-
-	it('returns a structured issue', () => {
-		expect(v.number()
-			.isPositive()
-			.execute(0))
-			.toEqual({
-				issues: [{
-					code: 'isPositive:expected_positive',
-					message: 'Expected a positive number.',
-					path: [],
-					payload: { value: 0 },
-				}],
-			})
-	})
+addFailureStep((issues) => {
+	if (issues.some(issue => issue.category === 'internal'))
+		return failure(issues)
+	return success(createReplacement(issues))
 })
 ```
 
-## Repository integration checklist
+## Issue drafts and propagation
 
-When contributing a built-in step:
+`createIssue()` creates an internal draft. It does not eagerly execute dynamic message handlers. Nested structures finish `path`, optional `context`, and enclosing message scopes; public `execute()` and Standard Schema validation finalize the issue exactly once.
 
-1. implement the plugin and tree-shaking annotation,
-2. add focused tests and benchmarks,
-3. export it from `packages/internal/src/steps/index.ts`,
-4. update `api-surface.json`,
-5. update both README files and every relevant VitePress page,
-6. update repository agent skills and references,
-7. update changelog and migration documentation for public changes,
-8. run build, lint, typecheck, full coverage, installed-consumer tests, docs build, and relevant benchmarks,
-9. search the entire repository for superseded public names and issue codes.
+Use the issue utilities supplied through `utils`:
 
-`allSteps` discovers exported plugin objects through the runtime marker; do not manually maintain a duplicate static list.
+- `prependIssuePath(issue, path, messageScope?)`
+- `replaceIssuePath(issue, path, messageScope?)`
+- `appendIssueContext(issue, context)`
 
-## Plugin name restrictions
+Do not spread a draft issue on a propagation path. Its unresolved message metadata is stored on a non-enumerable symbol and would be lost.
+
+## Construction metadata
+
+`setMetadata(key, value)` writes symbol-keyed final-step metadata to `~core.metadata`. A fresh construction utility object is created for each fluent call, so the next step drops metadata unless it explicitly writes it again.
+
+The declaring module owns the symbol and any required snapshot or freeze of mutable metadata. Package-private symbols are not barrel-exported.
+
+## Supported plugin API
+
+Use only root exports from `@valchecker/internal`. Package-private source paths and unexported runtime helpers are not semver-covered.
 
 A plugin method name must:
 
 - be a string,
 - map to a function implementation,
-- be unique among registered steps,
+- be unique among registered methods,
 - not collide with a core schema method,
 - not be `then`.
 
-Symbol method names are rejected so schemas cannot accidentally become promise-like or produce inconsistent method registration.
+Symbol method names are rejected.
 
-## Issue and message finalization
+## Testing and repository integration
 
-`createIssue()` creates an internal issue draft. Do not resolve or cache user-facing messages yourself. Nested structures finish `path` and optional `context`, and Valchecker resolves the message exactly once when `execute()` or `~standard.validate()` returns publicly.
+A built-in contribution must protect its observable contracts in the owning test layers:
 
-A structure plugin that intentionally provides a message scope for delegated child issues may pass that handler as the third argument to `prependIssuePath(issue, path, message)`. The nearest enclosing scope wins. This is advanced infrastructure behavior; ordinary validation plugins should use `createIssue()` only.
+- distinct success and failure semantics,
+- every owned issue code, category, payload, default message, and custom message,
+- exact boundaries and relevant JavaScript edge cases,
+- output and issue inference,
+- operation mode and fluent method availability,
+- async, ordering, collect-all, or early-failure behavior only where applicable,
+- a representative benchmark file.
 
-When a plugin must rewrite a child path rather than prepend to it — for example remapping a rest-region index into an absolute tuple index — use `replaceIssuePath(issue, path, message)`. It behaves like `prependIssuePath` for message-scope and draft-metadata handling but replaces the existing `path` outright instead of prepending. It is also exposed only through `utils`.
+Coverage is a guardrail, not the test plan. Do not add fixtures solely to execute uncovered lines.
 
-Registered plugin issues are collected through `Meta.SelfIssue`, which is why a selective instance's global message callback and message map can provide exact issue-code and payload autocomplete. Dynamic issues created only inside a later schema cannot retroactively alter the global handler type of an existing Valchecker instance.
+When adding or changing a built-in step:
+
+1. update implementation, colocated tests, benchmark, and local export;
+2. export it from `packages/internal/src/steps/index.ts`;
+3. update and verify `api-surface.json` for intentional public export changes;
+4. verify default and selective instances and relevant tree-shaking scenarios;
+5. update README, VitePress, skills, changelog, and migration material where applicable;
+6. run the repository checks required by `AGENTS.md` and the development skill.
+
+`allSteps` discovers exported plugin objects through the runtime marker. Do not maintain a duplicate static list.

@@ -135,13 +135,20 @@ Validation failures are returned as data:
 ```ts
 type Result<T, Issue>
 	= | { value: T }
-		| { issues: Issue[] }
+		| { issues: [Issue, ...Issue[]] }
 
 interface Issue {
 	code: string
+	category: 'validation' | 'operation' | 'internal'
 	message: string
 	path: PropertyKey[]
 	payload: unknown
+	context?: IssueContext[]
+}
+
+interface IssueContext {
+	type: string
+	[key: string]: unknown
 }
 ```
 
@@ -155,7 +162,7 @@ v.number()
 // payload: { target: 'number', value: 5, minimum: 10 }
 ```
 
-Nested schemas prepend paths by creating new issue objects rather than mutating child issues.
+Structures clone child issues while applying their documented path mapping. Union and variant preserve the child data path and append branch provenance to `context`.
 
 ## Sync and maybe-async execution
 
@@ -190,8 +197,9 @@ const user = v.object({
 - `object()` validates declared own properties and omits unknown output properties.
 - `strictObject()` rejects unknown enumerable own string and symbol keys.
 - `looseObject()` preserves unknown own properties.
-- `array()` validates and transforms every element.
+- `array()`, `tuple()`, `set()`, `map()`, and `record()` validate and transform nested values.
 - `union()` returns the first successful branch's transformed output.
+- `variant()` dispatches directly from an own discriminator property.
 - `intersection()` composes compatible branch outputs.
 
 A one-element tuple marks an object field optional.

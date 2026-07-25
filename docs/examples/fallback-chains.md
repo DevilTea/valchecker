@@ -51,7 +51,7 @@ const configSchema = v.object({
 })
 ```
 
-Any earlier failure in a field pipeline triggers its fallback, including initial type failure and later constraint failure.
+Earlier validation and operation failures in a field pipeline trigger its fallback, including initial type failure and later constraint failure. Internal issues are fatal and bypass the fallback callback.
 
 ## Form normalization
 
@@ -108,7 +108,7 @@ const schema = v.string()
 	.fallback(() => ({ items: [] }))
 ```
 
-Each fallback handles failures accumulated before its own position. It does not guard steps appended later.
+Each fallback handles recoverable validation and operation failures accumulated before its own position. It does not guard steps appended later, and it never recovers an internal issue.
 
 ## Async fallback
 
@@ -122,7 +122,7 @@ const profile = v.string()
 	})
 ```
 
-The invocation becomes asynchronous only when that callback is reached. Append `.toAsync()` when every invocation must return a native promise.
+The invocation becomes asynchronous only when that callback is reached. Append `.toAsync()` when every invocation must return a native promise. If the callback throws or rejects, the original issues remain and `fallback:failed` is appended as an operation issue.
 
 ## Guidance
 

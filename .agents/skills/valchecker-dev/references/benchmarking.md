@@ -1,8 +1,10 @@
 # Benchmarking Guide
 
-Every built-in step implementation requires a benchmark file. Benchmark semantic behavior, not only the fastest success path.
+Every built-in step directory has a colocated `<step>.bench.ts`. A benchmark must preserve the public semantic contract and cover representative success and failure work rather than only the cheapest path.
 
-## File template
+## Focused Vitest benchmarks
+
+Construct reusable schemas outside the benchmark callback unless construction is the subject:
 
 ```ts
 import { bench, describe } from 'vitest'
@@ -12,119 +14,81 @@ const v = createValchecker({ steps: [number, isAtLeast] })
 const schema = v.number().isAtLeast(0)
 
 describe('isAtLeast benchmarks', () => {
-	bench('success above boundary', () => {
-		schema.execute(42)
-	})
-
-	bench('success at boundary', () => {
-		schema.execute(0)
-	})
-
-	bench('failure below boundary', () => {
-		schema.execute(-1)
-	})
+	bench('success at boundary', () => schema.execute(0))
+	bench('success above boundary', () => schema.execute(42))
+	bench('failure below boundary', () => schema.execute(-1))
 })
 ```
 
-Construct schemas outside benchmark callbacks unless schema construction itself is the scenario being measured.
-
-## Loose primitive benchmark
-
-```ts
-import { bench, describe } from 'vitest'
-import { createValchecker, looseNumber } from '../..'
-
-const schema = createValchecker({ steps: [looseNumber] })
-	.looseNumber()
-
-describe('looseNumber benchmarks', () => {
-	bench('number pass-through', () => {
-		schema.execute(42)
-	})
-
-	bench('decimal string normalization', () => {
-		schema.execute('42')
-	})
-
-	bench('prefixed string normalization', () => {
-		schema.execute('0x10')
-	})
-
-	bench('invalid string', () => {
-		schema.execute('invalid')
-	})
-})
-```
-
-Include representative paths rather than only the cheapest grammar branch.
-
-## Transformation benchmark
-
-```ts
-const schema = v.string().toSplit(',')
-
-bench('split three fields', () => {
-	schema.execute('a,b,c')
-})
-```
-
-For JSON transformations, benchmark valid input and issue-producing invalid input separately.
-
-## Running benchmarks
+Run focused or complete Vitest benchmarks with the root script:
 
 ```bash
+pnpm bench packages/internal/src/steps/isAtLeast
 pnpm bench
-pnpm bench -- --reporter=verbose
-pnpm bench packages/internal/src/steps/isFinite
 ```
 
-Repository-level workflows also generate cross-library and tree-shaking reports. Use those reports for release and PR decisions rather than extrapolating from one microbenchmark.
+Do not compare a validation policy with a primitive identity, include construction in a warmed execution case, omit issue construction from failure work, or benchmark a schema that no longer compiles against the public API.
 
-## Comparison rules
+## Cross-library suite
 
-- Compare equivalent validation and transformation semantics.
-- Pin competitor versions.
-- Keep fixture size and success or failure outcome equivalent.
-- Separate schema construction, cold execution, and warmed execution.
-- Treat relative margin of error above 5% as unstable.
-- Compare multiple runs before keeping a small optimization.
-- Record runtime and bundle-size trade-offs separately.
+The isolated `benchmarks/` package compares the current workspace build with pinned Zod 3, Zod 4, Zod 4 jitless, and Valibot adapters. Its scenarios verify result state, transformed output where applicable, and explicit issue counts before timing.
 
-## Tree-shaking scenarios
-
-Selective Valchecker scenarios must use the public plugin exports and the current method names:
-
-```ts
-import {
-	createValchecker,
-	isFinite,
-	number,
-} from 'valchecker'
-
-const v = createValchecker({ steps: [number, isFinite] })
-export const schema = v.number().isFinite()
+```bash
+pnpm build
+pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
+pnpm --dir benchmarks verify
+pnpm --dir benchmarks bench --mode standard
+pnpm --dir benchmarks report \
+	--input results/raw.json \
+	--markdown results/report.md \
+	--html results/report.html
 ```
 
-The generated minimal bundle is scanned for unrelated plugin markers. A selective size reduction without marker elimination is not sufficient evidence.
+Profiles are `smoke`, `standard`, and `full`. A run can select adapters, scenario ids, or benchmark groups. The generated raw JSON is the source of truth for samples, environment, semantic metadata, and skipped-adapter reasons.
 
-## Reviewing results
+Keep these groups separate:
 
-A performance change is valuable only when:
+1. schema construction;
+2. construction plus first validation (`cold`);
+3. warmed success;
+4. warmed library-default failure;
+5. warmed first-issue failure;
+6. warmed all-issues failure.
 
-1. the semantics remain unchanged,
-2. relevant tests and coverage remain complete,
-3. the measured improvement is larger than noise,
-4. regressions in failure paths or bundle size are understood,
-5. the implementation remains maintainable.
+Library-default failure modes may perform different diagnostic work. Compare equivalent first/all policies only where the adapter exposes them.
 
-Do not retain opaque code solely for a tiny benchmark gain.
+## Before/after impact
 
-## Common mistakes
+The **Performance Impact** workflow compares a baseline and candidate with interleaved paired independent processes. Pull requests that change runtime or benchmark source run the standard profile with three paired repetitions and fail on the workflow's severe-regression verdict.
 
-- Benchmarking a schema that no longer compiles against the public API.
-- Measuring construction inside an execution benchmark.
-- Comparing Valchecker finite-number validation with a competitor's unrestricted number type.
-- Ignoring issue construction in failure benchmarks.
-- Using only a single run or machine state.
-- Reporting ops/sec without uncertainty or environment metadata.
-- Rewriting the benchmark harness while evaluating a runtime optimization unless the harness change is independently validated.
+The comparison tool:
+
+- classifies a scenario only when paired-ratio RME is at most 5%;
+- treats an absolute change of at least 5% as meaningful;
+- treats a stable scenario regression of at least 10% as severe;
+- treats a geometric-mean regression of at least 5% across two or more stable scenarios in one group as severe.
+
+Inspect raw runs, paired RME, group trade-offs, and more than one workflow run when the margin is small. Do not rewrite the harness while evaluating a runtime candidate unless the harness change is independently justified.
+
+## Tree-shaking and bundle size
+
+The **Bundle Size Impact** workflow bundles public selective/default Valchecker scenarios and competitor scenarios with one Rollup/Terser configuration. Brotli is the primary automated size metric.
+
+```bash
+pnpm build
+pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
+pnpm --dir benchmarks treeshake --output ../artifacts/tree-shaking
+```
+
+Selective scenarios must import public plugin exports and register exactly the required steps. The report executes generated bundles and verifies required/forbidden issue or method markers. A smaller bundle without elimination of unrelated plugin markers is insufficient evidence.
+
+## Review rules
+
+A performance change is acceptable only when:
+
+- runtime and type semantics remain unchanged or the intentional change is documented;
+- correctness, package, API-surface, and coverage gates pass;
+- the measured effect exceeds noise for the target workload;
+- construction, cold, success, and failure-policy trade-offs are explicit;
+- type performance, bundle size, and runtime throughput are evaluated independently;
+- added complexity has a documented, measured payoff.

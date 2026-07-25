@@ -1,54 +1,22 @@
 # Core Concepts
 
-## Schemas are immutable pipelines
+## Immutable state-aware pipelines
+
+Each fluent call returns a new schema. A reached step may preserve a value, transform it, return structured issues, recover a recoverable failure, or delegate to another schema. Previous schemas remain reusable.
+
+Method names expose roles: nouns initialize a runtime domain, `isXxx` validates, `toXxx` transforms, and direct verbs such as `check`, `transform`, `fallback`, and `use` describe generic or flow-control behavior.
+
+## Primitive identity and policy
+
+`number()` checks `typeof value === 'number'`; `NaN`, infinities, and negative zero therefore succeed. Named policy remains explicit:
 
 ```ts
-const user = v.object({
-	name: v.string()
-		.toTrimmed()
-		.isNotEmpty(),
-	age: v.looseNumber()
-		.isFinite()
-		.isInteger()
-		.isAtLeast(0),
-})
+v.number().isFinite().isInteger().isAtLeast(0)
 ```
 
-Each fluent method returns a new schema. A reached step may preserve the value, transform it, produce structured issues, recover from a prior failure, or delegate to another schema.
+A validation enforces only its name. `isAtLeast(0)` accepts positive infinity.
 
-## Method names identify roles
-
-| Role | Convention | Examples |
-| --- | --- | --- |
-| Initial schema | noun | `string()`, `number()`, `looseBigint()` |
-| Built-in validation | `isXxx()` | `isFinite()`, `isNotEmpty()`, `isLengthAtMost()` |
-| Concrete transformation | `toXxx()` | `toTrimmed()`, `toSplit()`, `toJSONValue()` |
-| Generic operation | direct verb | `check()`, `transform()`, `fallback()`, `use()` |
-
-`check()` and `transform()` remain generic escape hatches because their callbacks define the actual condition or output.
-
-## Primitive identity versus policy
-
-Primitive schemas match TypeScript identities:
-
-```ts
-v.number().execute(Number.NaN) // success
-v.number().execute(Infinity) // success
-```
-
-Add runtime policy explicitly:
-
-```ts
-v.number().isFinite()
-v.number().isInteger()
-v.number().isFinite().isAtLeast(0)
-```
-
-A named validation enforces only the condition it states. `isAtLeast(0)` accepts positive infinity.
-
-## Loose primitive normalization
-
-Loose primitives accept a canonical primitive or a TypeScript-compatible string representation, then output the primitive:
+Loose primitives normalize documented typed representations:
 
 ```ts
 v.looseNumber().execute('1e3') // { value: 1000 }
@@ -60,115 +28,54 @@ They do not use unrestricted JavaScript coercion.
 
 ## Execution mode
 
-`execute()` preserves the completion mode of reached work:
-
 ```ts
-const synchronous = v.string().toTrimmed()
-synchronous.execute(' value ') // direct result
-
 const maybeAsync = v.string().check(async value => value.length > 0)
-maybeAsync.execute('value') // Promise<ExecutionResult<string>>
+
+maybeAsync.execute('value') // Promise-like completion
 maybeAsync.execute(42) // direct early failure
 ```
 
-Awaiting either mode is safe. Append `.toAsync()` when every invocation must return a native promise.
+Awaiting either is safe. `.toAsync()` forces a native promise for every result.
 
-## Results
-
-```ts
-type ExecutionResult<T, Issue>
-	= | { value: T }
-		| { issues: Issue[] }
-```
-
-Use `v.isSuccess()` and `v.isFailure()` to narrow the result.
-
-Each issue contains:
+## Result and issue shape
 
 ```ts
-interface Issue {
+type ExecutionResult<Value, Issue>
+	= | { value: Value }
+		| { issues: [Issue, ...Issue[]] }
+
+interface ExecutionIssue {
 	code: string
+	category: 'validation' | 'operation' | 'internal'
+	payload: unknown
 	message: string
 	path: PropertyKey[]
-	payload: unknown
+	context?: unknown[]
 }
 ```
 
-Examples include:
+Use `v.isSuccess()` and `v.isFailure()` to narrow results. Paths identify data locations; optional context records provenance such as union or variant branch selection.
 
-```text
-string:expected_string
-isFinite:expected_finite
-isAtLeast:expected_at_least
-isLengthAtMost:expected_length_at_most
-toJSONValue:invalid_json
-```
+Message priority is custom step, nearest enclosing structure, outer structures, originating global resolver, built-in default, then `"Invalid value."`.
 
-Issue paths identify nested object fields and array indices. Parent schemas prepend paths by cloning issues rather than mutating child issue objects.
+## Structures
 
-## Optional object fields
+- `object()` validates declared own fields and omits unknown output properties.
+- `strictObject()` also rejects unknown enumerable own string and symbol keys.
+- `looseObject()` preserves unknown own properties.
+- `array()`, `set()`, and `map()` validate and transform members.
+- `record()` validates plain-object entries; finite literal key sets become closed and exhaustive.
+- `tuple()` validates positional arrays with an optional rest region.
+- `union()` returns the first successful branch.
+- `variant()` directly selects one configured branch from an own discriminator.
+- `intersection()` composes compatible branch outputs.
 
-A one-element tuple marks a field optional:
+A one-element tuple marks an object field optional. Missing optional fields still appear in output with `undefined`.
 
-```ts
-const user = v.object({
-	name: v.string(),
-	nickname: [v.string()],
-	tags: [v.array(v.string())],
-})
-```
+## Failure categories
 
-Declared object fields are read from own properties only.
+Validation and operation issues may be recoverable depending on the consuming structure or step. Internal issues are fatal: structures stop, union does not try another branch, and fallback does not run its callback.
 
-## Object variants
+## Transformations and inference
 
-- `object(shape)` omits unknown output properties.
-- `strictObject(shape)` rejects unknown enumerable own string and symbol keys.
-- `looseObject(shape)` preserves unknown own properties.
-
-## Transformation and output inference
-
-```ts
-const schema = v.string()
-	.toSplit(',')
-	.toFiltered(value => value.length > 0)
-	.toLength()
-```
-
-The input is `string`; the output is `number`.
-
-```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
-
-type Input = InferInput<typeof schema>
-type Output = InferOutput<typeof schema>
-```
-
-## Composition
-
-```ts
-const address = v.object({
-	street: v.string(),
-	city: v.string(),
-})
-
-const user = v.object({
-	name: v.string(),
-	address,
-})
-```
-
-- `array()` validates and transforms elements.
-- `union()` returns the first successful branch's transformed output.
-- `intersection()` composes compatible outputs.
-- `use()` delegates the current value to another schema.
-- `generic()` supports lazy and recursive schemas.
-
-## Messages
-
-```ts
-const quantity = v.number().isAtLeast(1, { message: ({ payload }) => `Expected at least ${payload.minimum}, received ${payload.value}` }
-)
-```
-
-Message priority is per-step, global resolver, built-in default, then `"Invalid value."`.
+Transforms change both runtime output and `InferOutput`. `toJSONValue<T>()` and `as<T>()` assert types; they do not validate the asserted structure. Use `use(schema)` for runtime delegation.

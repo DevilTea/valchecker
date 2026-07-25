@@ -13,8 +13,8 @@ interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that the string is an EUI-48 MAC address written as six
-	 * colon- or hyphen-separated hexadecimal octets. Matching is
-	 * case-insensitive.
+	 * hexadecimal octets, with each adjacent pair separated by either `:` or `-`.
+	 * Mixed separators are accepted, and matching is case-insensitive.
 	 *
 	 * ---
 	 *

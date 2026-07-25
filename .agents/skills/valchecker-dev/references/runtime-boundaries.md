@@ -1,115 +1,77 @@
 # Runtime Boundary Policy
 
-Use this policy when adding, retaining, removing, or moving runtime validation, defensive copies, freezing, assertions, and invariant checks.
-
-The goal is not to minimize runtime checks indiscriminately. The goal is to place each guarantee at the correct boundary and avoid charging every valid call for protection against unsupported behavior.
+Use this policy when adding, retaining, removing, or relocating runtime validation, defensive copies, freezing, assertions, and invariant checks.
 
 ## Default position
 
-Public runtime inputs are validated at runtime. TypeScript declarations improve developer experience but do not replace runtime validation for ordinary public APIs, JavaScript consumers, dynamically produced values, or invariants that TypeScript cannot express.
+Ordinary public runtime inputs are validated at runtime. TypeScript declarations improve developer experience but do not replace checks for JavaScript callers, dynamic values, or invariants TypeScript cannot express.
 
-Relying only on the type system is an exception. It is appropriate only when every condition in the next section is satisfied.
+TypeScript-only enforcement is acceptable only when every condition below holds:
 
-## When TypeScript-only enforcement is acceptable
+1. the surface is low-level, internal-facing, or explicitly advanced;
+2. the declaration precisely forbids the operation;
+3. violating it requires `any`, an assertion, direct mutation, or untyped JavaScript;
+4. the failure is confined to the violating caller;
+5. unrelated callers, future valid executions, shared state, security, and data integrity cannot be affected;
+6. the defense runs on a broad or performance-sensitive path;
+7. profiling or benchmarks demonstrate material cost.
 
-A runtime defense may be removed or omitted only when all of the following are true:
+When these conditions hold, keep the TypeScript contract explicit, document externally visible unsupported behavior, and test supported behavior rather than deliberate contract violations.
 
-1. The surface is low-level, internal-facing, or an explicitly advanced integration API rather than an ordinary application API.
-2. The declaration contract already forbids the operation precisely, for example through `readonly`, a constrained union, or an unavailable method.
-3. Violating the contract requires an explicit escape such as `any`, a type assertion, direct mutation, or untyped JavaScript.
-4. The resulting failure is confined to the code that violated the contract.
-5. The violation cannot corrupt unrelated callers, future valid executions, shared state, global state, or security-sensitive data.
-6. The runtime defense runs on a broad or performance-sensitive path rather than only on exceptional setup or failure paths.
-7. Benchmarking or profiling demonstrates a material cost; hypothetical micro-optimization is insufficient.
+## Runtime enforcement must remain when
 
-When these conditions are met:
+- an ordinary public API receives the value;
+- JavaScript can reasonably provide the invalid value without bypassing a documented advanced contract;
+- TypeScript cannot express the invariant, including ranges, non-empty collections, uniqueness, sparse arrays, ownership, or cross-field relationships;
+- acceptance would create invalid schema state, malformed results, or a broken core invariant;
+- delayed failure materially harms diagnostics;
+- mutation can affect later validation, another consumer, shared configuration, or data integrity;
+- the check is construction-only or exceptional and has no measured hot-path cost;
+- the value originates from network, storage, JSON, plugins, reflection, or generated input.
 
-- keep the TypeScript contract explicit;
-- document the operation as unsupported when the boundary is externally visible;
-- retain tests for supported persistence, ownership, and execution semantics;
-- prefer compile-time tests over runtime tests that exercise deliberate contract violations.
+Examples include validating non-empty failure issue collections, structural options, mapping overlap, and public schema configuration that would otherwise create an invalid runtime pipeline.
 
-### Established examples
+## Advanced integration boundaries
 
-`~core.runtimeSteps` is a readonly advanced integration surface. Fluent schema operations create independent pipelines, but consumers that cast away `readonly` and mutate the array are outside the supported contract. Freezing every schema pipeline to defend against that deliberate mutation is not required.
+`~core.runtimeSteps` is readonly advanced state. Fluent operations create independent pipelines; a caller that casts away readonly and mutates the array is outside the supported contract. Freezing every pipeline solely to defend that deliberate mutation is not required.
 
-`union()` / `variant()` branch validation uses duck typing (`typeof branch['~execute'] === 'function'`) rather than a nominal schema check. Construction still rejects non-arrays, empty arrays, and sparse arrays; only a forged object that carries a fake `~execute` is accepted. Forging that object requires `any`, a type assertion, or untyped JavaScript, and the resulting failure is confined to the violating caller — so the boundary is TypeScript-first and documented rather than defended at runtime.
+Schema instances use a shared prototype. Registered methods are non-enumerable prototype properties; fixed schema properties are own enumerable properties. Method enumeration and own-property identity are therefore not public plugin-discovery mechanisms. Do not describe the current implementation as a `Proxy`.
 
-`constructor`, `toString`, and `valueOf` are intentionally absent from `reservedStepMethodNames`. An advanced plugin author can register a step with one of those names and shadow the corresponding object semantics on the schema Proxy. This is defensible under the boundary policy (an advanced integration surface, reachable only by deliberately naming a step after an `Object.prototype` member) and is documented rather than blocked.
+`constructor`, `toString`, and `valueOf` are not reserved plugin names. An advanced plugin may deliberately shadow those inherited object members. Core schema names and `then` remain reserved, and duplicate or symbol step names are rejected.
 
-The schema instance Proxy implements only a `get` trap. Step methods are therefore invisible to `in`, `Object.keys`, and `Reflect.ownKeys`, and each property access allocates a fresh bound closure, so `schema.string !== schema.string`. These are build-time-acceptable consequences of the design: no caller may rely on step-method enumeration or on method reference identity.
+Structural branch configuration uses the schema execution protocol rather than nominal class identity. Construction must still validate every invariant explicitly documented by the public method, such as non-empty arrays, sparse arrays, discriminator configuration, and required callable schema execution.
 
-## When runtime enforcement must remain
+## Ownership and snapshots
 
-Preserve runtime validation or defensive isolation when any of the following are true:
+Do not use `Object.freeze()` as an automatic synonym for immutability. First classify each value:
 
-- The value comes through an ordinary public API.
-- A JavaScript consumer could reasonably provide the invalid value without deliberately bypassing a documented contract.
-- TypeScript cannot express the constraint completely, including numeric ranges, non-empty collections, uniqueness, overlap, sparse arrays, ownership, or cross-field relationships.
-- Accepting the value would create an invalid schema, malformed execution result, or broken core invariant.
-- Delaying the error until execution would materially reduce diagnostic quality.
-- A mutation could affect later validations, another consumer, shared configuration, cached execution state, or security and data integrity.
-- The check occurs only during schema construction or an exceptional path and no measured cost justifies removing it.
-- The value originates outside the TypeScript program, including network, storage, JSON, plugin, reflection, or dynamically generated input.
+- caller-owned configuration;
+- private execution state;
+- construction metadata;
+- public diagnostic payload;
+- shared state crossing executions.
 
-Examples include validating `union()` branches, rejecting an empty or overlapping `toMappedBoolean()` configuration, and enforcing non-empty failure issue collections.
+Private state used by future validation must not remain externally mutable through issue payloads or introspection. Prefer copying caller configuration, compiling to a private `Set`/`Map`, exposing a separate diagnostic snapshot, or creating diagnostic copies only on failure.
 
-## Ownership and snapshot rules
+Issue payloads are consumer data and do not automatically require freezing. Copy or freeze when immutability is a documented contract, the payload shares private state, consumer mutation could alter future validation, or async/deferred diagnostics require a stable snapshot.
 
-Do not treat `Object.freeze()` as the default form of immutability.
+Never remove a freeze mechanically when one reference serves both execution and diagnostics. Separate the representations first, then benchmark.
 
-First identify who owns each value and whether the same reference is used for execution and diagnostics.
+## Construction metadata
 
-### Private execution state
+`~core.metadata` is readonly-typed but not frozen. A step that stores mutable metadata with `utils.setMetadata()` owns any required snapshot or freeze. Metadata is final-step construction data and is dropped by the next fluent call unless redeclared.
 
-State used by future validation must not be externally mutable through result payloads or advanced introspection. Prefer one of these designs:
+## Review requirements
 
-- copy caller-owned configuration into private execution state;
-- compile configuration into a private structure such as a `Set` or `Map`;
-- expose only a separate diagnostic copy;
-- create diagnostic copies lazily on failure when valid-path allocation matters.
+A PR that changes a runtime defense must document:
 
-### Diagnostic payloads
+- the API boundary and ownership class;
+- what TypeScript prevents and how JavaScript can bypass it;
+- failure or mutation blast radius;
+- shared execution/diagnostic references;
+- why runtime enforcement remains or why every TypeScript-only condition is satisfied;
+- measured performance evidence for removal;
+- supported-behavior tests retained;
+- declaration and documentation changes.
 
-Issue payloads are data returned to consumers. They do not automatically require runtime freezing.
-
-Freezing or copying a payload is justified when:
-
-- immutability is an explicit public contract;
-- the payload shares a reference with private execution state;
-- consumer mutation could alter future validation behavior;
-- stable snapshots are required for asynchronous or deferred diagnostics.
-
-Otherwise, prefer ordinary snapshots and avoid imposing schema-construction cost solely to prevent a consumer from mutating its own returned issue object.
-
-### Shared execution and payload references
-
-Never remove a freeze mechanically when the frozen value is also used for future execution. Separate the private execution representation from the public payload first, then benchmark the trade-off.
-
-For example, an `isOneOf()` implementation that validates against the same array placed in an issue payload must either retain isolation or split those representations before removing protection.
-
-## Review checklist
-
-Every pull request that adds, removes, or relocates a runtime defense must state:
-
-- the API boundary being protected;
-- whether the value is public input, advanced integration state, private execution state, or diagnostic output;
-- what TypeScript prevents and how JavaScript or `any` can bypass it;
-- the blast radius of an invalid value or mutation;
-- whether execution and diagnostic data share references;
-- why runtime enforcement is required or why all TypeScript-only conditions are satisfied;
-- benchmark or profiling evidence for any performance-based removal;
-- tests that preserve supported behavior and omit guarantees for explicitly unsupported behavior;
-- documentation or declaration changes required by the decision.
-
-## Decision order
-
-Apply this order during design and review:
-
-1. Define the supported runtime and TypeScript contract.
-2. Classify the ownership and API boundary.
-3. Identify the failure or mutation blast radius.
-4. Preserve runtime enforcement unless every TypeScript-only condition is met.
-5. Separate execution state from diagnostic payloads before optimizing defensive copies or freezes.
-6. Benchmark the exact candidate against the current implementation.
-7. Keep only changes with measured value and explicit trade-offs.
+Apply this order: define the contract, classify ownership, identify blast radius, preserve runtime enforcement by default, separate shared representations, benchmark the exact candidate, and keep only changes with measured value and explicit trade-offs.

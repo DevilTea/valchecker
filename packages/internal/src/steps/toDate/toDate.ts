@@ -10,8 +10,8 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Converts a `number` (epoch milliseconds) or ISO `string` to a `Date` with
-	 * `new Date(value)`.
+	 * Converts a `number` (epoch milliseconds) or a `string` accepted by the host
+	 * `Date` constructor to a `Date` with `new Date(value)`.
 	 *
 	 * A native exception, or a result that is an Invalid Date (`getTime()` is
 	 * `NaN`, such as from an unparseable string), becomes a

@@ -71,12 +71,13 @@ const users = v.object({
 		v.object({
 			email: v.string(),
 			age: v.number(),
-		}),
+		}, { collectAllIssues: true }),
+		{ collectAllIssues: true },
 	),
-})
+}, { collectAllIssues: true })
 ```
 
-For input containing wrong types in multiple records, issues may include:
+With `collectAllIssues: true` at each structure that must continue, input containing wrong types in multiple records may include:
 
 ```ts
 [
@@ -140,6 +141,8 @@ if (v.isFailure(result)) {
 			path: issue.path,
 			field: toFieldName(issue.path),
 			code: issue.code,
+			category: issue.category,
+			context: issue.context,
 			message: issue.message,
 			payload: issue.payload,
 		})),
@@ -170,7 +173,8 @@ for (const issue of result.issues) {
 - Array elements add their numeric index.
 - Symbol keys remain symbols.
 - A root-level issue has an empty path.
-- Nested validators prepend paths by creating new issue objects rather than mutating child issues.
-- Frozen or reused child issues are therefore supported.
+- Object, array, tuple, Set, Map, record, and delegation steps clone child issues while applying their documented path mapping.
+- Union and variant preserve the child data path and append branch provenance to `context` instead.
+- Frozen or reused child issues are supported because propagation clones rather than mutates.
 
-Custom step authors should return issue paths relative to the value handled by their step. Parent object, array, union, and delegation steps apply outer path segments according to their contract.
+Custom step authors should return paths relative to the value handled by their step. Parent structures then apply their own path or context contract.

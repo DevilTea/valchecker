@@ -1,300 +1,172 @@
 # Implementation Examples
 
-Reference implementations for common step patterns.
+These examples follow the current trailing-options, issue-draft, and operation-mode contracts. Built-in contributions must also follow the repository conventions, tests, benchmarks, and public API checklist.
 
-## Complete Constraint Step Example
+## Synchronous validation plugin
 
-Here's a complete example of a constraint step that doesn't change the type:
-
-```typescript
-// positive.ts
-import { DefineExpectedValchecker, DefineStepMethodMeta, ExecutionIssue, 
-         TStepPluginDef, DefineStepMethod, Next, MessageHandler, 
-         implStepPlugin } from '@valchecker/internal'
+```ts
+import type {
+	DefineExpectedValchecker,
+	DefineStepMethod,
+	DefineStepMethodMeta,
+	ExecutionIssue,
+	Next,
+	StepOptions,
+	TStepPluginDef,
+} from '@valchecker/internal'
+import { implStepPlugin } from '@valchecker/internal'
 
 type Meta = DefineStepMethodMeta<{
-  Name: 'positive'
-  ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
-  SelfIssue: ExecutionIssue<'positive:expected_positive', { value: number }> // validation by default
+	Name: 'isPositive'
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
+	SelfIssue: ExecutionIssue<'isPositive:expected_positive', { value: number }>
 }>
 
 interface PluginDef extends TStepPluginDef {
-  /**
-   * ### Description:
-   * Validates that the number is positive (greater than zero).
-   *
-   * ---
-   *
-   * ### Example:
-   * ```ts
-   * const v = createValchecker({ steps: [number, positive] })
-   * const schema = v.number().positive()
-   * schema.execute(5) // { value: 5 }
-   * schema.execute(-5) // { issues: [...] }
-   * ```
-   *
-   * ---
-   *
-   * ### Issues:
-   * - `'positive:expected_positive'`: The number is not positive.
-   */
-  positive: DefineStepMethod<
-    Meta,
-    this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-      ? (message?: MessageHandler<Meta['SelfIssue']>) => Next<
-          { issue: Meta['SelfIssue'] },
-          this['CurrentValchecker']
-        >
-      : never
-  >
+	/**
+	 * ### Description:
+	 * Checks that the number is greater than zero.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * const schema = v.number().isPositive()
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isPositive:expected_positive'`: The number is not positive.
+	 */
+	isPositive: DefineStepMethod<
+		Meta,
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? (options?: StepOptions<Meta['SelfIssue']>) => Next<
+				{ issue: Meta['SelfIssue'] },
+				this['CurrentValchecker']
+			>
+			: never
+	>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const positive = implStepPlugin<PluginDef>({
-  positive: ({
-    utils: { addSuccessStep, success, createIssue, failure },
-    params: [message],
-  }) => {
-    addSuccessStep((value) => {
-      if (value > 0) {
-        return success(value)
-      }
-      return failure(
-        createIssue({
-          code: 'positive:expected_positive',
-          payload: { value },
-          customMessage: message,
-          defaultMessage: `Expected positive number, got ${value}`,
-        }),
-      )
-    })
-  },
-})
+export const isPositive = implStepPlugin<PluginDef>({
+	isPositive: ({
+		utils: { addSuccessStep, createIssue, failure, success },
+		params: [options],
+	}) => {
+		addSuccessStep(value => value > 0
+			? success(value)
+			: failure(createIssue({
+				code: 'isPositive:expected_positive',
+				payload: { value },
+				customMessage: options?.message,
+				defaultMessage: 'Expected a positive number.',
+			})))
+	},
+}, 'sync')
 ```
 
-## Complete Transform Step Example
+`createIssue()` is checked against `Meta.SelfIssue`; an invalid code, category, or payload fails typechecking.
 
-Here's a transform step that changes the output type:
+## Parameterized validation
 
-```typescript
-// toPositive.ts - Converts negative numbers to positive
+Keep the required semantic operand positional and put optional configuration plus `message` in one trailing object:
 
-import { DefineExpectedValchecker, DefineStepMethodMeta, TStepPluginDef, 
-         DefineStepMethod, Next, implStepPlugin } from '@valchecker/internal'
+```ts
+type Options = StepOptions<Meta['SelfIssue']>
 
-type Meta = DefineStepMethodMeta<{
-  Name: 'toPositive'
-  ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: number }>
-  SelfIssue: never  // Transforms don't fail
-}>
+// PluginDef method
+(divisor: number, options?: Options) => Next<
+	{ issue: Meta['SelfIssue'] },
+	this['CurrentValchecker']
+>
 
+// Runtime params
+params: [divisor, options]
+```
+
+Snapshot caller-owned mutable configuration at construction when later mutation could change validation.
+
+## Pure transformation
+
+A transformation with no owned issue omits `SelfIssue` and patches the output:
+
+```ts
 interface PluginDef extends TStepPluginDef {
-  /**
-   * ### Description:
-   * Transforms a number to its absolute value (always positive).
-   *
-   * ---
-   *
-   * ### Example:
-   * ```ts
-   * const v = createValchecker({ steps: [number, toPositive] })
-   * const schema = v.number().toPositive()
-   * schema.execute(-5) // { value: 5 }
-   * schema.execute(5) // { value: 5 }
-   * ```
-   *
-   * ---
-   *
-   * ### Issues:
-   * - None - this transform never fails.
-   */
-  toPositive: DefineStepMethod<
-    Meta,
-    this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-      ? () => Next<
-          { output: number },
-          this['CurrentValchecker']
-        >
-      : never
-  >
+	/** canonical Description / Example / Issues JSDoc */
+	toCodePoints: DefineStepMethod<
+		Meta,
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? () => Next<
+				{ output: number[] },
+				this['CurrentValchecker']
+			>
+			: never
+	>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const toPositive = implStepPlugin<PluginDef>({
-  toPositive: ({
-    utils: { addSuccessStep, success },
-  }) => {
-    addSuccessStep((value) => {
-      return success(Math.abs(value))
-    })
-  },
-})
+export const toCodePoints = implStepPlugin<PluginDef>({
+	toCodePoints: ({ utils: { addSuccessStep, success } }) => {
+		addSuccessStep(
+			value => success([...value].map(character => character.codePointAt(0)!)),
+		)
+	},
+}, 'sync')
 ```
 
-## Recovery/Fallback Step Example
+Do not generalize this into “transforms never fail.” Native conversions, serialization, and callback transforms own issues where their operation can fail.
 
-Here's a step that catches failures and provides a default:
+## Callback operation issue
 
-```typescript
-// defaultTo.ts - Provides a default value on failure
-
-import { DefineExpectedValchecker, DefineStepMethodMeta, TStepPluginDef, 
-         DefineStepMethod, Next, implStepPlugin } from '@valchecker/internal'
-
-type Meta = DefineStepMethodMeta<{
-  Name: 'defaultTo'
-  ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: unknown }>
-  SelfIssue: never
-}>
-
-interface PluginDef extends TStepPluginDef {
-  /**
-   * ### Description:
-   * Provides a default value if validation fails.
-   *
-   * ---
-   *
-   * ### Example:
-   * ```ts
-   * const schema = v.number().min(0).defaultTo(0)
-   * schema.execute(-5) // { value: 0 }
-   * schema.execute(5) // { value: 5 }
-   * ```
-   *
-   * ---
-   *
-   * ### Issues:
-   * - None - failures are recovered.
-   */
-  defaultTo: DefineStepMethod<
-    Meta,
-    this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-      ? (defaultValue: this['CurrentValchecker']['output']) => Next<
-          { output: this['CurrentValchecker']['output'] },
-          this['CurrentValchecker']
-        >
-      : never
-  >
-}
-
-/* @__NO_SIDE_EFFECTS__ */
-export const defaultTo = implStepPlugin<PluginDef>({
-  defaultTo: ({
-    utils: { addFailureStep, success },
-    params: [defaultValue],
-  }) => {
-    addFailureStep(() => {
-      return success(defaultValue)
-    })
-  },
-})
-```
-
-## Multi-Type Constraint Example
-
-Here's a constraint that works with multiple input types:
-
-```typescript
-// hasLength.ts - Works with strings, arrays, etc.
-
-import { DefineExpectedValchecker, DefineStepMethodMeta, ExecutionIssue,
-         TStepPluginDef, DefineStepMethod, Next, MessageHandler, 
-         implStepPlugin } from '@valchecker/internal'
-
-type HasLength = string | { length: number }
-
-type Meta = DefineStepMethodMeta<{
-  Name: 'hasLength'
-  ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: HasLength }>
-  SelfIssue: ExecutionIssue<'hasLength:expected_length', { 
-    value: HasLength
-    length: number
-  }>
-}>
-
-interface PluginDef extends TStepPluginDef {
-  /**
-   * ### Description:
-   * Validates that value has a specific length (works with strings and arrays).
-   *
-   * ---
-   *
-   * ### Example:
-   * ```ts
-   * const schema = v.string().hasLength(5)
-   * schema.execute('hello') // { value: 'hello' }
-   * schema.execute('hi') // { issues: [...] }
-   * ```
-   *
-   * ---
-   *
-   * ### Issues:
-   * - `'hasLength:expected_length'`: Length doesn't match required value.
-   */
-  hasLength: DefineStepMethod<
-    Meta,
-    this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-      ? (length: number, message?: MessageHandler<Meta['SelfIssue']>) => Next<
-          { issue: Meta['SelfIssue'] },
-          this['CurrentValchecker']
-        >
-      : never
-  >
-}
-
-/* @__NO_SIDE_EFFECTS__ */
-export const hasLength = implStepPlugin<PluginDef>({
-  hasLength: ({
-    utils: { addSuccessStep, success, createIssue, failure },
-    params: [requiredLength, message],
-  }) => {
-    addSuccessStep((value) => {
-      if (value.length === requiredLength) {
-        return success(value)
-      }
-      return failure(
-        createIssue({
-          code: 'hasLength:expected_length',
-          payload: { value, length: requiredLength },
-          customMessage: message,
-          defaultMessage: `Expected length of ${requiredLength}, got ${value.length}`,
-        }),
-      )
-    })
-  },
-})
-```
-
-## Key Patterns
-
-1. **Constraint steps**: Return same type in `Next<{ issue }>`
-2. **Transform steps**: Return new type in `Next<{ output: NewType }>`
-3. **Recovery steps**: Use `addFailureStep` instead of `addSuccessStep`
-4. **Multi-type steps**: Use union types in `ExpectedCurrentValchecker`
-5. **Always include**: Tree-shaking annotation, JSDoc, issue payload
-
-## Testing These Examples
-
-Each example should be tested with:
-- Valid inputs
-- Invalid inputs
-- Custom messages
-- Chaining with other steps
-- Edge cases specific to the step
-
-See [testing guide](./testing.md) for complete testing details.
-
-
-## Operation issue example
-
-A callback failure must declare its category explicitly:
+Thrown or rejected user/native callback work uses category `operation`:
 
 ```ts
 type CallbackIssue = ExecutionIssue<
-  'toDomain:callback_failed',
-  { value: Input, error: unknown },
-  'operation'
+	'toDomain:callback_failed',
+	{ phase: 'throw' | 'reject', value: Input, error: unknown },
+	'operation'
 >
 ```
 
-Pass `category: 'operation'` to `createIssue()` for that code. TypeScript rejects a missing or mismatched category, code, or payload.
+Pass `category: 'operation'` to `createIssue()` for that code. The callback's ordinary negative result, when supported, is a separate validation contract.
+
+## Recovery plugin
+
+Recovery steps must preserve internal failures as fatal:
+
+```ts
+addFailureStep((issues) => {
+	if (issues.some(issue => issue.category === 'internal'))
+		return failure(issues)
+	return success(createReplacement(issues))
+})
+```
+
+Use the package-private recovery helpers available to built-in source where appropriate; application/plugin examples should rely on public issue categories rather than issue-code strings.
+
+## Structural issue propagation
+
+```ts
+const propagated = prependIssuePath(childIssue, [key], options?.message)
+const withBranch = appendIssueContext(propagated, {
+	type: 'union',
+	branchIndex,
+})
+```
+
+Use `replaceIssuePath()` when a structure maps a child path to an absolute path, such as a tuple rest region. Never spread a draft issue on a propagation path.
+
+## Registration
+
+```ts
+import { createValchecker, number } from 'valchecker'
+import { isPositive } from './isPositive'
+
+const v = createValchecker({ steps: [number, isPositive] })
+const schema = v.number().isPositive()
+```
+
+Add built-ins through the normal export barrels. `allSteps` discovers runtime-marked plugins automatically.

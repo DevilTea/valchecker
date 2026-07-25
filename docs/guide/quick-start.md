@@ -37,7 +37,7 @@ import {
 	number,
 } from 'valchecker'
 
-const v = createValchecker({
+const v = createValcheckker({
 	steps: [number, isFinite, isAtLeast],
 })
 ```
@@ -168,24 +168,31 @@ const schema = v.string()
 const result = await schema.execute(input)
 ```
 
-`await` is safe for either completion mode. `.toAsync()` changes the execution contract so every call returns a native promise.
+`await is safe for either completion mode. `.toAsync()` changes the execution contract so every call returns a native promise.
 
 ## Result values
 
 ```ts
 type Result<T, Issue>
 	= | { value: T }
-		| { issues: Issue[] }
+		| { issues: [Issue, ...Issue[]] }
 
 interface Issue {
 	code: string
-	path: PropertyKey[]
+	category: 'validation' | 'operation' | 'internal'
 	message: string
+	path: PropertyKey[]
 	payload: unknown
+	context?: IssueContext[]
+}
+
+interface IssueContext {
+	type: string
+	[key: string]: unknown
 }
 ```
 
-A successful result contains the final transformed value. A failure contains structured issues. Parent schemas create new nested paths rather than mutating child issue objects.
+A successful result contains the final transformed value. A failure contains a non-empty tuple of structured issues. Parent structures clone child issues while applying their documented path or provenance-context mapping.
 
 ## Transformations
 
@@ -215,7 +222,7 @@ schema.execute(-5)
 // { value: 0 }
 ```
 
-`fallback()` runs only after an earlier failure and may return direct or asynchronous replacement values.
+`fallback()` runs only after an earlier recoverable `validation` or `operation` failure and may return a direct or `PromiseLike` replacement. Internal issues are fatal and bypass the callback.
 
 ## Object fields
 
@@ -263,7 +270,7 @@ const configSchema = v.string()
 ## Type inference
 
 ```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
+import type { InferInput, InferOutput } from 'valchecker'
 import { v } from 'valchecker'
 
 const schema = v.object({
@@ -276,16 +283,18 @@ type Input = InferInput<typeof schema>
 type Output = InferOutput<typeof schema>
 ```
 
-`@valchecker/internal` is the semver-covered advanced package for plugin authors and type helpers.
+`InferInput` and `InferOutput` are re-exported by `valchecker`. Plugin authors can use the semver-covered `@valchecker/internal` root for advanced plugin APIs.
 
 ## Message priority
 
 Issue messages resolve in this order:
 
-1. custom step message,
-2. global `createValchecker` message handler,
-3. built-in default message,
-4. `"Invalid value."`.
+1. originating step message,
+2. nearest enclosing structure message,
+3. further enclosing structure messages,
+4. originating `createValchecker` global resolver,
+5. originating built-in default,
+6. `"Invalid value."`.
 
 ```ts
 const schema = v.number()

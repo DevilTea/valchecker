@@ -2,407 +2,135 @@
 
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
-[![bundle][bundle-src]][bundle-href]
 [![License][license-src]][license-href]
 
 > Runtime-first validation with zero guesswork
 
-A modular TypeScript validation library with composable immutable steps, inferred transformed outputs, structured issues, sync/maybe-async execution, and Standard Schema V1 compatibility.
+A modular ESM-only TypeScript validation library with immutable fluent steps, transformed-output inference, structured non-empty issues, sync/maybe-async execution, Standard Schema V1, and selective tree-shakable plugin registration.
 
-## Requirements
+## Requirements and installation
 
 - Node.js 22 or newer
-- ESM
-
-CommonJS applications may load Valchecker with dynamic `import('valchecker')`. Synchronous `require('valchecker')` is not supported.
-
-## Installation
+- ESM; CommonJS may use dynamic `import('valchecker')`
 
 ```bash
 pnpm add valchecker
 # or
 npm install valchecker
-# or
-yarn add valchecker
-# or
-bun add valchecker
 ```
 
 ## Quick start
-
-The main package exports `v`, a ready-to-use instance with every built-in step:
 
 ```ts
 import { v } from 'valchecker'
 
 const userSchema = v.object({
-	name: v.string().toTrimmed(),
-	email: v.string().toLowercase(),
-	age: v.number().isInteger().isAtLeast(0),
+	name: v.string().toTrimmed().isNotEmpty(),
+	email: v.string().toLowercase().isEmail(),
+	age: v.looseNumber().isFinite().isInteger().isAtLeast(0),
 	nickname: [v.string()],
 })
 
 const result = await userSchema.execute({
 	name: '  Alice  ',
 	email: 'ALICE@EXAMPLE.COM',
-	age: 25,
+	age: '25',
 })
 
-if (v.isSuccess(result)) {
+if (v.isSuccess(result))
 	console.log(result.value)
-	// {
-	//   name: 'Alice',
-	//   email: 'alice@example.com',
-	//   age: 25,
-	//   nickname: undefined,
-	// }
-}
-else {
+else
 	console.error(result.issues)
-}
 ```
 
-## Selective imports
+Every fluent method returns a new reusable schema. One-element tuples mark object fields optional and materialize `undefined` when absent.
 
-Build an instance from only the steps used by an application:
+## Selective registration
+
+The default `v` includes every built-in step. Bundle-sensitive applications can register only what they use:
 
 ```ts
-import {
-	createValchecker,
-	isAtLeast,
-	isInteger,
-	number,
-	object,
-	string,
-	toTrimmed,
-} from 'valchecker'
+import { createValchecker, isAtLeast, isFinite, number } from 'valchecker'
 
-const v = createValchecker({
-	steps: [string, number, object, isInteger, isAtLeast, toTrimmed],
-})
+const v = createValchecker({ steps: [number, isFinite, isAtLeast] })
 ```
 
-`allSteps` is also exported for custom instances that need every built-in plugin.
+`allSteps` is available for custom complete instances and is derived from runtime-marked public plugin exports rather than a duplicate static list.
 
-## Naming and type semantics
+## Core semantics
 
-Built-in steps follow a predictable fluent API:
+- Initial schemas use nouns: `string()`, `number()`, `object()`, `looseBoolean()`.
+- Built-in validations use `isXxx()` and preserve successful values.
+- Concrete transformations use `toXxx()` and change representation.
+- Generic escape hatches remain `check()` and `transform()`.
 
-- initial steps use nouns, such as `string()`, `number()`, and `looseBoolean()`,
-- validation steps use `isXxx()`, such as `isFinite()` and `isLengthAtLeast()`, including string-format validators like `isEmail()`, `isUrl()`, and `isUuid()`,
-- concrete transformations use `toXxx()`, such as `toTrimmed()`, `toNumber()`, and `toJSONValue()`,
-- generic escape hatches retain the direct names `check()` and `transform()`.
+`number()` accepts every JavaScript number, including `NaN` and infinities. Add `isFinite()` when finite values are required. A named validation enforces only its stated condition; for example, `isAtLeast(0)` accepts positive infinity.
 
-Primitive initial steps align with TypeScript primitive types. In particular, `number()` accepts every JavaScript number, including `NaN`, `Infinity`, and `-Infinity`. Add `.isFinite()` when finite values are required.
+Loose primitives accept the primitive or the corresponding TypeScript-template-compatible string representation and normalize the output. They do not perform unrestricted JavaScript coercion.
 
-Loose primitive steps accept the primitive itself or its corresponding TypeScript template-literal representation, then normalize the output:
-
-```ts
-v.looseNumber().execute('1e3') // { value: 1000 }
-v.looseBoolean().execute('false') // { value: false }
-v.looseBigint().execute('0x10') // { value: 16n }
-```
-
-They do not perform general JavaScript truthiness or unrestricted coercion.
-
-`templateLiteral(parts)` validates a string against an assembled TypeScript template-literal type and infers that exact output type, mirroring the TypeScript checker (not a regex) with cross-product union expansion:
-
-```ts
-v.templateLiteral(['ID-', v.number()]).execute('ID-42') // { value: 'ID-42' }, output `ID-${number}`
-v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]) // output `${number}px` | `${number}em` | `${number}rem`
-```
-
-### Primitive conversions
-
-Native coercion transformations delegate directly to JavaScript:
+Native conversion steps delegate to JavaScript:
 
 ```ts
 v.string().toNumber() // Number(value)
-v.string().toBoolean() // Boolean(value)
+v.unknown().toBoolean() // Boolean(value)
 v.string().toBigint() // BigInt(value)
 ```
 
-They intentionally do not hide extra policy:
+Use explicit policy steps such as `toSafeNumber()` and `toMappedBoolean()` when narrower semantics are required.
+
+## Structures and composition
+
+- `object()` omits unknown output properties.
+- `strictObject()` rejects unknown enumerable own string and symbol keys.
+- `looseObject()` preserves unknown own properties.
+- Arrays, tuples, Sets, Maps, and records validate and transform nested values.
+- `union()` returns the first successful branch.
+- `variant()` dispatches directly from an own discriminator.
+- `intersection()` composes compatible branch outputs.
+
+Set and Map schemas preserve insertion order and reject duplicate transformed items or keys rather than silently losing data.
+
+Use `use()` for schema delegation and `fallback()` for documented recovery. `fallback()` recovers validation and operation failures only; internal issues are fatal.
+
+## Execution and results
+
+A synchronous pipeline returns directly. A callback-driven schema may return a promise only when asynchronous work is reached; an earlier failure can remain synchronous. Awaiting either mode is safe. Append `.toAsync()` when every call must return a native promise.
 
 ```ts
-v.string().toNumber().execute('invalid')
-// { value: NaN }
-
-v.string().toBoolean().execute('false')
-// { value: true }
-
-v.bigint().toNumber().execute(9007199254740993n)
-// { value: 9007199254740992 }
-```
-
-`toBigint()` converts native `BigInt()` exceptions into structured validation issues. Explicit policy conversions remain separate:
-
-```ts
-v.bigint().toSafeNumber()
-
-v.string().toMappedBoolean({
-	trueValues: ['Y', 'yes'],
-	falseValues: ['N', 'no'],
-})
-
-v.number().toMappedBoolean({
-	trueValues: [1],
-	falseValues: [0],
-})
-```
-
-Identity conversions such as `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware fluent API.
-
-## Execution semantics
-
-`execute()` preserves the pipeline's execution mode:
-
-- fully synchronous pipelines return a result directly,
-- reached asynchronous or thenable work returns a native `Promise`,
-- callback-driven pipelines can be maybe-async because an earlier synchronous failure may bypass later async work.
-
-```ts
-const synchronous = v.string().toTrimmed()
-const direct = synchronous.execute(' value ')
-// { value: 'value' }
-
-const maybeAsync = v.string().check(async value => value.length > 0)
-const promise = maybeAsync.execute('value')
-// Promise<ExecutionResult<string>>
-
-const earlyFailure = maybeAsync.execute(42)
-// Synchronous failure; the async callback is not reached.
-```
-
-Use `await` when either completion mode is acceptable. Append `.toAsync()` when an API boundary must always return a native promise.
-
-Valchecker assimilates `PromiseLike` values, including custom thenables and cross-realm promises.
-
-## Results and issues
-
-Success returns the final transformed output:
-
-```ts
-type Success<T> = { value: T }
-```
-
-Failure returns structured issues:
-
-```ts
-type Failure<Issue> = { issues: Issue[] }
+type ExecutionResult<Value, Issue>
+	= | { value: Value }
+		| { issues: [Issue, ...Issue[]] }
 
 interface Issue {
 	code: string
-	path: PropertyKey[]
-	message: string
+	category: 'validation' | 'operation' | 'internal'
 	payload: unknown
+	message: string
+	path: PropertyKey[]
+	context?: Array<{ type: string, [key: string]: unknown }>
 }
 ```
 
-Validation failures are values rather than thrown validation exceptions. Nested validators prepend issue paths without mutating issue objects returned by child schemas.
+Use codes, categories, paths, context, and payloads for machine behavior rather than parsing messages.
 
-## Objects
+Message priority is step message, nearest enclosing structure, outer structures, originating instance global resolver, step default, then `"Invalid value."`.
 
-```ts
-const schema = v.object({
-	required: v.string(),
-	optional: [v.number()],
-})
-```
-
-Declared fields are read from own properties only.
-
-- `object(shape)` validates declared fields and omits unknown properties from output.
-- `strictObject(shape)` rejects unknown enumerable own string and symbol keys.
-- `looseObject(shape)` validates declared fields and preserves unknown own properties.
-
-Declared `__proto__` fields are materialized as safe own data properties and do not mutate the output prototype.
-
-## Map and Set collections
+## Type inference and packages
 
 ```ts
-const tags = v.set(v.string().toTrimmed().toLowercase())
+import type { InferInput, InferOutput } from 'valchecker'
 
-const scores = v.map({
-	key: v.string().toTrimmed(),
-	value: v.number().isFinite(),
-})
+type Input = InferInput<typeof userSchema>
+type Output = InferOutput<typeof userSchema>
 ```
-
-Collection child schemas run in insertion order and return new transformed collections. Map key/value failures use `[index, 'key']` and `[index, 'value']`; Set item failures use `[index]`. Transformed Map keys and Set items must remain unique under SameValueZero, so validation fails rather than silently losing data.
-
-```ts
-const requiredTags = tags
-	.isNotEmpty()
-	.isSizeAtMost(5)
-	.isIncluding('required')
-
-const scoreCount = scores
-	.isIncludingKey('primary')
-	.isIncludingValue(1)
-	.toSize()
-```
-
-Size validations preserve the collection and snapshot the observed `size` in failure payloads. `toSize()` replaces the collection with its numeric size. Set and Map membership follow SameValueZero equality.
-
-Collection representations remain explicit and preserve insertion order:
-
-```ts
-tags.toArray() // string[]
-scores.toKeys() // string[]
-scores.toValues() // number[]
-scores.toEntries() // Array<[string, number]>
-```
-
-These transformations return new arrays and do not mutate the source collection. Map-to-object conversion is intentionally not implied because it requires separate key, prototype, and collision policies.
-
-Callback transforms preserve the same state-aware collection APIs:
-
-```ts
-const mappedTags = tags
-	.toMapped((item, index) => `${index}:${item}`)
-	.toFiltered(item => item.length > 2)
-
-const normalizedScores = scores
-	.toMappedKeys(key => key.toLowerCase())
-	.toMappedValues(value => value * 2)
-```
-
-Collection callbacks are synchronous and receive the current transformed collection. Traversal uses a step-start snapshot. Set item and Map key mapping reject SameValueZero collisions rather than silently losing data.
-
-## File and Blob
-
-```ts
-const upload = v.file()
-	.isMimeType(['image/*', 'application/pdf'])
-	.isSizeAtMost(5 * 1024 * 1024)
-
-const payload = v.blob().isMimeType('application/json')
-```
-
-`file()` and `blob()` validate `File` and `Blob` values, preserving the input and inferring the matching output type. The global constructors are feature-detected, so absent globals produce `file:expected_file` or `blob:expected_blob` instead of throwing. `isMimeType()` matches a value's `type` against one or a list of MIME types with case-insensitive `image/*`-style wildcards, and size validation reuses `isSizeAtMost()`/`isSizeAtLeast()`/`isSizeExactly()` because both expose a numeric `size`.
-
-## Records and tuples
-
-`record({ key, value })` validates and transforms every own enumerable entry of a plain object, aligning with `Record<K, V>`.
-
-```ts
-const ratings = v.record({ key: v.string(), value: v.number() }) // { [k: string]: number }
-const flags = v.record({ key: v.union(['read', 'write']), value: v.boolean() }) // { read: boolean, write: boolean }
-```
-
-A wide key domain (`string`/`number`/`symbol`/template) produces an open index signature and validates every key; transformed keys must stay unique. A finite key domain (a `literal`, a union of literals, or `isOneOf`) produces an all-required, exhaustive object: every member key is required and extra keys are rejected. Numeric members canonicalize to string keys.
-
-`tuple(elements)` validates a fixed-shape array positionally. A single `'...'` marker declares the next entry as a rest region whose array output is spread into the result.
-
-```ts
-v.tuple([v.string(), v.number()]) // [string, number]
-v.tuple([v.string(), '...', v.array(v.number())]) // [string, ...number[]]
-v.tuple([v.string(), '...', v.array(v.boolean()), v.number()]) // [string, ...boolean[], number]
-```
-
-The `[schema]` one-element-array optional-field shorthand stays scoped to object property position and never collides with `tuple()`.
-
-## Composition
-
-### Union
-
-`union()` evaluates branches in order and returns the first successful branch's transformed output.
-
-```ts
-const schema = v.union([
-	v.string().transform(value => value.length),
-	v.number(),
-])
-
-await schema.execute('abc')
-// { value: 3 }
-```
-
-### Variant
-
-`variant()` performs direct discriminated-union dispatch and executes only the selected branch:
-
-```ts
-const event = v.variant({
-	discriminator: 'type',
-	variants: {
-		click: v.object({ type: v.literal('click'), x: v.number(), y: v.number() }),
-		keypress: v.object({ type: v.literal('keypress'), key: v.string() }),
-	},
-})
-```
-
-The discriminator must be an own property. Child issue paths are preserved, selected-branch provenance is recorded in issue context, and unselected branches are not executed.
-
-### Intersection
-
-`intersection()` recursively composes compatible plain-object outputs, including enumerable symbol keys, cycles, and aliases. Equal primitive values and the same non-plain object reference are preserved. Incompatible outputs fail with `intersection:conflicting_outputs`; distinct class, `Date`, or `Map` instances are not spread into plain objects.
-
-### Delegation
-
-`use(schema)` preserves the delegated schema's transformed output and issues.
-
-## Transformations and recovery
-
-```ts
-const configSchema = v.string()
-	.toJSONValue({ message: 'Invalid JSON' })
-	.fallback(() => ({ port: 3000 }))
-	.use(v.object({
-		port: v.number().isInteger().isAtLeast(1).isAtMost(65535),
-	}))
-```
-
-Transform, check, fallback, and plugin callbacks may return direct or `PromiseLike` values according to their step contract.
-
-## Message priority
-
-Issue messages resolve in this order:
-
-1. custom step message,
-2. global `createValchecker` message handler,
-3. built-in default message,
-4. `"Invalid value."`.
-
-## Type inference
-
-Advanced type helpers are exported from the semver-covered `@valchecker/internal` package:
-
-```ts
-import type { InferInput, InferOutput } from '@valchecker/internal'
-import { v } from 'valchecker'
-
-const schema = v.object({
-	name: v.string().toTrimmed(),
-	tags: [v.array(v.string())],
-})
-
-type Input = InferInput<typeof schema>
-type Output = InferOutput<typeof schema>
-```
-
-`@valchecker/internal` is the supported root API for plugin authors and advanced types. Package-private source paths are not public API.
-
-## Standard Schema V1
-
-Every schema exposes `~standard` for integrations accepting Standard Schema V1 implementations:
-
-```ts
-const result = schema['~standard'].validate(input)
-```
-
-The Standard Schema interface preserves sync/maybe-async behavior and returns transformed output on success.
-
-## Packages
 
 | Package | Purpose |
 | --- | --- |
-| `valchecker` | Normal application API, default `v`, all built-in steps and public helpers |
-| `@valchecker/all-steps` | `allSteps` collection for custom instances |
-| `@valchecker/internal` | Semver-covered advanced types and step-plugin author API |
+| `valchecker` | application API, default `v`, built-ins and helpers |
+| `@valchecker/all-steps` | complete runtime-marked plugin collection |
+| `@valchecker/internal` | semver-covered advanced types and plugin author API |
 
-Runtime and declaration exports are recorded in `api-surface.json`; CI rejects unreviewed public API drift.
+Every schema exposes `~standard` for Standard Schema V1 integrations. Public exports are recorded in `api-surface.json`.
 
 ## Documentation
 
@@ -411,36 +139,33 @@ Runtime and declaration exports are recorded in `api-surface.json`; CI rejects u
 - [Migrating to 1.0](https://deviltea.github.io/valchecker/guide/migration-to-1)
 - [Custom Steps](https://deviltea.github.io/valchecker/guide/custom-steps)
 - [API Reference](https://deviltea.github.io/valchecker/api/overview)
-- [Examples](https://deviltea.github.io/valchecker/examples/basic-validation)
 - [Complete migration guide](./MIGRATION.md)
-- [Changelog](./CHANGELOG.md)
 - [Support policy](./SUPPORT.md)
 - [Release process](./RELEASING.md)
 
 ## Development
 
 ```bash
-git clone https://github.com/DevilTea/valchecker.git
-cd valchecker
-pnpm install
+pnpm install --frozen-lockfile
 pnpm build
-pnpm test
-pnpm docs:dev
+pnpm api:surface
+pnpm publint
+pnpm test:package
+pnpm lint
+pnpm typecheck
+pnpm test:coverage
+pnpm docs:build
 ```
 
-Before opening a pull request, run the repository checks documented in `AGENTS.md`.
+Follow `AGENTS.md` before opening a pull request.
 
 ## License
 
 [MIT](./LICENSE) License © 2025-PRESENT [DevilTea](https://github.com/DevilTea)
 
-<!-- Badges -->
-
 [npm-version-src]: https://img.shields.io/npm/v/valchecker?style=flat&colorA=080f12&colorB=1fa669
 [npm-version-href]: https://npmjs.com/package/valchecker
 [npm-downloads-src]: https://img.shields.io/npm/dm/valchecker?style=flat&colorA=080f12&colorB=1fa669
 [npm-downloads-href]: https://npmjs.com/package/valchecker
-[bundle-src]: https://img.shields.io/bundlephobia/minzip/valchecker?style=flat&colorA=080f12&colorB=1fa669&label=minzip
-[bundle-href]: https://bundlephobia.com/result?p=valchecker
 [license-src]: https://img.shields.io/github/license/DevilTea/valchecker.svg?style=flat&colorA=080f12&colorB=1fa669
 [license-href]: https://github.com/DevilTea/valchecker/blob/main/LICENSE
