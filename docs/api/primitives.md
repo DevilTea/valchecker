@@ -21,9 +21,13 @@ Primitive initial steps check JavaScript and TypeScript identities. Message-bear
 `number()` deliberately has no hidden finite-number policy:
 
 ```ts
-v.number().execute(Number.NaN) // success
-v.number().execute(Infinity) // success
-v.number().isFinite().execute(Infinity) // failure
+const nanResult = v.number()
+	.execute(Number.NaN) // success
+const infinityResult = v.number()
+	.execute(Infinity) // success
+const finiteInfinityResult = v.number()
+	.isFinite()
+	.execute(Infinity) // failure
 ```
 
 ## Loose primitives
@@ -65,8 +69,13 @@ Built-in validations preserve successful values and enforce only their stated co
 Bound issue codes are `isAtLeast:expected_at_least`, `isAtMost:expected_at_most`, `isGreaterThan:expected_greater_than`, and `isLessThan:expected_less_than`. `isMultipleOf()` owns `isMultipleOf:expected_multiple_of` and rejects zero or non-finite number divisors, and zero bigint divisors, during construction.
 
 ```ts
-v.number().isAtLeast(0).execute(Infinity) // success
-v.number().isFinite().isAtLeast(0).execute(Infinity) // failure
+const lowerBoundResult = v.number()
+	.isAtLeast(0)
+	.execute(Infinity) // success
+const finiteLowerBoundResult = v.number()
+	.isFinite()
+	.isAtLeast(0)
+	.execute(Infinity) // failure
 ```
 
 ## Date validation
