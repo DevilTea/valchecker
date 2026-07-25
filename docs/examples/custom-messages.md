@@ -2,6 +2,16 @@
 
 Every issue-producing step accepts a static message or message handler. Messages should remain presentation text; applications should use issue codes and payloads for programmatic behavior.
 
+<!-- typecheck-prelude
+// Later examples on this page elide the imports the first one shows.
+declare const createValchecker: typeof import('valchecker').createValchecker
+declare const allSteps: typeof import('valchecker').allSteps
+declare const userSchema: { execute: (input: unknown) => Promise<import('valchecker').ExecutionResult<unknown, import('valchecker').AnyExecutionIssue>> }
+declare const requestBody: unknown
+declare const SUPPORTED_CURRENCIES: readonly string[]
+declare const translate: (code: string, payload: Record<string, unknown>, locale: 'en' | 'fr') => string
+-->
+
 ## Per-step messages
 
 ```ts
@@ -37,6 +47,7 @@ const username = v.string()
 
 ## Global message resolver
 
+<!-- typecheck-isolate -->
 ```ts
 import { allSteps, createValchecker } from 'valchecker'
 
@@ -63,6 +74,8 @@ const v = createValchecker({
 
 A `message` may also be a map keyed by issue code:
 
+<!-- Deliberately un-annotated: the prose below explains why map-form params fall back to `any`. -->
+<!-- typecheck-skip -->
 ```ts
 const v = createValchecker({
 	steps: allSteps,
@@ -81,6 +94,8 @@ Map-form handler params are contextually typed only when the issue codes are a c
 
 Use issue codes as stable translation keys and payload values as interpolation data:
 
+<!-- Illustrative locale table: the index lookup is deliberately untyped. -->
+<!-- typecheck-skip -->
 ```ts
 const translations = {
 	en: {
@@ -120,6 +135,7 @@ Messages resolve once, after nested schemas have completed the issue path, in th
 5. originating built-in default,
 6. `"Invalid value."`.
 
+<!-- typecheck-isolate -->
 ```ts
 const v = createValchecker({
 	steps: allSteps,
@@ -136,6 +152,8 @@ The per-step message takes precedence. Returning `null` or `undefined` continues
 
 Expose structured fields rather than only a concatenated message:
 
+<!-- Request-handler fragment: `return` has no enclosing function here. -->
+<!-- typecheck-skip -->
 ```ts
 const result = await userSchema.execute(requestBody)
 

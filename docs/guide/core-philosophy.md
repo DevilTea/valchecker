@@ -214,6 +214,7 @@ import { v } from 'valchecker'
 
 A selective instance registers only imported plugins:
 
+<!-- typecheck-isolate -->
 ```ts
 import {
 	createValchecker,

@@ -122,6 +122,10 @@ if (v.isSuccess(result)) {
 
 <div class="code-showcase">
 
+<!-- typecheck-prelude
+declare const input: unknown
+-->
+
 ## See It In Action
 
 The method name identifies the step's role, while the available methods narrow as the pipeline output changes.

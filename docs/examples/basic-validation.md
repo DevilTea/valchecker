@@ -9,6 +9,10 @@ import type { InferOutput } from 'valchecker'
 import { v } from 'valchecker'
 ```
 
+<!-- typecheck-prelude
+declare const input: unknown
+-->
+
 ## Primitive identity
 
 ```ts

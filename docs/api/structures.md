@@ -4,6 +4,16 @@ Structural validators compose nested schemas and prepend property keys or collec
 
 The normative edge-case behavior is defined in the [Valchecker 1.0 Contract](/guide/v1-contract#object-schemas).
 
+<!-- typecheck-prelude
+declare const createValchecker: typeof import('valchecker').createValchecker
+declare const union: typeof import('valchecker').union
+declare const literal: typeof import('valchecker').literal
+declare const null_: typeof import('valchecker').null_
+declare const undefined_: typeof import('valchecker').undefined_
+declare const number: typeof import('valchecker').number
+declare const isGreaterThan: typeof import('valchecker').isGreaterThan
+-->
+
 ## Issue collection
 
 `object()`, `strictObject()`, `looseObject()`, `array()`, `set()`, `map()`, and `intersection()` stop after the first recoverable structural or child failure by default. A failing child can still contribute every issue produced by that child execution; later sibling fields, items, entries, or intersection branches are not evaluated.
@@ -253,6 +263,11 @@ The key schema's output domain decides the mode:
 - key-schema issues (open domain) with `[sourceKey]` prepended and a `{ type: 'record', part: 'key' }` context entry
 - value-schema issues with `[sourceKey]` prepended
 
+<!-- typecheck-skip -->
+<!-- Known limitation (#98): the `union` literal shorthand's inferred output includes
+     `null | undefined` even when no branch is nullish, so `record` rejects it as an incoherent key
+     schema. Its `literalMembers` are correct, so the runtime behaviour shown here is accurate. Use
+     `v.union([v.literal('read'), v.literal('write')])` until the shorthand output is narrowed. -->
 ```ts
 const ratings = v.record({ key: v.string(), value: v.number() })
 ratings.execute({ a: 1, b: 2 })
@@ -295,9 +310,10 @@ Initial-schema steps can extend the values accepted directly by `union()` when t
 | `null_` | `null` |
 | `undefined_` | `undefined` |
 
+<!-- typecheck-isolate -->
 ```ts
 const v = createValchecker({
-	steps: [union, literal, null_, undefined_, number],
+	steps: [union, literal, null_, undefined_, number, isGreaterThan],
 })
 
 const value = v.union([

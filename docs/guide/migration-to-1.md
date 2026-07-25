@@ -36,6 +36,8 @@
 
 Before:
 
+<!-- Shows the removed pre-1.0 API on purpose. -->
+<!-- typecheck-skip -->
 ```ts
 v.string()
 	.min(3)

@@ -2,6 +2,23 @@
 
 Mix synchronous normalization and constraints with database or API checks in one pipeline.
 
+<!-- typecheck-prelude
+// Stand-ins for the application services these examples talk to.
+interface Users {
+	exists: (where: Record<string, unknown>) => Promise<boolean>
+	create: (data: Record<string, unknown>) => Promise<void>
+}
+declare const db: {
+	users: Users
+	transaction: (run: (tx: { users: Users }) => Promise<void>) => Promise<void>
+}
+declare const logger: { error: (message: string, error: unknown) => void }
+declare const disposableEmailService: { check: (value: string) => Promise<boolean> }
+declare const bannedEmailService: { check: (value: string) => Promise<boolean> }
+declare const username: string
+declare const input: unknown
+-->
+
 ## Username availability
 
 ```ts

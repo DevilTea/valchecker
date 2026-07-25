@@ -133,6 +133,8 @@ toFieldName(['items', 1, 'price']) // items[1].price
 
 Preserve both the path array and a rendered field identifier:
 
+<!-- Request-handler fragment: `return` has no enclosing function here. -->
+<!-- typecheck-skip -->
 ```ts
 if (v.isFailure(result)) {
 	return Response.json({
@@ -154,6 +156,8 @@ Clients can localize by code and highlight by path without parsing human-readabl
 
 ## Grouping by path
 
+<!-- Fragment: continues inside the `v.isFailure(result)` branch shown above. -->
+<!-- typecheck-skip -->
 ```ts
 const byField = new Map<string, typeof result.issues>()
 
