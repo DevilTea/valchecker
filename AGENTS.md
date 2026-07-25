@@ -80,7 +80,7 @@ A message-bearing built-in keeps at most one required semantic operand positiona
 A public failure always contains a non-empty tuple:
 
 ```ts
-type ExecutionFailureResult<Issue> = {
+interface ExecutionFailureResult<Issue> {
 	issues: [Issue, ...Issue[]]
 }
 ```
