@@ -61,7 +61,8 @@ interface PluginDef extends TStepPluginDef {
 	 *
 	 * ### Example:
 	 * ```ts
-	 * const schema = v.number().isPositive()
+	 * const schema = v.number()
+	 * 	.isPositive()
 	 * ```
 	 *
 	 * ---
@@ -86,14 +87,18 @@ export const isPositive = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, createIssue, failure, success },
 		params: [options],
 	}) => {
-		addSuccessStep(value => value > 0
-			? success(value)
-			: failure(createIssue({
-				code: 'isPositive:expected_positive',
-				payload: { value },
-				customMessage: options?.message,
-				defaultMessage: 'Expected a positive number.',
-			})))
+		addSuccessStep((value) => {
+			if (value <= 0) {
+				return failure(createIssue({
+					code: 'isPositive:expected_positive',
+					payload: { value },
+					customMessage: options?.message,
+					defaultMessage: 'Expected a positive number.',
+				}))
+			}
+
+			return success(value)
+		})
 	},
 }, 'sync')
 ````
@@ -105,7 +110,8 @@ import { createValchecker, number } from 'valchecker'
 import { isPositive } from './isPositive'
 
 const v = createValchecker({ steps: [number, isPositive] })
-const schema = v.number().isPositive()
+const schema = v.number()
+	.isPositive()
 ```
 
 ## Parameters
@@ -166,10 +172,11 @@ interface PluginDef extends TStepPluginDef {
 	toCodePoints: DefineStepMethod<
 		Meta,
 		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? () => Next<
-				{ output: number[] },
-				this['CurrentValchecker']
-			>
+			? () =>
+				Next<
+					{ output: number[] },
+					this['CurrentValchecker']
+				>
 			: never
 	>
 }
