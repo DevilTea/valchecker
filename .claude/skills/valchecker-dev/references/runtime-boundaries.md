@@ -74,4 +74,12 @@ A PR that changes a runtime defense must document:
 - supported-behavior tests retained;
 - declaration and documentation changes.
 
-Apply this order: define the contract, classify ownership, identify blast radius, preserve runtime enforcement by default, separate shared representations, benchmark the exact candidate, and keep only changes with measured value and explicit trade-offs.
+Work in this order:
+
+1. define the contract;
+2. classify ownership;
+3. identify the blast radius;
+4. preserve runtime enforcement by default;
+5. separate shared representations;
+6. benchmark the exact candidate;
+7. keep only changes with measured value and explicit trade-offs.

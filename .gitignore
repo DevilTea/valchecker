@@ -205,5 +205,10 @@ $RECYCLE.BIN/
 # .nfs files are created when an open file is removed but is still being accessed
 .nfs*
 
-# Agents' temporary files
-.agents
+# Agent harness state. `.claude/skills/`, `.claude/settings.json`, `.claude/commands/`
+# and `.agents/` are tracked on purpose; everything below is machine-local.
+.claude/worktrees/
+.claude/settings.local.json
+.claude/shell-snapshots/
+.claude/todos/
+.agents/tmp/

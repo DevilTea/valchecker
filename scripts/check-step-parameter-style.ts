@@ -7,6 +7,27 @@ const root = process.cwd()
 const stepsRoot = path.join(root, 'packages/internal/src/steps')
 const errors: string[] = []
 
+const sideEffectMarker = '/* @__NO_SIDE_EFFECTS__ */'
+
+// Tree-shaking of unselected plugins depends on this marker sitting directly above every
+// plugin construction. Losing it is invisible in tests and only shows up as a bundle-size
+// regression in the tree-shaking scenarios that happen to be enumerated.
+function checkSideEffectMarker(filePath: string): void {
+	const lines = fs.readFileSync(filePath, 'utf8')
+		.split('\n')
+	lines.forEach((line, index) => {
+		if (!/^export const \w+ = implStepPlugin\b/.test(line))
+			return
+
+		let previous = index - 1
+		while (previous >= 0 && lines[previous]!.trim() === '')
+			previous--
+
+		if (previous < 0 || lines[previous]!.trim() !== sideEffectMarker)
+			errors.push(`${path.relative(root, filePath)}:${index + 1}: plugin construction must be directly preceded by ${sideEffectMarker}`)
+	})
+}
+
 function visitFile(filePath: string): void {
 	const source = fs.readFileSync(filePath, 'utf8')
 	const usesStepOptions = source.includes('StepOptions')
@@ -61,9 +82,21 @@ function visitFile(filePath: string): void {
 }
 
 for (const directory of fs.readdirSync(stepsRoot)) {
-	const filePath = path.join(stepsRoot, directory, `${directory}.ts`)
-	if (fs.existsSync(filePath))
-		visitFile(filePath)
+	const stepDirectory = path.join(stepsRoot, directory)
+	if (!fs.statSync(stepDirectory)
+		.isDirectory()) {
+		continue
+	}
+
+	const mainFile = path.join(stepDirectory, `${directory}.ts`)
+	if (fs.existsSync(mainFile))
+		visitFile(mainFile)
+
+	for (const entry of fs.readdirSync(stepDirectory)) {
+		if (!entry.endsWith('.ts') || entry.endsWith('.test.ts') || entry.endsWith('.bench.ts'))
+			continue
+		checkSideEffectMarker(path.join(stepDirectory, entry))
+	}
 }
 
 if (errors.length > 0) {

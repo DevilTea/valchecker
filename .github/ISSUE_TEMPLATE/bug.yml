@@ -1,0 +1,59 @@
+name: Bug report
+description: Valchecker behaves differently from what its documentation or types promise.
+labels: ['type: fix', 'status: needs-triage']
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest schema and input that shows the problem.
+      render: ts
+      placeholder: |
+        import { v } from 'valchecker'
+
+        const schema = v.number().isAtLeast(0)
+        console.log(await schema.execute(Number.NaN))
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected versus actual
+      description: >
+        What you expected and what happened. For a failure result, paste the `issues` array rather
+        than only the message — the `code`, `category`, `payload`, and `path` are what identify the
+        contract.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Valchecker version
+      placeholder: 1.0.0-rc.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Node.js and TypeScript versions
+      placeholder: Node 22.14.0, TypeScript 5.9.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Best guess is fine; a maintainer will correct it.
+      options:
+        - core (execution, results, issues, messages)
+        - step (a specific built-in)
+        - types (inference, fluent availability)
+        - public-api (exports, packaging)
+        - docs
+        - other / not sure
+    validations:
+      required: true

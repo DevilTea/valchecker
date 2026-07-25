@@ -9,6 +9,7 @@ object carrying at least `message`.
 They are available after any step whose output is a `string`, for example
 `v.string()`:
 
+<!-- typecheck-isolate -->
 ```ts
 import { createValchecker, isEmail, string } from 'valchecker'
 

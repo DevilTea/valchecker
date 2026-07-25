@@ -2,6 +2,13 @@
 
 These steps provide generic validation, arbitrary transformation, recovery, delegation, recursion, type assertions, and execution-mode control.
 
+<!-- typecheck-prelude
+declare const input: unknown
+declare const i18n: { t: (key: string, params: Record<string, unknown>) => string }
+declare const createValchecker: typeof import('valchecker').createValchecker
+declare const allSteps: typeof import('valchecker').allSteps
+-->
+
 ## `check<AddedIssue = never>(callback, options?)`
 
 `check()` is the generic validation escape hatch. Under its supported callback contract, `true`, `undefined`/`void`, or a value returned by `utils.narrow()` passes. Returning `false` or any string—including an empty string—fails. The callback and its supported results may be direct or `PromiseLike`; other return types require bypassing the TypeScript contract and are unsupported.
@@ -139,6 +146,8 @@ Use it only when an external invariant already guarantees the asserted type.
 
 Builds lazy or recursive schemas.
 
+<!-- Does not compile as written (#99): the self-reference creates an inference cycle. -->
+<!-- typecheck-skip -->
 ```ts
 interface TreeNode {
 	value: number
@@ -213,6 +222,7 @@ This differs from `object()`, which omits unknown output properties, and `strict
 
 A global message resolver may be supplied when creating an instance:
 
+<!-- typecheck-isolate -->
 ```ts
 const v = createValchecker({
 	steps: allSteps,

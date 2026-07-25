@@ -2,6 +2,10 @@
 
 This page defines the semver-covered compatibility and runtime contract intended for the Valchecker 1.0 release line.
 
+<!-- typecheck-prelude
+import type { IssueContext } from 'valchecker'
+-->
+
 ## Runtime and module support
 
 | Contract | Support |

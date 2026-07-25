@@ -2,6 +2,11 @@
 
 This reference summarizes Valchecker's public schema API. The normative compatibility and semantic definition is the [Valchecker 1.0 Contract](/guide/v1-contract).
 
+<!-- typecheck-prelude
+declare const input: unknown
+declare const schema: { execute: (input: unknown) => unknown }
+-->
+
 ## Import strategies
 
 ### Default instance
@@ -14,6 +19,7 @@ The default instance contains every built-in step.
 
 ### Custom instance with all steps
 
+<!-- typecheck-isolate -->
 ```ts
 import { allSteps, createValchecker } from 'valchecker'
 
@@ -22,6 +28,7 @@ const v = createValchecker({ steps: allSteps })
 
 ### Selective imports
 
+<!-- typecheck-isolate -->
 ```ts
 import { createValchecker, isFinite, number } from 'valchecker'
 

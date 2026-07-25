@@ -1,0 +1,45 @@
+name: Performance issue
+description: A measured regression or a slow path worth optimizing.
+labels: ['type: perf', 'status: needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Performance issues need durable evidence. A report without measurements cannot be
+        prioritized or verified as fixed.
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario
+      description: The schema and workload being measured, and whether it is construction, cold execution, warm success, or failure work.
+      render: ts
+    validations:
+      required: true
+
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements
+      description: >
+        Numbers with their source — `pnpm bench <path>` output, a `benchmarks/` run, or a
+        Performance Comparison workflow run. Include the comparison baseline and, if you have it,
+        the error margin. Link the workflow run when there is one.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Node 22.14.0, macOS 15, M2 Pro
+    validations:
+      required: true
+
+  - type: textarea
+    id: tradeoff
+    attributes:
+      label: Suspected cause and trade-off
+      description: >
+        Optional. If you have a candidate fix, note what it would cost elsewhere — bundle size,
+        type-complexity budget, construction time, or failure-path diagnostics.

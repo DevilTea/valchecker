@@ -35,7 +35,7 @@ Each owned issue code, category, payload shape, path/context behavior, default m
 
 Message-handler tests must reach a real failure. Include enclosing structure and global tiers where the contract is under test. Verify handler exceptions become `core:message_exception` at the public boundary.
 
-Internal issues must remain fatal through structures, union, intersection, and fallback.
+Internal-issue fatality is a contract every structure, combinator, and recovery path must be tested against; see [architecture](./architecture.md#structural-execution).
 
 ## Primitive and conversion contracts
 
@@ -67,12 +67,4 @@ Cover nested paths, own versus inherited properties, string and symbol keys, mis
 
 `scripts/coverage-policy.ts` is the single source of threshold values. Vitest aggregate thresholds and `scripts/check-coverage.ts` per-file floors consume that policy. Do not lower thresholds solely to pass CI, and do not add coverage-only fixtures or implementation-branch tests.
 
-## Commands
-
-```bash
-pnpm test
-pnpm test:coverage
-pnpm typecheck
-```
-
-Use focused Vitest runs during development, then `pnpm test:coverage` before completion because it includes repository test-quality checks and coverage policy. Run build, lint, API-surface, package, docs, type-performance, benchmark, and tree-shaking checks when the change affects those surfaces.
+Use focused Vitest runs (`pnpm test <path>`) while working; `pnpm verify` covers the rest.

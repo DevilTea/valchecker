@@ -24,13 +24,7 @@ Two-argument `ExecutionIssue<Code, Payload>` defaults to category `validation`. 
 
 `PluginDef extends TStepPluginDef` defines the state-aware TypeScript method. It uses `DefineStepMethod`, checks the current schema against `ExpectedCurrentValchecker`, and returns `Next<...>` patches for output, issue, and operation mode.
 
-Every public built-in method carries canonical JSDoc sections in this order:
-
-1. `### Description:`
-2. `### Example:`
-3. `### Issues:`
-
-Message-bearing built-ins use `StepOptions<Issue>` or a step-specific options object containing `message`; positional message parameters are not allowed.
+Message-bearing built-ins take `StepOptions<Issue>` or a step-specific options object containing `message`. Canonical JSDoc structure is in [conventions](./conventions.md#canonical-jsdoc).
 
 ### Runtime implementation
 
@@ -49,8 +43,6 @@ Unannotated plugins default conservatively to runtime `maybe-async`. Pass `'sync
 `createIssue()` creates a typed draft. It does not eagerly run dynamic message handlers. Nested structures clone issues while prepending paths, appending provenance context, and attaching enclosing message scopes. Public `execute()` and Standard Schema validation finalize each issue exactly once.
 
 Do not spread an issue on a propagation path: draft metadata is stored on a non-enumerable symbol and a spread drops it. Use `prependIssuePath`, `replaceIssuePath`, and `appendIssueContext` from the step utilities.
-
-Public issues contain `code`, `category`, `payload`, `message`, `path`, and optional `context`. Failure results contain a non-empty issue tuple.
 
 ## Structural execution
 
@@ -82,4 +74,4 @@ packages/internal/src/steps/<name>/
 └── index.ts
 ```
 
-Additional type, async, collect-all, or regression tests remain colocated. Export the plugin from its local `index.ts` and `packages/internal/src/steps/index.ts`, then update every affected public/test/docs/benchmark surface listed in `AGENTS.md`.
+Additional type, async, collect-all, or regression tests remain colocated. Export the plugin from its local `index.ts` and `packages/internal/src/steps/index.ts`, then update every affected surface listed in [`AGENTS.md`](../../../../AGENTS.md#tests-and-public-api).

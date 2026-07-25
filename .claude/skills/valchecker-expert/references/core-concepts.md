@@ -56,7 +56,7 @@ interface ExecutionIssue {
 
 Use `v.isSuccess()` and `v.isFailure()` to narrow results. Paths identify data locations; optional context records provenance such as union or variant branch selection.
 
-Message priority is custom step, nearest enclosing structure, outer structures, originating global resolver, built-in default, then `"Invalid value."`.
+Message resolution order is in [error handling](./error-handling.md#message-resolution).
 
 ## Structures
 

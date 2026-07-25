@@ -2,6 +2,11 @@
 
 Use `fallback()` to recover from earlier pipeline failures with an explicit replacement value.
 
+<!-- typecheck-prelude
+declare const logger: { warn: (message: string, detail?: unknown) => void, error: (message: string, detail?: unknown) => void }
+declare const cache: { getDefaultProfile: () => Promise<unknown> }
+-->
+
 ## JSON payload recovery
 
 ```ts
@@ -66,7 +71,7 @@ const email = v.string()
 	.toTrimmed()
 	.toLowercase()
 	.check(value => value.includes('@'), { message: 'Invalid email format' })
-	.fallback(() => null)
+	.fallback(() => '')
 
 const form = v.object({
 	name: v.string()

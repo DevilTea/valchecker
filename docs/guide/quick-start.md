@@ -2,6 +2,10 @@
 
 Get Valchecker running with inferred TypeScript input and transformed output types.
 
+<!-- typecheck-prelude
+declare const input: unknown
+-->
+
 ## Requirements
 
 - Node.js 22 or newer
@@ -29,6 +33,7 @@ The default `v` instance contains every built-in step.
 
 ### Selective instance
 
+<!-- typecheck-isolate -->
 ```ts
 import {
 	createValchecker,
@@ -37,7 +42,7 @@ import {
 	number,
 } from 'valchecker'
 
-const v = createValcheckker({
+const v = createValchecker({
 	steps: [number, isFinite, isAtLeast],
 })
 ```

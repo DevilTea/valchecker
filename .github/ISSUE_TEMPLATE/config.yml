@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/DevilTea/valchecker/security/advisories/new
+    about: Report privately. Please do not open a public issue for a vulnerability.
+  - name: Support policy, versioning, and runtime matrix
+    url: https://github.com/DevilTea/valchecker/blob/main/SUPPORT.md
+    about: What is supported, how SemVer is applied, and the deprecation policy.

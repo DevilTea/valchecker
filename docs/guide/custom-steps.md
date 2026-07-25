@@ -31,6 +31,7 @@ A normal plugin has three layers:
 
 ## Synchronous validation example
 
+<!-- typecheck-isolate -->
 ````ts
 import type {
 	DefineExpectedValchecker,
@@ -105,6 +106,7 @@ export const isPositive = implStepPlugin<PluginDef>({
 
 Register the plugin with the initial step it depends on:
 
+<!-- typecheck-skip -->
 ```ts
 import { createValchecker, number } from 'valchecker'
 import { isPositive } from './isPositive'
@@ -118,6 +120,7 @@ const schema = v.number()
 
 A message-bearing method keeps at most one required semantic operand positional. Optional configuration and `message` belong to one trailing options object.
 
+<!-- typecheck-skip -->
 ```ts
 type Options = StepOptions<Meta['SelfIssue']>
 
@@ -137,6 +140,7 @@ Do not use direct positional messages. Snapshot mutable caller-owned configurati
 
 A pure transformation patches the output and owns no issue:
 
+<!-- typecheck-isolate -->
 ````ts
 import type {
 	DefineExpectedValchecker,
@@ -203,6 +207,7 @@ A callback-driven pipeline may still return a direct early failure before asynch
 
 A thrown or rejected user/native callback is an `operation` issue:
 
+<!-- typecheck-skip -->
 ```ts
 type CallbackIssue = ExecutionIssue<
 	'toDomain:callback_failed',
@@ -217,6 +222,7 @@ Pass `category: 'operation'` to `createIssue()` for that code. The code, categor
 
 Use `addFailureStep()` only for an intentional recovery or flow-control operation. Internal issues are fatal and must not be hidden:
 
+<!-- typecheck-skip -->
 ```ts
 addFailureStep((issues) => {
 	if (issues.some(issue => issue.category === 'internal'))

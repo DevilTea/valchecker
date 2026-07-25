@@ -5,7 +5,8 @@ export default deviltea(
 	{
 		ignores: [
 			// eslint ignore globs here
-			'./.github/skills/**/*.md',
+			'./.claude/**/*.md',
+			'./.agents/**/*.md',
 			'./**/README.md',
 		],
 		typescript: {
