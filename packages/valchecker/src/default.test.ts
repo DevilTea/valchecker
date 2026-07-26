@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import type { InferIssue, InferOutput } from './index'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { v } from './default'
 
 describe('default valchecker instance', () => {
@@ -156,5 +157,29 @@ describe('default valchecker instance', () => {
 					ref: '#42',
 				},
 			})
+	})
+})
+
+describe('default instance type-state contracts', () => {
+	it('infers a literal-shorthand union without the nullish providers widening it', () => {
+		// The default instance registers every provider, including `null_` and
+		// `undefined_`, which is the instance #98 was reported against: a purely
+		// literal shorthand union must not gain `null | undefined`, and `record`
+		// must accept it as a key domain.
+		const _access = v.union(['read', 'write'])
+
+		expectTypeOf<InferOutput<typeof _access>>()
+			.toEqualTypeOf<'read' | 'write'>()
+		expectTypeOf<InferIssue<typeof _access>['code']>()
+			.toEqualTypeOf<
+				| 'literal:expected_literal'
+				| 'core:unknown_exception'
+				| 'core:message_exception'
+		>()
+
+		const _flags = v.record({ key: v.union(['read', 'write']), value: v.boolean() })
+
+		expectTypeOf<InferOutput<typeof _flags>>()
+			.toEqualTypeOf<{ read: boolean, write: boolean }>()
 	})
 })

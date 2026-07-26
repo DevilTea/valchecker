@@ -155,8 +155,9 @@ interface TreeNode {
 const treeSchema = v.object({
 	value: v.number(),
 	// The factory's `any` return type breaks the inference cycle a bare
-	// self-reference would create. The schema's own output type comes from the
-	// `generic<{ output: TreeNode }>` argument, so nothing is lost.
+	// self-reference would create. The output type still comes from the
+	// `generic<{ output: TreeNode }>` argument; the annotation only gives up the
+	// check that the factory returns a schema.
 	children: [v.array(
 		v.generic<{ output: TreeNode }>((): any => treeSchema),
 	)],
