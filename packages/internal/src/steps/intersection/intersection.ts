@@ -187,15 +187,24 @@ function defineEnumerableValue(target: Record<PropertyKey, unknown>, key: Proper
  *
  * `Object.keys` plus the enumerable own symbols yields the same sequence as
  * `Reflect.ownKeys` filtered by `propertyIsEnumerable`, without allocating a
- * descriptor object per key. Descriptor allocation dominated this path: merging
- * two single-key objects cost 325 ns in isolation, and removing the descriptor
- * scans moved the `intersection/valid` scenario from 460 ns to 350 ns
- * (2026-07-27).
+ * descriptor object per key. Descriptor allocation dominated this path:
+ * removing those scans improved the `merge disjoint flat objects` case in
+ * `intersection.bench.ts` by about 29% and the cross-library
+ * `intersection/valid` scenario by about 26% (2026-07-27).
  *
  * Enumerability is re-checked per key rather than trusted from the initial
  * `Object.keys` snapshot, because a getter invoked during this scan may delete
- * or hide a later key. `enumerableOwnProperties` checks the same way, so both
- * paths agree on which properties exist.
+ * a later key or make it non-enumerable; `enumerableOwnProperties` re-checks
+ * the same way, so both paths drop it.
+ *
+ * The reverse is deliberately not covered: a getter that makes a later
+ * NON-enumerable key enumerable mid-scan is invisible here, because
+ * `Object.keys` never listed that key, while `enumerableOwnProperties` starts
+ * from `Reflect.ownKeys` and would include it. Closing that gap means scanning
+ * `Reflect.ownKeys` here too, which measured 464 ns against the 448 ns of the
+ * descriptor version this replaced — slower than doing nothing at all
+ * (2026-07-27). The shape requires a getter that alters its own object's
+ * property attributes while that object is being enumerated.
  *
  * The scan completes even after it finds a nested plain object, so `values` is
  * always the full set the caller can hand to the general path, which therefore

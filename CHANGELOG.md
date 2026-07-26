@@ -34,9 +34,9 @@ Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` b
 
 ### Performance
 
-- `intersection()` merges disjoint flat plain objects without allocating a property descriptor per key. The merge scans own enumerable properties with `Object.keys` plus the enumerable own symbols, reads each value once, and builds the output from those values. Measured with the standard profile over three runs: `intersection/valid` 460 ns to 350 ns (about +31% throughput), `cold/intersection-valid` about +7%, construction unchanged, and the collection and primitive scenarios unaffected within run-to-run noise. The accessor-snapshot contract holds on both paths: the shallow merge assigns the values it read rather than re-reading them, and when it declines it hands them to the general graph merge.
+- `intersection()` merges disjoint flat plain objects without allocating a property descriptor per key. The merge scans own enumerable properties with `Object.keys` plus the enumerable own symbols, reads each value once, and builds the output from those values. Measured with the standard profile over three interleaved pairs: `intersection/valid` improves about +26% in throughput (roughly 450-460 ns to 350-367 ns, depending on which scenarios share the worker process), `cold/intersection-valid` about +11%, construction unchanged, and the collection and primitive scenarios unaffected within run-to-run noise. The accessor-snapshot contract holds on both paths: the shallow merge assigns the values it read rather than re-reading them, and when it declines it hands them to the general graph merge.
 - Schema instances dispatch through a shared prototype instead of a per-instance `Proxy` `get` trap. This removes a fixed per-property-read cost paid on every `execute`, `~execute`, and `~core` access (including the internal per-child reads structural steps perform), with no change to the public property surface.
-- `map()` / `set()` first-issue short-circuit no longer scans the whole collection (lazy native iteration),.
+- `map()` / `set()` first-issue short-circuit no longer scans the whole collection (lazy native iteration).
 
 ### Fixed
 

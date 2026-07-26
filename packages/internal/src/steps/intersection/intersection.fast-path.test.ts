@@ -98,7 +98,10 @@ describe('intersection disjoint plain-object outputs', () => {
 	it('declines the shallow merge when a nested plain object appears after the first key', () => {
 		// The scan must keep going after it finds a nested object, so the values it
 		// hands to the general merge are complete.
-		const left = { first: 'a', nested: { deep: true } }
+		// `last` comes after `nested`, so an implementation that stopped scanning at
+		// the first nested object would hand the general merge an incomplete value
+		// set and lose it.
+		const left = { first: 'a', nested: { deep: true }, last: 'c' }
 		const right = { second: 'b' }
 
 		const result = syncResult(v.intersection([
@@ -110,7 +113,7 @@ describe('intersection disjoint plain-object outputs', () => {
 			.execute(null))
 
 		expect(result)
-			.toEqual({ value: { first: 'a', nested: { deep: true }, second: 'b' } })
+			.toEqual({ value: { first: 'a', nested: { deep: true }, last: 'c', second: 'b' } })
 		if (v.isSuccess(result)) {
 			// The general merge clones nested plain objects rather than sharing them.
 			expect((result.value as { nested: unknown }).nested)
