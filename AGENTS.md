@@ -34,6 +34,21 @@ type-performance/       TypeScript compiler-complexity fixture and budget
 - raise a threshold in `type-performance/budget.json` or `scripts/coverage-policy.ts` to make a gate pass;
 - delete branches or worktrees, or bypass hooks with `--no-verify`.
 
+**Destructive commands earn their confirmation.** Most operations here are permitted at the cost of a
+confirmation prompt, and a prompt showing only a command line is not enough to judge by. So before
+requesting one, run the read-only form first and report what would be lost:
+
+- `git clean` — run `git clean -n` and list the files by name;
+- `git reset --hard`, `git checkout -- <path>` — these destroy uncommitted work that no reflog can
+  recover. Show `git status` and `git stash list` first, and name what disappears;
+- `git push` — run `git push --dry-run` when the refspec is not obvious;
+- deleting any ref — record the SHA first. If the ref is not reachable from `main` and has no merged
+  pull request, `git bundle` it and verify the bundle before deleting.
+
+Prefix-matched permission rules cannot express "any branch except `main`", so they are an
+accident guard, not a boundary. Treat the protections that do not depend on string matching — the
+`main` ruleset and npm Trusted Publishing — as the real ones, and do not go around them.
+
 **Delegation.** Use a subagent for a genuinely independent, wide investigation across many files. Do not delegate work you can finish in a handful of tool calls, and do not use a subagent to verify your own work.
 
 ## Verification
