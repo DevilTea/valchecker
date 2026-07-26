@@ -52,6 +52,7 @@ export default {
 	version: '1.4.2',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
+		features: [],
 	},
 	build: {
 		primitive: () => v.pipe(
@@ -112,6 +113,23 @@ export default {
 			v.object({ left: v.string() }),
 			v.object({ right: v.string() }),
 		]),
+		record: () => v.record(v.string(), v.number()),
+		tuple: () => v.tupleWithRest([v.string(), v.number()], v.boolean()),
+		date: () => v.date(),
+		// Valibot has no string-to-Date conversion action, so the closest
+		// equivalent pipes the native constructor and validates the result, which
+		// is what `toDate` does internally.
+		dateFromString: () => v.pipe(
+			v.string(),
+			v.transform(value => new Date(value)),
+			v.date(),
+		),
+		formatEmail: () => v.pipe(v.string(), v.email()),
+		formatUuid: () => v.pipe(v.string(), v.uuid()),
+		formatIsoDateTime: () => v.pipe(v.string(), v.isoTimestamp()),
+		membership: () => v.picklist(['red', 'green', 'blue']),
+		issuePolicyRecord: () => v.record(v.string(), v.number()),
+		issuePolicyTuple: () => v.tuple([v.string(), v.string()]),
 	},
 	parse(schema, input, context) {
 		return v.safeParse(

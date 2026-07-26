@@ -2,15 +2,23 @@ import {
 	collectionStructures,
 	createInvalidRecords,
 	createRecords,
+	dateInputs,
 	flatObject,
 	flatObjectPool,
 	issuePolicyInputs,
+	issuePolicyRecordInput,
+	issuePolicyTupleInput,
+	membershipInputs,
 	nestedObject,
 	optionalHeavy,
 	optionalSparsePool,
 	primitive,
 	recordArrayPool,
+	recordEntries,
+	stringFormatInputs,
+	templateLiteralInputs,
 	transformInputs,
+	tupleInputs,
 	unionFirstPool,
 	unionInputs,
 } from './fixtures.mjs'
@@ -23,6 +31,10 @@ function canonicalizeOutput(value) {
 		return { type: 'Map', entries: [...value].map(([key, item]) => [canonicalizeOutput(key), canonicalizeOutput(item)]) }
 	if (value instanceof Set)
 		return { type: 'Set', values: [...value].map(canonicalizeOutput) }
+	// A Date has no own enumerable properties, so the generic object branch below
+	// would canonicalize every Date to `{}` and compare all of them as equal.
+	if (value instanceof Date)
+		return { type: 'Date', time: value.getTime() }
 	if (Array.isArray(value))
 		return value.map(canonicalizeOutput)
 	if (value != null && typeof value === 'object') {
@@ -57,7 +69,28 @@ function benchmarkGroup(category, resultKind, issuePolicy) {
 	return `warm/failure/${issuePolicy}`
 }
 
-function supportFor(adapter, issuePolicy) {
+// A feature name exists only for a schema capability that at least one adapter
+// genuinely lacks, so an adapter's `capabilities.features` list stays short and
+// every entry is a real claim. A scenario that requires a feature is skipped
+// with a reason for adapters that do not declare it, rather than approximated
+// with a hand-rolled stand-in that would compare different work.
+function featureSupportFor(adapter, requiredFeatures) {
+	if (requiredFeatures.length === 0)
+		return { supported: true, reason: null }
+	const supportedFeatures = adapter.capabilities?.features ?? []
+	const missing = requiredFeatures.filter(feature => !supportedFeatures.includes(feature))
+	return missing.length === 0
+		? { supported: true, reason: null }
+		: {
+				supported: false,
+				reason: `${adapter.name} has no benchmark-equivalent ${missing.join(', ')} schema`,
+			}
+}
+
+function supportFor(adapter, issuePolicy, requiredFeatures) {
+	const featureSupport = featureSupportFor(adapter, requiredFeatures)
+	if (!featureSupport.supported)
+		return featureSupport
 	if (!explicitIssuePolicies.has(issuePolicy))
 		return { supported: true, reason: null }
 	const supportedPolicies = adapter.capabilities?.issuePolicies ?? []
@@ -78,6 +111,7 @@ function defineScenario({
 	issuePolicy,
 	comparisonScope,
 	diagnosticIssueCount,
+	requiredFeatures = [],
 	createOperation,
 }) {
 	const group = benchmarkGroup(category, resultKind, issuePolicy)
@@ -90,9 +124,10 @@ function defineScenario({
 		issuePolicy,
 		comparisonScope,
 		diagnosticIssueCount,
+		requiredFeatures,
 		buildKey,
 		support(adapter) {
-			return supportFor(adapter, issuePolicy)
+			return supportFor(adapter, issuePolicy, requiredFeatures)
 		},
 		setup(adapter) {
 			return createOperation(adapter, { issuePolicy, comparisonScope, resultKind })
@@ -110,6 +145,7 @@ function construction(id, tier, buildKey, correctnessInput, expected = { success
 		issuePolicy: options.issuePolicy ?? 'not-applicable',
 		comparisonScope: options.comparisonScope ?? 'equivalent',
 		diagnosticIssueCount: expected.issueCount ?? null,
+		requiredFeatures: options.requiredFeatures,
 		createOperation(adapter, context) {
 			const verifySchema = adapter.build[buildKey](context)
 			assertResult(adapter, adapter.parse(verifySchema, correctnessInput, context), expected)
@@ -128,6 +164,7 @@ function cold(id, tier, buildKey, input, expected, options = {}) {
 		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
 		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
 		diagnosticIssueCount: expected.issueCount ?? null,
+		requiredFeatures: options.requiredFeatures,
 		createOperation(adapter, context) {
 			const operation = () => adapter.parse(adapter.build[buildKey](context), input, context)
 			assertResult(adapter, operation(), expected)
@@ -146,6 +183,7 @@ function warm(id, tier, buildKey, input, expected, options = {}) {
 		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
 		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
 		diagnosticIssueCount: expected.issueCount ?? null,
+		requiredFeatures: options.requiredFeatures,
 		createOperation(adapter, context) {
 			const schema = adapter.build[buildKey](context)
 			const operation = () => adapter.parse(schema, input, context)
@@ -165,6 +203,7 @@ function warmPool(id, tier, buildKey, inputs, expected, options = {}) {
 		issuePolicy: options.issuePolicy ?? (expected.success ? 'not-applicable' : 'library-default'),
 		comparisonScope: options.comparisonScope ?? (expected.success ? 'equivalent' : 'library-defaults'),
 		diagnosticIssueCount: expected.issueCount ?? null,
+		requiredFeatures: options.requiredFeatures,
 		createOperation(adapter, context) {
 			const schema = adapter.build[buildKey](context)
 			for (const input of inputs)
@@ -183,6 +222,7 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 	const comparisonScope = options.comparisonScope ?? 'equivalent'
 	const allIssueCount = options.allIssueCount ?? 2
 	const tier = options.tier ?? 'standard'
+	const requiredFeatures = options.requiredFeatures
 	return [
 		warm(
 			`issue-policy/${structure}/invalid/first`,
@@ -190,7 +230,7 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 			buildKey,
 			input,
 			{ success: false, issueCount: 1 },
-			{ issuePolicy: 'first', comparisonScope },
+			{ issuePolicy: 'first', comparisonScope, requiredFeatures },
 		),
 		warm(
 			`issue-policy/${structure}/invalid/all`,
@@ -198,7 +238,7 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 			buildKey,
 			input,
 			{ success: false, issueCount: allIssueCount },
-			{ issuePolicy: 'all', comparisonScope },
+			{ issuePolicy: 'all', comparisonScope, requiredFeatures },
 		),
 	]
 }
@@ -272,6 +312,52 @@ const allScenarios = [
 	...issuePolicyPair('set', 'issuePolicySet', issuePolicyInputs.set),
 	...issuePolicyPair('map', 'issuePolicyMap', issuePolicyInputs.map),
 	...issuePolicyPair('intersection', 'issuePolicyIntersection', issuePolicyInputs.intersection, { comparisonScope: 'compatible-subset' }),
+
+	// Steps that shipped after the scenario set above was written. Added under
+	// new ids so every pre-existing scenario stays comparable with the baseline
+	// runs cited by the open performance issues.
+	construction('construct/record', 'standard', 'record', recordEntries.valid100, { success: true, output: recordEntries.valid100 }),
+	construction('construct/tuple', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }),
+	construction('construct/template-literal', 'standard', 'templateLiteral', templateLiteralInputs.valid, { success: true, output: templateLiteralInputs.valid }, { requiredFeatures: ['template literal'] }),
+
+	cold('cold/record-valid', 'standard', 'record', recordEntries.valid100, { success: true, output: recordEntries.valid100 }),
+	cold('cold/tuple-valid', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }),
+
+	warm('record/100-valid', 'standard', 'record', recordEntries.valid100, { success: true, output: recordEntries.valid100 }),
+	warm('record/1000-valid', 'full', 'record', recordEntries.valid1000, { success: true, output: recordEntries.valid1000 }),
+	warm('record/100-invalid-first', 'standard', 'record', recordEntries.invalidFirst, { success: false }),
+	warm('record/100-invalid-last', 'standard', 'record', recordEntries.invalidLast, { success: false }),
+
+	warm('tuple/valid', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }),
+	warm('tuple/invalid-head', 'standard', 'tuple', tupleInputs.invalidHead, { success: false }),
+	warm('tuple/invalid-rest', 'standard', 'tuple', tupleInputs.invalidRest, { success: false }),
+	warm('tuple/too-short', 'standard', 'tuple', tupleInputs.tooShort, { success: false }),
+
+	warm('template-literal/valid', 'standard', 'templateLiteral', templateLiteralInputs.valid, { success: true, output: templateLiteralInputs.valid }, { requiredFeatures: ['template literal'] }),
+	warm('template-literal/invalid', 'standard', 'templateLiteral', templateLiteralInputs.invalid, { success: false }, { requiredFeatures: ['template literal'] }),
+
+	warm('date/valid', 'standard', 'date', dateInputs.valid, { success: true, output: dateInputs.valid }),
+	warm('date/invalid-type', 'standard', 'date', dateInputs.invalidType, { success: false }),
+	warm('date/from-string', 'standard', 'dateFromString', dateInputs.fromStringInput, { success: true, output: dateInputs.fromStringOutput }),
+	warm('date/from-unparseable-string', 'standard', 'dateFromString', dateInputs.unparseableString, { success: false }),
+
+	// Each library ships its own accepted set for these formats, so the scope is
+	// a compatible subset: the fixtures are accepted (or rejected) by all of them.
+	warm('string-format/email-valid', 'standard', 'formatEmail', stringFormatInputs.email, { success: true, output: stringFormatInputs.email }, { comparisonScope: 'compatible-subset' }),
+	warm('string-format/email-invalid', 'standard', 'formatEmail', stringFormatInputs.invalidEmail, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('string-format/uuid-valid', 'standard', 'formatUuid', stringFormatInputs.uuid, { success: true, output: stringFormatInputs.uuid }, { comparisonScope: 'compatible-subset' }),
+	warm('string-format/uuid-invalid', 'standard', 'formatUuid', stringFormatInputs.invalidUuid, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('string-format/iso-date-time-valid', 'standard', 'formatIsoDateTime', stringFormatInputs.isoDateTime, { success: true, output: stringFormatInputs.isoDateTime }, { comparisonScope: 'compatible-subset' }),
+	warm('string-format/iso-date-time-invalid', 'standard', 'formatIsoDateTime', stringFormatInputs.invalidIsoDateTime, { success: false }, { comparisonScope: 'compatible-subset' }),
+
+	// Valchecker validates the string first and then membership; the competitors
+	// dispatch a single enum/picklist check, so the compared work is a compatible
+	// subset rather than an identical pipeline.
+	warm('membership/valid', 'standard', 'membership', membershipInputs.valid, { success: true, output: membershipInputs.valid }, { comparisonScope: 'compatible-subset' }),
+	warm('membership/invalid', 'standard', 'membership', membershipInputs.invalid, { success: false }, { comparisonScope: 'compatible-subset' }),
+
+	...issuePolicyPair('record', 'issuePolicyRecord', issuePolicyRecordInput),
+	...issuePolicyPair('tuple', 'issuePolicyTuple', issuePolicyTupleInput),
 ]
 
 export function getScenarios(mode) {

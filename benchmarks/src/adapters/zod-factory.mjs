@@ -65,11 +65,19 @@ export function createZodAdapter(z, name, version) {
 		second: z.string(),
 	})
 
+	// Zod 4 promoted the string formats to top-level schemas and added
+	// `templateLiteral`; Zod 3 keeps the formats as string methods and has no
+	// template-literal schema at all. Detect rather than branch on the version
+	// string, so a future pin cannot silently keep using the older spelling.
+	const hasTopLevelFormats = typeof z.email === 'function'
+	const hasTemplateLiteral = typeof z.templateLiteral === 'function'
+
 	return {
 		name,
 		version,
 		capabilities: {
 			issuePolicies: ['all'],
+			features: hasTemplateLiteral ? ['template literal'] : [],
 		},
 		build: {
 			primitive: () => z.string()
@@ -127,6 +135,27 @@ export function createZodAdapter(z, name, version) {
 				z.object({ left: z.string() }),
 				z.object({ right: z.string() }),
 			),
+			record: () => z.record(z.string(), z.number()),
+			tuple: () => z.tuple([z.string(), z.number()])
+				.rest(z.boolean()),
+			templateLiteral: () => z.templateLiteral([z.number(), z.enum(['px', 'em', 'rem'])]),
+			date: () => z.date(),
+			dateFromString: () => z.coerce.date(),
+			formatEmail: () => (hasTopLevelFormats
+				? z.email()
+				: z.string()
+						.email()),
+			formatUuid: () => (hasTopLevelFormats
+				? z.uuid()
+				: z.string()
+						.uuid()),
+			formatIsoDateTime: () => (hasTopLevelFormats
+				? z.iso.datetime()
+				: z.string()
+						.datetime()),
+			membership: () => z.enum(['red', 'green', 'blue']),
+			issuePolicyRecord: () => z.record(z.string(), z.number()),
+			issuePolicyTuple: () => z.tuple([z.string(), z.string()]),
 		},
 		parse(schema, input) {
 			return schema.safeParse(input)

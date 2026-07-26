@@ -73,6 +73,7 @@ export default {
 	version: 'workspace',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
+		features: ['template literal'],
 	},
 	build: {
 		primitive: () => v.string()
@@ -131,6 +132,26 @@ export default {
 			v.object({ left: v.string() }),
 			v.object({ right: v.string() }),
 		], structuralOptions(context)),
+		record: () => v.record({ key: v.string(), value: v.number() }),
+		tuple: () => v.tuple([v.string(), v.number(), '...', v.array(v.boolean())]),
+		templateLiteral: () => v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]),
+		date: () => v.date(),
+		dateFromString: () => v.string()
+			.toDate(),
+		formatEmail: () => v.string()
+			.isEmail(),
+		formatUuid: () => v.string()
+			.isUuid(),
+		formatIsoDateTime: () => v.string()
+			.isIsoDateTime(),
+		membership: () => v.string()
+			.isOneOf(['red', 'green', 'blue']),
+		issuePolicyRecord: context => v.record({
+			key: v.string(),
+			value: v.number(),
+			...structuralOptions(context),
+		}),
+		issuePolicyTuple: context => v.tuple([v.string(), v.string()], structuralOptions(context)),
 	},
 	parse(schema, input) {
 		return schema.execute(input)

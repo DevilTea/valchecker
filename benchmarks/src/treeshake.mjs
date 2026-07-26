@@ -298,6 +298,42 @@ export const result = {
 `, {
 		requiredMarkers: ['toMapped:callback_failed', 'toMapped:duplicate_mapped_item', 'toFiltered:callback_failed', 'toMappedKeys:callback_failed', 'toMappedKeys:duplicate_mapped_key', 'toMappedValues:callback_failed'],
 	}),
+	scenario('valchecker-string-formats-free', 'Valchecker', 'Selective string chain without format validators', 'String format isolation', `
+import { createValchecker, string } from 'valchecker'
+const v = createValchecker({ steps: [string] })
+export const result = v.string().execute('value')
+`, {
+		forbiddenMarkers: ['isEmail:expected_email', 'isUuid:expected_uuid', 'isIsoDateTime:expected_iso_date_time'],
+	}),
+	scenario('valchecker-string-formats-selective', 'Valchecker', 'Selective string format validators', 'String format isolation', `
+import { createValchecker, isEmail, isIsoDateTime, isUuid, string } from 'valchecker'
+const v = createValchecker({ steps: [isEmail, isIsoDateTime, isUuid, string] })
+export const result = {
+	email: v.string().isEmail().execute('ada@example.com'),
+	uuid: v.string().isUuid().execute('3f333df6-90a4-4fda-8dd3-9485d27cee36'),
+	isoDateTime: v.string().isIsoDateTime().execute('2024-03-05T08:09:10.123Z'),
+}
+`, {
+		requiredMarkers: ['isEmail:expected_email', 'isUuid:expected_uuid', 'isIsoDateTime:expected_iso_date_time'],
+	}),
+	scenario('valchecker-temporal-free', 'Valchecker', 'Selective string chain without date plugins', 'Date isolation', `
+import { createValchecker, string } from 'valchecker'
+const v = createValchecker({ steps: [string] })
+export const result = v.string().execute('value')
+`, {
+		forbiddenMarkers: ['date:expected_date', 'date:invalid_date', 'toDate:conversion_failed', 'templateLiteral:expected_template_literal'],
+	}),
+	scenario('valchecker-temporal-selective', 'Valchecker', 'Selective date, conversion, and template-literal schemas', 'Date isolation', `
+import { createValchecker, date, literal, number, string, templateLiteral, toDate, union } from 'valchecker'
+const v = createValchecker({ steps: [date, literal, number, string, templateLiteral, toDate, union] })
+export const result = {
+	date: v.date().execute(new Date()),
+	converted: v.string().toDate().execute('2024-03-05T08:09:10.123Z'),
+	template: v.templateLiteral([v.number(), v.union(['px', 'em'])]).execute('12px'),
+}
+`, {
+		requiredMarkers: ['date:expected_date', 'date:invalid_date', 'toDate:conversion_failed', 'templateLiteral:expected_template_literal'],
+	}),
 	...[
 		['valchecker-full', 'Valchecker', 'valchecker'],
 		['zod3-full', 'Zod 3', 'zod3'],

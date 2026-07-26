@@ -165,7 +165,22 @@ The suite separates:
 5. warmed failure that stops after the first issue, and
 6. warmed failure that exhaustively collects issues.
 
-Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
+Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, optional-heavy configuration objects, open records, tuples with a rest region, template literals, date validation and string-to-date conversion, string-format validators, and finite membership. Full mode adds 1,000-element array and record cases.
+
+Existing scenario ids, fixtures, schema shapes, and tiers are treated as stable so a new run stays comparable with earlier ones. A new framing is added under a new id rather than by editing an old scenario, and `smoke` stays small because every pull request runs it.
+
+### Capability gating
+
+Some scenarios need a schema kind that not every library ships. A scenario may declare required features, an adapter declares the features it supports, and unsupported combinations are skipped with a reason instead of being approximated:
+
+- `template literal` — Valchecker and Zod 4 only; Zod 3 and Valibot have no equivalent schema. A hand-rolled regex would compare different work, so those adapters are skipped rather than substituted.
+
+A feature name exists only for a capability at least one adapter genuinely lacks, so every entry in an adapter's feature list is a real claim.
+
+Where a family exists everywhere but the semantics differ in detail, the scenario declares `compatible-subset` instead of pretending equivalence:
+
+- string formats — each library ships its own accepted set, so the fixtures are values that every implementation agrees on;
+- finite membership — Valchecker validates the string and then membership, while the competitors dispatch one enum/picklist check.
 
 ### Diagnostic policy comparability
 

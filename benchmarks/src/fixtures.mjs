@@ -174,6 +174,70 @@ export const collectionStructures = {
 	intersection: Object.freeze({ left: 'left', right: 1 }),
 }
 
+export function createRecordEntries(size, { invalidKey } = {}) {
+	const entries = {}
+	for (let index = 0; index < size; index++)
+		entries[`item-${index}`] = index
+	if (invalidKey !== undefined)
+		entries[invalidKey] = 'invalid'
+	return entries
+}
+
+export const recordEntries = {
+	valid100: Object.freeze(createRecordEntries(100)),
+	valid1000: Object.freeze(createRecordEntries(1000)),
+	invalidFirst: Object.freeze(createRecordEntries(100, { invalidKey: 'item-0' })),
+	invalidLast: Object.freeze(createRecordEntries(100, { invalidKey: 'item-99' })),
+}
+
+// `[string, number, ...boolean[]]`: a fixed head plus a rest region, so the
+// scenario measures per-position dispatch and variadic iteration together.
+export const tupleInputs = {
+	valid: Object.freeze(['head', 1, true, false, true]),
+	invalidHead: Object.freeze([0, 1, true, false, true]),
+	invalidRest: Object.freeze(['head', 1, true, 'invalid', true]),
+	tooShort: Object.freeze(['head']),
+}
+
+// `${number}px | ${number}em | ${number}rem`.
+export const templateLiteralInputs = {
+	valid: '1280px',
+	invalid: '1280pt',
+}
+
+export const dateInputs = {
+	valid: new Date('2024-03-05T08:09:10.123Z'),
+	invalidType: '2024-03-05T08:09:10.123Z',
+	fromStringInput: '2024-03-05T08:09:10.123Z',
+	fromStringOutput: new Date('2024-03-05T08:09:10.123Z'),
+	unparseableString: 'not-a-date',
+}
+
+// Format fixtures are accepted by every adapter's implementation of the
+// corresponding validator, and the invalid values are rejected by all of them,
+// so a scenario compares dispatch and pattern cost rather than which library
+// happens to admit an exotic edge case.
+export const stringFormatInputs = {
+	email: 'ada.lovelace@example.com',
+	invalidEmail: 'ada.lovelace@@example',
+	uuid: '3f333df6-90a4-4fda-8dd3-9485d27cee36',
+	invalidUuid: '3f333df6-90a4-4fda-8dd3',
+	isoDateTime: '2024-03-05T08:09:10.123Z',
+	invalidIsoDateTime: '2024-03-05 08:09:10',
+}
+
+export const membershipInputs = {
+	valid: 'green',
+	invalid: 'yellow',
+}
+
+export const issuePolicyRecordInput = Object.freeze({
+	first: 'invalid',
+	second: 'invalid',
+})
+
+export const issuePolicyTupleInput = Object.freeze([0, 1])
+
 const invalidCollectionValues = Array.from({ length: 100 }, (_, index) => `item-${index}`)
 invalidCollectionValues[0] = 0
 invalidCollectionValues[99] = 99
