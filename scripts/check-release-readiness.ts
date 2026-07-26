@@ -28,8 +28,10 @@ const packageDefinitions = [
 	{ name: 'valchecker', path: 'packages/valchecker/package.json' },
 ] as const
 
+// The publish job's `environment: npm` declaration is asserted against release.yml below, so it is
+// a code-controlled property rather than an external prerequisite. No `npm` environment object
+// exists, and deliberately so — see the GitHub environment section of RELEASING.md.
 const expectedExternalPrerequisites = [
-	'GitHub environment npm is protected and restricted to main',
 	'npm trusted publisher is configured for all three packages',
 ] as const
 
