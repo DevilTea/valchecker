@@ -181,38 +181,53 @@ function defineEnumerableValue(target: Record<PropertyKey, unknown>, key: Proper
 }
 
 /**
- * Reads every own enumerable property once, recording whether any value is a
- * nested plain object (which the fast path cannot merge, because the general
- * path clones nested objects rather than sharing them).
+ * Reads every own enumerable property exactly once, recording whether any value
+ * is a nested plain object (which the shallow merge cannot handle, because the
+ * general path clones nested objects rather than sharing them).
  *
  * `Object.keys` plus the enumerable own symbols yields the same sequence as
  * `Reflect.ownKeys` filtered by `propertyIsEnumerable`, without allocating a
- * descriptor object per key — descriptor reads dominated this path (measured
- * 325 ns to merge two single-key objects, of which the two descriptor scans and
- * the overlap probe were roughly two thirds, 2026-07-27).
+ * descriptor object per key. Descriptor allocation dominated this path: merging
+ * two single-key objects cost 325 ns in isolation, and removing the descriptor
+ * scans moved the `intersection/valid` scenario from 460 ns to 350 ns
+ * (2026-07-27).
  *
- * Scanning continues after the first nested object so `values` is always
- * complete: the caller hands it to the general path, which therefore never
- * re-reads a property. That keeps the number of getter invocations per property
- * at exactly one, as it was when this path inspected descriptors instead of
- * reading values.
+ * Enumerability is re-checked per key rather than trusted from the initial
+ * `Object.keys` snapshot, because a getter invoked during this scan may delete
+ * or hide a later key. `enumerableOwnProperties` checks the same way, so both
+ * paths agree on which properties exist.
+ *
+ * The scan completes even after it finds a nested plain object, so `values` is
+ * always the full set the caller can hand to the general path, which therefore
+ * never re-reads a property.
  */
 function readFlatProperties(value: Record<PropertyKey, unknown>): FlatProperties {
+	// The `Object.keys` array is reused as the key list and compacted in place, so
+	// the common case where nothing is skipped allocates no extra array.
 	const keys: PropertyKey[] = Object.keys(value)
 	const values: unknown[] = []
 	let hasNestedPlainObject = false
+	let kept = 0
 	for (let i = 0; i < keys.length; i++) {
-		const propertyValue = (value as Record<PropertyKey, unknown>)[keys[i]!]
+		const key = keys[i]!
+		if (!Object.prototype.propertyIsEnumerable.call(value, key))
+			continue
+		const propertyValue = value[key]
 		if (isPlainObject(propertyValue))
 			hasNestedPlainObject = true
+		keys[kept] = key
+		kept++
 		values.push(propertyValue)
 	}
+	if (kept !== keys.length)
+		keys.length = kept
+
 	const symbols = Object.getOwnPropertySymbols(value)
 	for (let i = 0; i < symbols.length; i++) {
 		const key = symbols[i]!
 		if (!Object.prototype.propertyIsEnumerable.call(value, key))
 			continue
-		const propertyValue = (value as Record<PropertyKey, unknown>)[key]
+		const propertyValue = value[key]
 		if (isPlainObject(propertyValue))
 			hasNestedPlainObject = true
 		keys.push(key)
@@ -228,30 +243,42 @@ function toPropertyMap(flat: FlatProperties): Map<PropertyKey, unknown> {
 	return properties
 }
 
+function assignFlatProperties(
+	target: Record<PropertyKey, unknown>,
+	properties: FlatProperties,
+): void {
+	for (let i = 0; i < properties.keys.length; i++) {
+		const key = properties.keys[i]!
+		// `__proto__` must become an own data property instead of reassigning the
+		// prototype, which plain assignment would do through the inherited setter.
+		if (key === '__proto__')
+			defineEnumerableValue(target, key, properties.values[i])
+		else
+			target[key] = properties.values[i]
+	}
+}
+
+/**
+ * Both sides are flat (no nested plain objects), share a prototype, and have
+ * disjoint enumerable keys, so a shallow combine is exact.
+ *
+ * The output is built from the values the scan already read. Spreading the live
+ * objects instead would enumerate and read them a second time, which doubles
+ * the invocations of an enumerable accessor and lets a non-idempotent getter
+ * put a value into the output that the flatness check never saw. Assignment
+ * from the scanned values measured within noise of the spread (2026-07-27), so
+ * the second read bought nothing.
+ */
 function mergeDisjointFlatPlainObjects(
-	left: Record<PropertyKey, unknown>,
-	right: Record<PropertyKey, unknown>,
 	prototype: object | null,
 	leftProperties: FlatProperties,
 	rightProperties: FlatProperties,
 ): MergeResult {
-	// Fast, semantics-preserving output construction. Both branches are flat
-	// (no nested plain objects), share a prototype, and have disjoint enumerable
-	// keys, so a shallow combine is exact. Spread/assignment replaces per-key
-	// Object.defineProperty, which benchmarked ~13x slower than spread and ~2.4x
-	// slower than assignment (2026-07-23). For an Object.prototype prototype the
-	// object spread uses CreateDataProperty semantics, so `__proto__` stays an
-	// own data property rather than reassigning the prototype. For a null
-	// prototype there is no `__proto__` accessor on the chain, so direct
-	// assignment is equally safe.
-	if (prototype === Object.prototype)
-		return { ok: true, value: { ...left, ...right } }
-
-	const output = Object.create(prototype) as Record<PropertyKey, unknown>
-	for (let i = 0; i < leftProperties.keys.length; i++)
-		output[leftProperties.keys[i]!] = leftProperties.values[i]
-	for (let i = 0; i < rightProperties.keys.length; i++)
-		output[rightProperties.keys[i]!] = rightProperties.values[i]
+	const output = (prototype === Object.prototype
+		? {}
+		: Object.create(prototype)) as Record<PropertyKey, unknown>
+	assignFlatProperties(output, leftProperties)
+	assignFlatProperties(output, rightProperties)
 	return { ok: true, value: output }
 }
 
@@ -568,7 +595,7 @@ function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
 				&& !rightProperties.hasNestedPlainObject
 				&& hasDisjointKeys(left, rightProperties.keys)
 			) {
-				return mergeDisjointFlatPlainObjects(left, right, prototype, leftProperties, rightProperties)
+				return mergeDisjointFlatPlainObjects(prototype, leftProperties, rightProperties)
 			}
 		}
 	}
