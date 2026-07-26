@@ -34,6 +34,7 @@ Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` b
 
 ### Performance
 
+- `intersection()` merges disjoint flat plain objects without allocating a property descriptor per key. The merge scans own enumerable properties with `Object.keys` plus the enumerable own symbols and reads each value once, which measured `intersection/valid` at 461.8 ns before and 326-337 ns after across three runs (roughly +40% throughput), with construction unchanged. When the scan declines the shallow merge, the values it already read are handed to the general graph merge, so every property is still read exactly once — the accessor-snapshot contract is unchanged.
 - Schema instances dispatch through a shared prototype instead of a per-instance `Proxy` `get` trap. This removes a fixed per-property-read cost paid on every `execute`, `~execute`, and `~core` access (including the internal per-child reads structural steps perform), with no change to the public property surface.
 - `map()` / `set()` first-issue short-circuit no longer scans the whole collection (lazy native iteration), and `intersection()` merges disjoint flat plain objects by spread/assignment instead of per-key `Object.defineProperty`.
 
