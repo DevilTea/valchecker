@@ -34,7 +34,7 @@ concurrency:
 jobs:
   benchmark:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 100
     env:
       BENCHMARK_MODE: ${{ inputs.profile }}
       BENCHMARK_ADAPTERS: ${{ inputs.adapters }}

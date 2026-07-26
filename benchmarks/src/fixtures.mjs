@@ -174,20 +174,20 @@ export const collectionStructures = {
 	intersection: Object.freeze({ left: 'left', right: 1 }),
 }
 
-export function createRecordEntries(size, { invalidKey } = {}) {
+function createOpenRecordEntries(length, invalidKey) {
 	const entries = {}
-	for (let index = 0; index < size; index++)
+	for (let index = 0; index < length; index++)
 		entries[`item-${index}`] = index
 	if (invalidKey !== undefined)
 		entries[invalidKey] = 'invalid'
 	return entries
 }
 
-export const recordEntries = {
-	valid100: Object.freeze(createRecordEntries(100)),
-	valid1000: Object.freeze(createRecordEntries(1000)),
-	invalidFirst: Object.freeze(createRecordEntries(100, { invalidKey: 'item-0' })),
-	invalidLast: Object.freeze(createRecordEntries(100, { invalidKey: 'item-99' })),
+export const openRecordEntries = {
+	valid100: Object.freeze(createOpenRecordEntries(100)),
+	valid1000: Object.freeze(createOpenRecordEntries(1000)),
+	invalidFirst: Object.freeze(createOpenRecordEntries(100, 'item-0')),
+	invalidLast: Object.freeze(createOpenRecordEntries(100, 'item-99')),
 }
 
 // `[string, number, ...boolean[]]`: a fixed head plus a rest region, so the
@@ -205,12 +205,26 @@ export const templateLiteralInputs = {
 	invalid: '1280pt',
 }
 
+// Input and expected-output Dates are distinct instances: `Object.freeze` cannot
+// protect a Date's internal slot, so sharing one instance between the input and
+// the expectation would make an adapter that mutated it silently self-consistent.
 export const dateInputs = {
 	valid: new Date('2024-03-05T08:09:10.123Z'),
+	validOutput: new Date('2024-03-05T08:09:10.123Z'),
 	invalidType: '2024-03-05T08:09:10.123Z',
 	fromStringInput: '2024-03-05T08:09:10.123Z',
 	fromStringOutput: new Date('2024-03-05T08:09:10.123Z'),
 	unparseableString: 'not-a-date',
+	// `date/bounds-*`: `isAfter` / `z.date().min` / `minValue`.
+	lowerBound: new Date('2020-01-01T00:00:00.000Z'),
+	afterBound: new Date('2024-03-05T08:09:10.123Z'),
+	afterBoundOutput: new Date('2024-03-05T08:09:10.123Z'),
+	beforeBound: new Date('2019-01-01T00:00:00.000Z'),
+}
+
+export const fileInputs = {
+	valid: new File(['benchmark payload'], 'payload.txt', { type: 'text/plain' }),
+	invalidType: 'payload.txt',
 }
 
 // Format fixtures are accepted by every adapter's implementation of the

@@ -1,6 +1,7 @@
 import * as v from 'valibot'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
+const dateLowerBound = new Date('2020-01-01T00:00:00.000Z')
 const integer = () => v.pipe(v.number(), v.integer())
 const nonNegativeInteger = () => v.pipe(v.number(), v.integer(), v.minValue(0))
 
@@ -52,7 +53,7 @@ export default {
 	version: '1.4.2',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
-		features: [],
+		features: ['file'],
 	},
 	build: {
 		primitive: () => v.pipe(
@@ -62,6 +63,9 @@ export default {
 			v.regex(/^[a-z0-9-]+$/),
 		),
 		flatObject: () => v.object(createFields()),
+		// Identical to `flatObject`: Valibot already spells the email field with a
+		// built-in action, so only the Valchecker adapter differs for this family.
+		builtinFlatObject: () => v.object(createFields()),
 		strictFlatObject: () => v.strictObject(createFields()),
 		nestedObject: () => v.object({
 			id: v.string(),
@@ -113,17 +117,12 @@ export default {
 			v.object({ left: v.string() }),
 			v.object({ right: v.string() }),
 		]),
-		record: () => v.record(v.string(), v.number()),
+		openRecord: () => v.record(v.string(), v.number()),
 		tuple: () => v.tupleWithRest([v.string(), v.number()], v.boolean()),
 		date: () => v.date(),
-		// Valibot has no string-to-Date conversion action, so the closest
-		// equivalent pipes the native constructor and validates the result, which
-		// is what `toDate` does internally.
-		dateFromString: () => v.pipe(
-			v.string(),
-			v.transform(value => new Date(value)),
-			v.date(),
-		),
+		dateFromString: () => v.pipe(v.string(), v.toDate()),
+		dateBounds: () => v.pipe(v.date(), v.minValue(dateLowerBound)),
+		file: () => v.file(),
 		formatEmail: () => v.pipe(v.string(), v.email()),
 		formatUuid: () => v.pipe(v.string(), v.uuid()),
 		formatIsoDateTime: () => v.pipe(v.string(), v.isoTimestamp()),

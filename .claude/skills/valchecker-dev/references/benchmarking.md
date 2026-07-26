@@ -57,11 +57,14 @@ Keep these groups separate:
 
 Library-default failure modes may perform different diagnostic work. Compare equivalent first/all policies only where the adapter exposes them.
 
-Scenario families cover primitives, flat/nested/strict/loose objects, arrays, Sets, Maps, unions, compatible intersections, transforms, optional-heavy objects, open records, tuples with a rest region, template literals, dates and string-to-date conversion, string formats, and finite membership.
+`benchmarks/README.md` lists the scenario families and every `compatible-subset` rationale; keep that list as the single description and these rules here:
 
-Existing scenario ids, fixtures, schemas, and tiers are stable: earlier runs are the baseline for the open performance issues, so add a new id instead of editing an old scenario, and keep `smoke` small because it gates every pull request.
-
-When a library lacks a schema kind entirely, declare a required feature on the scenario and the supported features on each adapter — the runner then skips with a stated reason (`template literal` is Valchecker and Zod 4 only). Never substitute a hand-rolled stand-in to fill the cell; a skip is the honest result. When the family exists everywhere but differs in detail, declare `compatible-subset` and pick fixtures every implementation agrees on.
+- existing scenario ids, fixtures, schemas, and tiers are stable — earlier runs are the baseline for the open performance issues, so add a new id instead of editing an old scenario;
+- stability is per scenario. Group aggregates, including the geometric means behind the performance-impact verdict, are not comparable across a scenario-set change;
+- keep `smoke` small because it gates every pull request, and prefer `full` for a secondary or failure variant so the standard-tier gate stays affordable;
+- when a library lacks a schema kind entirely, declare a required feature on the scenario and the supported features on the adapter; the runner skips with a stated reason. Never substitute a hand-rolled stand-in — verify first whether the library really lacks it, because a wrong assumption silently penalizes that library;
+- when the family exists everywhere but differs in detail, declare `compatible-subset` and pick fixtures every implementation agrees on;
+- a new tree-shaking scenario is not covered until `analyze()` gains a check for it and `markdown()` lists its group; otherwise it burns a bundle and asserts nothing.
 
 ## Before/after impact
 

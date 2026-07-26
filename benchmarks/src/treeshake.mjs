@@ -17,7 +17,7 @@ const aliases = new Map([
 	['@valchecker/all-steps', resolve(repoRoot, 'packages/all-steps/dist/index.mjs')],
 	['@valchecker/internal', resolve(repoRoot, 'packages/internal/dist/index.mjs')],
 ])
-const unrelatedMarkers = ['strictObject', 'intersection', 'toUppercase', 'toJSONValue', 'toSorted', 'record:', 'tuple:']
+const unrelatedMarkers = ['strictObject', 'intersection', 'toUppercase', 'toJSONValue', 'toSorted', 'record:', 'tuple:', 'templateLiteral:', 'date:expected_date', 'toDate:', 'isEmail:']
 
 function args(argv) {
 	const outputIndex = argv.indexOf('--output')
@@ -316,14 +316,14 @@ export const result = {
 `, {
 		requiredMarkers: ['isEmail:expected_email', 'isUuid:expected_uuid', 'isIsoDateTime:expected_iso_date_time'],
 	}),
-	scenario('valchecker-temporal-free', 'Valchecker', 'Selective string chain without date plugins', 'Date isolation', `
+	scenario('valchecker-date-free', 'Valchecker', 'Selective string chain without date or template-literal plugins', 'Date and template-literal isolation', `
 import { createValchecker, string } from 'valchecker'
 const v = createValchecker({ steps: [string] })
 export const result = v.string().execute('value')
 `, {
 		forbiddenMarkers: ['date:expected_date', 'date:invalid_date', 'toDate:conversion_failed', 'templateLiteral:expected_template_literal'],
 	}),
-	scenario('valchecker-temporal-selective', 'Valchecker', 'Selective date, conversion, and template-literal schemas', 'Date isolation', `
+	scenario('valchecker-date-selective', 'Valchecker', 'Selective date, conversion, and template-literal schemas', 'Date and template-literal isolation', `
 import { createValchecker, date, literal, number, string, templateLiteral, toDate, union } from 'valchecker'
 const v = createValchecker({ steps: [date, literal, number, string, templateLiteral, toDate, union] })
 export const result = {
@@ -346,6 +346,33 @@ globalThis.__treeShakeBenchmark = library
 export { library }
 `)),
 ]
+
+// A scenario may export one execution result or a bag of them. Walking the bag
+// matters because a top-level-only check passes vacuously for a nested export,
+// which is how a broken selective bundle could report `healthy`. Requiring at
+// least one recognizable result turns "nothing was checked" into a failure.
+function assertBundleSucceeded(id, value, path = 'result') {
+	let verified = 0
+	const visit = (node, nodePath) => {
+		if (node == null || typeof node !== 'object')
+			return
+		if (node.issues || node.success === false)
+			throw new Error(`Generated bundle for ${id} failed its success fixture at ${nodePath}`)
+		if ('value' in node || 'data' in node || 'output' in node || 'success' in node) {
+			verified++
+			return
+		}
+		if (Array.isArray(node)) {
+			node.forEach((entry, index) => visit(entry, `${nodePath}[${index}]`))
+			return
+		}
+		for (const [key, nested] of Object.entries(node))
+			visit(nested, `${nodePath}.${key}`)
+	}
+	visit(value, path)
+	if (verified === 0)
+		throw new Error(`Generated bundle for ${id} exports no recognizable execution result`)
+}
 
 async function bundleScenario(item, output) {
 	const warnings = []
@@ -375,8 +402,9 @@ async function bundleScenario(item, output) {
 	await writeFile(bundlePath, `${result.code}\n`)
 	if (item.group !== 'Full-library reference') {
 		const module = await import(`${pathToFileURL(bundlePath).href}?run=${Date.now()}`)
-		if (!('result' in module) || module.result?.success === false || module.result?.issues)
-			throw new Error(`Generated bundle for ${item.id} failed its success fixture`)
+		if (!('result' in module))
+			throw new Error(`Generated bundle for ${item.id} exports no result`)
+		assertBundleSucceeded(item.id, module.result)
 	}
 	return {
 		...item,
@@ -424,6 +452,11 @@ function analyze(results) {
 	const collectionRepresentations = byId(results, 'valchecker-collection-representations')
 	const collectionCallbacksFree = byId(results, 'valchecker-collection-callbacks-free')
 	const collectionCallbacks = byId(results, 'valchecker-collection-callbacks')
+	const recordTupleSelective = byId(results, 'valchecker-record-tuple-selective')
+	const stringFormatsFree = byId(results, 'valchecker-string-formats-free')
+	const stringFormatsSelective = byId(results, 'valchecker-string-formats-selective')
+	const dateFree = byId(results, 'valchecker-date-free')
+	const dateSelective = byId(results, 'valchecker-date-selective')
 	const comparisons = [
 		comparison(selectiveString, byId(results, 'zod4-string'), 'string pipeline'),
 		comparison(selectiveObject, byId(results, 'zod4-object'), 'object schema'),
@@ -448,6 +481,11 @@ function analyze(results) {
 	const collectionRepresentationMarkersPresent = collectionRepresentations.retainedRequiredMarkers.length === collectionRepresentations.requiredMarkers.length
 	const collectionCallbackMarkersAbsent = collectionCallbacksFree.retainedForbiddenMarkers.length === 0
 	const collectionCallbackMarkersPresent = collectionCallbacks.retainedRequiredMarkers.length === collectionCallbacks.requiredMarkers.length
+	const recordTupleMarkersPresent = recordTupleSelective.retainedRequiredMarkers.length === recordTupleSelective.requiredMarkers.length
+	const stringFormatMarkersAbsent = stringFormatsFree.retainedForbiddenMarkers.length === 0
+	const stringFormatMarkersPresent = stringFormatsSelective.retainedRequiredMarkers.length === stringFormatsSelective.requiredMarkers.length
+	const dateMarkersAbsent = dateFree.retainedForbiddenMarkers.length === 0
+	const dateMarkersPresent = dateSelective.retainedRequiredMarkers.length === dateSelective.requiredMarkers.length
 	const checks = [
 		{ name: 'Selective minimal chain is materially smaller than default v', passed: stringReduction >= 0.2, value: percent(stringReduction) },
 		{ name: 'Selective object schema is materially smaller than default v', passed: objectReduction >= 0.2, value: percent(objectReduction) },
@@ -465,6 +503,11 @@ function analyze(results) {
 		{ name: 'Selective collection representations retain every method marker', passed: collectionRepresentationMarkersPresent, value: collectionRepresentationMarkersPresent ? collectionRepresentations.retainedRequiredMarkers.join(', ') : `${collectionRepresentations.retainedRequiredMarkers.length}/${collectionRepresentations.requiredMarkers.length} retained` },
 		{ name: 'Collections without callback transforms exclude their issue markers', passed: collectionCallbackMarkersAbsent, value: collectionCallbackMarkersAbsent ? 'none retained' : collectionCallbacksFree.retainedForbiddenMarkers.join(', ') },
 		{ name: 'Selective collection callbacks retain every issue marker', passed: collectionCallbackMarkersPresent, value: collectionCallbackMarkersPresent ? collectionCallbacks.retainedRequiredMarkers.join(', ') : `${collectionCallbacks.retainedRequiredMarkers.length}/${collectionCallbacks.requiredMarkers.length} retained` },
+		{ name: 'Selective record and tuple schemas retain every owned issue marker', passed: recordTupleMarkersPresent, value: recordTupleMarkersPresent ? recordTupleSelective.retainedRequiredMarkers.join(', ') : `${recordTupleSelective.retainedRequiredMarkers.length}/${recordTupleSelective.requiredMarkers.length} retained` },
+		{ name: 'Selective builds without format validators exclude their issue markers', passed: stringFormatMarkersAbsent, value: stringFormatMarkersAbsent ? 'none retained' : stringFormatsFree.retainedForbiddenMarkers.join(', ') },
+		{ name: 'Selective format validators retain every owned issue marker', passed: stringFormatMarkersPresent, value: stringFormatMarkersPresent ? stringFormatsSelective.retainedRequiredMarkers.join(', ') : `${stringFormatsSelective.retainedRequiredMarkers.length}/${stringFormatsSelective.requiredMarkers.length} retained` },
+		{ name: 'Selective builds without date or template-literal plugins exclude their markers', passed: dateMarkersAbsent, value: dateMarkersAbsent ? 'none retained' : dateFree.retainedForbiddenMarkers.join(', ') },
+		{ name: 'Selective date and template-literal schemas retain every owned marker', passed: dateMarkersPresent, value: dateMarkersPresent ? dateSelective.retainedRequiredMarkers.join(', ') : `${dateSelective.retainedRequiredMarkers.length}/${dateSelective.requiredMarkers.length} retained` },
 	]
 	return {
 		status: checks.every(check => check.passed) ? 'healthy' : 'needs-attention',
@@ -491,7 +534,7 @@ function markdown(report, concise = false) {
 	const context = `Generated with Rollup ${report.environment.rollup}, Terser ${report.environment.terser}, Node.js ${report.environment.node}. Brotli is the primary comparison metric.`
 	const body = concise
 		? table(report.results.filter(result => result.group === 'Minimal string pipeline'))
-		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Variant isolation', 'Map and Set isolation', 'Collection capability isolation', 'Collection representation isolation', 'Collection callback isolation', 'Full-library reference']
+		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Variant isolation', 'Map and Set isolation', 'Record and tuple isolation', 'Collection capability isolation', 'Collection representation isolation', 'Collection callback isolation', 'String format isolation', 'Date and template-literal isolation', 'Full-library reference']
 				.map(group => `## ${group}\n\n${table(report.results.filter(result => result.group === group))}`)
 				.join('\n\n')
 	return `# Tree-shaking ${concise ? 'summary' : 'report'}\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${body}\n\n${context}\n`

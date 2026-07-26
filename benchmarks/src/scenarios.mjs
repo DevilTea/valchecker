@@ -3,6 +3,7 @@ import {
 	createInvalidRecords,
 	createRecords,
 	dateInputs,
+	fileInputs,
 	flatObject,
 	flatObjectPool,
 	issuePolicyInputs,
@@ -10,11 +11,11 @@ import {
 	issuePolicyTupleInput,
 	membershipInputs,
 	nestedObject,
+	openRecordEntries,
 	optionalHeavy,
 	optionalSparsePool,
 	primitive,
 	recordArrayPool,
-	recordEntries,
 	stringFormatInputs,
 	templateLiteralInputs,
 	transformInputs,
@@ -130,6 +131,15 @@ function defineScenario({
 			return supportFor(adapter, issuePolicy, requiredFeatures)
 		},
 		setup(adapter) {
+			// A missing build key means the adapter and the scenario disagree about
+			// what is supported. Fail loudly instead of letting a forgotten feature
+			// declaration silently shrink the compared set.
+			if (typeof adapter.build[buildKey] !== 'function') {
+				throw new TypeError(
+					`${adapter.name} has no build key '${buildKey}' required by scenario '${id}'. `
+					+ 'Add the build, or declare the missing capability with requiredFeatures.',
+				)
+			}
 			return createOperation(adapter, { issuePolicy, comparisonScope, resultKind })
 		},
 	}
@@ -222,7 +232,6 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 	const comparisonScope = options.comparisonScope ?? 'equivalent'
 	const allIssueCount = options.allIssueCount ?? 2
 	const tier = options.tier ?? 'standard'
-	const requiredFeatures = options.requiredFeatures
 	return [
 		warm(
 			`issue-policy/${structure}/invalid/first`,
@@ -230,7 +239,7 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 			buildKey,
 			input,
 			{ success: false, issueCount: 1 },
-			{ issuePolicy: 'first', comparisonScope, requiredFeatures },
+			{ issuePolicy: 'first', comparisonScope, requiredFeatures: options.requiredFeatures },
 		),
 		warm(
 			`issue-policy/${structure}/invalid/all`,
@@ -238,7 +247,7 @@ function issuePolicyPair(structure, buildKey, input, options = {}) {
 			buildKey,
 			input,
 			{ success: false, issueCount: allIssueCount },
-			{ issuePolicy: 'all', comparisonScope, requiredFeatures },
+			{ issuePolicy: 'all', comparisonScope, requiredFeatures: options.requiredFeatures },
 		),
 	]
 }
@@ -315,49 +324,72 @@ const allScenarios = [
 
 	// Steps that shipped after the scenario set above was written. Added under
 	// new ids so every pre-existing scenario stays comparable with the baseline
-	// runs cited by the open performance issues.
-	construction('construct/record', 'standard', 'record', recordEntries.valid100, { success: true, output: recordEntries.valid100 }),
-	construction('construct/tuple', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }),
-	construction('construct/template-literal', 'standard', 'templateLiteral', templateLiteralInputs.valid, { success: true, output: templateLiteralInputs.valid }, { requiredFeatures: ['template literal'] }),
+	// runs cited by the open performance issues. A secondary or failure variant
+	// sits at `full` so the standard-tier pull-request gate stays affordable.
+	construction('construct/record', 'standard', 'openRecord', openRecordEntries.valid100, { success: true, output: openRecordEntries.valid100 }, { comparisonScope: 'compatible-subset' }),
+	construction('construct/tuple', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }, { comparisonScope: 'compatible-subset' }),
+	construction('construct/template-literal', 'standard', 'templateLiteral', templateLiteralInputs.valid, { success: true, output: templateLiteralInputs.valid }, { comparisonScope: 'compatible-subset', requiredFeatures: ['template literal'] }),
 
-	cold('cold/record-valid', 'standard', 'record', recordEntries.valid100, { success: true, output: recordEntries.valid100 }),
-	cold('cold/tuple-valid', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }),
+	cold('cold/record-valid', 'standard', 'openRecord', openRecordEntries.valid100, { success: true, output: openRecordEntries.valid100 }, { comparisonScope: 'compatible-subset' }),
+	cold('cold/tuple-valid', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }, { comparisonScope: 'compatible-subset' }),
 
-	warm('record/100-valid', 'standard', 'record', recordEntries.valid100, { success: true, output: recordEntries.valid100 }),
-	warm('record/1000-valid', 'full', 'record', recordEntries.valid1000, { success: true, output: recordEntries.valid1000 }),
-	warm('record/100-invalid-first', 'standard', 'record', recordEntries.invalidFirst, { success: false }),
-	warm('record/100-invalid-last', 'standard', 'record', recordEntries.invalidLast, { success: false }),
+	// Valchecker's open `record` maintains a transformed-key uniqueness Map that
+	// neither Zod nor Valibot has, and its tuple rest region is a nested array
+	// schema rather than an in-place loop. Both are real costs of the shipped
+	// API, so the scope is a compatible subset rather than identical work.
+	warm('record/100-valid', 'standard', 'openRecord', openRecordEntries.valid100, { success: true, output: openRecordEntries.valid100 }, { comparisonScope: 'compatible-subset' }),
+	warm('record/1000-valid', 'full', 'openRecord', openRecordEntries.valid1000, { success: true, output: openRecordEntries.valid1000 }, { comparisonScope: 'compatible-subset' }),
+	warm('record/100-invalid-first', 'standard', 'openRecord', openRecordEntries.invalidFirst, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('record/100-invalid-last', 'full', 'openRecord', openRecordEntries.invalidLast, { success: false }, { comparisonScope: 'compatible-subset' }),
 
-	warm('tuple/valid', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }),
-	warm('tuple/invalid-head', 'standard', 'tuple', tupleInputs.invalidHead, { success: false }),
-	warm('tuple/invalid-rest', 'standard', 'tuple', tupleInputs.invalidRest, { success: false }),
-	warm('tuple/too-short', 'standard', 'tuple', tupleInputs.tooShort, { success: false }),
+	warm('tuple/valid', 'standard', 'tuple', tupleInputs.valid, { success: true, output: tupleInputs.valid }, { comparisonScope: 'compatible-subset' }),
+	warm('tuple/invalid-head', 'standard', 'tuple', tupleInputs.invalidHead, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('tuple/invalid-rest', 'full', 'tuple', tupleInputs.invalidRest, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('tuple/too-short', 'full', 'tuple', tupleInputs.tooShort, { success: false }, { comparisonScope: 'compatible-subset' }),
 
-	warm('template-literal/valid', 'standard', 'templateLiteral', templateLiteralInputs.valid, { success: true, output: templateLiteralInputs.valid }, { requiredFeatures: ['template literal'] }),
-	warm('template-literal/invalid', 'standard', 'templateLiteral', templateLiteralInputs.invalid, { success: false }, { requiredFeatures: ['template literal'] }),
+	// Valchecker matches the TypeScript checker's template-literal grammar while
+	// Zod 4 applies one regex, so the accepted sets diverge outside the fixtures.
+	warm('template-literal/valid', 'standard', 'templateLiteral', templateLiteralInputs.valid, { success: true, output: templateLiteralInputs.valid }, { comparisonScope: 'compatible-subset', requiredFeatures: ['template literal'] }),
+	warm('template-literal/invalid', 'full', 'templateLiteral', templateLiteralInputs.invalid, { success: false }, { comparisonScope: 'compatible-subset', requiredFeatures: ['template literal'] }),
 
-	warm('date/valid', 'standard', 'date', dateInputs.valid, { success: true, output: dateInputs.valid }),
-	warm('date/invalid-type', 'standard', 'date', dateInputs.invalidType, { success: false }),
-	warm('date/from-string', 'standard', 'dateFromString', dateInputs.fromStringInput, { success: true, output: dateInputs.fromStringOutput }),
-	warm('date/from-unparseable-string', 'standard', 'dateFromString', dateInputs.unparseableString, { success: false }),
+	warm('date/valid', 'standard', 'date', dateInputs.valid, { success: true, output: dateInputs.validOutput }),
+	warm('date/invalid-type', 'full', 'date', dateInputs.invalidType, { success: false }),
+	// `z.coerce.date()` performs no input type check at all, so the Zod cells are
+	// a lower bound rather than the same work.
+	warm('date/from-string', 'standard', 'dateFromString', dateInputs.fromStringInput, { success: true, output: dateInputs.fromStringOutput }, { comparisonScope: 'compatible-subset' }),
+	warm('date/from-unparseable-string', 'full', 'dateFromString', dateInputs.unparseableString, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('date/bounds-valid', 'standard', 'dateBounds', dateInputs.afterBound, { success: true, output: dateInputs.afterBoundOutput }),
+	warm('date/bounds-invalid', 'full', 'dateBounds', dateInputs.beforeBound, { success: false }),
+
+	warm('file/valid', 'standard', 'file', fileInputs.valid, { success: true, output: fileInputs.valid }, { requiredFeatures: ['file'] }),
+	warm('file/invalid-type', 'full', 'file', fileInputs.invalidType, { success: false }, { requiredFeatures: ['file'] }),
 
 	// Each library ships its own accepted set for these formats, so the scope is
 	// a compatible subset: the fixtures are accepted (or rejected) by all of them.
 	warm('string-format/email-valid', 'standard', 'formatEmail', stringFormatInputs.email, { success: true, output: stringFormatInputs.email }, { comparisonScope: 'compatible-subset' }),
 	warm('string-format/email-invalid', 'standard', 'formatEmail', stringFormatInputs.invalidEmail, { success: false }, { comparisonScope: 'compatible-subset' }),
 	warm('string-format/uuid-valid', 'standard', 'formatUuid', stringFormatInputs.uuid, { success: true, output: stringFormatInputs.uuid }, { comparisonScope: 'compatible-subset' }),
-	warm('string-format/uuid-invalid', 'standard', 'formatUuid', stringFormatInputs.invalidUuid, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('string-format/uuid-invalid', 'full', 'formatUuid', stringFormatInputs.invalidUuid, { success: false }, { comparisonScope: 'compatible-subset' }),
 	warm('string-format/iso-date-time-valid', 'standard', 'formatIsoDateTime', stringFormatInputs.isoDateTime, { success: true, output: stringFormatInputs.isoDateTime }, { comparisonScope: 'compatible-subset' }),
-	warm('string-format/iso-date-time-invalid', 'standard', 'formatIsoDateTime', stringFormatInputs.invalidIsoDateTime, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('string-format/iso-date-time-invalid', 'full', 'formatIsoDateTime', stringFormatInputs.invalidIsoDateTime, { success: false }, { comparisonScope: 'compatible-subset' }),
 
-	// Valchecker validates the string first and then membership; the competitors
-	// dispatch a single enum/picklist check, so the compared work is a compatible
-	// subset rather than an identical pipeline.
+	// The pre-existing flat-object scenarios model the email field with a
+	// `check()` closure because no format validator existed when they were
+	// written, which understates today's idiomatic Valchecker. This variant keeps
+	// the same validation semantics and every competitor schema unchanged, and
+	// only spells the Valchecker side the way a user would write it now.
+	warm('flat-object-builtin/valid', 'standard', 'builtinFlatObject', flatObject.valid, { success: true }, { comparisonScope: 'compatible-subset' }),
+	warm('flat-object-builtin/invalid-last', 'full', 'builtinFlatObject', flatObject.invalidLast, { success: false }, { comparisonScope: 'compatible-subset' }),
+
+	// Valchecker validates the string and then membership; the competitors
+	// dispatch a single enum/picklist check. The benchmark deliberately measures
+	// the `string().isOneOf()` chain, which is both idiomatic and faster here
+	// than the single-step `union([...])` shorthand.
 	warm('membership/valid', 'standard', 'membership', membershipInputs.valid, { success: true, output: membershipInputs.valid }, { comparisonScope: 'compatible-subset' }),
-	warm('membership/invalid', 'standard', 'membership', membershipInputs.invalid, { success: false }, { comparisonScope: 'compatible-subset' }),
+	warm('membership/invalid', 'full', 'membership', membershipInputs.invalid, { success: false }, { comparisonScope: 'compatible-subset' }),
 
-	...issuePolicyPair('record', 'issuePolicyRecord', issuePolicyRecordInput),
-	...issuePolicyPair('tuple', 'issuePolicyTuple', issuePolicyTupleInput),
+	...issuePolicyPair('record', 'issuePolicyRecord', issuePolicyRecordInput, { comparisonScope: 'compatible-subset' }),
+	...issuePolicyPair('tuple', 'issuePolicyTuple', issuePolicyTupleInput, { comparisonScope: 'compatible-subset' }),
 ]
 
 export function getScenarios(mode) {
@@ -396,6 +428,7 @@ function toCatalogEntry(scenario) {
 		issuePolicy: scenario.issuePolicy,
 		comparisonScope: scenario.comparisonScope,
 		diagnosticIssueCount: scenario.diagnosticIssueCount,
+		requiredFeatures: scenario.requiredFeatures,
 	}
 }
 

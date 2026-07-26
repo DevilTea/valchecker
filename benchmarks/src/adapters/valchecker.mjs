@@ -27,6 +27,18 @@ function createFields() {
 	}
 }
 
+// Same validation semantics as `createFields`, spelled with the format and
+// length validators that shipped after the original scenarios were written.
+function createBuiltinFields() {
+	return {
+		...createFields(),
+		email: v.string()
+			.isMatching(emailPattern),
+	}
+}
+
+const dateLowerBound = new Date('2020-01-01T00:00:00.000Z')
+
 function createOptionalFields() {
 	return {
 		id: v.string(),
@@ -73,7 +85,7 @@ export default {
 	version: 'workspace',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
-		features: ['template literal'],
+		features: ['file', 'template literal'],
 	},
 	build: {
 		primitive: () => v.string()
@@ -81,6 +93,7 @@ export default {
 			.isLengthAtMost(32)
 			.check(value => /^[a-z0-9-]+$/.test(value)),
 		flatObject: () => v.object(createFields()),
+		builtinFlatObject: () => v.object(createBuiltinFields()),
 		strictFlatObject: () => v.strictObject(createFields()),
 		nestedObject: () => v.object({
 			id: v.string(),
@@ -132,12 +145,15 @@ export default {
 			v.object({ left: v.string() }),
 			v.object({ right: v.string() }),
 		], structuralOptions(context)),
-		record: () => v.record({ key: v.string(), value: v.number() }),
+		openRecord: () => v.record({ key: v.string(), value: v.number() }),
 		tuple: () => v.tuple([v.string(), v.number(), '...', v.array(v.boolean())]),
 		templateLiteral: () => v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]),
 		date: () => v.date(),
 		dateFromString: () => v.string()
 			.toDate(),
+		dateBounds: () => v.date()
+			.isAfter(dateLowerBound),
+		file: () => v.file(),
 		formatEmail: () => v.string()
 			.isEmail(),
 		formatUuid: () => v.string()
@@ -146,11 +162,7 @@ export default {
 			.isIsoDateTime(),
 		membership: () => v.string()
 			.isOneOf(['red', 'green', 'blue']),
-		issuePolicyRecord: context => v.record({
-			key: v.string(),
-			value: v.number(),
-			...structuralOptions(context),
-		}),
+		issuePolicyRecord: context => v.record(mapOptions(context, v.string(), v.number())),
 		issuePolicyTuple: context => v.tuple([v.string(), v.string()], structuralOptions(context)),
 	},
 	parse(schema, input) {

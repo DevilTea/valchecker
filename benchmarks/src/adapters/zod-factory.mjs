@@ -71,13 +71,20 @@ export function createZodAdapter(z, name, version) {
 	// string, so a future pin cannot silently keep using the older spelling.
 	const hasTopLevelFormats = typeof z.email === 'function'
 	const hasTemplateLiteral = typeof z.templateLiteral === 'function'
+	const hasFile = typeof z.file === 'function'
+	const features = []
+	if (hasFile)
+		features.push('file')
+	if (hasTemplateLiteral)
+		features.push('template literal')
+	const dateLowerBound = new Date('2020-01-01T00:00:00.000Z')
 
 	return {
 		name,
 		version,
 		capabilities: {
 			issuePolicies: ['all'],
-			features: hasTemplateLiteral ? ['template literal'] : [],
+			features,
 		},
 		build: {
 			primitive: () => z.string()
@@ -85,6 +92,10 @@ export function createZodAdapter(z, name, version) {
 				.max(32)
 				.regex(/^[a-z0-9-]+$/),
 			flatObject: () => z.object(createFields()),
+			// The competitor side of `flat-object-builtin` is identical to
+			// `flatObject`: these libraries already spell the email field with a
+			// built-in pattern action, so only the Valchecker adapter differs.
+			builtinFlatObject: () => z.object(createFields()),
 			strictFlatObject: () => z.object(createFields())
 				.strict(),
 			nestedObject: () => z.object({
@@ -135,11 +146,14 @@ export function createZodAdapter(z, name, version) {
 				z.object({ left: z.string() }),
 				z.object({ right: z.string() }),
 			),
-			record: () => z.record(z.string(), z.number()),
+			openRecord: () => z.record(z.string(), z.number()),
 			tuple: () => z.tuple([z.string(), z.number()])
 				.rest(z.boolean()),
 			templateLiteral: () => z.templateLiteral([z.number(), z.enum(['px', 'em', 'rem'])]),
 			date: () => z.date(),
+			dateBounds: () => z.date()
+				.min(dateLowerBound),
+			file: () => z.file(),
 			dateFromString: () => z.coerce.date(),
 			formatEmail: () => (hasTopLevelFormats
 				? z.email()
