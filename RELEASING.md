@@ -19,7 +19,7 @@ The active candidate is defined in `release-plan.json`. It records:
 - external publishing prerequisites,
 - `publish: false` to assert that repository state never authorizes publication.
 
-The separate, manually dispatched and environment-approved npm workflow is the publication authorization. A pull request, merge, tag, or value committed to `release-plan.json` must never publish a package by itself.
+The separate, manually dispatched npm workflow is the publication authorization: dispatching it from `main` and typing the exact confirmation string. A pull request, merge, tag, or value committed to `release-plan.json` must never publish a package by itself.
 
 `pnpm release:readiness` validates this plan against package manifests, changelog, migration/support/releasing documents, and workflow safety properties.
 
@@ -51,16 +51,20 @@ Official references:
 
 ## GitHub environment
 
-Create a GitHub Actions environment named `npm`.
+`release.yml` declares `environment: npm` on its publish job. That declaration is required: it is
+what puts an `environment` claim in the OIDC token, and the claim must match the environment name
+in the trusted publisher configuration on npm. Removing it would break publishing, and the npm-side
+field would have to be cleared first.
 
-Recommended protection:
+**No `npm` environment object exists in this repository, so no deployment protection applies.** The
+declaration supplies the OIDC claim and nothing else; a dispatched workflow publishes without a
+separate approval step. This is deliberate — the manual dispatch and the typed confirmation string
+are the authorization, and the maintainer performing them is the same person an environment reviewer
+would be.
 
-- require a manual reviewer,
-- restrict deployment branches to `main`,
-- do not store an npm token in the environment,
-- limit administrators bypassing environment protection.
-
-The environment name must match the trusted publisher configuration on npm.
+If a second pair of eyes is ever wanted, create an Actions environment named `npm` (the name must
+stay exactly that) and add: a required reviewer, deployment branches restricted to `main`, no npm
+token stored in the environment, and no administrator bypass. Nothing else needs to change.
 
 ## Version preparation
 
@@ -95,8 +99,7 @@ Before publishing a release candidate, all items must be true:
 - [ ] Package tarball consumer fixtures pass for ESM, dynamic import, `NodeNext`, and `Bundler`.
 - [ ] Coverage, benchmark smoke, Node 22/24, and Ubuntu/macOS/Windows jobs are green.
 - [ ] `Release-Artifacts` prepares and verifies exact tarball sizes and SHA-256 checksums.
-- [ ] The `npm` GitHub environment is protected and restricted to `main`.
-- [ ] npm trusted publishers are configured for all three packages with the exact workflow and environment.
+- [ ] npm trusted publishers are configured for all three packages with the exact workflow and environment name.
 - [ ] The final `main` commit is the commit intended for publication.
 
 The repository can verify the code-controlled items with:
@@ -107,7 +110,7 @@ pnpm release:validate
 pnpm release:prepare
 ```
 
-The GitHub environment and npm trusted publisher settings are external controls and must be checked in their respective UIs.
+The npm trusted publisher settings are an external control and must be checked in the npm UI.
 
 ## Validation commands
 
@@ -165,7 +168,8 @@ Example:
 publish 1.0.0-rc.0 to next
 ```
 
-6. Approve the `npm` environment deployment.
+The workflow starts publishing as soon as it is dispatched; there is no approval gate after this
+point. Check the version and tag before running it.
 
 The workflow reruns the complete release validation, prepares fresh tarballs from the checked-out commit, uploads them for audit, verifies their checksums, and publishes those exact tarballs sequentially.
 

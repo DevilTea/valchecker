@@ -10,7 +10,6 @@
 		"valchecker"
 	],
 	"externalPrerequisites": [
-		"GitHub environment npm is protected and restricted to main",
 		"npm trusted publisher is configured for all three packages"
 	]
 }
