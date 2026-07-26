@@ -59,6 +59,48 @@ describe('union type-state contracts', () => {
 		>()
 	})
 
+	it('resolves each shorthand branch through only the provider that accepts it', () => {
+		// Every registered provider used to contribute its output to every
+		// shorthand branch, so `null_`/`undefined_` widened a purely literal union
+		// with `null | undefined` on any instance that registered them.
+		const _literals = v.union(['read', 'write'])
+
+		expectTypeOf<InferOutput<typeof _literals>>()
+			.toEqualTypeOf<'read' | 'write'>()
+		expectTypeOf<InferIssue<typeof _literals>['code']>()
+			.toEqualTypeOf<
+				| 'literal:expected_literal'
+				| 'core:unknown_exception'
+				| 'core:message_exception'
+		>()
+
+		const _nullish = v.union([null])
+
+		expectTypeOf<InferOutput<typeof _nullish>>()
+			.toEqualTypeOf<null>()
+		expectTypeOf<InferIssue<typeof _nullish>['code']>()
+			.toEqualTypeOf<
+				| 'null:expected_null'
+				| 'core:unknown_exception'
+				| 'core:message_exception'
+		>()
+
+		// A genuinely nullish branch still contributes, so the narrowing does not
+		// cost the mixed case anything.
+		const _mixed = v.union(['read', null, undefined])
+
+		expectTypeOf<InferOutput<typeof _mixed>>()
+			.toEqualTypeOf<'read' | null | undefined>()
+		expectTypeOf<InferIssue<typeof _mixed>['code']>()
+			.toEqualTypeOf<
+				| 'literal:expected_literal'
+				| 'null:expected_null'
+				| 'undefined:expected_undefined'
+				| 'core:unknown_exception'
+				| 'core:message_exception'
+		>()
+	})
+
 	it('enables only shorthands backed by registered provider steps', () => {
 		const schemaOnly = createValchecker({ steps: [string, union] })
 		const literalOnly = createValchecker({ steps: [literal, union] })

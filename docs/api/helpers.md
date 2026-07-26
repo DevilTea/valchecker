@@ -146,8 +146,6 @@ Use it only when an external invariant already guarantees the asserted type.
 
 Builds lazy or recursive schemas.
 
-<!-- Does not compile as written (#99): the self-reference creates an inference cycle. -->
-<!-- typecheck-skip -->
 ```ts
 interface TreeNode {
 	value: number
@@ -156,11 +154,17 @@ interface TreeNode {
 
 const treeSchema = v.object({
 	value: v.number(),
+	// The factory's `any` return type breaks the inference cycle a bare
+	// self-reference would create. The output type still comes from the
+	// `generic<{ output: TreeNode }>` argument; the annotation only gives up the
+	// check that the factory returns a schema.
 	children: [v.array(
-		v.generic<{ output: TreeNode }>(() => treeSchema),
+		v.generic<{ output: TreeNode }>((): any => treeSchema),
 	)],
 })
 ```
+
+`InferOutput<typeof treeSchema>` is `{ value: number, children: TreeNode[] | undefined }`: the `[schema]` optional-field shorthand always materializes the property, so the output key is present with `undefined` rather than optional. Use `TreeNode` for the recursive annotation, as above, and read the schema's own output type when you need the exact shape.
 
 ## `toAsync()`
 

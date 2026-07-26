@@ -263,11 +263,6 @@ The key schema's output domain decides the mode:
 - key-schema issues (open domain) with `[sourceKey]` prepended and a `{ type: 'record', part: 'key' }` context entry
 - value-schema issues with `[sourceKey]` prepended
 
-<!-- typecheck-skip -->
-<!-- Known limitation (#98): the `union` literal shorthand's inferred output includes
-     `null | undefined` even when no branch is nullish, so `record` rejects it as an incoherent key
-     schema. Its `literalMembers` are correct, so the runtime behaviour shown here is accurate. Use
-     `v.union([v.literal('read'), v.literal('write')])` until the shorthand output is narrowed. -->
 ```ts
 const ratings = v.record({ key: v.string(), value: v.number() })
 ratings.execute({ a: 1, b: 2 })

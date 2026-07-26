@@ -23,7 +23,8 @@
  * Coverage Goals: 100% statement, branch, and function coverage.
  */
 
-import { describe, expect, it } from 'vitest'
+import type { InferOutput } from '../../core'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { array, createValchecker, generic, number, object, string, transform } from '../..'
 
 const v = createValchecker({ steps: [generic, array, number, object, string, transform] })
@@ -90,6 +91,13 @@ describe('generic plugin', () => {
 				// Required to use a factory function with specifying return type `any` to avoid circular type reference.
 				children: [v.array(v.generic<{ output: MyNode }>((): any => nodeSchema))],
 			})
+
+			// The documented recursive pattern must keep its inferred output, not just
+			// its runtime behaviour: `docs/api/helpers.md` shows this exact spelling.
+			// `children` is present-with-`undefined` rather than optional, because
+			// that is what the `[schema]` optional-field shorthand produces.
+			expectTypeOf<InferOutput<typeof nodeSchema>>()
+				.toEqualTypeOf<{ id: number, children: MyNode[] | undefined }>()
 
 			const result = nodeSchema.execute({
 				id: 1,
