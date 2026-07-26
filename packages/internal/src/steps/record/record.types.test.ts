@@ -1,6 +1,6 @@
 import type { InferExecutionContext, InferIssue, InferOperationMode, InferOutput } from '../../core'
 import { describe, expectTypeOf, it } from 'vitest'
-import { as, bigint, boolean, check, createValchecker, isOneOf, literal, looseNumber, number, record, string, symbol, toAsync, union, unknown } from '../..'
+import { as, bigint, boolean, check, createValchecker, isOneOf, literal, looseNumber, null_, number, record, string, symbol, toAsync, undefined_, union, unknown } from '../..'
 
 const v = createValchecker({
 	steps: [record, as, bigint, boolean, check, isOneOf, literal, looseNumber, number, string, symbol, toAsync, union, unknown],
@@ -95,6 +95,29 @@ describe('record type-state availability and gating', () => {
 			v.record({ key: v.unknown(), value: v.number() })
 			// @ts-expect-error literal(NaN) output widens to number, which is not all-literal with members
 			v.record({ key: v.literal(Number.NaN), value: v.number() })
+		}
+	})
+})
+
+describe('record key domains on an instance with nullish shorthand providers', () => {
+	// The default `v` instance registers `null_` and `undefined_`, which used to
+	// widen every `union` literal shorthand with `null | undefined` and made
+	// `record` reject the shorthand as an incoherent key domain.
+	const w = createValchecker({
+		steps: [record, boolean, literal, null_, number, string, undefined_, union],
+	})
+
+	it('accepts a literal-shorthand union key', () => {
+		const _flags = w.record({ key: w.union(['read', 'write']), value: w.boolean() })
+
+		expectTypeOf<InferOutput<typeof _flags>>()
+			.toEqualTypeOf<{ read: boolean, write: boolean }>()
+	})
+
+	it('still rejects a shorthand union whose branches are nullish', () => {
+		if (false) {
+			// @ts-expect-error null and undefined are not property keys
+			w.record({ key: w.union(['read', null]), value: w.boolean() })
 		}
 	})
 })

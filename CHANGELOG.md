@@ -39,6 +39,7 @@ Breaking refinements to the 1.0 issue contract, applied after the `1.0.0-rc.0` b
 
 ### Fixed
 
+- `union()`'s literal-shorthand branch resolution no longer widens the inferred output and issue types with every registered shorthand provider. A provider now contributes only when the branch satisfies its declared `input`, mirroring the runtime dispatch, so `v.union(['read', 'write'])` infers `'read' | 'write'` instead of `'read' | 'write' | null | undefined` on any instance registering `null_`/`undefined_` — including the default `v`. This also unblocks `record({ key: v.union(['read', 'write']), … })`, whose key domain the widened output made incoherent. Runtime behaviour and `literalMembers` were already correct.
 - `~standard.validate` now carries the schema output type per Standard Schema V1, improving assignability to `StandardSchemaV1<_, Output>` consumers.
 
 ## [1.0.0-rc.0] - Unreleased
