@@ -1,3 +1,5 @@
+import { dateBounds } from '../fixtures.mjs'
+
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
 export function createZodAdapter(z, name, version) {
@@ -77,7 +79,6 @@ export function createZodAdapter(z, name, version) {
 		features.push('file')
 	if (hasTemplateLiteral)
 		features.push('template literal')
-	const dateLowerBound = new Date('2020-01-01T00:00:00.000Z')
 
 	return {
 		name,
@@ -149,11 +150,10 @@ export function createZodAdapter(z, name, version) {
 			openRecord: () => z.record(z.string(), z.number()),
 			tuple: () => z.tuple([z.string(), z.number()])
 				.rest(z.boolean()),
-			templateLiteral: () => z.templateLiteral([z.number(), z.enum(['px', 'em', 'rem'])]),
 			date: () => z.date(),
 			dateBounds: () => z.date()
-				.min(dateLowerBound),
-			file: () => z.file(),
+				.min(dateBounds.lower)
+				.max(dateBounds.upper),
 			dateFromString: () => z.coerce.date(),
 			formatEmail: () => (hasTopLevelFormats
 				? z.email()
@@ -170,6 +170,13 @@ export function createZodAdapter(z, name, version) {
 			membership: () => z.enum(['red', 'green', 'blue']),
 			issuePolicyRecord: () => z.record(z.string(), z.number()),
 			issuePolicyTuple: () => z.tuple([z.string(), z.string()]),
+			// Declared only where the pinned version has them, so a scenario that
+			// forgets its `requiredFeatures` fails with the harness's actionable
+			// message instead of a `z.file is not a function` from inside the build.
+			...(hasFile ? { file: () => z.file() } : {}),
+			...(hasTemplateLiteral
+				? { templateLiteral: () => z.templateLiteral([z.number(), z.enum(['px', 'em', 'rem'])]) }
+				: {}),
 		},
 		parse(schema, input) {
 			return schema.safeParse(input)

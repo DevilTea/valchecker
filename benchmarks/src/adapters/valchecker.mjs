@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { dateBounds } from '../fixtures.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -27,8 +28,10 @@ function createFields() {
 	}
 }
 
-// Same validation semantics as `createFields`, spelled with the format and
-// length validators that shipped after the original scenarios were written.
+// Same accept/reject set as `createFields`: only the email field changes, from a
+// `check()` closure to the `isMatching` pattern validator that shipped later.
+// `isEmail` is deliberately not used here, because its accepted set differs from
+// the shared `emailPattern`.
 function createBuiltinFields() {
 	return {
 		...createFields(),
@@ -36,8 +39,6 @@ function createBuiltinFields() {
 			.isMatching(emailPattern),
 	}
 }
-
-const dateLowerBound = new Date('2020-01-01T00:00:00.000Z')
 
 function createOptionalFields() {
 	return {
@@ -152,7 +153,8 @@ export default {
 		dateFromString: () => v.string()
 			.toDate(),
 		dateBounds: () => v.date()
-			.isAfter(dateLowerBound),
+			.isAfter(dateBounds.lower)
+			.isBefore(dateBounds.upper),
 		file: () => v.file(),
 		formatEmail: () => v.string()
 			.isEmail(),

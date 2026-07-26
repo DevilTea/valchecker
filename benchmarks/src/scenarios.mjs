@@ -358,8 +358,11 @@ const allScenarios = [
 	// a lower bound rather than the same work.
 	warm('date/from-string', 'standard', 'dateFromString', dateInputs.fromStringInput, { success: true, output: dateInputs.fromStringOutput }, { comparisonScope: 'compatible-subset' }),
 	warm('date/from-unparseable-string', 'full', 'dateFromString', dateInputs.unparseableString, { success: false }, { comparisonScope: 'compatible-subset' }),
-	warm('date/bounds-valid', 'standard', 'dateBounds', dateInputs.afterBound, { success: true, output: dateInputs.afterBoundOutput }),
-	warm('date/bounds-invalid', 'full', 'dateBounds', dateInputs.beforeBound, { success: false }),
+	// `isAfter`/`isBefore` are strict; `z.date().min/max` and `minValue`/`maxValue`
+	// are inclusive, so the accepted sets differ at the bound itself even though
+	// the fixtures agree and the compared work is one comparison per bound.
+	warm('date/bounds-valid', 'standard', 'dateBounds', dateInputs.insideBounds, { success: true, output: dateInputs.insideBoundsOutput }, { comparisonScope: 'compatible-subset' }),
+	warm('date/bounds-invalid', 'full', 'dateBounds', dateInputs.outsideBounds, { success: false }, { comparisonScope: 'compatible-subset' }),
 
 	warm('file/valid', 'standard', 'file', fileInputs.valid, { success: true, output: fileInputs.valid }, { requiredFeatures: ['file'] }),
 	warm('file/invalid-type', 'full', 'file', fileInputs.invalidType, { success: false }, { requiredFeatures: ['file'] }),

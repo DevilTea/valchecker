@@ -192,6 +192,7 @@ Where a family exists everywhere but the semantics differ in detail, the scenari
 - open records — Valchecker maintains a transformed-key uniqueness map that Zod and Valibot do not;
 - tuples — Valchecker's rest region is a nested array schema rather than an in-place loop;
 - string-to-date conversion — `z.coerce.date()` performs no input type check, so the Zod cells are a lower bound;
+- date bounds — `isAfter`/`isBefore` are strict while `z.date().min/max` and `minValue`/`maxValue` are inclusive, so the accepted sets differ at the bound itself. Note also that this scenario largely measures the cost of attaching any refinement: the competitors lose their bare-schema fast path as soon as one is present;
 - finite membership — the benchmark measures Valchecker's `string().isOneOf()` chain against a single `enum`/`picklist` dispatch. Valchecker's one-step `union([...])` shorthand exists but is slower here and reports one issue per member, so the chain is both the idiomatic and the fairer comparison;
 - `flat-object-builtin` — the same validation as `flat-object`, with the Valchecker side spelled using the format validator that shipped after the original scenario was written. Competitor schemas are unchanged, because they already used a built-in pattern action.
 

@@ -215,11 +215,17 @@ export const dateInputs = {
 	fromStringInput: '2024-03-05T08:09:10.123Z',
 	fromStringOutput: new Date('2024-03-05T08:09:10.123Z'),
 	unparseableString: 'not-a-date',
-	// `date/bounds-*`: `isAfter` / `z.date().min` / `minValue`.
-	lowerBound: new Date('2020-01-01T00:00:00.000Z'),
-	afterBound: new Date('2024-03-05T08:09:10.123Z'),
-	afterBoundOutput: new Date('2024-03-05T08:09:10.123Z'),
-	beforeBound: new Date('2019-01-01T00:00:00.000Z'),
+	insideBounds: new Date('2024-03-05T08:09:10.123Z'),
+	insideBoundsOutput: new Date('2024-03-05T08:09:10.123Z'),
+	outsideBounds: new Date('2019-01-01T00:00:00.000Z'),
+}
+
+// The single source of truth for `date/bounds-*`. Every adapter imports these so
+// the three schemas cannot drift apart: `isAfter`/`isBefore`, `z.date().min/max`,
+// and `minValue`/`maxValue`.
+export const dateBounds = {
+	lower: new Date('2020-01-01T00:00:00.000Z'),
+	upper: new Date('2030-01-01T00:00:00.000Z'),
 }
 
 export const fileInputs = {

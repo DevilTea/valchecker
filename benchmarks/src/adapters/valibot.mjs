@@ -1,7 +1,7 @@
 import * as v from 'valibot'
+import { dateBounds } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
-const dateLowerBound = new Date('2020-01-01T00:00:00.000Z')
 const integer = () => v.pipe(v.number(), v.integer())
 const nonNegativeInteger = () => v.pipe(v.number(), v.integer(), v.minValue(0))
 
@@ -121,7 +121,7 @@ export default {
 		tuple: () => v.tupleWithRest([v.string(), v.number()], v.boolean()),
 		date: () => v.date(),
 		dateFromString: () => v.pipe(v.string(), v.toDate()),
-		dateBounds: () => v.pipe(v.date(), v.minValue(dateLowerBound)),
+		dateBounds: () => v.pipe(v.date(), v.minValue(dateBounds.lower), v.maxValue(dateBounds.upper)),
 		file: () => v.file(),
 		formatEmail: () => v.pipe(v.string(), v.email()),
 		formatUuid: () => v.pipe(v.string(), v.uuid()),

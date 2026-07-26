@@ -349,28 +349,30 @@ export { library }
 
 // A scenario may export one execution result or a bag of them. Walking the bag
 // matters because a top-level-only check passes vacuously for a nested export,
-// which is how a broken selective bundle could report `healthy`. Requiring at
-// least one recognizable result turns "nothing was checked" into a failure.
+// which is how a broken selective bundle could report `healthy`. Every member of
+// a bag must carry a result, so an entry that vanishes is a failure rather than
+// a silently smaller check.
 function assertBundleSucceeded(id, value, path = 'result') {
-	let verified = 0
 	const visit = (node, nodePath) => {
 		if (node == null || typeof node !== 'object')
-			return
+			return 0
 		if (node.issues || node.success === false)
 			throw new Error(`Generated bundle for ${id} failed its success fixture at ${nodePath}`)
-		if ('value' in node || 'data' in node || 'output' in node || 'success' in node) {
+		if ('value' in node || 'data' in node || 'output' in node || 'success' in node)
+			return 1
+		const entries = Array.isArray(node)
+			? node.map((entry, index) => [index, entry])
+			: Object.entries(node)
+		let verified = 0
+		for (const [key, nested] of entries) {
+			const nestedPath = `${nodePath}.${key}`
+			if (visit(nested, nestedPath) === 0)
+				throw new Error(`Generated bundle for ${id} exports no execution result at ${nestedPath}`)
 			verified++
-			return
 		}
-		if (Array.isArray(node)) {
-			node.forEach((entry, index) => visit(entry, `${nodePath}[${index}]`))
-			return
-		}
-		for (const [key, nested] of Object.entries(node))
-			visit(nested, `${nodePath}.${key}`)
+		return verified
 	}
-	visit(value, path)
-	if (verified === 0)
+	if (visit(value, path) === 0)
 		throw new Error(`Generated bundle for ${id} exports no recognizable execution result`)
 }
 
