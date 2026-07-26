@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { dateBounds } from '../fixtures.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -24,6 +25,18 @@ function createFields() {
 		attempts: v.number()
 			.isInteger()
 			.isAtLeast(0),
+	}
+}
+
+// Same accept/reject set as `createFields`: only the email field changes, from a
+// `check()` closure to the `isMatching` pattern validator that shipped later.
+// `isEmail` is deliberately not used here, because its accepted set differs from
+// the shared `emailPattern`.
+function createBuiltinFields() {
+	return {
+		...createFields(),
+		email: v.string()
+			.isMatching(emailPattern),
 	}
 }
 
@@ -73,6 +86,7 @@ export default {
 	version: 'workspace',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
+		features: ['file', 'template literal'],
 	},
 	build: {
 		primitive: () => v.string()
@@ -80,6 +94,7 @@ export default {
 			.isLengthAtMost(32)
 			.check(value => /^[a-z0-9-]+$/.test(value)),
 		flatObject: () => v.object(createFields()),
+		builtinFlatObject: () => v.object(createBuiltinFields()),
 		strictFlatObject: () => v.strictObject(createFields()),
 		nestedObject: () => v.object({
 			id: v.string(),
@@ -131,6 +146,26 @@ export default {
 			v.object({ left: v.string() }),
 			v.object({ right: v.string() }),
 		], structuralOptions(context)),
+		openRecord: () => v.record({ key: v.string(), value: v.number() }),
+		tuple: () => v.tuple([v.string(), v.number(), '...', v.array(v.boolean())]),
+		templateLiteral: () => v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])]),
+		date: () => v.date(),
+		dateFromString: () => v.string()
+			.toDate(),
+		dateBounds: () => v.date()
+			.isAfter(dateBounds.lower)
+			.isBefore(dateBounds.upper),
+		file: () => v.file(),
+		formatEmail: () => v.string()
+			.isEmail(),
+		formatUuid: () => v.string()
+			.isUuid(),
+		formatIsoDateTime: () => v.string()
+			.isIsoDateTime(),
+		membership: () => v.string()
+			.isOneOf(['red', 'green', 'blue']),
+		issuePolicyRecord: context => v.record(mapOptions(context, v.string(), v.number())),
+		issuePolicyTuple: context => v.tuple([v.string(), v.string()], structuralOptions(context)),
 	},
 	parse(schema, input) {
 		return schema.execute(input)

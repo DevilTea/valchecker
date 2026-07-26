@@ -174,6 +174,90 @@ export const collectionStructures = {
 	intersection: Object.freeze({ left: 'left', right: 1 }),
 }
 
+function createOpenRecordEntries(length, invalidKey) {
+	const entries = {}
+	for (let index = 0; index < length; index++)
+		entries[`item-${index}`] = index
+	if (invalidKey !== undefined)
+		entries[invalidKey] = 'invalid'
+	return entries
+}
+
+export const openRecordEntries = {
+	valid100: Object.freeze(createOpenRecordEntries(100)),
+	valid1000: Object.freeze(createOpenRecordEntries(1000)),
+	invalidFirst: Object.freeze(createOpenRecordEntries(100, 'item-0')),
+	invalidLast: Object.freeze(createOpenRecordEntries(100, 'item-99')),
+}
+
+// `[string, number, ...boolean[]]`: a fixed head plus a rest region, so the
+// scenario measures per-position dispatch and variadic iteration together.
+export const tupleInputs = {
+	valid: Object.freeze(['head', 1, true, false, true]),
+	invalidHead: Object.freeze([0, 1, true, false, true]),
+	invalidRest: Object.freeze(['head', 1, true, 'invalid', true]),
+	tooShort: Object.freeze(['head']),
+}
+
+// `${number}px | ${number}em | ${number}rem`.
+export const templateLiteralInputs = {
+	valid: '1280px',
+	invalid: '1280pt',
+}
+
+// Input and expected-output Dates are distinct instances: `Object.freeze` cannot
+// protect a Date's internal slot, so sharing one instance between the input and
+// the expectation would make an adapter that mutated it silently self-consistent.
+export const dateInputs = {
+	valid: new Date('2024-03-05T08:09:10.123Z'),
+	validOutput: new Date('2024-03-05T08:09:10.123Z'),
+	invalidType: '2024-03-05T08:09:10.123Z',
+	fromStringInput: '2024-03-05T08:09:10.123Z',
+	fromStringOutput: new Date('2024-03-05T08:09:10.123Z'),
+	unparseableString: 'not-a-date',
+	insideBounds: new Date('2024-03-05T08:09:10.123Z'),
+	insideBoundsOutput: new Date('2024-03-05T08:09:10.123Z'),
+	outsideBounds: new Date('2019-01-01T00:00:00.000Z'),
+}
+
+// The single source of truth for `date/bounds-*`. Every adapter imports these so
+// the three schemas cannot drift apart: `isAfter`/`isBefore`, `z.date().min/max`,
+// and `minValue`/`maxValue`.
+export const dateBounds = {
+	lower: new Date('2020-01-01T00:00:00.000Z'),
+	upper: new Date('2030-01-01T00:00:00.000Z'),
+}
+
+export const fileInputs = {
+	valid: new File(['benchmark payload'], 'payload.txt', { type: 'text/plain' }),
+	invalidType: 'payload.txt',
+}
+
+// Format fixtures are accepted by every adapter's implementation of the
+// corresponding validator, and the invalid values are rejected by all of them,
+// so a scenario compares dispatch and pattern cost rather than which library
+// happens to admit an exotic edge case.
+export const stringFormatInputs = {
+	email: 'ada.lovelace@example.com',
+	invalidEmail: 'ada.lovelace@@example',
+	uuid: '3f333df6-90a4-4fda-8dd3-9485d27cee36',
+	invalidUuid: '3f333df6-90a4-4fda-8dd3',
+	isoDateTime: '2024-03-05T08:09:10.123Z',
+	invalidIsoDateTime: '2024-03-05 08:09:10',
+}
+
+export const membershipInputs = {
+	valid: 'green',
+	invalid: 'yellow',
+}
+
+export const issuePolicyRecordInput = Object.freeze({
+	first: 'invalid',
+	second: 'invalid',
+})
+
+export const issuePolicyTupleInput = Object.freeze([0, 1])
+
 const invalidCollectionValues = Array.from({ length: 100 }, (_, index) => `item-${index}`)
 invalidCollectionValues[0] = 0
 invalidCollectionValues[99] = 99

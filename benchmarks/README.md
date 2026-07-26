@@ -165,7 +165,36 @@ The suite separates:
 5. warmed failure that stops after the first issue, and
 6. warmed failure that exhaustively collects issues.
 
-Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, and optional-heavy configuration objects. Full mode adds 1,000-record array cases.
+Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, optional-heavy configuration objects, open records, tuples with a rest region, template literals, date validation, string-to-date conversion, date bounds, files, string-format validators, and finite membership. Full mode adds 1,000-element array and record cases plus the secondary and failure variants of the newer families.
+
+### Comparability across runs
+
+Existing scenario ids, fixtures, schema shapes, and tiers are treated as stable. A new framing is added under a new id rather than by editing an old scenario, and `smoke` stays small because every pull request runs it.
+
+That stability is **per scenario**. Group-level aggregates — including the geometric means the performance-impact verdict uses — are not comparable across versions that changed the scenario set, because the group composition itself changed.
+
+### Capability gating
+
+Some scenarios need a schema kind that not every library ships. A scenario may declare required features, an adapter declares the features it supports, and unsupported combinations are skipped with a stated reason instead of being approximated:
+
+- `template literal` — Valchecker and both Zod 4 adapters; Zod 3 and Valibot have no equivalent schema;
+- `file` — Valchecker, both Zod 4 adapters, and Valibot; Zod 3 has no file schema.
+
+A hand-rolled stand-in would compare different work, so an adapter without the capability is skipped rather than substituted. A feature name exists only for a capability at least one adapter genuinely lacks, so every entry in an adapter's feature list is a real claim, and a scenario whose build key is missing from an adapter that claims support fails the run instead of quietly shrinking the comparison.
+
+Within a supported family the spelling still follows each library's own idiom, detected rather than hardcoded: Zod 3 uses `z.string().email()` while Zod 4 uses the top-level `z.email()`, and both are exercised through the same scenario.
+
+### Compatible-subset scopes
+
+Where a family exists everywhere but the semantics differ in detail, the scenario declares `compatible-subset` instead of pretending equivalence:
+
+- string formats and template literals — each library ships its own accepted set, so the fixtures are values every implementation agrees on;
+- open records — Valchecker maintains a transformed-key uniqueness map that Zod and Valibot do not;
+- tuples — Valchecker's rest region is a nested array schema rather than an in-place loop;
+- string-to-date conversion — `z.coerce.date()` performs no input type check, so the Zod cells are a lower bound;
+- date bounds — `isAfter`/`isBefore` are strict while `z.date().min/max` and `minValue`/`maxValue` are inclusive, so the accepted sets differ at the bound itself. Note also that this scenario largely measures the cost of attaching any refinement: the competitors lose their bare-schema fast path as soon as one is present;
+- finite membership — the benchmark measures Valchecker's `string().isOneOf()` chain against a single `enum`/`picklist` dispatch. Valchecker's one-step `union([...])` shorthand exists but is slower here and reports one issue per member, so the chain is both the idiomatic and the fairer comparison;
+- `flat-object-builtin` — the same validation as `flat-object`, with the Valchecker side spelled using the format validator that shipped after the original scenario was written. Competitor schemas are unchanged, because they already used a built-in pattern action.
 
 ### Diagnostic policy comparability
 

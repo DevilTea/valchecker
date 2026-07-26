@@ -57,6 +57,15 @@ Keep these groups separate:
 
 Library-default failure modes may perform different diagnostic work. Compare equivalent first/all policies only where the adapter exposes them.
 
+`benchmarks/README.md` lists the scenario families and every `compatible-subset` rationale; keep that list as the single description and these rules here:
+
+- existing scenario ids, fixtures, schemas, and tiers are stable — earlier runs are the baseline for the open performance issues, so add a new id instead of editing an old scenario;
+- stability is per scenario. Group aggregates, including the geometric means behind the performance-impact verdict, are not comparable across a scenario-set change;
+- keep `smoke` small because it gates every pull request, and prefer `full` for a secondary or failure variant so the standard-tier gate stays affordable;
+- when a library lacks a schema kind entirely, declare a required feature on the scenario and the supported features on the adapter; the runner skips with a stated reason. Never substitute a hand-rolled stand-in — verify first whether the library really lacks it, because a wrong assumption silently penalizes that library;
+- when the family exists everywhere but differs in detail, declare `compatible-subset` and pick fixtures every implementation agrees on;
+- a new tree-shaking scenario is not covered until `analyze()` gains a check for it and `markdown()` lists its group; otherwise it burns a bundle and asserts nothing.
+
 ## Before/after impact
 
 The **Performance Impact** workflow compares a baseline and candidate with interleaved paired independent processes. Pull requests that change runtime or benchmark source run the standard profile with three paired repetitions and fail on the workflow's severe-regression verdict.

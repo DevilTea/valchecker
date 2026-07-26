@@ -1,4 +1,5 @@
 import * as v from 'valibot'
+import { dateBounds } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 const integer = () => v.pipe(v.number(), v.integer())
@@ -52,6 +53,7 @@ export default {
 	version: '1.4.2',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
+		features: ['file'],
 	},
 	build: {
 		primitive: () => v.pipe(
@@ -61,6 +63,9 @@ export default {
 			v.regex(/^[a-z0-9-]+$/),
 		),
 		flatObject: () => v.object(createFields()),
+		// Identical to `flatObject`: Valibot already spells the email field with a
+		// built-in action, so only the Valchecker adapter differs for this family.
+		builtinFlatObject: () => v.object(createFields()),
 		strictFlatObject: () => v.strictObject(createFields()),
 		nestedObject: () => v.object({
 			id: v.string(),
@@ -112,6 +117,18 @@ export default {
 			v.object({ left: v.string() }),
 			v.object({ right: v.string() }),
 		]),
+		openRecord: () => v.record(v.string(), v.number()),
+		tuple: () => v.tupleWithRest([v.string(), v.number()], v.boolean()),
+		date: () => v.date(),
+		dateFromString: () => v.pipe(v.string(), v.toDate()),
+		dateBounds: () => v.pipe(v.date(), v.minValue(dateBounds.lower), v.maxValue(dateBounds.upper)),
+		file: () => v.file(),
+		formatEmail: () => v.pipe(v.string(), v.email()),
+		formatUuid: () => v.pipe(v.string(), v.uuid()),
+		formatIsoDateTime: () => v.pipe(v.string(), v.isoTimestamp()),
+		membership: () => v.picklist(['red', 'green', 'blue']),
+		issuePolicyRecord: () => v.record(v.string(), v.number()),
+		issuePolicyTuple: () => v.tuple([v.string(), v.string()]),
 	},
 	parse(schema, input, context) {
 		return v.safeParse(
