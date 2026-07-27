@@ -32,6 +32,11 @@ const invalid = [
 	' 12:30:45',
 	'12:30:45 ',
 	'123045',
+	// `$` is end of input, not end of line: a valid time embedded in a longer
+	// string must stay rejected if the pattern ever gains the `m` flag.
+	'12:30:45\nbad',
+	'bad\n12:30:45',
+	'12:30:45\n24:00:00',
 ]
 
 describe('isIsoTime step plugin', () => {

@@ -11,6 +11,16 @@
  *
  * `isoHourMinuteSource` is separate because the date-time offset (`±HH:MM`)
  * uses exactly the hour and minute rules and nothing else.
+ *
+ * That sharing is a coincidence of range, not of meaning, and it comes with a
+ * condition: a time of day and a UTC offset both happen to run `00`-`23` and
+ * `00`-`59` today. ISO 8601 also allows `24:00:00` as an end-of-day time, and
+ * accepting it here would silently start accepting `+24:00` as an offset, which
+ * is not valid. Split the two sources at that point rather than widening this
+ * one.
+ *
+ * Neither source wraps itself in a group, so a call site that needs to quantify
+ * one — `${isoTimeSource}?` and the like — must add its own `(?:…)`.
  */
 export const isoHourMinuteSource = String.raw`(?:[01]\d|2[0-3]):[0-5]\d`
 

@@ -58,7 +58,7 @@ identifiers are not accepted. Restrict to one family with `version` (`4` or
 
 ### `isIsoDate(options?)`, `isIsoTime(options?)`, `isIsoDateTime(options?)`
 
-Validate the documented ISO 8601 shapes and reject impossible values. Month lengths, the leap-year rule, and the time and offset field ranges are all part of the accepted shape, so `2026-02-30`, `2023-02-29`, and `24:00:00` are rejected. The three steps share one definition of each grammar, so their accepted shapes cannot drift apart.
+Validate the documented ISO 8601 shapes and reject impossible values. Month lengths and the leap-year rule are part of the accepted shape for `isIsoDate` and for the date portion of `isIsoDateTime`, as are the time and offset field ranges for `isIsoTime` and for the time portion of `isIsoDateTime`, so `2026-02-30`, `2023-02-29`, and `24:00:00` are all rejected. Each grammar has a single definition shared by the steps that use it, so their accepted shapes cannot drift apart.
 
 - `isIsoDate` — `YYYY-MM-DD`.
 - `isIsoTime` — `HH:MM:SS` with optional fractional seconds and no time-zone.
