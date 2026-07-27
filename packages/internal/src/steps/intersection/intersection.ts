@@ -124,6 +124,7 @@ interface MergeContext extends PairingContext {
 interface FlatProperties {
 	keys: PropertyKey[]
 	values: unknown[]
+	hasNestedPlainObject: boolean
 }
 
 type MergeSide = 'left' | 'right'
@@ -179,58 +180,123 @@ function defineEnumerableValue(target: Record<PropertyKey, unknown>, key: Proper
 	})
 }
 
-function readFlatProperties(value: Record<PropertyKey, unknown>): FlatProperties | undefined {
-	const keys: PropertyKey[] = []
+/**
+ * Reads every own enumerable property exactly once, recording whether any value
+ * is a nested plain object (which the shallow merge cannot handle, because the
+ * general path clones nested objects rather than sharing them).
+ *
+ * `Object.keys` plus the enumerable own symbols yields the same sequence as
+ * `Reflect.ownKeys` filtered by `propertyIsEnumerable`, without allocating a
+ * descriptor object per key. Descriptor allocation dominated this path:
+ * removing those scans improved the `merge disjoint flat objects` case in
+ * `intersection.bench.ts` by about 29% and the cross-library
+ * `intersection/valid` scenario by about 26% (2026-07-27).
+ *
+ * Enumerability is re-checked per key rather than trusted from the initial
+ * `Object.keys` snapshot, because a getter invoked during this scan may delete
+ * a later key or make it non-enumerable; `enumerableOwnProperties` re-checks
+ * the same way, so both paths drop it.
+ *
+ * The reverse is deliberately not covered: a getter that makes a later
+ * NON-enumerable key enumerable mid-scan is invisible here, because
+ * `Object.keys` never listed that key, while `enumerableOwnProperties` starts
+ * from `Reflect.ownKeys` and would include it. Closing that gap means scanning
+ * `Reflect.ownKeys` here too, which measured 464 ns against the 448 ns of the
+ * descriptor version this replaced — slower than doing nothing at all
+ * (2026-07-27). The shape requires a getter that alters its own object's
+ * property attributes while that object is being enumerated.
+ *
+ * The scan completes even after it finds a nested plain object, so `values` is
+ * always the full set the caller can hand to the general path, which therefore
+ * never re-reads a property.
+ */
+function readFlatProperties(value: Record<PropertyKey, unknown>): FlatProperties {
+	// The `Object.keys` array is reused as the key list and compacted in place, so
+	// the common case where nothing is skipped allocates no extra array.
+	const keys: PropertyKey[] = Object.keys(value)
 	const values: unknown[] = []
-	for (const key of Reflect.ownKeys(value)) {
-		const descriptor = Object.getOwnPropertyDescriptor(value, key)!
-		if (!descriptor.enumerable)
+	let hasNestedPlainObject = false
+	let kept = 0
+	for (let i = 0; i < keys.length; i++) {
+		const key = keys[i]!
+		if (!Object.prototype.propertyIsEnumerable.call(value, key))
 			continue
-		if (!('value' in descriptor) || isPlainObject(descriptor.value))
-			return undefined
-		keys.push(key)
-		values.push(descriptor.value)
+		const propertyValue = value[key]
+		if (isPlainObject(propertyValue))
+			hasNestedPlainObject = true
+		keys[kept] = key
+		kept++
+		values.push(propertyValue)
 	}
-	return { keys, values }
+	if (kept !== keys.length)
+		keys.length = kept
+
+	const symbols = Object.getOwnPropertySymbols(value)
+	for (let i = 0; i < symbols.length; i++) {
+		const key = symbols[i]!
+		if (!Object.prototype.propertyIsEnumerable.call(value, key))
+			continue
+		const propertyValue = value[key]
+		if (isPlainObject(propertyValue))
+			hasNestedPlainObject = true
+		keys.push(key)
+		values.push(propertyValue)
+	}
+	return { keys, values, hasNestedPlainObject }
 }
 
-function tryMergeDisjointFlatPlainObjects(left: unknown, right: unknown): MergeResult | undefined {
-	if (!isPlainObject(left) || !isPlainObject(right) || left === right)
-		return undefined
+function toPropertyMap(flat: FlatProperties): Map<PropertyKey, unknown> {
+	const properties = new Map<PropertyKey, unknown>()
+	for (let i = 0; i < flat.keys.length; i++)
+		properties.set(flat.keys[i]!, flat.values[i])
+	return properties
+}
 
-	const prototype = Object.getPrototypeOf(left)
-	if (prototype !== Object.getPrototypeOf(right))
-		return undefined
-
-	const leftProperties = readFlatProperties(left)
-	const rightProperties = readFlatProperties(right)
-	if (leftProperties == null || rightProperties == null)
-		return undefined
-
-	for (const key of rightProperties.keys) {
-		const descriptor = Object.getOwnPropertyDescriptor(left, key)
-		if (descriptor?.enumerable === true)
-			return undefined
+function assignFlatProperties(
+	target: Record<PropertyKey, unknown>,
+	properties: FlatProperties,
+): void {
+	for (let i = 0; i < properties.keys.length; i++) {
+		const key = properties.keys[i]!
+		// `__proto__` must become an own data property instead of reassigning the
+		// prototype, which plain assignment would do through the inherited setter.
+		if (key === '__proto__')
+			defineEnumerableValue(target, key, properties.values[i])
+		else
+			target[key] = properties.values[i]
 	}
+}
 
-	// Fast, semantics-preserving output construction. Both branches are flat
-	// (no nested plain objects), share a prototype, and have disjoint enumerable
-	// keys, so a shallow combine is exact. Spread/assignment replaces per-key
-	// Object.defineProperty, which benchmarked ~13x slower than spread and ~2.4x
-	// slower than assignment (2026-07-23). For an Object.prototype prototype the
-	// object spread uses CreateDataProperty semantics, so `__proto__` stays an
-	// own data property rather than reassigning the prototype. For a null
-	// prototype there is no `__proto__` accessor on the chain, so direct
-	// assignment is equally safe.
-	if (prototype === Object.prototype)
-		return { ok: true, value: { ...(left as object), ...(right as object) } }
-
-	const output = Object.create(prototype) as Record<PropertyKey, unknown>
-	for (let i = 0; i < leftProperties.keys.length; i++)
-		output[leftProperties.keys[i]!] = leftProperties.values[i]
-	for (let i = 0; i < rightProperties.keys.length; i++)
-		output[rightProperties.keys[i]!] = rightProperties.values[i]
+/**
+ * Both sides are flat (no nested plain objects), share a prototype, and have
+ * disjoint enumerable keys, so a shallow combine is exact.
+ *
+ * The output is built from the values the scan already read. Spreading the live
+ * objects instead would enumerate and read them a second time, which doubles
+ * the invocations of an enumerable accessor and lets a non-idempotent getter
+ * put a value into the output that the flatness check never saw. Assignment
+ * from the scanned values measured within noise of the spread (2026-07-27), so
+ * the second read bought nothing.
+ */
+function mergeDisjointFlatPlainObjects(
+	prototype: object | null,
+	leftProperties: FlatProperties,
+	rightProperties: FlatProperties,
+): MergeResult {
+	const output = (prototype === Object.prototype
+		? {}
+		: Object.create(prototype)) as Record<PropertyKey, unknown>
+	assignFlatProperties(output, leftProperties)
+	assignFlatProperties(output, rightProperties)
 	return { ok: true, value: output }
+}
+
+function hasDisjointKeys(left: object, rightKeys: readonly PropertyKey[]): boolean {
+	for (let i = 0; i < rightKeys.length; i++) {
+		if (Object.hasOwn(left, rightKeys[i]!))
+			return false
+	}
+	return true
 }
 
 function hasPair(
@@ -501,12 +567,13 @@ function findConflictingLeftBranch(
 	return rightBranch - 1
 }
 
-function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
-	const flatMerge = tryMergeDisjointFlatPlainObjects(left, right)
-	if (flatMerge != null)
-		return flatMerge
-
-	const pairingContext: PairingContext = {
+function createPairingContext(
+	left: unknown,
+	right: unknown,
+	leftProperties: FlatProperties | undefined,
+	rightProperties: FlatProperties | undefined,
+): PairingContext {
+	const context: PairingContext = {
 		leftPartners: new WeakMap(),
 		rightPartners: new WeakMap(),
 		visitedPairs: new WeakMap(),
@@ -514,6 +581,35 @@ function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
 		activeLeft: new WeakSet(),
 		activeRight: new WeakSet(),
 	}
+	// Hand over the values the fast path already read, so every property is read
+	// exactly once even when the fast path declines after reading it.
+	if (leftProperties != null)
+		context.properties.set(left as object, toPropertyMap(leftProperties))
+	if (rightProperties != null)
+		context.properties.set(right as object, toPropertyMap(rightProperties))
+	return context
+}
+
+function mergeOutputGraphs(left: unknown, right: unknown): MergeResult {
+	let leftProperties: FlatProperties | undefined
+	let rightProperties: FlatProperties | undefined
+
+	if (isPlainObject(left) && isPlainObject(right) && left !== right) {
+		const prototype = Object.getPrototypeOf(left)
+		if (prototype === Object.getPrototypeOf(right)) {
+			leftProperties = readFlatProperties(left)
+			rightProperties = readFlatProperties(right)
+			if (
+				!leftProperties.hasNestedPlainObject
+				&& !rightProperties.hasNestedPlainObject
+				&& hasDisjointKeys(left, rightProperties.keys)
+			) {
+				return mergeDisjointFlatPlainObjects(prototype, leftProperties, rightProperties)
+			}
+		}
+	}
+
+	const pairingContext = createPairingContext(left, right, leftProperties, rightProperties)
 	const compatibility = discoverCompatibility(left, right, pairingContext, [])
 	if (!compatibility.ok)
 		return compatibility
