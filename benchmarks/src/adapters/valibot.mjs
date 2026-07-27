@@ -54,7 +54,9 @@ export default {
 	capabilities: {
 		issuePolicies: ['first', 'all'],
 		generatedCode: false,
-		features: ['file'],
+		// Valibot has no `jwt` or `base64url` action, and no hostname action at
+		// all — `url()` is a whole-URL check, not a bare hostname one.
+		features: ['file', 'combined IPv4/IPv6', 'hex', 'MAC address'],
 	},
 	build: {
 		primitive: () => v.pipe(
@@ -127,6 +129,22 @@ export default {
 		formatEmail: () => v.pipe(v.string(), v.email()),
 		formatUuid: () => v.pipe(v.string(), v.uuid()),
 		formatIsoDateTime: () => v.pipe(v.string(), v.isoTimestamp()),
+		formatUrl: () => v.pipe(v.string(), v.url()),
+		formatIp: () => v.pipe(v.string(), v.ip()),
+		formatIsoDate: () => v.pipe(v.string(), v.isoDate()),
+		// Valibot splits ISO time by granularity: `isoTime()` is `HH:MM` only,
+		// while `isoTimeSecond()` requires the seconds that `isIsoTime()` also
+		// requires. The second one is therefore the equivalent spelling, and the
+		// scenario's fixture sits in the intersection of the two accepted sets.
+		formatIsoTime: () => v.pipe(v.string(), v.isoTimeSecond()),
+		formatEmoji: () => v.pipe(v.string(), v.emoji()),
+		formatBase64: () => v.pipe(v.string(), v.base64()),
+		formatNanoid: () => v.pipe(v.string(), v.nanoid()),
+		formatUlid: () => v.pipe(v.string(), v.ulid()),
+		formatCuid2: () => v.pipe(v.string(), v.cuid2()),
+		formatHex: () => v.pipe(v.string(), v.hexadecimal()),
+		formatMac: () => v.pipe(v.string(), v.mac()),
+		fileMimeType: () => v.pipe(v.file(), v.mimeType(['image/png'])),
 		membership: () => v.picklist(['red', 'green', 'blue']),
 		issuePolicyRecord: () => v.record(v.string(), v.number()),
 		issuePolicyTuple: () => v.tuple([v.string(), v.string()]),

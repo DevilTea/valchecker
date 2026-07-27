@@ -78,11 +78,77 @@ export function createZodAdapter(z, name, version) {
 	const hasTopLevelFormats = typeof z.email === 'function'
 	const hasTemplateLiteral = typeof z.templateLiteral === 'function'
 	const hasFile = typeof z.file === 'function'
+
+	// The formats added after `formatEmail`/`formatUuid`/`formatIsoDateTime` are
+	// resolved from the live module for the same reason those three are branched:
+	// the spelling moved between the pins. A format the pin does not ship at all
+	// resolves to `null`, which keeps its build key off this adapter, so the
+	// scenario's declared feature is what skips it rather than a `TypeError`
+	// thrown from inside the build.
+	const stringMethods = z.string()
+	const buildStringFormat = (methodName) => {
+		const schema = z.string()
+		return schema[methodName]()
+	}
+	const resolveFormat = (name) => {
+		if (typeof z[name] === 'function')
+			return () => z[name]()
+		if (typeof stringMethods[name] === 'function')
+			return () => buildStringFormat(name)
+		return null
+	}
+	// `date` and `time` are the two names that collide: top-level `z.date()` is a
+	// `Date` schema, not an ISO string format. Zod 4 keeps the string formats in
+	// the `z.iso` namespace; Zod 3 has no such namespace and keeps them as string
+	// methods.
+	const resolveIsoFormat = (name) => {
+		if (typeof z.iso?.[name] === 'function')
+			return () => z.iso[name]()
+		if (typeof stringMethods[name] === 'function')
+			return () => buildStringFormat(name)
+		return null
+	}
+
+	const formatBuilds = {
+		formatUrl: resolveFormat('url'),
+		formatIp: resolveFormat('ip'),
+		formatIsoDate: resolveIsoFormat('date'),
+		formatIsoTime: resolveIsoFormat('time'),
+		formatEmoji: resolveFormat('emoji'),
+		formatBase64: resolveFormat('base64'),
+		formatBase64Url: resolveFormat('base64url'),
+		formatNanoid: resolveFormat('nanoid'),
+		formatUlid: resolveFormat('ulid'),
+		formatCuid2: resolveFormat('cuid2'),
+		formatJwt: resolveFormat('jwt'),
+		formatHex: resolveFormat('hex'),
+		formatMac: resolveFormat('mac'),
+		formatHostname: resolveFormat('hostname'),
+	}
+	// A format earns a feature name only where a pinned library genuinely lacks
+	// it. Zod 4 has `z.ipv4()` and `z.ipv6()` but no combined address schema, so
+	// `formatIp` resolves to `null` there and the combined feature is absent.
+	const gatedFormatFeatures = {
+		formatIp: 'combined IPv4/IPv6',
+		formatBase64Url: 'base64url',
+		formatJwt: 'JWT',
+		formatHex: 'hex',
+		formatMac: 'MAC address',
+		formatHostname: 'hostname',
+	}
 	const features = []
 	if (hasFile)
 		features.push('file')
 	if (hasTemplateLiteral)
 		features.push('template literal')
+	for (const [key, feature] of Object.entries(gatedFormatFeatures)) {
+		if (formatBuilds[key] !== null)
+			features.push(feature)
+	}
+	const supportedFormatBuilds = Object.fromEntries(
+		Object.entries(formatBuilds)
+			.filter(([, build]) => build !== null),
+	)
 
 	return {
 		name,
@@ -178,7 +244,14 @@ export function createZodAdapter(z, name, version) {
 			// Declared only where the pinned version has them, so a scenario that
 			// forgets its `requiredFeatures` fails with the harness's actionable
 			// message instead of a `z.file is not a function` from inside the build.
-			...(hasFile ? { file: () => z.file() } : {}),
+			...supportedFormatBuilds,
+			...(hasFile
+				? {
+						file: () => z.file(),
+						fileMimeType: () => z.file()
+							.mime(['image/png']),
+					}
+				: {}),
 			...(hasTemplateLiteral
 				? { templateLiteral: () => z.templateLiteral([z.number(), z.enum(['px', 'em', 'rem'])]) }
 				: {}),

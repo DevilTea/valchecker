@@ -5,6 +5,7 @@
 import { builtinValidatorScenarios } from './builtin-validator.mjs'
 import { collectionScenarios } from './collection.mjs'
 import { dateScenarios } from './date.mjs'
+import { fileMimeTypeScenarios } from './file-mime-type.mjs'
 import { fileScenarios } from './file.mjs'
 import { issuePolicyRecordTupleScenarios } from './issue-policy-record-tuple.mjs'
 import { issuePolicyScenarios } from './issue-policy.mjs'
@@ -13,6 +14,7 @@ import { objectScenarios } from './object.mjs'
 import { optionalHeavyScenarios } from './optional-heavy.mjs'
 import { primitiveScenarios } from './primitive.mjs'
 import { recordTupleTemplateLiteralScenarios } from './record-tuple-template-literal.mjs'
+import { stringFormatExtendedScenarios } from './string-format-extended.mjs'
 import { stringFormatScenarios } from './string-format.mjs'
 import { transformScenarios } from './transform.mjs'
 import { unionScenarios } from './union.mjs'
@@ -44,6 +46,8 @@ const scenarioFamilies = [
 	stringFormatScenarios,
 	builtinValidatorScenarios,
 	issuePolicyRecordTupleScenarios,
+	stringFormatExtendedScenarios,
+	fileMimeTypeScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()

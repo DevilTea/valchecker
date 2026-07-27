@@ -87,7 +87,7 @@ export default {
 	capabilities: {
 		issuePolicies: ['first', 'all'],
 		generatedCode: false,
-		features: ['file', 'template literal'],
+		features: ['file', 'template literal', 'combined IPv4/IPv6', 'base64url', 'JWT', 'hex', 'MAC address', 'hostname'],
 	},
 	build: {
 		primitive: () => v.string()
@@ -163,6 +163,36 @@ export default {
 			.isUuid(),
 		formatIsoDateTime: () => v.string()
 			.isIsoDateTime(),
+		formatUrl: () => v.string()
+			.isUrl(),
+		formatIp: () => v.string()
+			.isIp(),
+		formatIsoDate: () => v.string()
+			.isIsoDate(),
+		formatIsoTime: () => v.string()
+			.isIsoTime(),
+		formatEmoji: () => v.string()
+			.isEmoji(),
+		formatBase64: () => v.string()
+			.isBase64(),
+		formatBase64Url: () => v.string()
+			.isBase64Url(),
+		formatNanoid: () => v.string()
+			.isNanoid(),
+		formatUlid: () => v.string()
+			.isUlid(),
+		formatCuid2: () => v.string()
+			.isCuid2(),
+		formatJwt: () => v.string()
+			.isJwt(),
+		formatHex: () => v.string()
+			.isHex(),
+		formatMac: () => v.string()
+			.isMac(),
+		formatHostname: () => v.string()
+			.isHostname(),
+		fileMimeType: () => v.file()
+			.isMimeType(['image/png']),
 		membership: () => v.string()
 			.isOneOf(['red', 'green', 'blue']),
 		issuePolicyRecord: context => v.record(mapOptions(context, v.string(), v.number())),

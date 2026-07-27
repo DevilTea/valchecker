@@ -187,7 +187,9 @@ The suite separates:
 5. warmed failure that stops after the first issue, and
 6. warmed failure that exhaustively collects issues.
 
-Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, optional-heavy configuration objects, open records, tuples with a rest region, template literals, date validation, string-to-date conversion, date bounds, files, string-format validators, and finite membership. Full mode adds 1,000-element array and record cases plus the secondary and failure variants of the newer families.
+Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, optional-heavy configuration objects, open records, tuples with a rest region, template literals, date validation, string-to-date conversion, date bounds, files, a file MIME-type check, every built-in string-format validator, and finite membership. Full mode adds 1,000-element array and record cases plus the secondary and failure variants of the newer families.
+
+The string-format scenarios cover one built-in format validator each: `isEmail`, `isUuid`, `isIsoDateTime`, `isUrl`, `isIp`, `isIsoDate`, `isIsoTime`, `isEmoji`, `isBase64`, `isBase64Url`, `isNanoid`, `isUlid`, `isCuid2`, `isJwt`, `isHex`, `isMac`, and `isHostname`. `isMimeType` reads a value's own `type` string rather than validating a string, so it is measured over a `File` as `file-mime-type/*` instead.
 
 ### Declared step coverage
 
@@ -216,17 +218,21 @@ An adapter declares what it is, so the harness never has to infer behaviour from
 Some scenarios need a schema kind that not every library ships. A scenario may declare required features, an adapter declares the features it supports, and unsupported combinations are skipped with a stated reason instead of being approximated:
 
 - `template literal` — Valchecker and both Zod 4 adapters; Zod 3 and Valibot have no equivalent schema;
-- `file` — Valchecker, both Zod 4 adapters, and Valibot; Zod 3 has no file schema.
+- `file` — Valchecker, both Zod 4 adapters, and Valibot; Zod 3 has no file schema;
+- `combined IPv4/IPv6` — Valchecker, Zod 3, and Valibot; Zod 4 ships `z.ipv4()` and `z.ipv6()` separately and has no schema accepting either, which is what `isIp()` does by default;
+- `base64url`, `JWT` — Valchecker and every Zod adapter; Valibot has neither action;
+- `hex`, `MAC address` — Valchecker, both Zod 4 adapters, and Valibot; Zod 3 has neither string method;
+- `hostname` — Valchecker and both Zod 4 adapters only.
 
 A hand-rolled stand-in would compare different work, so an adapter without the capability is skipped rather than substituted. A feature name exists only for a capability at least one adapter genuinely lacks, so every entry in an adapter's feature list is a real claim, and a scenario whose build key is missing from an adapter that claims support fails the run instead of quietly shrinking the comparison.
 
-Within a supported family the spelling still follows each library's own idiom, detected rather than hardcoded: Zod 3 uses `z.string().email()` while Zod 4 uses the top-level `z.email()`, and both are exercised through the same scenario.
+Within a supported family the spelling still follows each library's own idiom, detected rather than hardcoded: Zod 3 uses `z.string().email()` while Zod 4 uses the top-level `z.email()`, and both are exercised through the same scenario. Where a library offers several granularities of one format, the adapter picks the one matching the Valchecker step: Valibot's `isoTime()` accepts only `HH:MM`, so the ISO-time scenario uses `isoTimeSecond()`, which requires the seconds `isIsoTime()` also requires.
 
 ### Compatible-subset scopes
 
 Where a family exists everywhere but the semantics differ in detail, the scenario declares `compatible-subset` instead of pretending equivalence:
 
-- string formats and template literals — each library ships its own accepted set, so the fixtures are values every implementation agrees on;
+- string formats and template literals — each library ships its own accepted set, so the fixtures are values every implementation agrees on, checked against every participating adapter before the fixture is committed. The differences are real and often large: Valibot's `isoDate()` performs no calendar check and accepts `2024-02-30`, Zod accepts a cuid2 that starts with a digit, Zod 3's `base64url()` accepts padding, Valibot's `hexadecimal()` accepts a `0x` prefix, Zod 4's `mac()` rejects hyphen separators, and only Valchecker's `isUrl()` restricts the scheme;
 - open records — Valchecker maintains a transformed-key uniqueness map that Zod and Valibot do not;
 - tuples — Valchecker's rest region is a nested array schema rather than an in-place loop;
 - string-to-date conversion — `z.coerce.date()` performs no input type check, so the Zod cells are a lower bound;
