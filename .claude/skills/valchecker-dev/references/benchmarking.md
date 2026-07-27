@@ -56,6 +56,12 @@ Both profiles save: on the CI runners, 59 to 65 of the 80 `standard` cells stop 
 
 Switching the runner to Student's t also widened every published RME by about 12%, which moved one cell (`optional-heavy/sparse` on Zod 4 jitless, 4.72% to 5.31%) across the 5% stability line. Because a scenario counts as stable only when every row is, that scenario drops out of the summary's stable set and its group counts fall by one — including one Valchecker win. The measurements did not change; what changed is that their uncertainty is no longer understated.
 
+The report refuses to present an ordering it cannot reproduce. Rows within 5% of the one above them are marked `≈`, and the summary counts Valchecker's wins twice — once plainly, once as **clear wins** where the lead over the runner-up exceeds 5%. Quote the clear count when the claim is that Valchecker is faster.
+
+5% is calibrated, not chosen: across four `full` runs from 2026-07-26 and 2026-07-27, 74 of the 840 adapter pairs present in all four changed their ordering at least once, and 55 of those 74 were closer than 5% in the run being reported, against 18 of the 766 settled pairs wrongly marked. Confidence-interval overlap was tried first and predicted worse — a single run's interval describes spread within that run, not whether a ranking would recur. The number also matches the `meaningfulThreshold` that `compare.mjs` already applies to before/after changes.
+
+The limit belongs next to the marker: 19 unreproducible orderings have gaps above 5%, mostly on cells whose own measurements are unstable, so an unmarked row is only *not obviously* unreproducible. Ranking churn is real and mostly one pair — `zod4` against `zod4-jitless` flipped in 163 of 516 comparisons at a median gap of 2.74%, while every other pair flipped 3 to 28 times.
+
 One run produces two perspectives when it measures a generated-code validator: interpreted libraries only, and every library. The rule lives in `benchmarks/src/perspectives.mjs` and keys on each adapter's `capabilities.generatedCode`. It collapses to a single ranking when no generated-code validator was measured, and also when excluding them would leave fewer than two libraries — that second case still warns that the run mixes execution strategies. Cite the interpreted perspective when comparing execution strategies, and read `Rank`/`Fastest` and `Rank (interpreted)`/`Fastest (interpreted)` as pairs; mixing one perspective's rank with the other's share is the mistake the split exists to prevent.
 
 Keep these groups separate:

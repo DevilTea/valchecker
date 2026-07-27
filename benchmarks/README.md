@@ -26,6 +26,8 @@ A blank seed is replaced with a value derived from the commit and workflow run. 
 Each completed run publishes:
 
 - `raw.json`: every sample, scenario semantic, skipped-adapter reason, and environment field; the source of truth
+
+A rank marked `≈` is one the run does not separate from the rank above it — the two medians are within 5%, which is where orderings stop reproducing between runs. The summary's `Clear wins` column counts only wins with more than a 5% lead over the runner-up.
 - `summary.md` and `summary.html`: concise benchmark-group interpretation and reliability warnings
 - `report.md` and `report.html`: the complete scenario-by-scenario report
 

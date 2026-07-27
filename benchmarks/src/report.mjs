@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { INTERPRETED_PERSPECTIVE, isInPerspective, reportPerspectives } from './perspectives.mjs'
+import { isSeparated, separationThresholdPercent } from './separation.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const categories = new Set(['construction', 'cold', 'warm'])
@@ -261,6 +262,9 @@ function scenarioRows(raw, scenario, interpreted) {
 		// interval is wider than the run asked for.
 		missedTarget: row.reachedTarget === false,
 		sampleCount: row.samples.length,
+		// Whether this row stands apart from the one ranked above it. Rows that do
+		// not are printed as a ranking the next run would be unlikely to reproduce.
+		tiedWithPrevious: index > 0 && !isSeparated(rows[index - 1].medianOpsPerSecond, row.medianOpsPerSecond),
 	}))
 }
 
@@ -349,7 +353,7 @@ function renderMarkdown(raw) {
 				? '| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |'
 				: '| ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
 			...rows.map(row => `| ${[
-				row.rank,
+				`${row.rank}${row.tiedWithPrevious ? '≈' : ''}`,
 				...(interpreted == null ? [] : [row.interpretedRank ?? '—']),
 				markdownCell(row.library),
 				markdownCell(row.version),
@@ -382,6 +386,7 @@ function renderMarkdown(raw) {
 		'- `first` and `all` scenarios verify issue-count semantics before timing; unsupported adapters are omitted instead of being assigned a synthetic mode.',
 		'- `compatible-subset` scenarios intentionally test only behavior that is common to every participating library.',
 		'- Treat results with RME above 5% as unstable and rerun before drawing conclusions.',
+		`- \`≈\` marks a row within ${separationThresholdPercent}% of the one above it. Orderings that close are not reproducible: comparing four full runs, most of the pairs that changed places between runs were this close. Read them as unseparated rather than as a rank.`,
 		'- Sampling stops once a measurement reaches the profile\'s precision target, so the rows compared within a scenario can rest on different numbers of samples; the Samples column says how many, and `†` marks a measurement whose interval stayed wider than the target.',
 		'- The RME of a measurement that stopped early is the value at the moment it first crossed the target, so it is at most the target by construction and understates the spread a longer run would have found.',
 		'- The raw JSON artifact remains the source of truth for every sample and skipped-adapter reason.',
@@ -397,7 +402,7 @@ function renderHtml(raw) {
 		.join('')
 	const sections = raw.scenarioCatalog.map((scenario) => {
 		const rows = scenarioRows(raw, scenario, interpreted)
-		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}</td>${interpreted == null ? '' : `<td>${row.interpretedRank ?? '—'}</td>`}<td class="text">${htmlEscape(row.library)}</td><td class="text">${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td>${interpreted == null ? '' : `<td>${row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`}</td>`}<td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : row.missedTarget ? ' †' : ''}</td><td>${row.sampleCount}</td></tr>`)
+		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}${row.tiedWithPrevious ? '≈' : ''}</td>${interpreted == null ? '' : `<td>${row.interpretedRank ?? '—'}</td>`}<td class="text">${htmlEscape(row.library)}</td><td class="text">${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td>${interpreted == null ? '' : `<td>${row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`}</td>`}<td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : row.missedTarget ? ' †' : ''}</td><td>${row.sampleCount}</td></tr>`)
 			.join('')
 		const skipped = skippedRows(raw, scenario)
 		const skippedText = skipped.length === 0
@@ -425,7 +430,7 @@ function renderHtml(raw) {
 <table class="metadata"><tbody>${metadata}</tbody></table>
 ${sections}
 <h2>Interpretation rules</h2>
-<ul><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
+<ul><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>&#8776; marks a row the run does not separate from the one above it.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
 </body>
 </html>
 `
