@@ -44,7 +44,17 @@ pnpm --dir benchmarks report \
 	--html results/report.html
 ```
 
-Profiles are `smoke`, `standard`, and `full`. A run can select adapters, scenario ids, or benchmark groups. The generated raw JSON is the source of truth for samples, environment, semantic metadata, and skipped-adapter reasons.
+Profiles are `smoke`, `standard`, and `full`. A run can select adapters, scenario ids, or benchmark groups. The generated raw JSON is the source of truth for samples, environment, semantic metadata, skipped-adapter reasons, isolation, and sharding.
+
+### Isolation and sharding
+
+Every (adapter, scenario) cell is measured in its own process (`"isolation": "cell"`), one cell at a time, with the adapters of one scenario measured back to back. That is the fix for the intra-process position artefact four findings during the scenario expansion had to work around: under the previous one-process-per-adapter runner an identical array pipeline measured 83.5 ns as the first array-carried scenario and 261.9 ns after three others, and `schema-kind/unknown-valid` measured 6.4 ns alone and 14.8 ns behind two other scenarios.
+
+Measuring the whole standard tier both ways on one machine sized it: 684 of 773 cells more than 5% faster in isolation, a median 19.0% move in the adapter-versus-Valchecker ratios, 106 of 167 scenario rankings different, and 153 of the 1,232 adapter pairs the report presented as *separated* reversed. It was adapter-dependent — Zod 4 −38.5% against Valibot −13.5% — so it biased the within-scenario comparison rather than only adding noise, which is why it could not be documented instead of fixed. It cost 110 s on that pair of runs (143 ms per cell, 7.6% of that profile's budget; roughly 3% on a full-tier `full` run). `--isolation adapter` reproduces the old behaviour for reading an archived number, and nothing else. Absolute numbers from before 2026-07-28 are not comparable with numbers after it.
+
+The **Performance Comparison** workflow shards by scenario, never by adapter: every adapter of one scenario must be measured on one machine because that is the only comparison the report makes, and runners vary between jobs. Assignment is positional round-robin (`p % count`), deterministic from the selection and count alone, so rerunning one shard measures the same scenarios; it is also exactly invertible, which is how `merge` rebuilds the run order without the registry. `merge` refuses a differing mode, seed, profile, isolation, filter, adapter order, or adapter version, overlapping or duplicated shards, an already-merged input, and a missing shard.
+
+The **Performance Impact** gate is deliberately unsharded — see `benchmarks/README.md` for the argument. `compare.mjs` refuses to pair runs whose isolation or shard count differs, the same guard that already refuses a differing mode or profile; it lives in `benchmarks/src/comparability.mjs` so it can be tested against results differing in exactly one field.
 
 Each measurement takes between `minSamples` and `maxSamples` samples and stops as soon as its 95% confidence interval is within `targetRelativeMarginOfError` of the mean. `smoke` sets no target and always takes its three. The interval uses Student's t, which is what makes the target mean what it says at these sample sizes. `pnpm --dir benchmarks test` checks the rule, and CI runs it in the `Benchmark-Smoke` job.
 
@@ -52,7 +62,7 @@ Two consequences to keep in mind when reading a report. Rows compared inside one
 
 The target is 0.75%, chosen by replaying the 440 cells of that run. What the replay bounds is movement in a reported ratio: at most 1.22% in that run's sample order, and 1.34% replaying the same samples in reverse, against the 5% threshold the harness uses for calling a difference meaningful at all. It does not bound rankings, and a criterion that appeared to would be measuring ties rather than precision — 28 of the 345 adjacent ranking pairs in that run sit closer together than 1.22%, and a stricter 0.5% target perturbs one ordering where 0.75% perturbs none. `minSamples` is 5 because 4 puts an 8% shift into a ratio.
 
-Both profiles save: on the CI runners, 59 to 65 of the 80 `standard` cells stop at five samples. Changing any profile field changes what a number means, so `compare` refuses to pair runs whose profiles differ rather than reporting the difference as a performance change.
+Both profiles save: on the CI runners, 59 to 65 of the 80 `standard` cells stop at five samples. Changing any profile field changes what a number means, so `compare` refuses to pair runs whose profile, isolation, or shard count differs rather than reporting the difference as a performance change.
 
 Switching the runner to Student's t also widened every published RME by about 12%, which moved one cell (`optional-heavy/sparse` on Zod 4 jitless, 4.72% to 5.31%) across the 5% stability line. Because a scenario counts as stable only when every row is, that scenario drops out of the summary's stable set and its group counts fall by one — including one Valchecker win. The measurements did not change; what changed is that their uncertainty is no longer understated.
 
@@ -85,7 +95,8 @@ Library-default failure modes may perform different diagnostic work. Compare equ
 - keep `smoke` small because it gates every pull request, and prefer `full` for a secondary or failure variant so the standard-tier gate stays affordable;
 - when a library lacks a schema kind entirely, declare a required feature on the scenario and the supported features on the adapter; the runner skips with a stated reason. Never substitute a hand-rolled stand-in — verify first whether the library really lacks it, because a wrong assumption silently penalizes that library;
 - when the family exists everywhere but differs in detail, declare `compatible-subset` and pick fixtures every implementation agrees on;
-- a new tree-shaking scenario is not covered until `analyze()` gains a check for it and `markdown()` lists its group; otherwise it burns a bundle and asserts nothing.
+- a new tree-shaking scenario is not covered until `analyze()` gains a check for it and `markdown()` lists its group; otherwise it burns a bundle and asserts nothing;
+- do not add a field to `raw.json` that changes what a number means without extending the identity in `benchmarks/src/comparability.mjs`; a number must never be readable as comparable to one produced differently.
 
 ## Before/after impact
 

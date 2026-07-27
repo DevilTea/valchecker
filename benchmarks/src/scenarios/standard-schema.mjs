@@ -9,7 +9,7 @@
 // native row over the identical schema and fixture and the difference between them is
 // the interop layer. The pairs are `primitive/valid`, `primitive/invalid-late`,
 // `flat-object/valid`, and `async/check-valid`; read them from the same run, because
-// the position effect recorded for `collection-transform/*` applies to both sides.
+// only one run's environment and sampling budget describe both sides.
 //
 // What the entry point actually does, read from each implementation:
 //
@@ -45,15 +45,16 @@
 // other three are synchronous.
 //
 // How to read the native/standard pair, and how not to. Measured *alone* at the
-// standard profile — one scenario per process, so each gets the same position and the
-// position effect recorded for `collection-transform/*` cannot masquerade as interop
-// cost — the valid path costs: Valchecker 62.9/62.1 ns native against 61.5/62.0 ns
-// standard (two runs each, RME under 1.3%: no measurable difference, which is what a
-// function alias should show), Zod 3 61.6 → 62.5 ns, Zod 4 93.4 → 100.9 ns, and
-// Valibot 94.4 → 110.5 ns. In the same twelve-scenario smoke selection the Valchecker
-// pair reads 61.7 → 87.8 ns instead, and that 26 ns is position rather than interop.
-// So: quote the delta only from runs where the two scenarios sit in comparable
-// positions, and prefer a solo pair when the question is the size of the interop
+// standard profile — which needed a deliberate one-scenario-per-process run at the
+// time and is now what every cell gets, so the intra-process position artefact could
+// not masquerade as interop cost — the valid path costs: Valchecker 62.9/62.1 ns
+// native against 61.5/62.0 ns standard (two runs each, RME under 1.3%: no measurable
+// difference, which is what a function alias should show), Zod 3 61.6 → 62.5 ns, Zod 4
+// 93.4 → 100.9 ns, and Valibot 94.4 → 110.5 ns. Under the old one-process-per-adapter
+// runner the same twelve-scenario smoke selection read the Valchecker pair as
+// 61.7 → 87.8 ns, and that 26 ns was position rather than interop — the finding that
+// made cell isolation worth its cost. So: quote the delta from one run, and treat the
+// figures above as pre-2026-07-28 numbers when the question is the size of the interop
 // layer itself.
 //
 // Scope. `equivalent` throughout: the accepted sets, outputs, and failure positions

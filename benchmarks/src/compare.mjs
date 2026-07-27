@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { assertComparable, measurementIdentity } from './comparability.mjs'
 import { median, relativeMarginOfError } from './statistics.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -9,7 +10,6 @@ const stabilityThreshold = 5
 const meaningfulThreshold = 5
 const severeScenarioRegression = -10
 const severeGroupRegression = -5
-const supportedSchemaVersion = 3
 
 function parseArguments(argv) {
 	const options = {
@@ -66,30 +66,12 @@ function getValchecker(raw, label) {
 	return library
 }
 
-/**
- * Two runs are comparable only if they were measured the same way. The mode name
- * alone does not establish that: it selects a profile, and a profile can change
- * between the commits that produced two result files. Comparing a run sampled to
- * a 0.75% target against one that always took twelve samples would look like a
- * performance difference.
- */
-function measurementIdentity(raw, label) {
-	if (raw?.schemaVersion !== supportedSchemaVersion)
-		throw new Error(`${label} has benchmark schema version ${String(raw?.schemaVersion)}, expected ${supportedSchemaVersion}`)
-	if (!raw.profile || typeof raw.profile !== 'object')
-		throw new Error(`${label} is missing its measurement profile`)
-	const profileFields = Object.entries(raw.profile)
-		.sort(([left], [right]) => left.localeCompare(right))
-	return JSON.stringify([raw.mode, profileFields])
-}
-
 function aggregateRuns(raws, label) {
 	const mode = raws[0].mode
 	const identity = measurementIdentity(raws[0], `${label} run 1`)
 	const first = getValchecker(raws[0], label)
 	const resultMaps = raws.map((raw, index) => {
-		if (measurementIdentity(raw, `${label} run ${index + 1}`) !== identity)
-			throw new Error(`${label} run ${index + 1} was measured with a different mode or profile`)
+		assertComparable(identity, measurementIdentity(raw, `${label} run ${index + 1}`), `${label} run 1 and ${label} run ${index + 1}`)
 		return new Map(getValchecker(raw, `${label} run ${index + 1}`).results.map(result => [result.scenario, result]))
 	})
 	const results = first.results.map((template) => {
@@ -154,10 +136,10 @@ function htmlEscape(value) {
 }
 
 function compareResults(baseline, candidate) {
-	if (baseline.mode !== candidate.mode)
-		throw new Error(`Benchmark modes differ: ${baseline.mode} vs ${candidate.mode}`)
-	if (baseline.identity !== candidate.identity)
-		throw new Error('Baseline and candidate were measured with different profiles, so the difference between them is not attributable to the change under test')
+	// The single comparability guard, covering mode, profile, isolation, and shard
+	// count. A difference in any of them means the gap between the two runs is not
+	// attributable to the change under test.
+	assertComparable(baseline.identity, candidate.identity, 'Baseline and candidate')
 	if (baseline.runCount !== candidate.runCount)
 		throw new Error('Aggregated run counts differ')
 
@@ -235,8 +217,14 @@ function compareResults(baseline, candidate) {
 					: 'neutral'
 
 	return {
-		schemaVersion: 4,
+		schemaVersion: 5,
 		mode: baseline.mode,
+		// The measurement identity both sides had to share, recorded so the verdict
+		// carries the conditions it was reached under rather than only the numbers.
+		measurement: {
+			isolation: baseline.identity.isolation,
+			shardCount: baseline.identity.shardCount,
+		},
 		runCounts: { baseline: baseline.runCount, candidate: candidate.runCount },
 		commits: { baseline: baseline.commits, candidate: candidate.commits },
 		thresholds: {
@@ -263,7 +251,7 @@ function renderMarkdown(result) {
 	const lines = [
 		'# Valchecker benchmark impact',
 		'',
-		`Verdict: **${result.verdict}** · Paired process runs: **${result.runCounts.baseline}**`,
+		`Verdict: **${result.verdict}** · Paired process runs: **${result.runCounts.baseline}** · Isolation: **${result.measurement.isolation}** · Shards: **${result.measurement.shardCount}**`,
 		'',
 		`Meaningful change requires at least **${meaningfulThreshold}%** with paired-ratio RME at or below **${stabilityThreshold}%**.`,
 		'',
@@ -312,7 +300,7 @@ function renderHtml(result) {
 			.toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps)
 			.toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`)
 		.join('')
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline}</p><h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p><h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))

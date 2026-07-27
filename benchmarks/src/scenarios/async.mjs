@@ -44,9 +44,8 @@
 //   each library offers — `toAsync()` on the Valchecker side, `safeParseAsync` on
 //   the competitors' — with no asynchronous work anywhere in it. The difference
 //   between the two rows is therefore each library's promise machinery and nothing
-//   else. Both rows are subject to the position effect recorded for
-//   `collection-transform/*`, so quote them from the same run and the same scenario
-//   selection.
+//   else. Quote both from the same run: one run's environment and sampling budget is
+//   what describes both sides.
 // - `async/check-valid` against `primitive/valid`, which is the closest synchronous
 //   closure predicate in the suite. That pair is much looser — different chain,
 //   different predicate — so it bounds the order of magnitude rather than a

@@ -2,8 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { supportedSchemaVersion } from './comparability.mjs'
 import { INTERPRETED_PERSPECTIVE, isInPerspective, reportPerspectives } from './perspectives.mjs'
 import { isSeparated, separationThresholdPercent } from './separation.mjs'
+import { isolations } from './sharding.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const categories = new Set(['construction', 'cold', 'warm'])
@@ -94,13 +96,69 @@ function readEnumerated(value, allowed, fallback, path) {
 	return value
 }
 
+function validateEnvironment(environment, path) {
+	if (!environment || typeof environment !== 'object')
+		throw new TypeError(`${path} must be an object`)
+	for (const field of ['node', 'platform', 'arch', 'cpu'])
+		assertNonEmptyString(environment[field], `${path}.${field}`)
+	for (const field of ['commit', 'runnerName', 'runnerImageOS', 'runnerImageVersion'])
+		assertOptionalString(environment[field], `${path}.${field}`)
+	assertFinitePositive(environment.logicalCpuCount, `${path}.logicalCpuCount`)
+	assertFinitePositive(environment.totalMemoryBytes, `${path}.totalMemoryBytes`)
+}
+
+/**
+ * The shard record, checked strictly because it is what tells a reader which
+ * machine produced which scenario. A merged run that is missing a shard, or whose
+ * shards do not cover the catalog exactly, would present a partial scenario set as
+ * a whole run with nothing in the rendered report to show it.
+ */
+function validateShards(raw, catalogIds) {
+	if (!Array.isArray(raw.shards) || raw.shards.length === 0)
+		throw new Error('shards must contain at least one entry')
+	const count = raw.shards[0].count
+	if (!Number.isInteger(count) || count < 1)
+		throw new Error('shards[0].count must be a positive integer')
+	if (raw.shards.length !== count)
+		throw new Error(`shards contains ${raw.shards.length} of the run's ${count} shards, so the result is incomplete`)
+	const seen = new Set()
+	const covered = []
+	for (const [index, shard] of raw.shards.entries()) {
+		const path = `shards[${index}]`
+		if (!shard || typeof shard !== 'object')
+			throw new TypeError(`${path} must be an object`)
+		if (shard.count !== count)
+			throw new Error(`${path}.count must equal ${count}`)
+		if (!Number.isInteger(shard.index) || shard.index < 0 || shard.index >= count)
+			throw new Error(`${path}.index must be an integer in [0, ${count})`)
+		if (seen.has(shard.index))
+			throw new Error(`Duplicate shard index ${shard.index}`)
+		seen.add(shard.index)
+		assertNonEmptyString(shard.startedAt, `${path}.startedAt`)
+		assertNonEmptyString(shard.completedAt, `${path}.completedAt`)
+		validateEnvironment(shard.environment, `${path}.environment`)
+		if (!Array.isArray(shard.scenarios) || shard.scenarios.length === 0)
+			throw new Error(`${path}.scenarios must be a non-empty array`)
+		covered.push(...shard.scenarios)
+	}
+	if (covered.length !== catalogIds.size || covered.some(scenario => !catalogIds.has(scenario)))
+		throw new Error('The shards must cover every catalog scenario exactly once')
+	if (new Set(covered).size !== covered.length)
+		throw new Error('A scenario is claimed by more than one shard')
+}
+
 function validateResult(raw) {
 	if (!raw || typeof raw !== 'object')
 		throw new TypeError('Benchmark result must be an object')
-	if (raw.schemaVersion !== 3)
+	if (raw.schemaVersion !== supportedSchemaVersion)
 		throw new Error(`Unsupported benchmark schema version: ${raw.schemaVersion}`)
 	if (!modes.has(raw.mode))
 		throw new Error(`Unknown benchmark mode: ${raw.mode}`)
+	// Isolation is reported next to the numbers because it is part of what they mean:
+	// a cell measured alone and a cell measured after other scenarios in the same
+	// process differ by up to 3.1× on the same schema.
+	if (!isolations.includes(raw.isolation))
+		throw new Error(`Unknown measurement isolation: ${raw.isolation}`)
 
 	// The profile is reported as the sampling method the numbers came from, so a
 	// missing field must fail here rather than reach a reader as text. It read
@@ -117,14 +175,7 @@ function validateResult(raw) {
 	assertNonEmptyString(raw.seed, 'seed')
 	assertNonEmptyString(raw.startedAt, 'startedAt')
 	assertNonEmptyString(raw.completedAt, 'completedAt')
-	if (!raw.environment || typeof raw.environment !== 'object')
-		throw new TypeError('environment must be an object')
-	for (const field of ['node', 'platform', 'arch', 'cpu'])
-		assertNonEmptyString(raw.environment[field], `environment.${field}`)
-	for (const field of ['commit', 'runnerName', 'runnerImageOS', 'runnerImageVersion'])
-		assertOptionalString(raw.environment[field], `environment.${field}`)
-	assertFinitePositive(raw.environment.logicalCpuCount, 'environment.logicalCpuCount')
-	assertFinitePositive(raw.environment.totalMemoryBytes, 'environment.totalMemoryBytes')
+	validateEnvironment(raw.environment, 'environment')
 
 	if (!Array.isArray(raw.scenarioCatalog) || raw.scenarioCatalog.length === 0)
 		throw new Error('scenarioCatalog must contain at least one scenario')
@@ -151,6 +202,7 @@ function validateResult(raw) {
 		scenario.entry = readEnumerated(scenario.entry, entries, 'native', `${path}.entry`)
 		catalog.set(scenario.id, scenario)
 	}
+	validateShards(raw, new Set(catalog.keys()))
 
 	if (!Array.isArray(raw.libraries) || raw.libraries.length === 0)
 		throw new Error('Benchmark result must contain at least one library')
@@ -308,26 +360,68 @@ function samplingDescription(profile) {
 	return `${profile.warmupMs} ms warmup, ${profile.sampleMs} ms each, ${budget}`
 }
 
-function metadataRows(raw) {
-	const runnerImage = [raw.environment.runnerImageOS, raw.environment.runnerImageVersion]
+function runnerImageOf(environment) {
+	return [environment.runnerImageOS, environment.runnerImageVersion]
 		.filter(Boolean)
-		.join(' ')
+		.join(' ') || 'local'
+}
+
+const isolationDescriptions = {
+	cell: 'cell — one process per adapter and scenario, so no cell\'s number depends on what ran before it',
+	adapter: 'adapter — one process ran every scenario of an adapter, so each cell\'s number depends on its position in that process',
+}
+
+/**
+ * A machine-describing field, read across the shards. A sharded run has more than
+ * one machine, and printing the first shard's CPU as "the" CPU is the mistake this
+ * exists to prevent; the shard table below carries the per-shard values.
+ */
+function acrossShards(raw, read) {
+	const values = [...new Set(raw.shards.map(shard => String(read(shard.environment))))]
+	return values.length === 1 ? values[0] : 'varies across shards — see Shards'
+}
+
+function metadataRows(raw) {
+	const shardCount = raw.shards[0].count
 	return [
 		['Profile', raw.mode],
 		['Sampling', samplingDescription(raw.profile)],
+		['Isolation', isolationDescriptions[raw.isolation]],
+		['Shards', shardCount === 1 ? '1 (whole run on one machine)' : `${shardCount} (scenarios split across ${shardCount} machines)`],
 		['Seed', raw.seed],
 		['Started', raw.startedAt],
 		['Completed', raw.completedAt],
-		['Node.js', raw.environment.node],
-		['Platform', `${raw.environment.platform}/${raw.environment.arch}`],
-		['CPU', raw.environment.cpu],
-		['Logical CPUs', raw.environment.logicalCpuCount],
-		['Runner', raw.environment.runnerName ?? 'local'],
-		['Runner image', runnerImage || 'local'],
-		['Commit', raw.environment.commit ?? 'local'],
+		['Node.js', acrossShards(raw, environment => environment.node)],
+		['Platform', acrossShards(raw, environment => `${environment.platform}/${environment.arch}`)],
+		['CPU', acrossShards(raw, environment => environment.cpu)],
+		['Logical CPUs', acrossShards(raw, environment => environment.logicalCpuCount)],
+		['Runner', acrossShards(raw, environment => environment.runnerName ?? 'local')],
+		['Runner image', acrossShards(raw, runnerImageOf)],
+		['Commit', acrossShards(raw, environment => environment.commit ?? 'local')],
 		['Execution order', raw.order.join(' → ')],
 	]
 }
+
+function shardRows(raw) {
+	return [...raw.shards]
+		.sort((left, right) => left.index - right.index)
+		.map(shard => [
+			`${shard.index + 1}/${shard.count}`,
+			String(shard.scenarios.length),
+			shard.environment.runnerName ?? 'local',
+			shard.environment.cpu,
+			shard.environment.node,
+			shard.startedAt,
+			shard.completedAt,
+		])
+}
+
+/** Which shard measured each scenario, so a scenario section can name its machine. */
+function shardByScenario(raw) {
+	return new Map(raw.shards.flatMap(shard => shard.scenarios.map(scenario => [scenario, shard])))
+}
+
+const shardedWarning = 'This run was sharded: the scenarios below were measured on more than one machine. Compare libraries within a scenario, which is always one machine; do not read one scenario\'s numbers against another\'s, which is invalid here both because the two costs are different work and because the two machines are different hardware. Each section states its shard and the Shards table states each shard\'s runner.'
 
 function interpretedPerspective(raw) {
 	const perspectives = reportPerspectives(raw)
@@ -344,11 +438,14 @@ function interpretedPerspective(raw) {
 
 function renderMarkdown(raw) {
 	const { perspective: interpreted, warning, names } = interpretedPerspective(raw)
+	const sharded = raw.shards[0].count > 1
+	const shards = shardByScenario(raw)
 	const lines = [
 		'# Valchecker cross-library benchmark report',
 		'',
 		'> Construction, cold execution, warmed success, and warmed failure-policy groups measure different costs and must not be combined into one overall ranking.',
 		'',
+		...(sharded ? [`> ${shardedWarning}`, ''] : []),
 		...(warning == null ? [] : [`> ${warning}`, '']),
 		...(interpreted == null
 			? []
@@ -360,6 +457,18 @@ function renderMarkdown(raw) {
 		...metadataRows(raw)
 			.map(([field, value]) => `| ${markdownCell(field)} | ${markdownCell(value)} |`),
 		'',
+		...(sharded
+			? [
+					'## Shards',
+					'',
+					'| Shard | Scenarios | Runner | CPU | Node.js | Started | Completed |',
+					'| --- | ---: | --- | --- | --- | --- | --- |',
+					...shardRows(raw)
+						.map(row => `| ${row.map(markdownCell)
+							.join(' | ')} |`),
+					'',
+				]
+			: []),
 		'## Results',
 		'',
 	]
@@ -367,10 +476,11 @@ function renderMarkdown(raw) {
 	for (const scenario of raw.scenarioCatalog) {
 		const rows = scenarioRows(raw, scenario, interpreted)
 		const skipped = skippedRows(raw, scenario)
+		const shard = shards.get(scenario.id)
 		lines.push(
 			`### ${scenario.id}`,
 			'',
-			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}** · Execution: **${scenario.executionMode}** · Entry: **${scenario.entry}**`,
+			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}** · Execution: **${scenario.executionMode}** · Entry: **${scenario.entry}**${sharded ? ` · Shard: **${shard.index + 1}/${shard.count}** on **${shard.environment.runnerName ?? 'local'}**` : ''}`,
 			'',
 			interpreted == null
 				? '| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME | Samples |'
@@ -411,6 +521,8 @@ function renderMarkdown(raw) {
 		'- `library-default` failure scenarios show product defaults and are not diagnostic-work-equivalent across libraries.',
 		'- `first` and `all` scenarios verify issue-count semantics before timing; unsupported adapters are omitted instead of being assigned a synthetic mode.',
 		'- `compatible-subset` scenarios intentionally test only behavior that is common to every participating library.',
+		`- Every cell was measured under **${raw.isolation}** isolation. Under \`cell\` isolation each (adapter, scenario) pair had its own process, so a cell's number does not depend on which scenarios preceded it; a number from an \`adapter\`-isolated run is not comparable with one from a \`cell\`-isolated run.`,
+		...(sharded ? [`- ${shardedWarning}`] : []),
 		'- An `async` scenario is measured with the await inside the timed loop, so its numbers include the microtask turn an asynchronous caller cannot avoid. Compare an async row only with another async row: they carry their own benchmark groups, and the two named pairings against a synchronous scenario are stated in `scenarios/async.mjs`.',
 		'- A `standard` entry scenario calls `schema[\'~standard\'].validate(input)` instead of the library\'s own parse, over the same schema and fixture as the native scenario sharing its build key. The pair is what shows the interop cost.',
 		'- Treat results with RME above 5% as unstable and rerun before drawing conclusions.',
@@ -425,9 +537,17 @@ function renderMarkdown(raw) {
 
 function renderHtml(raw) {
 	const { perspective: interpreted } = interpretedPerspective(raw)
+	const sharded = raw.shards[0].count > 1
+	const shards = shardByScenario(raw)
 	const metadata = metadataRows(raw)
 		.map(([field, value]) => `<tr><th>${htmlEscape(field)}</th><td>${htmlEscape(value)}</td></tr>`)
 		.join('')
+	const shardTable = sharded
+		? `<h2>Shards</h2><div class="table-wrap"><table><thead><tr><th class="text">Shard</th><th>Scenarios</th><th class="text">Runner</th><th class="text">CPU</th><th class="text">Node.js</th><th class="text">Started</th><th class="text">Completed</th></tr></thead><tbody>${shardRows(raw)
+			.map(row => `<tr>${row.map((cell, index) => `<td${index === 1 ? '' : ' class="text"'}>${htmlEscape(cell)}</td>`)
+				.join('')}</tr>`)
+			.join('')}</tbody></table></div>`
+		: ''
 	const sections = raw.scenarioCatalog.map((scenario) => {
 		const rows = scenarioRows(raw, scenario, interpreted)
 		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}${row.tiedWithPrevious ? '≈' : ''}</td>${interpreted == null ? '' : `<td>${row.interpretedRank ?? '—'}</td>`}<td class="text">${htmlEscape(row.library)}</td><td class="text">${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td>${interpreted == null ? '' : `<td>${row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`}</td>`}<td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : row.missedTarget ? ' †' : ''}</td><td>${row.sampleCount}</td></tr>`)
@@ -437,7 +557,11 @@ function renderHtml(raw) {
 			? ''
 			: `<p><strong>Not ranked:</strong> ${skipped.map(item => `${htmlEscape(item.library)} — ${htmlEscape(item.reason)}`)
 				.join('; ')}</p>`
-		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong> · Execution: <strong>${htmlEscape(scenario.executionMode)}</strong> · Entry: <strong>${htmlEscape(scenario.entry)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th><th>Samples</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
+		const shard = shards.get(scenario.id)
+		const shardText = sharded
+			? ` · Shard: <strong>${shard.index + 1}/${shard.count}</strong> on <strong>${htmlEscape(shard.environment.runnerName ?? 'local')}</strong>`
+			: ''
+		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong> · Execution: <strong>${htmlEscape(scenario.executionMode)}</strong> · Entry: <strong>${htmlEscape(scenario.entry)}</strong>${shardText}</p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th><th>Samples</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
 	})
 		.join('')
 
@@ -454,11 +578,13 @@ function renderHtml(raw) {
 <body>
 <h1>Valchecker cross-library benchmark report</h1>
 <p class="notice">Construction, cold execution, warmed success, and warmed failure-policy groups measure different costs and must not be combined into one overall ranking.</p>
+${sharded ? `<p class="notice">${htmlEscape(shardedWarning)}</p>` : ''}
 <h2>Run metadata</h2>
 <table class="metadata"><tbody>${metadata}</tbody></table>
+${shardTable}
 ${sections}
 <h2>Interpretation rules</h2>
-<ul><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>An async scenario is measured with the await inside the timed loop and belongs to its own benchmark group; compare it only with another async row.</li><li>A standard-entry scenario calls <code>~standard.validate</code> over the same schema as the native scenario sharing its build key.</li><li>&#8776; marks a row the run does not separate from the one above it.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
+<ul><li>Every cell was measured under <strong>${htmlEscape(raw.isolation)}</strong> isolation; a number from a <code>cell</code>-isolated run is not comparable with one from an <code>adapter</code>-isolated run.</li><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>An async scenario is measured with the await inside the timed loop and belongs to its own benchmark group; compare it only with another async row.</li><li>A standard-entry scenario calls <code>~standard.validate</code> over the same schema as the native scenario sharing its build key.</li><li>&#8776; marks a row the run does not separate from the one above it.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
 </body>
 </html>
 `

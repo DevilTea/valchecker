@@ -92,25 +92,25 @@
 // ## Do not read these rows against each other
 //
 // Sharing a base schema makes the rows of a carrier group look comparable, and they
-// are not. Measured with this suite's own runner: the first array-carried scenario
-// in a process reports 83.5 ns on Valchecker, and an *identical* schema measured
-// after three other array pipelines reports 261.9 ns — 3.1× worse for the same
-// work. Zod 4 shows the same effect from 132.7 to 285.2 ns; Valibot does not show it
-// at all (275.5 to 272.1 ns), because `safeParse` gives it no per-schema call site
-// to lose. It is the effect `schema-kind/*` recorded for the per-call floors, and it
-// reaches further than it looks there: it is not confined to scenarios with no
-// validation work, and it keys on the carrier rather than on position in the process
-// — a Set and two Map scenarios in front of `to-mapped-valid` leave it fast, one
-// more array pipeline does not.
+// are not: thirteen steps on four carriers are thirteen different amounts of work,
+// which is why no two scenarios in this suite are comparable.
 //
-// Two consequences to carry into any reading of this family. The ordering of its
-// rows is an artifact of declaration order, so `to-mapped-valid` being the fastest
-// row here says nothing about `toMapped` being cheaper than `toSliced`. And the
-// first row of each carrier group collects a position advantage that Valchecker and
-// Zod 4 take and Valibot does not, so that row's cross-library ratio is the most
-// favorable position Valchecker can be measured in rather than a typical one. What
-// each row does support is the comparison inside it at the position the run gives
-// it, which is what the suite's per-scenario stability rule already requires.
+// This family is also where the intra-process position artefact was worst, and it is
+// what forced the runner to give every (adapter, scenario) cell its own process.
+// Measured under the previous one-process-per-adapter runner, the first array-carried
+// scenario in a process reported 83.5 ns on Valchecker, and an *identical* schema
+// measured after three other array pipelines reported 261.9 ns — 3.1× worse for the
+// same work. Zod 4 showed the same effect from 132.7 to 285.2 ns; Valibot did not show
+// it at all (275.5 to 272.1 ns), because `safeParse` gives it no per-schema call site
+// to lose. It keyed on the carrier rather than on position in the process — a Set and
+// two Map scenarios in front of `to-mapped-valid` left it fast, one more array pipeline
+// did not — so under that runner the first row of each carrier group collected a
+// position advantage that Valchecker and Zod 4 took and Valibot did not.
+//
+// With each cell alone in its process there is no preceding array pipeline to lose the
+// call site to, so declaration order no longer decides the number and the advantage is
+// gone rather than warned about. What each row supports is still only the cross-library
+// comparison inside it. Any figure above is a pre-2026-07-28 number.
 //
 // The callbacks, slice range, and separator the four adapters share live in
 // `../fixtures.mjs` as `collectionTransforms`, because the adapters rather than

@@ -26,22 +26,20 @@
 //     `SyntaxError` `JSON.parse` throws and the `catch` that turns it into an issue
 //     are a failure path no other scenario in the suite runs.
 //
-// Read the floor as a floor *for its position in the run*, which is the one thing
-// these two scenarios turned up that no other scenario could. Measured on its own,
-// `unknown-valid` reports the same 6.5 ns as `any-valid` does when `any-valid` is
-// the first scenario in the process; put `primitive/valid` in front of both and
-// they report 14.6 and 14.9 ns instead — the same number as each other, which is
-// what says the two rows differ by position rather than by schema. The absolute
-// floor therefore moves with how many other schemas passed through the shared parse
-// call site first. The isolated-versus-second-position measurement reproduces under
-// both `smoke` and `standard`; the three-scenario ordering above was run under
-// `smoke`. It affects every scenario equally and only becomes visible here, because
-// these are the only two
-// rows with no validation work to hide it. It moves the ratios inside a row as
-// well, not only the absolute numbers — Valchecker against Zod 3 is 1.97× in the
-// first position and 2.43× in the second — so a floor row is only comparable with
-// another floor row from the same position in the same scenario selection, which is
-// what the suite's per-scenario stability rule already requires.
+// These two rows are where the intra-process position artefact was isolated, and they
+// are the reason every (adapter, scenario) cell now gets its own process. They could
+// see it because they are the only rows with no validation work to hide it: measured on
+// its own under the previous one-process-per-adapter runner, `unknown-valid` reported
+// the same 6.4 ns `any-valid` reports when `any-valid` runs first, and with
+// `primitive/valid` in front of both they reported 14.8 and 14.5 ns — the same number
+// as each other, which is what said the two rows differed by position rather than by
+// schema. It moved the ratio inside a row as well, not only the absolute number:
+// Valchecker against Zod 3 read 2.01× in the first position and 2.29× in the second,
+// past the 5% the report needs to call an ordering reproducible.
+//
+// Measured the same two ways with each cell alone in its process, both positions report
+// 6.4 ns and the ratio holds at 2.02×. So a floor is now a floor, and the caveat that
+// used to belong here applies only to a number from an `adapter`-isolated run.
 //
 // What the family deliberately leaves out. `any` and `unknown` cannot fail and
 // `never` cannot succeed, so neither gets an invented counterpart in the direction
