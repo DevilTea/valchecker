@@ -250,6 +250,11 @@ async function main(): Promise<void> {
 		assertContains(releaseWorkflow, fragment, '.github/workflows/release.yml')
 	}
 	for (const forbidden of [
+		// setup-node's `registry-url` exports NODE_AUTH_TOKEN even with no token
+		// configured, and publish-release.ts refuses to publish when that variable
+		// is present. Having both makes the release path unrunnable, which is how
+		// the first real dispatch of this workflow failed.
+		/registry-url:/,
 		/secrets\.(?:NPM_TOKEN|NODE_AUTH_TOKEN)/,
 		/\bgit\s+push\b/,
 		/\bgit\s+tag\b/,
