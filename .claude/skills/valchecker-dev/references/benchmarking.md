@@ -80,7 +80,9 @@ Library-default failure modes may perform different diagnostic work. Compare equ
 
 ## Before/after impact
 
-The **Performance Impact** workflow compares a baseline and candidate with interleaved paired independent processes. Pull requests that change runtime or benchmark source run the standard profile with three paired repetitions and fail on the workflow's severe-regression verdict.
+The **Performance Impact** workflow compares a baseline and candidate with interleaved paired independent processes. Pull requests that change runtime or benchmark source run the standard profile with five paired repetitions and fail on the workflow's severe-regression verdict.
+
+Five, because the gate can only pass a scenario it cannot judge. It classifies a scenario only when its paired-ratio interval is at most 5% wide, and three repetitions rarely achieve that: across four historical runs only 27 to 44 of 80 scenarios were classifiable, so more than half of what the gate watched was invisible to it. Five puts 56 to 68 of the same 80 inside the threshold, and costs about ten minutes of the job's runtime. Raising it further keeps helping — 6 reaches 59 to 73 — so the number is a cost decision, not a limit; the counts above come from replaying stored `impact.json` artifacts under the interval each repetition count would produce.
 
 The comparison tool:
 
