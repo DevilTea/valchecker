@@ -1,7 +1,7 @@
 {
 	"name": "monorepo",
 	"type": "module",
-	"version": "1.0.0-rc.0",
+	"version": "0.0.33",
 	"private": true,
 	"packageManager": "pnpm@10.34.4",
 	"description": "A modular TypeScript runtime validation library.",

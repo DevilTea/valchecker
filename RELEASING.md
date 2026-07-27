@@ -162,10 +162,10 @@ After the version pull request is merged and all main-branch checks pass:
 publish <version> to <tag>
 ```
 
-Example:
+Example, for the version this repository currently prepares:
 
 ```text
-publish 1.0.0-rc.0 to next
+publish 0.0.33 to latest
 ```
 
 The workflow starts publishing as soon as it is dispatched; there is no approval gate after this
@@ -186,6 +186,7 @@ After npm publication succeeds:
 5. Repeat an ESM import and a TypeScript `NodeNext` compile outside the monorepo.
 6. Confirm the published package manifests contain exact internal dependency versions.
 7. Only then create the matching Git tag and GitHub release.
+8. Open a follow-up pull request replacing `- Unreleased` in that version's `CHANGELOG.md` heading with the publication date, and adding a fresh `## [Unreleased]` section above it. The readiness gate requires the heading to say `Unreleased` while the version is being prepared, so dating it is necessarily a post-publication step.
 
 The tag must be exactly:
 

@@ -1,6 +1,6 @@
 # Migrating to Valchecker 1.0
 
-`1.0.0-rc.0` establishes the intended 1.0 compatibility contract. Applications upgrading from pre-1.0 releases should review every item below.
+`0.0.33` establishes the intended 1.0 compatibility contract, ahead of the 1.0 version itself. Applications upgrading from earlier releases should review every item below.
 
 ## Required migration review
 
@@ -67,9 +67,9 @@ The complete migration procedure, issue-code mapping, examples, removed-export l
 
 For normative behavior after migration, read the [Valchecker 1.0 Contract](/guide/v1-contract).
 
-## Release-candidate feedback
+## Reporting a problem
 
-Report RC problems with:
+Report a problem with:
 
 - exact Valchecker version,
 - Node.js and TypeScript versions,
@@ -78,4 +78,4 @@ Report RC problems with:
 - actual and expected result,
 - whether execution used `execute()` or `~standard`.
 
-Release-candidate fixes are published under new `1.0.0-rc.N` versions. Existing npm versions are never overwritten.
+Fixes are published under new versions; existing npm versions are never overwritten.

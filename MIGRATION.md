@@ -1,6 +1,6 @@
 # Migrating to Valchecker 1.0
 
-This guide covers breaking and newly formalized behavior in `1.0.0-rc.0` for applications and step-plugin authors upgrading from pre-1.0 releases. Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative behavior.
+This guide covers breaking and newly formalized behavior for applications and step-plugin authors upgrading from earlier releases. That behavior ships in `0.0.33`. The 1.0 release candidate it was prepared for was never published, so `0.0.33` is where the 1.0 contract first appears, while the version series stays below 1.0. Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative behavior.
 
 ## Checklist
 

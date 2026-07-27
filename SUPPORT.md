@@ -1,6 +1,6 @@
 # Valchecker Support Policy
 
-This policy applies to the Valchecker 1.0 release line and its release candidates.
+This policy applies to the releases that carry the Valchecker 1.0 contract — currently `0.0.33` and later on the 0.x line — and to the 1.0 release line and its release candidates once those exist.
 
 ## Supported runtime
 
@@ -75,7 +75,7 @@ Required for:
 
 ## Release candidates
 
-Versions such as `1.0.0-rc.0` are prereleases and use the npm `next` tag.
+Versions such as `1.0.0-rc.0` are prereleases and use the npm `next` tag; stable versions use `latest`. No release candidate has been published to date.
 
 Release candidates:
 

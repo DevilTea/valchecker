@@ -1,8 +1,8 @@
 {
 	"schemaVersion": 1,
-	"version": "1.0.0-rc.0",
-	"npmTag": "next",
-	"channel": "release-candidate",
+	"version": "0.0.33",
+	"npmTag": "latest",
+	"channel": "stable",
 	"publish": false,
 	"packages": [
 		"@valchecker/internal",
