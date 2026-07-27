@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { INTERPRETED_PERSPECTIVE, isInPerspective, reportPerspectives } from './perspectives.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const categories = new Set(['construction', 'cold', 'warm'])
@@ -203,7 +204,7 @@ function htmlEscape(value) {
 		.replaceAll('\'', '&#39;')
 }
 
-function scenarioRows(raw, scenario) {
+function scenarioRows(raw, scenario, interpreted) {
 	const rows = raw.libraries.flatMap((library) => {
 		const result = library.results.find(item => item.scenario === scenario.id)
 		return result == null
@@ -221,9 +222,25 @@ function scenarioRows(raw, scenario) {
 		throw new Error(`No adapter measured scenario ${scenario.id}`)
 	const fastest = rows[0].medianOpsPerSecond
 	const valchecker = rows.find(row => row.adapter === 'valchecker')?.medianOpsPerSecond
+	// The interpreted rank is carried on the same row rather than repeated as a
+	// second table, so one scenario stays one table while both perspectives from
+	// `reportPerspectives` remain readable.
+	const interpretedRanks = new Map()
+	let interpretedFastest = null
+	if (interpreted != null) {
+		const interpretedRows = rows.filter(row => isInPerspective(interpreted, row.adapter))
+		interpretedRows.forEach((row, index) => interpretedRanks.set(row.adapter, index + 1))
+		interpretedFastest = interpretedRows[0]?.medianOpsPerSecond ?? null
+	}
 	return rows.map((row, index) => ({
 		...row,
 		rank: index + 1,
+		interpretedRank: interpretedRanks.get(row.adapter) ?? null,
+		// Measured against the fastest library WITHIN the perspective, so an
+		// interpreted row never reports a share of a generated-code number.
+		percentOfInterpretedFastest: interpretedFastest != null && interpretedRanks.has(row.adapter)
+			? row.medianOpsPerSecond / interpretedFastest * 100
+			: null,
 		percentOfFastest: row.medianOpsPerSecond / fastest * 100,
 		versusValchecker: valchecker ? row.medianOpsPerSecond / valchecker : null,
 		unstable: row.relativeMarginOfError > 5,
@@ -257,12 +274,30 @@ function metadataRows(raw) {
 	]
 }
 
+function interpretedPerspective(raw) {
+	const perspectives = reportPerspectives(raw)
+	const interpreted = perspectives.find(perspective => perspective.key === INTERPRETED_PERSPECTIVE) ?? null
+	if (interpreted === null)
+		return { perspective: null, warning: perspectives[0].warning }
+	const names = raw.libraries
+		.filter(library => interpreted.adapters.has(library.adapter))
+		.map(library => library.name)
+		.sort()
+		.join(', ')
+	return { perspective: interpreted, warning: null, names }
+}
+
 function renderMarkdown(raw) {
+	const { perspective: interpreted, warning, names } = interpretedPerspective(raw)
 	const lines = [
 		'# Valchecker cross-library benchmark report',
 		'',
 		'> Construction, cold execution, warmed success, and warmed failure-policy groups measure different costs and must not be combined into one overall ranking.',
 		'',
+		...(warning == null ? [] : [`> ${warning}`, '']),
+		...(interpreted == null
+			? []
+			: [`> This run measured a generated-code validator, so every scenario carries two ranks and two shares: **Rank**/**Fastest** over all libraries, and **Rank (interpreted)**/**Fastest (interpreted)** over the libraries that interpret their schemas at execution time (${names}). The concise summary reports both perspectives separately.`, '']),
 		'## Run metadata',
 		'',
 		'| Field | Value |',
@@ -275,22 +310,30 @@ function renderMarkdown(raw) {
 	]
 
 	for (const scenario of raw.scenarioCatalog) {
-		const rows = scenarioRows(raw, scenario)
+		const rows = scenarioRows(raw, scenario, interpreted)
 		const skipped = skippedRows(raw, scenario)
 		lines.push(
 			`### ${scenario.id}`,
 			'',
 			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}**`,
 			'',
-			'| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME |',
-			'| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+			interpreted == null
+				? '| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME |'
+				: '| Rank | Rank (interpreted) | Library | Version | Median ops/s | Median ns/op | Fastest | Fastest (interpreted) | vs Valchecker | RME |',
+			interpreted == null
+				? '| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |'
+				: '| ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
 			...rows.map(row => `| ${[
 				row.rank,
+				...(interpreted == null ? [] : [row.interpretedRank ?? '—']),
 				markdownCell(row.library),
 				markdownCell(row.version),
 				formatNumber(row.medianOpsPerSecond),
 				formatNumber(row.medianNanosecondsPerOperation, 1),
 				`${row.percentOfFastest.toFixed(1)}%`,
+				...(interpreted == null
+					? []
+					: [row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`]),
 				row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`,
 				`${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : ''}`,
 			].join(' | ')} |`),
@@ -320,19 +363,20 @@ function renderMarkdown(raw) {
 }
 
 function renderHtml(raw) {
+	const { perspective: interpreted } = interpretedPerspective(raw)
 	const metadata = metadataRows(raw)
 		.map(([field, value]) => `<tr><th>${htmlEscape(field)}</th><td>${htmlEscape(value)}</td></tr>`)
 		.join('')
 	const sections = raw.scenarioCatalog.map((scenario) => {
-		const rows = scenarioRows(raw, scenario)
-		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}</td><td>${htmlEscape(row.library)}</td><td>${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td><td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : ''}</td></tr>`)
+		const rows = scenarioRows(raw, scenario, interpreted)
+		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}</td>${interpreted == null ? '' : `<td>${row.interpretedRank ?? '—'}</td>`}<td class="text">${htmlEscape(row.library)}</td><td class="text">${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td>${interpreted == null ? '' : `<td>${row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`}</td>`}<td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : ''}</td></tr>`)
 			.join('')
 		const skipped = skippedRows(raw, scenario)
 		const skippedText = skipped.length === 0
 			? ''
 			: `<p><strong>Not ranked:</strong> ${skipped.map(item => `${htmlEscape(item.library)} — ${htmlEscape(item.reason)}`)
 				.join('; ')}</p>`
-		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Library</th><th>Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th><th>vs Valchecker</th><th>RME</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
+		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
 	})
 		.join('')
 
@@ -343,7 +387,7 @@ function renderHtml(raw) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Valchecker benchmark report</title>
 <style>
-:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1180px;margin:0 auto;padding:32px 20px 64px}h1{margin-bottom:8px}h2{margin-top:40px}p,li{line-height:1.5}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;background:white}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right;white-space:nowrap}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}thead th{background:#e2e8f0}.metadata{max-width:760px}.metadata th{width:180px}.unstable{background:#fff7ed}
+:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1180px;margin:0 auto;padding:32px 20px 64px}h1{margin-bottom:8px}h2{margin-top:40px}p,li{line-height:1.5}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;background:white}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right;white-space:nowrap}th:first-child,td:first-child,.text{text-align:left}thead th{background:#e2e8f0}.metadata{max-width:760px}.metadata th{width:180px}.unstable{background:#fff7ed}
 </style>
 </head>
 <body>

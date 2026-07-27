@@ -86,6 +86,7 @@ export default {
 	version: 'workspace',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
+		generatedCode: false,
 		features: ['file', 'template literal'],
 	},
 	build: {

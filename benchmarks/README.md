@@ -29,6 +29,24 @@ Each completed run publishes:
 - `summary.md` and `summary.html`: concise benchmark-group interpretation and reliability warnings
 - `report.md` and `report.html`: the complete scenario-by-scenario report
 
+### Two perspectives over one run
+
+Zod 4 compiles each schema into generated code. That is a different execution strategy rather than a faster version of the same work, so a single ranking would answer two questions at once.
+
+When a run measures a generated-code validator, both artifacts present the same measurements twice:
+
+- **Interpreted validators only** — ranks the libraries that interpret their schemas at execution time. This is the like-for-like comparison, and the one most performance issues reason about.
+- **Including generated-code validators** — ranks everything, to be read together with the construction and cold groups, where generated code pays for its warmed throughput.
+
+In `summary.md` these are two sections. In `report.md` each scenario table carries a `Rank` and a `Rank (interpreted)` column, plus a `Fastest` and a `Fastest (interpreted)` share, so no row mixes a generated-code number into an interpreted comparison and one scenario still means one table. A library outside a perspective shows `—` in its columns.
+
+The split is driven by each adapter's own `capabilities.generatedCode` claim — the Zod adapter derives it from the live `z.config().jitless` setting rather than from its name, so the jitless adapter cannot contradict itself.
+
+Two adapter selections produce a single undivided ranking instead:
+
+- no generated-code validator was measured (for example dropping `zod4` from `adapters`) — the artifacts return to exactly the output they produced before this existed;
+- excluding generated-code validators would leave fewer than two libraries to rank (for example `valchecker,zod4`). A ranking of one library is meaningless, but the run still mixes execution strategies, so both artifacts carry a warning saying no interpreted-only comparison is possible with that selection.
+
 The concise Markdown report is written to the Actions job summary. The artifact retains both concise and detailed reports for 90 days. Record the commit, seed, Node.js version, runner image, and CPU model when comparing separate runs.
 
 ## Tree-shaking report
@@ -172,6 +190,14 @@ Scenarios cover primitive pipelines, flat and nested objects, strict and loose o
 Existing scenario ids, fixtures, schema shapes, and tiers are treated as stable. A new framing is added under a new id rather than by editing an old scenario, and `smoke` stays small because every pull request runs it.
 
 That stability is **per scenario**. Group-level aggregates — including the geometric means the performance-impact verdict uses — are not comparable across versions that changed the scenario set, because the group composition itself changed.
+
+### Adapter capabilities
+
+An adapter declares what it is, so the harness never has to infer behaviour from its name:
+
+- `issuePolicies` — which explicit diagnostic policies it can express (`first`, `all`);
+- `features` — schema kinds it supports that at least one other adapter lacks (see below);
+- `generatedCode` — whether it compiles schemas into generated code, which drives the two report perspectives above.
 
 ### Capability gating
 

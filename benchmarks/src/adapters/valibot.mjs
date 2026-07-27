@@ -53,6 +53,7 @@ export default {
 	version: '1.4.2',
 	capabilities: {
 		issuePolicies: ['first', 'all'],
+		generatedCode: false,
 		features: ['file'],
 	},
 	build: {

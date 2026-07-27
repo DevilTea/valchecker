@@ -71,6 +71,10 @@ export function createZodAdapter(z, name, version) {
 	// `templateLiteral`; Zod 3 keeps the formats as string methods and has no
 	// template-literal schema at all. Detect rather than branch on the version
 	// string, so a future pin cannot silently keep using the older spelling.
+	// Zod 4 compiles schemas to generated code unless `jitless` is configured;
+	// Zod 3 has no such mode. Read the live config rather than branching on the
+	// adapter name, so the jitless adapter cannot drift from its own claim.
+	const generatedCode = typeof z.config === 'function' && z.config()?.jitless !== true
 	const hasTopLevelFormats = typeof z.email === 'function'
 	const hasTemplateLiteral = typeof z.templateLiteral === 'function'
 	const hasFile = typeof z.file === 'function'
@@ -86,6 +90,7 @@ export function createZodAdapter(z, name, version) {
 		capabilities: {
 			issuePolicies: ['all'],
 			features,
+			generatedCode,
 		},
 		build: {
 			primitive: () => z.string()
