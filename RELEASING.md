@@ -43,6 +43,8 @@ Do not configure `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or another long-lived npm crede
 
 Trusted publishing currently requires npm 11.5.1 or newer. The workflow installs and verifies that npm version before publishing.
 
+Do not add `registry-url` to the workflow's `actions/setup-node` step. It writes an `.npmrc` containing `_authToken=${NODE_AUTH_TOKEN}` and exports `NODE_AUTH_TOKEN` even when no token exists, and `scripts/publish-release.ts` refuses to publish while that variable is set. Trusted publishing needs neither: npm defaults to `registry.npmjs.org` and exchanges the OIDC token itself. `pnpm release:readiness` fails if the input reappears.
+
 Official references:
 
 - https://docs.npmjs.com/trusted-publishers/
