@@ -1,34 +1,10 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { isoCalendarDateSource } from '../isIsoDate/iso-calendar-date'
 
-function isCalendarDate(year: number, month: number, day: number): boolean {
-	if (month < 1 || month > 12 || day < 1 || day > 31)
-		return false
-	const date = new Date(Date.UTC(year, month - 1, day))
-	// `Date.UTC` maps years 0..99 to 1900..1999; `setUTCFullYear` does not,
-	// so correct the year before the round-trip check.
-	if (year >= 0 && year <= 99)
-		date.setUTCFullYear(year)
-	return date.getUTCFullYear() === year
-		&& date.getUTCMonth() === month - 1
-		&& date.getUTCDate() === day
-}
-
-function isIsoDateTimeValue(value: string): boolean {
-	const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})?$/.exec(value)
-	if (match === null)
-		return false
-	if (!isCalendarDate(Number(match[1]), Number(match[2]), Number(match[3])))
-		return false
-	if (Number(match[4]) > 23 || Number(match[5]) > 59 || Number(match[6]) > 59)
-		return false
-	const offset = match[7]
-	if (offset !== undefined && offset !== 'Z') {
-		if (Number(offset.slice(1, 3)) > 23 || Number(offset.slice(4, 6)) > 59)
-			return false
-	}
-	return true
-}
+// Time and offset ranges are part of the same pattern: an hour, minute, second,
+// optional fractional seconds, and an optional `Z` or `±HH:MM` offset.
+const isoDateTimePattern = new RegExp(String.raw`^${isoCalendarDateSource}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$`)
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoDateTime'
@@ -41,10 +17,10 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Checks that the string is an ISO 8601 date-time: a calendar date and
 	 * time joined by `T`, with optional fractional seconds and an optional
-	 * `Z` or `±HH:MM` time-zone offset. Impossible calendar dates are
-	 * rejected with a UTC calendar round-trip; time and offset fields are
-	 * checked against their numeric ranges rather
-	 * than accepted by shape alone.
+	 * `Z` or `±HH:MM` time-zone offset. Impossible calendar dates such as
+	 * `2026-02-30`, and out-of-range time or offset fields such as `24:00:00`,
+	 * are rejected: the calendar and the field ranges are both part of the
+	 * accepted shape.
 	 *
 	 * ---
 	 *
@@ -78,7 +54,7 @@ export const isIsoDateTime = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep(value => isIsoDateTimeValue(value)
+		addSuccessStep(value => isoDateTimePattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({

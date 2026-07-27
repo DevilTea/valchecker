@@ -1,25 +1,8 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { isoCalendarDateSource } from './iso-calendar-date'
 
-function isCalendarDate(year: number, month: number, day: number): boolean {
-	if (month < 1 || month > 12 || day < 1 || day > 31)
-		return false
-	const date = new Date(Date.UTC(year, month - 1, day))
-	// `Date.UTC` maps years 0..99 to 1900..1999; `setUTCFullYear` does not,
-	// so correct the year before the round-trip check.
-	if (year >= 0 && year <= 99)
-		date.setUTCFullYear(year)
-	return date.getUTCFullYear() === year
-		&& date.getUTCMonth() === month - 1
-		&& date.getUTCDate() === day
-}
-
-function isIsoDateValue(value: string): boolean {
-	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-	if (match === null)
-		return false
-	return isCalendarDate(Number(match[1]), Number(match[2]), Number(match[3]))
-}
+const isoDatePattern = new RegExp(String.raw`^${isoCalendarDateSource}$`)
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoDate'
@@ -31,9 +14,9 @@ interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that the string is an ISO 8601 calendar date in `YYYY-MM-DD`
-	 * form. Beyond the shape it rejects impossible dates such as
-	 * `2026-02-30`, using a `Date` round-trip rather than a regular
-	 * expression alone.
+	 * form. Month lengths and the leap-year rule are part of the accepted
+	 * shape, so impossible dates such as `2026-02-30` and `2023-02-29` are
+	 * rejected.
 	 *
 	 * ---
 	 *
@@ -67,7 +50,7 @@ export const isIsoDate = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep(value => isIsoDateValue(value)
+		addSuccessStep(value => isoDatePattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({
