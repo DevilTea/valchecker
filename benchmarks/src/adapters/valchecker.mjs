@@ -150,6 +150,14 @@ export default {
 		// exactly as in `primitive` above, so the two Valchecker spellings differ in
 		// nothing but the final step.
 		primitiveBuiltin: () => createPrimitiveBuiltin(),
+		// Schema delegation. `use()` hands the current value to a separate,
+		// already-built schema and adopts its result, and the delegated schema is
+		// `primitiveBuiltin`, so a `delegation/*` row differs from the
+		// `primitive-builtin/*` row over the same fixture in nothing but the
+		// delegation layer. Zod spells the same composition as `.pipe(inner)` and
+		// Valibot as a nested schema inside `pipe()`.
+		delegate: () => v.unknown()
+			.use(createPrimitiveBuiltin()),
 		flatObject: () => v.object(createFields()),
 		builtinFlatObject: () => v.object(createBuiltinFields()),
 		strictFlatObject: () => v.strictObject(createFields()),

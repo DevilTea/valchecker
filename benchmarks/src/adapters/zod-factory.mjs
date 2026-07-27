@@ -203,6 +203,15 @@ export function createZodAdapter(z, name, version) {
 				.min(3)
 				.max(32)
 				.regex(/^[a-z0-9-]+$/),
+			// The competitor side of `delegation/*`. `.pipe(inner)` runs a second schema
+			// over the first one's output, which is what `use()` does; executed on both
+			// pins, it both transforms and reports the inner schema's issue. The inner
+			// schema is the `primitiveBuiltin` chain, as on every adapter.
+			delegate: () => z.unknown()
+				.pipe(z.string()
+					.min(3)
+					.max(32)
+					.regex(/^[a-z0-9-]+$/)),
 			flatObject: () => z.object(createFields()),
 			// The competitor side of `flat-object-builtin` is identical to
 			// `flatObject`: these libraries already spell the email field with a

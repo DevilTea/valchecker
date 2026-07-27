@@ -9,6 +9,7 @@ import { collectionTransformScenarios } from './collection-transform.mjs'
 import { collectionScenarios } from './collection.mjs'
 import { constraintScenarios } from './constraint.mjs'
 import { dateScenarios } from './date.mjs'
+import { delegationScenarios } from './delegation.mjs'
 import { fallbackScenarios } from './fallback.mjs'
 import { fileMimeTypeScenarios } from './file-mime-type.mjs'
 import { fileScenarios } from './file.mjs'
@@ -74,6 +75,7 @@ const scenarioFamilies = [
 	serializationScenarios,
 	asyncScenarios,
 	standardSchemaScenarios,
+	delegationScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()

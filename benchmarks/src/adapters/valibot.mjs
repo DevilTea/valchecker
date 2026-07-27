@@ -110,6 +110,20 @@ export default {
 			v.maxLength(32),
 			v.regex(/^[a-z0-9-]+$/),
 		),
+		// The competitor side of `delegation/*`. A schema is a valid `pipe()` item, so
+		// a nested pipe runs the inner schema over the outer one's output, which is
+		// what `use()` does; executed on the pin, it both transforms and reports the
+		// inner schema's issue. The inner schema is the `primitiveBuiltin` chain, as on
+		// every adapter.
+		delegate: () => v.pipe(
+			v.unknown(),
+			v.pipe(
+				v.string(),
+				v.minLength(3),
+				v.maxLength(32),
+				v.regex(/^[a-z0-9-]+$/),
+			),
+		),
 		flatObject: () => v.object(createFields()),
 		// Identical to `flatObject`: Valibot already spells the email field with a
 		// built-in action, so only the Valchecker adapter differs for this family.
