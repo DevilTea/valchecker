@@ -29,6 +29,19 @@ Each completed run publishes:
 - `summary.md` and `summary.html`: concise benchmark-group interpretation and reliability warnings
 - `report.md` and `report.html`: the complete scenario-by-scenario report
 
+### Two perspectives over one run
+
+Zod 4 compiles each schema into generated code. That is a different execution strategy rather than a faster version of the same work, so a single ranking would answer two questions at once.
+
+When a run measures a generated-code validator, both artifacts present the same measurements twice:
+
+- **Interpreted validators only** — ranks the libraries that interpret their schemas at execution time. This is the like-for-like comparison, and the one the performance issues cite.
+- **Including generated-code validators** — ranks everything, to be read together with the construction and cold groups, where generated code pays for its warmed throughput.
+
+In `summary.md` these are two sections; in `report.md` each scenario table carries both a `Rank` and a `Rank (interpreted)` column, so one scenario stays one table.
+
+Dropping `zod4` from the `adapters` input removes the split automatically — the run then contains no generated-code validator and both artifacts return to a single undivided ranking. The split is driven by each adapter's own `capabilities.generatedCode` claim (the Zod adapter derives it from the live `z.config().jitless` setting), not by adapter name.
+
 The concise Markdown report is written to the Actions job summary. The artifact retains both concise and detailed reports for 90 days. Record the commit, seed, Node.js version, runner image, and CPU model when comparing separate runs.
 
 ## Tree-shaking report

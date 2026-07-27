@@ -46,6 +46,8 @@ pnpm --dir benchmarks report \
 
 Profiles are `smoke`, `standard`, and `full`. A run can select adapters, scenario ids, or benchmark groups. The generated raw JSON is the source of truth for samples, environment, semantic metadata, and skipped-adapter reasons.
 
+One run produces two perspectives when it measures a generated-code validator: interpreted libraries only, and every library. The rule lives in `benchmarks/src/perspectives.mjs` and keys on each adapter's `capabilities.generatedCode`, so a run without `zod4` collapses to one ranking. Cite the interpreted perspective when comparing execution strategies, and never mix a generated-code rank into a claim about interpreted work.
+
 Keep these groups separate:
 
 1. schema construction;
