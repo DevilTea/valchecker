@@ -9,6 +9,7 @@ interface ReleasePlan {
 	version: unknown
 	npmTag: unknown
 	channel: unknown
+	state: unknown
 	publish: unknown
 	packages: unknown
 	externalPrerequisites: unknown
@@ -141,6 +142,21 @@ async function main(): Promise<void> {
 	const expectedTag = isReleaseCandidate ? 'next' : 'latest'
 	if (plan.npmTag !== expectedTag)
 		throw new Error(`release-plan.json.npmTag must be "${expectedTag}" for a ${plan.channel} release, received ${String(plan.npmTag)}`)
+	// A plan describes one version across its whole life, and the changelog heading
+	// has to say different things at each end of that life: `Unreleased` while the
+	// version is being prepared, because the repository must never claim a
+	// publication that has not happened, and the publication date afterwards,
+	// because by then the claim is true. Without this field the two requirements
+	// contradict each other and the post-publication step in RELEASING.md turns CI
+	// red — which is exactly what happened when 0.0.33 shipped.
+	//
+	// What this cannot prove: that a plan marked `published` really was published.
+	// Nothing available to a local, offline gate can. Preparing the next version
+	// must set it back to `prepared`, and RELEASING.md says so in the preparation
+	// checklist.
+	const isPublished = plan.state === 'published'
+	if (!isPublished && plan.state !== 'prepared')
+		throw new Error(`release-plan.json.state must be "prepared" or "published", received ${String(plan.state)}`)
 	if (plan.publish !== false)
 		throw new Error('release-plan.json.publish must remain false; repository state never authorizes publication')
 	assertExactArray(plan.packages, packageDefinitions.map(item => item.name), 'release-plan.json.packages')
@@ -191,7 +207,26 @@ async function main(): Promise<void> {
 	assertContains(readme, './RELEASING.md', 'README.md')
 
 	const changelog = await readText('CHANGELOG.md')
-	assertContains(changelog, `## [${plan.version}] - Unreleased`, 'CHANGELOG.md')
+	if (isPublished) {
+		const escapedVersion = plan.version.replaceAll('.', String.raw`\.`)
+		const headingPattern = new RegExp(String.raw`^## \[${escapedVersion}\] - (\d{4}-\d{2}-\d{2})$`, 'm')
+		const heading = headingPattern.exec(changelog)
+		if (!heading)
+			throw new Error(`CHANGELOG.md must date the ${plan.version} heading as "## [${plan.version}] - YYYY-MM-DD" once the version is published`)
+		const date = heading[1]!
+		// `Date` rolls an out-of-range day into the next month, so parsing alone
+		// accepts 2026-02-30. Round-tripping is what rejects it.
+		const parsed = new Date(`${date}T00:00:00Z`)
+		const roundTripped = Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
+		if (!roundTripped.startsWith(date))
+			throw new Error(`CHANGELOG.md dates ${plan.version} as ${date}, which is not a real calendar date`)
+		// The next cycle needs somewhere to write, and its absence is how an entry
+		// ends up appended to a shipped version's section.
+		assertContains(changelog, '## [Unreleased]', 'CHANGELOG.md')
+	}
+	else {
+		assertContains(changelog, `## [${plan.version}] - Unreleased`, 'CHANGELOG.md')
+	}
 	assertContains(changelog, `npm \`${plan.npmTag}\` tag`, 'CHANGELOG.md')
 	assertContains(changelog, `[${plan.version}]: https://github.com/DevilTea/valchecker/releases/tag/v${plan.version}`, 'CHANGELOG.md')
 	for (const heading of ['### Added', '### Changed', '### Removed', '### Security'])
