@@ -1,4 +1,4 @@
-import { BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { asyncCallbacks, BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
@@ -423,6 +423,23 @@ export function createZodAdapter(z, name, version) {
 				.transform(text => JSON.parse(text)),
 			jsonString: () => z.unknown()
 				.transform(value => JSON.stringify(value)),
+			// The asynchronous pipelines. In Zod asynchrony is a property of the call: an
+			// async `refine`/`transform` callback makes the schema parseable only through
+			// `parseAsync`/`safeParseAsync` — executed on both pins, a synchronous
+			// `safeParse` of one of these throws instead of reporting an issue — so
+			// `parse` below picks the async entry from the scenario's declared execution
+			// mode.
+			asyncCheck: () => z.string()
+				.refine(asyncCallbacks.isLongEnough),
+			asyncTransform: () => z.string()
+				.transform(asyncCallbacks.toPrefixed),
+			// Identical to `primitiveBuiltin`: Zod has no `toAsync()`, so the promise comes
+			// from `safeParseAsync` over a fully synchronous schema, which is what
+			// `async/wrapper-valid` compares against the Valchecker step.
+			asyncWrapper: () => z.string()
+				.min(3)
+				.max(32)
+				.regex(/^[a-z0-9-]+$/),
 			// Declared only where the pinned version has them, so a scenario that
 			// forgets its `requiredFeatures` fails with the harness's actionable
 			// message instead of a `z.file is not a function` from inside the build.
@@ -468,8 +485,13 @@ export function createZodAdapter(z, name, version) {
 					}
 				: {}),
 		},
-		parse(schema, input) {
-			return schema.safeParse(input)
+		// An async scenario asks for the asynchronous entry point, which is a separate
+		// method here rather than a property of the schema. Both entries return the same
+		// `{ success, data }`/`{ success, error }` shape, so `normalize` is unchanged.
+		parse(schema, input, context) {
+			return context?.executionMode === 'async'
+				? schema.safeParseAsync(input)
+				: schema.safeParse(input)
 		},
 		normalize(result) {
 			return result.success

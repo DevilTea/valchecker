@@ -1,5 +1,5 @@
 import process from 'node:process'
-import { BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { asyncCallbacks, BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -82,6 +82,15 @@ function createTaggedBranches() {
 	})]))
 }
 
+// The `primitiveBuiltin` chain, extracted so `asyncWrapper` below is that schema
+// plus `toAsync()` and cannot drift from it.
+function createPrimitiveBuiltin() {
+	return v.string()
+		.isLengthAtLeast(3)
+		.isLengthAtMost(32)
+		.isMatching(/^[a-z0-9-]+$/)
+}
+
 function structuralOptions(context) {
 	return context?.issuePolicy === 'all'
 		? { collectAllIssues: true }
@@ -140,10 +149,7 @@ export default {
 		// (`.regex(...)` and `v.regex(...)`). The pattern stays an inline literal
 		// exactly as in `primitive` above, so the two Valchecker spellings differ in
 		// nothing but the final step.
-		primitiveBuiltin: () => v.string()
-			.isLengthAtLeast(3)
-			.isLengthAtMost(32)
-			.isMatching(/^[a-z0-9-]+$/),
+		primitiveBuiltin: () => createPrimitiveBuiltin(),
 		flatObject: () => v.object(createFields()),
 		builtinFlatObject: () => v.object(createBuiltinFields()),
 		strictFlatObject: () => v.strictObject(createFields()),
@@ -409,6 +415,21 @@ export default {
 			.toJSONValue(),
 		jsonString: () => v.unknown()
 			.toJSONString(),
+		// The asynchronous pipelines. In Valchecker asynchrony is a property of the
+		// schema rather than of the call: a `check` or `transform` callback that returns
+		// a `PromiseLike` makes the pipeline maybe-async, so `execute` returns a native
+		// promise for any input that reaches the callback. Nothing changes in `parse`
+		// below, which is why these are three build keys and not a parse option.
+		asyncCheck: () => v.string()
+			.check(asyncCallbacks.isLongEnough),
+		asyncTransform: () => v.string()
+			.transform(asyncCallbacks.toPrefixed),
+		// The `primitiveBuiltin` schema, whose every step completes synchronously, with
+		// `toAsync()` forcing a native promise anyway. That makes this row the cost of
+		// the promise wrapper alone, against `safeParseAsync` over the identical
+		// synchronous schema on the competitors.
+		asyncWrapper: () => createPrimitiveBuiltin()
+			.toAsync(),
 	},
 	parse(schema, input) {
 		return schema.execute(input)

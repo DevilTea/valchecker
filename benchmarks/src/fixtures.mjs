@@ -163,6 +163,21 @@ export const mappedBooleanValues = {
 	falseValues: ['no', 'n', '0'],
 }
 
+// The single source of truth for `async/*` and `standard-schema/async-check-valid`,
+// shared for the same reason `collectionTransforms` is: the callback Valchecker's
+// `check`/`transform` awaits and the one Zod's `refine`/`transform` and Valibot's
+// `checkAsync`/`transformAsync` await are then the same function object, so a row
+// can only differ by what the library does around it.
+//
+// Both resolve immediately — `async` with nothing awaited inside — because the
+// subject is the promise and the microtask turn a library pays around a trivial
+// callback, not a timer. Each takes exactly one parameter, so it behaves identically
+// under Zod's `(value, ctx)` callback signature and Valibot's single-argument one.
+export const asyncCallbacks = {
+	isLongEnough: async value => value.length >= 3,
+	toPrefixed: async value => `user:${value}`,
+}
+
 // The single source of truth for `collection-transform/*`. These live here rather
 // than with the family because every adapter needs them, and sharing the function
 // *objects* is the point: the callback Valchecker's step invokes and the callback

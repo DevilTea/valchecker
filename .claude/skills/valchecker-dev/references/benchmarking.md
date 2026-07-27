@@ -64,6 +64,8 @@ The limit belongs next to the marker: 19 unreproducible orderings have gaps abov
 
 One run produces two perspectives when it measures a generated-code validator: interpreted libraries only, and every library. The rule lives in `benchmarks/src/perspectives.mjs` and keys on each adapter's `capabilities.generatedCode`. It collapses to a single ranking when no generated-code validator was measured, and also when excluding them would leave fewer than two libraries — that second case still warns that the run mixes execution strategies. Cite the interpreted perspective when comparing execution strategies, and read `Rank`/`Fastest` and `Rank (interpreted)`/`Fastest (interpreted)` as pairs; mixing one perspective's rank with the other's share is the mistake the split exists to prevent.
 
+A scenario also declares how it is measured and through which entry point, and both reach `raw.json`. `executionMode` is `sync` or `async`: an async cell is measured by awaiting the operation inside the timed loop, one at a time, because the microtask turn is part of what an asynchronous caller pays. It is declared rather than detected — a maybe-async pipeline returns a promise for some inputs and not others — and the harness rejects a mismatch in either direction, including handing `measure` a promise or `measureAsync` a plain value. Async cells take their own benchmark groups (`warm/async/success`, …) so no aggregate mixes them with synchronous work. `entry` is `native` or `standard`, the latter calling `schema['~standard'].validate(input)` over a build key a native scenario already measures; keep `adapter.parse` referenced rather than wrapped in `scenarios/define.mjs`, so adding an entry point never costs an existing cell a call frame.
+
 Keep these groups separate:
 
 1. schema construction;
@@ -71,7 +73,8 @@ Keep these groups separate:
 3. warmed success;
 4. warmed library-default failure;
 5. warmed first-issue failure;
-6. warmed all-issues failure.
+6. warmed all-issues failure;
+7. the same warmed groups measured asynchronously.
 
 Library-default failure modes may perform different diagnostic work. Compare equivalent first/all policies only where the adapter exposes them.
 

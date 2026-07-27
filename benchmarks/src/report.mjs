@@ -11,6 +11,8 @@ const modes = new Set(['smoke', 'standard', 'full'])
 const resultKinds = new Set(['success', 'failure'])
 const issuePolicies = new Set(['not-applicable', 'library-default', 'first', 'all'])
 const comparisonScopes = new Set(['equivalent', 'library-defaults', 'compatible-subset'])
+const executionModes = new Set(['sync', 'async'])
+const entries = new Set(['native', 'standard'])
 
 function parseArguments(argv) {
 	const options = {
@@ -77,6 +79,21 @@ function validateMeasurement(result, path) {
 	}
 }
 
+/**
+ * How a cell was measured, and through which entry point. An artifact written
+ * before asynchronous measurement existed carries neither field, and every cell in
+ * one was measured synchronously through the library's native entry, so reading a
+ * missing field that way is a fact about those runs rather than a lenient default.
+ * A present value must be one the harness can produce.
+ */
+function readEnumerated(value, allowed, fallback, path) {
+	if (value === undefined)
+		return fallback
+	if (!allowed.has(value))
+		throw new Error(`${path} is invalid`)
+	return value
+}
+
 function validateResult(raw) {
 	if (!raw || typeof raw !== 'object')
 		throw new TypeError('Benchmark result must be an object')
@@ -130,6 +147,8 @@ function validateResult(raw) {
 			throw new Error(`${path}.comparisonScope is invalid`)
 		if (scenario.diagnosticIssueCount !== null && (!Number.isInteger(scenario.diagnosticIssueCount) || scenario.diagnosticIssueCount <= 0))
 			throw new Error(`${path}.diagnosticIssueCount must be null or a positive integer`)
+		scenario.executionMode = readEnumerated(scenario.executionMode, executionModes, 'sync', `${path}.executionMode`)
+		scenario.entry = readEnumerated(scenario.entry, entries, 'native', `${path}.entry`)
 		catalog.set(scenario.id, scenario)
 	}
 
@@ -166,7 +185,14 @@ function validateResult(raw) {
 			const expected = catalog.get(result.scenario)
 			if (!expected)
 				throw new Error(`${library.adapter} contains unexpected scenario ${result.scenario}`)
-			for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
+			result.executionMode = readEnumerated(result.executionMode, executionModes, 'sync', `${path}.executionMode`)
+			result.entry = readEnumerated(result.entry, entries, 'native', `${path}.entry`)
+			// `executionMode` and `entry` are in this list because a row measured with an
+			// await inside the timed loop is not the same measurement as one without, and
+			// a row that went through the interop entry is not the same call as one that
+			// did not. A result disagreeing with its catalog entry is a run that cannot be
+			// reported rather than a discrepancy to render.
+			for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount', 'executionMode', 'entry']) {
 				if (result[field] !== expected[field])
 					throw new Error(`${library.adapter} metadata mismatch for ${result.scenario}.${field}`)
 			}
@@ -344,7 +370,7 @@ function renderMarkdown(raw) {
 		lines.push(
 			`### ${scenario.id}`,
 			'',
-			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}**`,
+			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}** · Execution: **${scenario.executionMode}** · Entry: **${scenario.entry}**`,
 			'',
 			interpreted == null
 				? '| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME | Samples |'
@@ -385,6 +411,8 @@ function renderMarkdown(raw) {
 		'- `library-default` failure scenarios show product defaults and are not diagnostic-work-equivalent across libraries.',
 		'- `first` and `all` scenarios verify issue-count semantics before timing; unsupported adapters are omitted instead of being assigned a synthetic mode.',
 		'- `compatible-subset` scenarios intentionally test only behavior that is common to every participating library.',
+		'- An `async` scenario is measured with the await inside the timed loop, so its numbers include the microtask turn an asynchronous caller cannot avoid. Compare an async row only with another async row: they carry their own benchmark groups, and the two named pairings against a synchronous scenario are stated in `scenarios/async.mjs`.',
+		'- A `standard` entry scenario calls `schema[\'~standard\'].validate(input)` instead of the library\'s own parse, over the same schema and fixture as the native scenario sharing its build key. The pair is what shows the interop cost.',
 		'- Treat results with RME above 5% as unstable and rerun before drawing conclusions.',
 		`- \`≈\` marks a row within ${separationThresholdPercent}% of the one above it. Orderings that close are not reproducible: comparing four full runs, most of the pairs that changed places between runs were this close. Read them as unseparated rather than as a rank.`,
 		'- Sampling stops once a measurement reaches the profile\'s precision target, so the rows compared within a scenario can rest on different numbers of samples; the Samples column says how many, and `†` marks a measurement whose interval stayed wider than the target.',
@@ -409,7 +437,7 @@ function renderHtml(raw) {
 			? ''
 			: `<p><strong>Not ranked:</strong> ${skipped.map(item => `${htmlEscape(item.library)} — ${htmlEscape(item.reason)}`)
 				.join('; ')}</p>`
-		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th><th>Samples</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
+		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong> · Execution: <strong>${htmlEscape(scenario.executionMode)}</strong> · Entry: <strong>${htmlEscape(scenario.entry)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th><th>Samples</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
 	})
 		.join('')
 
@@ -430,7 +458,7 @@ function renderHtml(raw) {
 <table class="metadata"><tbody>${metadata}</tbody></table>
 ${sections}
 <h2>Interpretation rules</h2>
-<ul><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>&#8776; marks a row the run does not separate from the one above it.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
+<ul><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>An async scenario is measured with the await inside the timed loop and belongs to its own benchmark group; compare it only with another async row.</li><li>A standard-entry scenario calls <code>~standard.validate</code> over the same schema as the native scenario sharing its build key.</li><li>&#8776; marks a row the run does not separate from the one above it.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
 </body>
 </html>
 `

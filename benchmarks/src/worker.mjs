@@ -1,5 +1,5 @@
 import process from 'node:process'
-import { measure } from './measure.mjs'
+import { measure, measureAsync } from './measure.mjs'
 import { getScenarios, selectScenarios } from './scenarios/index.mjs'
 
 const adapterName = process.argv[2]
@@ -44,7 +44,12 @@ for (const scenario of scenarios) {
 		continue
 	}
 
-	const operation = scenario.setup(adapter)
+	// An async scenario verifies its correctness by awaiting, so `setup` returns a
+	// promise for the operation there and the operation itself everywhere else.
+	// Scenarios are set up and measured strictly one at a time, sequentially:
+	// overlapping two of them would change what every number in the run means.
+	// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
+	const operation = await scenario.setup(adapter)
 	if (action === 'measure') {
 		results.push({
 			scenario: scenario.id,
@@ -54,7 +59,16 @@ for (const scenario of scenarios) {
 			issuePolicy: scenario.issuePolicy,
 			comparisonScope: scenario.comparisonScope,
 			diagnosticIssueCount: scenario.diagnosticIssueCount,
-			...measure(operation, mode),
+			// Carried on the measurement itself, not only in the catalog: a row in
+			// `raw.json` then states how it was measured and through which entry point,
+			// so no tool can pair an awaited number with a synchronous one by losing
+			// track of which scenario it came from.
+			executionMode: scenario.executionMode,
+			entry: scenario.entry,
+			...(scenario.executionMode === 'async'
+				// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
+				? await measureAsync(operation, mode)
+				: measure(operation, mode)),
 		})
 	}
 }

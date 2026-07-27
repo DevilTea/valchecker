@@ -42,6 +42,8 @@ function toCatalogEntry(scenario) {
 		comparisonScope: scenario.comparisonScope,
 		diagnosticIssueCount: scenario.diagnosticIssueCount,
 		requiredFeatures: scenario.requiredFeatures,
+		executionMode: scenario.executionMode,
+		entry: scenario.entry,
 		steps: scenario.steps,
 	}
 }

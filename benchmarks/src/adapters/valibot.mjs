@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import { BenchmarkResource, collectionTransforms, dateBounds, taggedUnionTags } from '../fixtures.mjs'
+import { asyncCallbacks, BenchmarkResource, collectionTransforms, dateBounds, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 const integer = () => v.pipe(v.number(), v.integer())
@@ -308,13 +308,29 @@ export default {
 		// two invalid serialization scenarios and Zod does not.
 		jsonValue: () => v.pipe(v.string(), v.parseJson()),
 		jsonString: () => v.pipe(v.unknown(), v.stringifyJson()),
+		// The asynchronous pipelines. Valibot splits the pipe itself: `pipeAsync` with
+		// `checkAsync`/`transformAsync` is the only way to hold an async callback, and
+		// such a schema must be run through `safeParseAsync`. Executed on the pin,
+		// `safeParse` over one of these returns a result object built from the pending
+		// promise instead of throwing, which is a silently wrong success — so the async
+		// entry is not optional here, and `parse` below selects it from the scenario's
+		// declared execution mode.
+		asyncCheck: () => v.pipeAsync(v.string(), v.checkAsync(asyncCallbacks.isLongEnough)),
+		asyncTransform: () => v.pipeAsync(v.string(), v.transformAsync(asyncCallbacks.toPrefixed)),
+		// Identical to `primitiveBuiltin`: Valibot has no `toAsync()`, so the promise
+		// comes from `safeParseAsync` over a fully synchronous schema.
+		asyncWrapper: () => v.pipe(
+			v.string(),
+			v.minLength(3),
+			v.maxLength(32),
+			v.regex(/^[a-z0-9-]+$/),
+		),
 	},
 	parse(schema, input, context) {
-		return v.safeParse(
-			schema,
-			input,
-			context?.issuePolicy === 'first' ? { abortEarly: true } : undefined,
-		)
+		const options = context?.issuePolicy === 'first' ? { abortEarly: true } : undefined
+		return context?.executionMode === 'async'
+			? v.safeParseAsync(schema, input, options)
+			: v.safeParse(schema, input, options)
 	},
 	normalize(result) {
 		return result.success

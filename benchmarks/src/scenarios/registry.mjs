@@ -2,6 +2,7 @@
 // module next to this file and one entry to `scenarioFamilies` below. The import
 // block is sorted by the lint rule and carries no meaning; `scenarioFamilies` is
 // the order that matters.
+import { asyncScenarios } from './async.mjs'
 import { builtinValidatorScenarios } from './builtin-validator.mjs'
 import { coercionScenarios } from './coercion.mjs'
 import { collectionTransformScenarios } from './collection-transform.mjs'
@@ -23,6 +24,7 @@ import { recordTupleTemplateLiteralScenarios } from './record-tuple-template-lit
 import { recursionScenarios } from './recursion.mjs'
 import { schemaKindScenarios } from './schema-kind.mjs'
 import { serializationScenarios } from './serialization.mjs'
+import { standardSchemaScenarios } from './standard-schema.mjs'
 import { stringFormatExtendedScenarios } from './string-format-extended.mjs'
 import { stringFormatScenarios } from './string-format.mjs'
 import { stringShapeScenarios } from './string-shape.mjs'
@@ -70,6 +72,8 @@ const scenarioFamilies = [
 	schemaKindScenarios,
 	collectionTransformScenarios,
 	serializationScenarios,
+	asyncScenarios,
+	standardSchemaScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()
