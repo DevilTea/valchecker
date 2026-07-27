@@ -186,6 +186,7 @@ After npm publication succeeds:
 5. Repeat an ESM import and a TypeScript `NodeNext` compile outside the monorepo.
 6. Confirm the published package manifests contain exact internal dependency versions.
 7. Only then create the matching Git tag and GitHub release.
+8. Open a follow-up pull request replacing `- Unreleased` in that version's `CHANGELOG.md` heading with the publication date, and adding a fresh `## [Unreleased]` section above it. The readiness gate requires the heading to say `Unreleased` while the version is being prepared, so dating it is necessarily a post-publication step.
 
 The tag must be exactly:
 

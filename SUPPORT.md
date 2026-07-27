@@ -1,6 +1,6 @@
 # Valchecker Support Policy
 
-This policy applies to the Valchecker 1.0 release line and its release candidates.
+This policy applies to the releases that carry the Valchecker 1.0 contract — currently `0.0.33` and later on the 0.x line — and to the 1.0 release line and its release candidates once those exist.
 
 ## Supported runtime
 

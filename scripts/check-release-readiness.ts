@@ -87,6 +87,19 @@ function assertContains(text: string, fragment: string, path: string): void {
 		throw new Error(`${path} must contain ${JSON.stringify(fragment)}`)
 }
 
+/**
+ * A release document must not name a version other than the one being shipped.
+ * `assertContains` alone cannot catch a document left describing a version that
+ * was renumbered away, because the new version can be present while the old one
+ * still is too.
+ */
+function assertNoForeignVersion(text: string, version: string, path: string): void {
+	for (const match of text.matchAll(/\b\d+\.\d+\.\d+(?:-[\w.]+)?\b/g)) {
+		if (match[0] !== version)
+			throw new Error(`${path} refers to version ${match[0]}, but the release is ${version}`)
+	}
+}
+
 function assertNoPlaceholders(text: string, path: string): void {
 	// `TODO`/`TBD`/`FIXME` are unambiguous dev sentinels (any case). `PLACEHOLDER`
 	// is matched case-sensitively (all-caps only) so the legitimate lowercase word
@@ -186,11 +199,15 @@ async function main(): Promise<void> {
 	assertNoPlaceholders(changelog, 'CHANGELOG.md')
 
 	// The migration documents describe the 1.0 contract, so only a 1.0 candidate
-	// has to name the version being shipped; their substance is required either
-	// way, because a stable release does not get to drop the guarantees.
+	// has to name the version being shipped. Their substance is required either
+	// way, and on both channels they must not name a DIFFERENT version: the
+	// weaker "contains the version" check would have passed a document still
+	// describing a version that was renumbered away, which is exactly what
+	// happened when 1.0.0-rc.0 became 0.0.33.
 	const migration = await readText('MIGRATION.md')
 	if (isReleaseCandidate)
 		assertContains(migration, plan.version, 'MIGRATION.md')
+	assertNoForeignVersion(migration, plan.version, 'MIGRATION.md')
 	assertContains(migration, 'Node.js 22', 'MIGRATION.md')
 	assertContains(migration, 'ESM-only', 'MIGRATION.md')
 	assertContains(migration, '.toAsync()', 'MIGRATION.md')
@@ -200,6 +217,7 @@ async function main(): Promise<void> {
 	const migrationPage = await readText('docs/guide/migration-to-1.md')
 	if (isReleaseCandidate)
 		assertContains(migrationPage, plan.version, 'docs/guide/migration-to-1.md')
+	assertNoForeignVersion(migrationPage, plan.version, 'docs/guide/migration-to-1.md')
 	assertContains(migrationPage, 'MIGRATION.md', 'docs/guide/migration-to-1.md')
 	assertContains(migrationPage, '/guide/v1-contract', 'docs/guide/migration-to-1.md')
 

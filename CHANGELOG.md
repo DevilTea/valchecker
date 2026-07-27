@@ -4,9 +4,13 @@ All notable changes to Valchecker are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and published versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [0.0.33] - Unreleased
 
 The first release in six months, published to the npm `latest` tag. It carries everything prepared for the `1.0.0-rc.0` candidate together with the refinements made on top of it; the 1.0 line has not shipped, so this continues the 0.x series, where a breaking change may land in any release.
+
+Read the breaking entries below before upgrading. A dependency written as `^0.0.32` does not resolve to this release, but `~0.0.32` does, as does any range looser than a caret — and a fresh `npm install valchecker` now gets it. Pin the exact version if you are not ready.
 
 ### Added
 
@@ -114,11 +118,13 @@ The first release in six months, published to the npm `latest` tag. It carries e
 - `toSplitted()` → `toSplit()`
 - issue code `transform:failed` → `transform:callback_failed`
 - issue code `toBigint:invalid_bigint` → `toBigint:conversion_failed`
+
 Issue codes for renamed built-in steps now use the public step name, including `isAtLeast:expected_at_least`, `isLengthAtLeast:expected_length_at_least`, and `toJSONValue:invalid_json`.
 
 ### Removed
 
 The following accidental implementation exports are no longer part of the public package surface:
+
 - `noop`
 - `returnTrue`
 - `isPromiseLike`
@@ -127,7 +133,9 @@ The following accidental implementation exports are no longer part of the public
 - `handleMessage`
 - `prependIssuePath`
 - `resolveMessagePriority`
+
 The release workflow no longer:
+
 - bumps package versions,
 - commits or pushes changes,
 - creates or pushes Git tags,
