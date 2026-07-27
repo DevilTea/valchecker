@@ -28,4 +28,12 @@ export default deviltea(
 			'pnpm/json-enforce-catalog': 'off',
 		},
 	},
+	{
+		// The same reason applies to the harness tests: benchmarks/ installs its own
+		// dependencies and has no vitest, so its checks use the Node test runner.
+		files: ['benchmarks/**/*.test.mjs'],
+		rules: {
+			'test/no-import-node-test': 'off',
+		},
+	},
 )

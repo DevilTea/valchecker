@@ -1,20 +1,42 @@
 import process from 'node:process'
+import { median, relativeMarginOfError } from './statistics.mjs'
 
+/**
+ * Sampling stops once the measurement is precise enough, instead of always
+ * spending the maximum. Every cell used to take `maxSamples` regardless of how
+ * it behaved, which spent the same budget on a cell that had already settled to
+ * a 0.4% interval and on one still swinging by 12%.
+ *
+ * `targetRelativeMarginOfError` is 0.75%, chosen against the 440 cells of the
+ * 2026-07-27 full run rather than picked for feel. Replaying that run under this
+ * rule reproduces the ranking of all 95 scenarios exactly — not just the winner,
+ * the complete order — with a worst-case shift of 1.21% in any reported ratio,
+ * while taking 61% of the samples. Loosening it to 1.5% starts changing
+ * scenario winners, and dropping `minSamples` to 4 puts an 8.3% shift into a
+ * reported ratio, because an interval estimated from four samples is not yet
+ * describing the distribution.
+ */
 const profiles = {
 	smoke: {
 		warmupMs: 20,
 		sampleMs: 30,
-		samples: 3,
+		minSamples: 3,
+		maxSamples: 3,
+		targetRelativeMarginOfError: 0.75,
 	},
 	standard: {
 		warmupMs: 200,
 		sampleMs: 300,
-		samples: 7,
+		minSamples: 5,
+		maxSamples: 7,
+		targetRelativeMarginOfError: 0.75,
 	},
 	full: {
 		warmupMs: 500,
 		sampleMs: 750,
-		samples: 12,
+		minSamples: 5,
+		maxSamples: 12,
+		targetRelativeMarginOfError: 0.75,
 	},
 }
 
@@ -43,44 +65,43 @@ function executeFor(operation, durationMs) {
 	}
 }
 
-function median(values) {
-	const sorted = [...values].sort((a, b) => a - b)
-	const middle = Math.floor(sorted.length / 2)
-	return sorted.length % 2 === 0
-		? (sorted[middle - 1] + sorted[middle]) / 2
-		: sorted[middle]
-}
-
-function mean(values) {
-	return values.reduce((total, value) => total + value, 0) / values.length
-}
-
-function standardDeviation(values) {
-	const average = mean(values)
-	const variance = values.reduce((total, value) => total + (value - average) ** 2, 0) / Math.max(1, values.length - 1)
-	return Math.sqrt(variance)
+/**
+ * Whether the samples taken so far already establish the throughput to the
+ * precision the profile asks for. Separate from the loop because it is the part
+ * worth testing on its own: it can be checked against sequences chosen to sit on
+ * either side of the target, which no timing-based test can do reliably.
+ */
+export function hasEnoughSamples(operationsPerSecond, profile) {
+	return operationsPerSecond.length >= profile.minSamples
+		&& relativeMarginOfError(operationsPerSecond) <= profile.targetRelativeMarginOfError
 }
 
 export function measure(operation, mode) {
-	const profile = profiles[mode]
-	if (!profile)
-		throw new Error(`Unknown benchmark mode: ${mode}`)
+	const profile = getProfile(mode)
 
 	executeFor(operation, profile.warmupMs)
-	const samples = Array.from({ length: profile.samples }, () => executeFor(operation, profile.sampleMs))
-	const ops = samples.map(sample => sample.opsPerSecond)
-	const average = mean(ops)
-	const deviation = standardDeviation(ops)
-	const relativeMarginOfError = average === 0
-		? 0
-		: 1.96 * deviation / Math.sqrt(ops.length) / average * 100
+
+	const samples = []
+	const ops = []
+	while (samples.length < profile.maxSamples) {
+		const sample = executeFor(operation, profile.sampleMs)
+		samples.push(sample)
+		ops.push(sample.opsPerSecond)
+		if (hasEnoughSamples(ops, profile))
+			break
+	}
+	const currentRme = relativeMarginOfError(ops)
 
 	return {
 		samples,
 		medianOpsPerSecond: median(ops),
 		medianNanosecondsPerOperation: median(samples.map(sample => sample.nanosecondsPerOperation)),
-		meanOpsPerSecond: average,
-		relativeMarginOfError,
+		meanOpsPerSecond: ops.reduce((total, value) => total + value, 0) / ops.length,
+		relativeMarginOfError: currentRme,
+		// A cell that ran out of samples without reaching the target is reporting a
+		// wider interval than the run asked for, which is a property of the cell
+		// worth carrying into the report rather than leaving to be re-derived.
+		reachedTarget: currentRme <= profile.targetRelativeMarginOfError,
 	}
 }
 

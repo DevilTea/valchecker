@@ -79,7 +79,7 @@ function validateMeasurement(result, path) {
 function validateResult(raw) {
 	if (!raw || typeof raw !== 'object')
 		throw new TypeError('Benchmark result must be an object')
-	if (raw.schemaVersion !== 2)
+	if (raw.schemaVersion !== 3)
 		throw new Error(`Unsupported benchmark schema version: ${raw.schemaVersion}`)
 	if (!modes.has(raw.mode))
 		throw new Error(`Unknown benchmark mode: ${raw.mode}`)
@@ -254,12 +254,20 @@ function skippedRows(raw, scenario) {
 	})
 }
 
+function samplingDescription(profile) {
+	const budget = profile.minSamples === profile.maxSamples
+		? `exactly ${profile.maxSamples} samples`
+		: `${profile.minSamples} to ${profile.maxSamples} samples, stopping once the 95% interval is within ±${profile.targetRelativeMarginOfError}%`
+	return `${profile.warmupMs} ms warmup, ${profile.sampleMs} ms each, ${budget}`
+}
+
 function metadataRows(raw) {
 	const runnerImage = [raw.environment.runnerImageOS, raw.environment.runnerImageVersion]
 		.filter(Boolean)
 		.join(' ')
 	return [
 		['Profile', raw.mode],
+		['Sampling', samplingDescription(raw.profile)],
 		['Seed', raw.seed],
 		['Started', raw.startedAt],
 		['Completed', raw.completedAt],
@@ -356,6 +364,7 @@ function renderMarkdown(raw) {
 		'- `first` and `all` scenarios verify issue-count semantics before timing; unsupported adapters are omitted instead of being assigned a synthetic mode.',
 		'- `compatible-subset` scenarios intentionally test only behavior that is common to every participating library.',
 		'- Treat results with RME above 5% as unstable and rerun before drawing conclusions.',
+		'- Sampling stops once a measurement reaches the profile\'s precision target, so cells differ in how many samples stand behind them; the RME column reports what each one actually achieved.',
 		'- The raw JSON artifact remains the source of truth for every sample and skipped-adapter reason.',
 		'',
 	)

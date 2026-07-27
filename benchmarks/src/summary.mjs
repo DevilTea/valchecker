@@ -35,7 +35,7 @@ function parseArguments(argv) {
 }
 
 function assertResult(raw) {
-	if (!raw || typeof raw !== 'object' || raw.schemaVersion !== 2)
+	if (!raw || typeof raw !== 'object' || raw.schemaVersion !== 3)
 		throw new TypeError('Invalid benchmark result')
 	if (!Array.isArray(raw.scenarioCatalog) || raw.scenarioCatalog.length === 0)
 		throw new TypeError('Benchmark result has no scenario catalog')

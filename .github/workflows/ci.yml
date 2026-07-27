@@ -320,6 +320,9 @@ jobs:
       - name: Install Benchmark Dependencies
         run: pnpm --dir benchmarks install --ignore-workspace --lockfile=false --ignore-scripts
 
+      - name: Check Benchmark Measurement Rules
+        run: pnpm --dir benchmarks test
+
       - name: Verify All Benchmark Scenarios
         run: pnpm --dir benchmarks verify
 
