@@ -15,7 +15,8 @@ const valid = [
 	// pattern, so each rule needs a case on both sides of its boundary.
 	'2024-02-29T00:00:00Z', // leap year
 	'2000-02-29T00:00:00Z', // leap century
-	'0004-02-29T00:00:00Z', // leap year inside the 0000-0099 range
+	'0004-02-29T00:00:00Z',
+	'0000-02-28T00:00:00Z', // year 0000 itself is accepted; only its leap day is not // leap year inside the 0000-0099 range
 	'2026-01-31T23:59:59Z', // 31-day month
 	'2026-04-30T00:00:00Z', // 30-day month
 	'2026-02-28T00:00:00Z',
@@ -32,10 +33,13 @@ const invalid = [
 	'',
 	'2023-02-29T00:00:00Z', // not a leap year
 	'1900-02-29T00:00:00Z', // divisible by 100 but not 400
-	'0000-02-29T00:00:00Z', // see the pattern's : the previous
-	// implementation rejected this through a  roll-over, and the
-	// accepted set is deliberately unchanged
-	'2026-04-31T00:00:00Z', // 30-day month
+	// Year 0000 is a leap year in the proleptic Gregorian calendar, but the
+	// previous implementation rejected this date through a Date.UTC roll-over
+	// and the accepted set is deliberately unchanged. See the pattern's
+	// (?!0000) guard in iso-calendar-date.ts.
+	'0000-02-29T00:00:00Z',
+	'2026-04-31T00:00:00Z', // day 31 in a 30-day month
+	'2026-01-32T00:00:00Z', // day beyond every month's length
 	'2026-13-01T00:00:00Z',
 	'2026-00-10T00:00:00Z',
 	'2026-07-00T00:00:00Z',

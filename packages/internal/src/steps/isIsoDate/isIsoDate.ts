@@ -2,7 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 import { isoCalendarDateSource } from './iso-calendar-date'
 
-const isoDatePattern = new RegExp(`^${isoCalendarDateSource}$`)
+const isoDatePattern = new RegExp(String.raw`^${isoCalendarDateSource}$`)
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoDate'
@@ -14,9 +14,9 @@ interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that the string is an ISO 8601 calendar date in `YYYY-MM-DD`
-	 * form. Beyond the shape it rejects impossible dates such as
-	 * `2026-02-30`, using a `Date` round-trip rather than a regular
-	 * expression alone.
+	 * form. Month lengths and the leap-year rule are part of the accepted
+	 * shape, so impossible dates such as `2026-02-30` and `2023-02-29` are
+	 * rejected.
 	 *
 	 * ---
 	 *
