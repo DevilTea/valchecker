@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { base64UrlPattern } from '../isBase64Url/base64url'
+import { isBase64UrlString } from '../isBase64Url/base64url'
 
 function decodeBase64Url(segment: string): string {
 	const normalized = segment.replace(/-/g, '+')
@@ -21,7 +21,7 @@ function isJwtValue(value: string): boolean {
 	// payload must also be non-empty, which the pattern alone does not require.
 	if (header === '' || payload === '')
 		return false
-	if (!base64UrlPattern.test(header) || !base64UrlPattern.test(payload) || !base64UrlPattern.test(signature))
+	if (!isBase64UrlString(header) || !isBase64UrlString(payload) || !isBase64UrlString(signature))
 		return false
 	try {
 		const decoded: unknown = JSON.parse(decodeBase64Url(header))

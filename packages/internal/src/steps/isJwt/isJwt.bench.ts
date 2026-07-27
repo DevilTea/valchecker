@@ -13,4 +13,15 @@ describe('isJwt benchmarks', () => {
 	bench('invalid input', () => {
 		schema.execute('abc.def')
 	})
+
+	// Segments are validated by length and alphabet, so a rejection by length is
+	// far cheaper than one by alphabet, and a wrong segment count is cheaper than
+	// either.
+	bench('invalid segment length', () => {
+		schema.execute('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig01')
+	})
+
+	bench('invalid segment alphabet', () => {
+		schema.execute('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.b@d')
+	})
 })
