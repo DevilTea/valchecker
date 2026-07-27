@@ -35,6 +35,9 @@ const invalid = [
 	'2026-01-32', // day beyond every month's length
 	'2026-07-00',
 	'20260723',
+	// `$` is end of input, not end of line.
+	'2026-07-23\nbad',
+	'bad\n2026-07-23',
 ]
 
 describe('isIsoDate step plugin', () => {

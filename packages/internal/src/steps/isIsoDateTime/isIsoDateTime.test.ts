@@ -50,6 +50,9 @@ const invalid = [
 	'2026-07-23t12:30:00Z',
 	' 2026-07-23T12:30:00Z',
 	'2026-07-23T12:30:00Z ',
+	// `$` is end of input, not end of line.
+	'2026-07-23T12:30:00Z\nbad',
+	'bad\n2026-07-23T12:30:00Z',
 ]
 
 describe('isIsoDateTime step plugin', () => {

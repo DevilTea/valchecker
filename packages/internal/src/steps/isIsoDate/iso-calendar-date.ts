@@ -6,7 +6,7 @@
  * of being checked by round-tripping through `Date`, which allocated a `Date`
  * and parsed four numbers on every success. Validating a date-time measured
  * 298 ns with the round-trip and 35 ns with this pattern (2026-07-27), and the
- * accepted set is unchanged: the two agree on 25,514 generated inputs covering
+ * accepted set is unchanged: the two agree on 25,512 generated inputs covering
  * every day of every month across leap years, leap centuries and the
  * `0000`-`0099` range, every hour/minute/second combination, and every offset
  * and fractional-second shape.
