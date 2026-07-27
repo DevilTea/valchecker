@@ -75,7 +75,7 @@ Required for:
 
 ## Release candidates
 
-Versions such as `1.0.0-rc.0` are prereleases and use the npm `next` tag.
+Versions such as `1.0.0-rc.0` are prereleases and use the npm `next` tag; stable versions use `latest`. No release candidate has been published to date.
 
 Release candidates:
 

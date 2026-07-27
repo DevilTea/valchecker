@@ -162,10 +162,10 @@ After the version pull request is merged and all main-branch checks pass:
 publish <version> to <tag>
 ```
 
-Example:
+Example, for the version this repository currently prepares:
 
 ```text
-publish 1.0.0-rc.0 to next
+publish 0.0.33 to latest
 ```
 
 The workflow starts publishing as soon as it is dispatched; there is no approval gate after this

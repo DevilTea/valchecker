@@ -118,18 +118,26 @@ async function main(): Promise<void> {
 	if (plan.schemaVersion !== 1)
 		throw new Error(`release-plan.json schemaVersion must be 1, received ${String(plan.schemaVersion)}`)
 	assertValidSemver(plan.version, 'release-plan.json.version')
-	if (plan.npmTag !== 'next')
-		throw new Error(`release-plan.json.npmTag must be "next" for this release candidate, received ${String(plan.npmTag)}`)
-	if (plan.channel !== 'release-candidate')
-		throw new Error(`release-plan.json.channel must be "release-candidate", received ${String(plan.channel)}`)
+	// Two channels, each strict. RELEASING.md states the rule this enforces:
+	// a prerelease publishes to `next`, a stable version to `latest`. Pairing
+	// them here is what stops a stable version reaching `next`, or an rc
+	// reaching `latest` where every existing installation would follow it.
+	const isReleaseCandidate = plan.channel === 'release-candidate'
+	if (!isReleaseCandidate && plan.channel !== 'stable')
+		throw new Error(`release-plan.json.channel must be "release-candidate" or "stable", received ${String(plan.channel)}`)
+	const expectedTag = isReleaseCandidate ? 'next' : 'latest'
+	if (plan.npmTag !== expectedTag)
+		throw new Error(`release-plan.json.npmTag must be "${expectedTag}" for a ${plan.channel} release, received ${String(plan.npmTag)}`)
 	if (plan.publish !== false)
 		throw new Error('release-plan.json.publish must remain false; repository state never authorizes publication')
 	assertExactArray(plan.packages, packageDefinitions.map(item => item.name), 'release-plan.json.packages')
 	assertExactArray(plan.externalPrerequisites, expectedExternalPrerequisites, 'release-plan.json.externalPrerequisites')
 
 	const withoutBuild = plan.version.split('+', 1)[0]!
-	if (!/-rc\.\d+$/.test(withoutBuild))
+	if (isReleaseCandidate && !/-rc\.\d+$/.test(withoutBuild))
 		throw new Error('A release-candidate plan must use an -rc.N version')
+	if (!isReleaseCandidate && withoutBuild.includes('-'))
+		throw new Error(`A stable plan must not use a prerelease version, received ${plan.version}`)
 
 	const rootManifest = await readJson<PackageManifest>('package.json')
 	if (rootManifest.private !== true)
@@ -177,8 +185,12 @@ async function main(): Promise<void> {
 		assertContains(changelog, heading, 'CHANGELOG.md')
 	assertNoPlaceholders(changelog, 'CHANGELOG.md')
 
+	// The migration documents describe the 1.0 contract, so only a 1.0 candidate
+	// has to name the version being shipped; their substance is required either
+	// way, because a stable release does not get to drop the guarantees.
 	const migration = await readText('MIGRATION.md')
-	assertContains(migration, plan.version, 'MIGRATION.md')
+	if (isReleaseCandidate)
+		assertContains(migration, plan.version, 'MIGRATION.md')
 	assertContains(migration, 'Node.js 22', 'MIGRATION.md')
 	assertContains(migration, 'ESM-only', 'MIGRATION.md')
 	assertContains(migration, '.toAsync()', 'MIGRATION.md')
@@ -186,7 +198,8 @@ async function main(): Promise<void> {
 	assertNoPlaceholders(migration, 'MIGRATION.md')
 
 	const migrationPage = await readText('docs/guide/migration-to-1.md')
-	assertContains(migrationPage, plan.version, 'docs/guide/migration-to-1.md')
+	if (isReleaseCandidate)
+		assertContains(migrationPage, plan.version, 'docs/guide/migration-to-1.md')
 	assertContains(migrationPage, 'MIGRATION.md', 'docs/guide/migration-to-1.md')
 	assertContains(migrationPage, '/guide/v1-contract', 'docs/guide/migration-to-1.md')
 

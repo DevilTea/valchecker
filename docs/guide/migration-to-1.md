@@ -1,6 +1,6 @@
 # Migrating to Valchecker 1.0
 
-`1.0.0-rc.0` establishes the intended 1.0 compatibility contract. Applications upgrading from pre-1.0 releases should review every item below.
+`0.0.33` establishes the intended 1.0 compatibility contract, ahead of the 1.0 version itself. Applications upgrading from earlier releases should review every item below.
 
 ## Required migration review
 
