@@ -189,6 +189,14 @@ The suite separates:
 
 Scenarios cover primitive pipelines, flat and nested objects, strict and loose object behavior, arrays, Sets, Maps, ordered unions, compatible synchronous intersections, transformation pipelines, optional-heavy configuration objects, open records, tuples with a rest region, template literals, date validation, string-to-date conversion, date bounds, files, string-format validators, and finite membership. Full mode adds 1,000-element array and record cases plus the secondary and failure variants of the newer families.
 
+### Declared step coverage
+
+Every scenario declares `steps`, the Valchecker public step methods its Valchecker schema calls, and the field is carried into each scenario's `raw.json` catalog entry. This makes step coverage of the suite a fact tooling can read rather than something inferred from scenario ids. Declaring it is mandatory: a scenario that omits it fails to build.
+
+The list describes the schema the scenario measures, so it names what that schema actually calls and nothing else. Two consequences are easy to get wrong in both directions: the `[v.string()]` optional-field shorthand is `object`'s own optional handling and not a `union` branch, while `v.union(['px', 'em', 'rem'])` really does resolve its raw branches through `literal`.
+
+One scenario family per module under `src/scenarios/`, listed in `src/scenarios/registry.mjs`; fixtures used by a single family live with it, and the rest are in `src/fixtures.mjs`.
+
 ### Comparability across runs
 
 Existing scenario ids, fixtures, schema shapes, and tiers are treated as stable. A new framing is added under a new id rather than by editing an old scenario, and `smoke` stays small because every pull request runs it.

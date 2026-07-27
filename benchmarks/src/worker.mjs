@@ -1,6 +1,6 @@
 import process from 'node:process'
 import { measure } from './measure.mjs'
-import { getScenarios, selectScenarios } from './scenarios.mjs'
+import { getScenarios, selectScenarios } from './scenarios/index.mjs'
 
 const adapterName = process.argv[2]
 const mode = process.argv[3] ?? 'standard'

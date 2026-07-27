@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { getProfile } from './measure.mjs'
-import { getScenarioCatalog, selectScenarios, toScenarioCatalog } from './scenarios.mjs'
+import { getScenarioCatalog, selectScenarios, toScenarioCatalog } from './scenarios/index.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const workerPath = fileURLToPath(new URL('./worker.mjs', import.meta.url))
