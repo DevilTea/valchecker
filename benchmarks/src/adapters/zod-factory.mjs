@@ -163,6 +163,13 @@ export function createZodAdapter(z, name, version) {
 				.min(3)
 				.max(32)
 				.regex(/^[a-z0-9-]+$/),
+			// The competitor side of `primitive-builtin` is identical to `primitive`:
+			// Zod already spells the pattern check with a built-in action, so only the
+			// Valchecker adapter differs for that family.
+			primitiveBuiltin: () => z.string()
+				.min(3)
+				.max(32)
+				.regex(/^[a-z0-9-]+$/),
 			flatObject: () => z.object(createFields()),
 			// The competitor side of `flat-object-builtin` is identical to
 			// `flatObject`: these libraries already spell the email field with a
@@ -241,6 +248,52 @@ export function createZodAdapter(z, name, version) {
 			membership: () => z.enum(['red', 'green', 'blue']),
 			issuePolicyRecord: () => z.record(z.string(), z.number()),
 			issuePolicyTuple: () => z.tuple([z.string(), z.string()]),
+			// Constraint validators. Zod spells all of these as built-in schema
+			// methods, so no closure appears on either side of the comparison.
+			constraintAtMost: () => z.number()
+				.max(100),
+			constraintGreaterThan: () => z.number()
+				.gt(0),
+			constraintLessThan: () => z.number()
+				.lt(100),
+			constraintMultipleOf: () => z.number()
+				.multipleOf(5),
+			constraintFinite: () => z.number()
+				.finite(),
+			// Zod 3's `.safe()` bounds the value to the safe-integer range without
+			// requiring an integer, while Zod 4's also requires one. The scenario's
+			// fixtures are integers, so the two agree on them.
+			constraintSafeInteger: () => z.number()
+				.safe(),
+			constraintNaN: () => z.nan(),
+			constraintStartingWith: () => z.string()
+				.startsWith('user-'),
+			constraintEndingWith: () => z.string()
+				.endsWith('.png'),
+			constraintIncluding: () => z.string()
+				.includes('@example'),
+			constraintLengthExactly: () => z.string()
+				.length(6),
+			constraintNotEmpty: () => z.string()
+				.nonempty(),
+			// Zod has no `.empty()`. `.length(0)` is the same predicate `isEmpty()`
+			// applies to a string — `length === 0` — and is still a built-in action
+			// rather than a refinement closure.
+			constraintEmpty: () => z.string()
+				.length(0),
+			constraintEqualTo: () => z.literal('admin'),
+			constraintSizeAtLeast: () => z.set(z.string())
+				.min(3),
+			constraintSizeAtMost: () => z.set(z.string())
+				.max(3),
+			constraintSizeExactly: () => z.set(z.string())
+				.size(3),
+			constraintStack: () => z.string()
+				.min(12)
+				.max(128)
+				.startsWith('avatars/')
+				.endsWith('.png')
+				.includes('/user-'),
 			// Declared only where the pinned version has them, so a scenario that
 			// forgets its `requiredFeatures` fails with the harness's actionable
 			// message instead of a `z.file is not a function` from inside the build.

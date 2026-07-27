@@ -4,6 +4,7 @@
 // the order that matters.
 import { builtinValidatorScenarios } from './builtin-validator.mjs'
 import { collectionScenarios } from './collection.mjs'
+import { constraintScenarios } from './constraint.mjs'
 import { dateScenarios } from './date.mjs'
 import { fileMimeTypeScenarios } from './file-mime-type.mjs'
 import { fileScenarios } from './file.mjs'
@@ -12,6 +13,7 @@ import { issuePolicyScenarios } from './issue-policy.mjs'
 import { lifecycleScenarios } from './lifecycle.mjs'
 import { objectScenarios } from './object.mjs'
 import { optionalHeavyScenarios } from './optional-heavy.mjs'
+import { primitiveBuiltinScenarios } from './primitive-builtin.mjs'
 import { primitiveScenarios } from './primitive.mjs'
 import { recordTupleTemplateLiteralScenarios } from './record-tuple-template-literal.mjs'
 import { stringFormatExtendedScenarios } from './string-format-extended.mjs'
@@ -48,6 +50,8 @@ const scenarioFamilies = [
 	issuePolicyRecordTupleScenarios,
 	stringFormatExtendedScenarios,
 	fileMimeTypeScenarios,
+	constraintScenarios,
+	primitiveBuiltinScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()

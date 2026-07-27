@@ -65,6 +65,15 @@ export default {
 			v.maxLength(32),
 			v.regex(/^[a-z0-9-]+$/),
 		),
+		// The competitor side of `primitive-builtin` is identical to `primitive`:
+		// Valibot already spells the pattern check with a built-in action, so only
+		// the Valchecker adapter differs for that family.
+		primitiveBuiltin: () => v.pipe(
+			v.string(),
+			v.minLength(3),
+			v.maxLength(32),
+			v.regex(/^[a-z0-9-]+$/),
+		),
 		flatObject: () => v.object(createFields()),
 		// Identical to `flatObject`: Valibot already spells the email field with a
 		// built-in action, so only the Valchecker adapter differs for this family.
@@ -148,6 +157,36 @@ export default {
 		membership: () => v.picklist(['red', 'green', 'blue']),
 		issuePolicyRecord: () => v.record(v.string(), v.number()),
 		issuePolicyTuple: () => v.tuple([v.string(), v.string()]),
+		// Constraint validators, each a built-in pipe action.
+		constraintAtMost: () => v.pipe(v.number(), v.maxValue(100)),
+		constraintGreaterThan: () => v.pipe(v.number(), v.gtValue(0)),
+		constraintLessThan: () => v.pipe(v.number(), v.ltValue(100)),
+		// `multipleOf()` is an exact `%` remainder check, so it disagrees with
+		// `isMultipleOf()` on decimal divisors; the scenario's divisor is 5.
+		constraintMultipleOf: () => v.pipe(v.number(), v.multipleOf(5)),
+		constraintFinite: () => v.pipe(v.number(), v.finite()),
+		constraintSafeInteger: () => v.pipe(v.number(), v.safeInteger()),
+		// `v.number()` rejects `NaN`, so the pipe spelling cannot exist here; the
+		// dedicated `nan()` schema is the equivalent.
+		constraintNaN: () => v.nan(),
+		constraintStartingWith: () => v.pipe(v.string(), v.startsWith('user-')),
+		constraintEndingWith: () => v.pipe(v.string(), v.endsWith('.png')),
+		constraintIncluding: () => v.pipe(v.string(), v.includes('@example')),
+		constraintLengthExactly: () => v.pipe(v.string(), v.length(6)),
+		constraintNotEmpty: () => v.pipe(v.string(), v.nonEmpty()),
+		constraintEmpty: () => v.pipe(v.string(), v.empty()),
+		constraintEqualTo: () => v.literal('admin'),
+		constraintSizeAtLeast: () => v.pipe(v.set(v.string()), v.minSize(3)),
+		constraintSizeAtMost: () => v.pipe(v.set(v.string()), v.maxSize(3)),
+		constraintSizeExactly: () => v.pipe(v.set(v.string()), v.size(3)),
+		constraintStack: () => v.pipe(
+			v.string(),
+			v.minLength(12),
+			v.maxLength(128),
+			v.startsWith('avatars/'),
+			v.endsWith('.png'),
+			v.includes('/user-'),
+		),
 	},
 	parse(schema, input, context) {
 		return v.safeParse(

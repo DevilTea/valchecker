@@ -94,6 +94,15 @@ export default {
 			.isLengthAtLeast(3)
 			.isLengthAtMost(32)
 			.check(value => /^[a-z0-9-]+$/.test(value)),
+		// Same accept/reject set as `primitive`, with the closure replaced by the
+		// `isMatching` pattern validator the competitors were always spelled with
+		// (`.regex(...)` and `v.regex(...)`). The pattern stays an inline literal
+		// exactly as in `primitive` above, so the two Valchecker spellings differ in
+		// nothing but the final step.
+		primitiveBuiltin: () => v.string()
+			.isLengthAtLeast(3)
+			.isLengthAtMost(32)
+			.isMatching(/^[a-z0-9-]+$/),
 		flatObject: () => v.object(createFields()),
 		builtinFlatObject: () => v.object(createBuiltinFields()),
 		strictFlatObject: () => v.strictObject(createFields()),
@@ -197,6 +206,54 @@ export default {
 			.isOneOf(['red', 'green', 'blue']),
 		issuePolicyRecord: context => v.record(mapOptions(context, v.string(), v.number())),
 		issuePolicyTuple: context => v.tuple([v.string(), v.string()], structuralOptions(context)),
+		// One constraint validator per build key, each on the smallest schema that
+		// can carry it, so a scenario measures the constraint rather than a
+		// surrounding structure.
+		constraintAtMost: () => v.number()
+			.isAtMost(100),
+		constraintGreaterThan: () => v.number()
+			.isGreaterThan(0),
+		constraintLessThan: () => v.number()
+			.isLessThan(100),
+		constraintMultipleOf: () => v.number()
+			.isMultipleOf(5),
+		constraintFinite: () => v.number()
+			.isFinite(),
+		constraintSafeInteger: () => v.number()
+			.isSafeInteger(),
+		// `v.number()` is a `typeof` check that admits `NaN`, which is what lets the
+		// chain reach `isNaN()` at all; the competitors have a dedicated `nan()`
+		// schema instead.
+		constraintNaN: () => v.number()
+			.isNaN(),
+		constraintStartingWith: () => v.string()
+			.isStartingWith('user-'),
+		constraintEndingWith: () => v.string()
+			.isEndingWith('.png'),
+		constraintIncluding: () => v.string()
+			.isIncluding('@example'),
+		constraintLengthExactly: () => v.string()
+			.isLengthExactly(6),
+		constraintNotEmpty: () => v.string()
+			.isNotEmpty(),
+		constraintEmpty: () => v.string()
+			.isEmpty(),
+		constraintEqualTo: () => v.string()
+			.isEqualTo('admin'),
+		constraintSizeAtLeast: () => v.set(v.string())
+			.isSizeAtLeast(3),
+		constraintSizeAtMost: () => v.set(v.string())
+			.isSizeAtMost(3),
+		constraintSizeExactly: () => v.set(v.string())
+			.isSizeExactly(3),
+		// Five constraints on one field, which is what a real schema does and what
+		// the single-constraint keys above cannot show.
+		constraintStack: () => v.string()
+			.isLengthAtLeast(12)
+			.isLengthAtMost(128)
+			.isStartingWith('avatars/')
+			.isEndingWith('.png')
+			.isIncluding('/user-'),
 	},
 	parse(schema, input) {
 		return schema.execute(input)
