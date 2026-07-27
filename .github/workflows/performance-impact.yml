@@ -47,7 +47,7 @@ on:
       runs:
         description: Paired repetitions for the impact comparison (minimum 3)
         required: false
-        default: '3'
+        default: '5'
         type: string
       fail_on_regression:
         description: Fail the job when the impact verdict is a regression
@@ -112,13 +112,21 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            # Five repetitions, not three. A scenario is only classified when its
+            # paired ratio is stable, and at three repetitions the interval is so
+            # wide that most scenarios are not: across four historical runs, 27 to
+            # 44 of 80 could be judged, so the gate was blind to more than half of
+            # what it was watching. The interval narrows with both the wider t
+            # quantile and the extra samples, which puts 56 to 68 of the same 80
+            # inside the threshold. It costs about ten minutes, and the gate can
+            # only ever pass a scenario it cannot judge.
             {
               echo "before=$PR_BASE_SHA"
               echo "after=$PR_HEAD_SHA"
               echo "adapters="
               echo "scenarios="
               echo "profile=standard"
-              echo "runs=3"
+              echo "runs=5"
               echo "fail_on_regression=true"
             } >> "$GITHUB_OUTPUT"
           else

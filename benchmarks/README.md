@@ -74,14 +74,14 @@ Brotli is the primary automated comparison metric. Cross-library numbers describ
 
 The **Performance Impact** workflow measures the impact of a change and runs two ways:
 
-- **Pull request (automatic gate).** Pull requests that modify runtime source or benchmark code compare the pull request base (`before`) against the head (`after`) with the standard profile, Valchecker only, all scenarios, and `fail_on_regression` enabled.
+- **Pull request (automatic gate).** Pull requests that modify runtime source or benchmark code compare the pull request base (`before`) against the head (`after`) with the standard profile, Valchecker only, all scenarios, five paired repetitions, and `fail_on_regression` enabled. Five rather than three because the gate classifies a scenario only when its paired-ratio interval is at most 5% wide, and three repetitions leave most scenarios unclassified and therefore unwatched.
 - **Manual dispatch.** `workflow_dispatch` compares two arbitrary revisions on demand and lets you choose exactly what to measure:
   - `before`: baseline git ref (branch, tag, or SHA); required
   - `after`: candidate git ref; defaults to the dispatched ref
   - `adapters`: competitor adapters to show alongside Valchecker (for example `valibot,zod3`); empty measures Valchecker only
   - `scenarios`: scenario ids or group names to run; empty runs every scenario for the profile
   - `profile`: `smoke`, `standard`, or `full`
-  - `runs`: paired repetitions for the impact comparison (minimum three)
+  - `runs`: paired repetitions for the impact comparison (minimum three, default five)
   - `fail_on_regression`: fail the job when the impact verdict is a regression
 
 The comparison scripts always come from the checked-out ref (the pull request merge ref, or the dispatched ref), so scenario selection and the compare tooling stay fixed; `before` and `after` are only two Valchecker builds the fixed scripts point at via `VALCHECKER_DIST_URL`.
