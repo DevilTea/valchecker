@@ -36,9 +36,22 @@ export interface ExecutionFailureResult<Issue extends AnyExecutionIssue> extends
 }
 export type ExecutionResult<Output = unknown, Issue extends AnyExecutionIssue = AnyExecutionIssue> = ExecutionSuccessResult<Output> | ExecutionFailureResult<Issue>
 
+/**
+ * Type-state-only capabilities a plugin def may advertise to other steps, keyed
+ * by capability name. These are not step methods and must never become one, so
+ * they live under a single reserved slot instead of alongside the method
+ * definitions — a top-level field would leak into `RegisteredStepMethodName`
+ * and therefore into `core:unknown_exception`'s `payload.method` union, which
+ * happened while `UnionShorthand` sat at the top level.
+ */
+export interface TStepPluginCapabilities {
+	[capability: string]: unknown
+}
+
 // T type
 export interface TStepPluginDef {
 	CurrentValchecker: unknown
+	Capabilities?: TStepPluginCapabilities
 }
 
 export interface TStepMethodMeta {
@@ -366,6 +379,12 @@ export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToInter
 							params: MethodTuple[0]
 							context: {
 								createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
+								/**
+								 * Every entry registered under `capability` by the plugins of
+								 * this instance, in registration order. Empty when no
+								 * registered plugin declares it.
+								 */
+								getCapabilities: <Capability>(capability: symbol) => readonly Capability[]
 							}
 						},
 					) => void
@@ -405,7 +424,7 @@ export interface DefineStepMethodMeta<Meta extends {
 
 export interface DefineStepMethod<Meta extends TStepMethodMeta, Method extends AnyFn> { Type: 'ExecutionStep', Meta: Meta, Method: Method }
 
-export type RegisteredStepMethodName<RegisteredStepPluginDefs extends TStepPluginDef> = Exclude<keyof UnionToIntersection<RegisteredStepPluginDefs>, 'CurrentValchecker'> extends infer N extends string ? N : never
+export type RegisteredStepMethodName<RegisteredStepPluginDefs extends TStepPluginDef> = Exclude<keyof UnionToIntersection<RegisteredStepPluginDefs>, keyof TStepPluginDef> extends infer N extends string ? N : never
 
 export type UnknownExceptionIssue<M extends string = string> = ExecutionIssue<
 	'core:unknown_exception',

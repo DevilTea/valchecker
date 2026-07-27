@@ -352,6 +352,39 @@ describe('valchecker instance contracts', () => {
 			.toBe('async')
 	})
 
+	it('exposes every registered plugin capability to a step, in registration order', () => {
+		const shorthand = Symbol('shorthand')
+		const annotation = Symbol('annotation')
+		const seen: unknown[] = []
+
+		// One plugin may declare several capabilities, and several plugins may
+		// declare the same one; a consumer sees each entry once, in registration
+		// order.
+		const provider = implStepPlugin(
+			{ provide: ({ utils }: any) => utils.addSuccessStep(utils.success) } as any,
+			'sync',
+			{ [shorthand]: 'first', [annotation]: 'annotated' },
+		) as StepPluginImpl<TStepPluginDef>
+		const secondProvider = implStepPlugin(
+			{ provideMore: ({ utils }: any) => utils.addSuccessStep(utils.success) } as any,
+			'sync',
+			{ [shorthand]: 'second' },
+		) as StepPluginImpl<TStepPluginDef>
+
+		const consumer = implStepPlugin({
+			consume: ({ utils, context }: any) => {
+				seen.push(context.getCapabilities(shorthand), context.getCapabilities(annotation), context.getCapabilities(Symbol('absent')))
+				utils.addSuccessStep(utils.success)
+			},
+		} as any, 'sync') as StepPluginImpl<TStepPluginDef>
+
+		const w = createValchecker({ steps: [provider, secondProvider, consumer] }) as any
+		w.consume()
+
+		expect(seen)
+			.toEqual([['first', 'second'], ['annotated'], []])
+	})
+
 	it('exposes construction-time metadata on ~core and drops it on chaining', () => {
 		const v = createValchecker({ steps: [flowPlugin] }) as any
 

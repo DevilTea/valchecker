@@ -1,8 +1,9 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
-import type { TUnionShorthandDef } from '../union/union-shorthand'
+import type { TUnionShorthandDef, UnionShorthandProvider } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
+import { unionShorthandCapability } from '../union/union-shorthand'
 
 type Issue = ExecutionIssue<'undefined:expected_undefined', { value: unknown }>
 
@@ -19,7 +20,7 @@ type Meta = DefineStepMethodMeta<{
 	SelfIssue: Issue
 }>
 interface PluginDef extends TStepPluginDef {
-	UnionShorthand: UnionShorthandDef
+	Capabilities: { UnionShorthand: UnionShorthandDef }
 	/**
 	 * ### Description:
 	 * Checks that the value is undefined.
@@ -76,4 +77,9 @@ export const undefined_ = implStepPlugin<PluginDef>({
 					),
 		)
 	},
-}, 'sync')
+}, 'sync', {
+	[unionShorthandCapability]: {
+		matches: (branch: unknown) => branch === undefined,
+		method: 'undefined',
+	} satisfies UnionShorthandProvider,
+})

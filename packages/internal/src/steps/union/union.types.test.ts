@@ -1,4 +1,4 @@
-import type { InferIssue, InferOperationMode, InferOutput } from '../../core'
+import type { InferAllIssue, InferIssue, InferOperationMode, InferOutput } from '../../core'
 import { describe, expectTypeOf, it } from 'vitest'
 import { createValchecker, literal, null_, number, string, transform, undefined_, union } from '../..'
 
@@ -99,6 +99,18 @@ describe('union type-state contracts', () => {
 				| 'core:unknown_exception'
 				| 'core:message_exception'
 		>()
+	})
+
+	it('keeps the capability slot out of the registered method names', () => {
+		// `UnionShorthand` is type-state, not a method. Declared at the top level of
+		// a PluginDef it leaked into `core:unknown_exception`'s `payload.method`,
+		// advertising a method that can never run.
+		type Methods = Extract<InferAllIssue<typeof v>, { code: 'core:unknown_exception' }>['payload']['method']
+
+		expectTypeOf<Extract<Methods, 'UnionShorthand' | 'Capabilities'>>()
+			.toEqualTypeOf<never>()
+		expectTypeOf<Extract<Methods, 'union' | 'literal'>>()
+			.toEqualTypeOf<'union' | 'literal'>()
 	})
 
 	it('enables only shorthands backed by registered provider steps', () => {
