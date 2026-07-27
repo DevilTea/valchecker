@@ -1,7 +1,10 @@
+import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, TStepPluginDef } from '../../core'
+import type { TUnionShorthandDef } from './union-shorthand'
 import { describe, expect, it, vi } from 'vitest'
-import { createValchecker, literal, null_, number, string, transform, undefined_, union, unknown } from '../..'
+import { createValchecker, implStepPlugin, literal, null_, number, string, transform, undefined_, union, unknown } from '../..'
 import { structuralFixture } from '../../test-utils/fixtures'
 import { getLiteralMembers } from '../literal/literal-members'
+import { unionShorthandCapability } from './union-shorthand'
 
 const unionFixture = structuralFixture
 
@@ -195,18 +198,100 @@ describe('union step plugin', () => {
 		expect(() => (v as any).union([, v.string()]))
 			.toThrowError('union() branch at index 0 is missing.')
 		expect(() => (v as any).union([{}]))
-			.toThrowError('Invalid union branch at index 0.')
+			.toThrowError('Invalid union branch at index 0: it is neither a schema nor a value any registered shorthand provider accepts.')
 	})
 
 	it('rejects shorthand values whose provider step is not registered', () => {
+		// Branch resolution goes through the providers registered on the instance,
+		// so an unregistered provider means nothing claims the value. The type
+		// level already rejects these calls; this covers the runtime escape.
 		const schemaOnly = createValchecker({ steps: [union] }) as any
+		const rejection = 'it is neither a schema nor a value any registered shorthand provider accepts'
 
 		expect(() => schemaOnly.union(['value']))
-			.toThrowError('Required step method is not registered: literal')
+			.toThrowError(rejection)
 		expect(() => schemaOnly.union([null]))
-			.toThrowError('Required step method is not registered: null')
+			.toThrowError(rejection)
 		expect(() => schemaOnly.union([undefined]))
-			.toThrowError('Required step method is not registered: undefined')
+			.toThrowError(rejection)
+	})
+
+	it('resolves a third-party shorthand provider registered by a plugin', () => {
+		// The mechanism is open: a plugin outside this package can teach `union` a
+		// new shorthand by declaring the capability, with no change here.
+		interface DateShorthandDef extends TUnionShorthandDef {
+			input: Date
+			operationMode: 'sync'
+			output: Date
+			issue: ExecutionIssue<'dateBranch:expected_date', { value: unknown }>
+		}
+		interface DatePluginDef extends TStepPluginDef {
+			Capabilities: { UnionShorthand: DateShorthandDef }
+			dateBranch: DefineStepMethod<
+				DefineStepMethodMeta<{
+					Name: 'dateBranch'
+					ExpectedCurrentValchecker: DefineExpectedValchecker
+					SelfIssue: ExecutionIssue<'dateBranch:expected_date', { value: unknown }>
+				}>,
+				this['CurrentValchecker'] extends infer This extends DefineExpectedValchecker
+					? (expected: Date) => Next<{ output: Date }, This>
+					: never
+			>
+		}
+
+		const dateBranch = implStepPlugin<DatePluginDef>({
+			dateBranch: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [expected] }) => {
+				addSuccessStep(value => value instanceof Date && value.getTime() === expected.getTime()
+					? success(value)
+					: failure(createIssue({
+							code: 'dateBranch:expected_date',
+							payload: { value },
+							defaultMessage: 'Expected the declared date.',
+						})))
+			},
+		}, 'sync', {
+			[unionShorthandCapability]: {
+				matches: (branch: unknown) => branch instanceof Date,
+				method: 'dateBranch',
+				toParams: (branch: unknown) => [branch],
+			},
+		})
+
+		const moment = new Date('2026-07-27T00:00:00.000Z')
+		const w = createValchecker({ steps: [union, string, dateBranch] }) as any
+		const schema = w.union([moment, w.string()])
+
+		expect(schema.execute(new Date(moment.getTime())))
+			.toEqual({ value: new Date(moment.getTime()) })
+		expect(schema.execute('text'))
+			.toEqual({ value: 'text' })
+		// A failing union reports every branch's issues, so the third-party branch
+		// contributes its own alongside the string branch's.
+		expect(schema.execute(new Date('2020-01-01T00:00:00.000Z')))
+			.toMatchObject({
+				issues: [
+					{ code: 'dateBranch:expected_date', context: [{ type: 'union', branchIndex: 0 }] },
+					{ code: 'string:expected_string', context: [{ type: 'union', branchIndex: 1 }] },
+				],
+			})
+	})
+
+	it('surfaces a provider naming a step its plugin does not register', () => {
+		// A capability is a claim, and a wrong claim has to fail loudly: the
+		// provider matches the branch and then names a method nobody registered.
+		const brokenProvider = implStepPlugin<any>({
+			brokenBranch: ({ utils: { addSuccessStep, success } }: any) => addSuccessStep(success),
+		} as any, 'sync', {
+			[unionShorthandCapability]: {
+				matches: (branch: unknown) => typeof branch === 'bigint',
+				method: 'notRegistered',
+			},
+		})
+
+		const w = createValchecker({ steps: [union, brokenProvider] }) as any
+
+		expect(() => w.union([1n]))
+			.toThrowError('Required step method is not registered: notRegistered')
 	})
 
 	it('resolves shorthand providers independently of registration order', () => {

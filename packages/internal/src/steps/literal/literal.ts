@@ -1,7 +1,9 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
+import type { UnionShorthandProvider } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
+import { unionShorthandCapability } from '../union/union-shorthand'
 import { declareLiteralMembers } from './literal-members'
 
 declare namespace Internal {
@@ -23,7 +25,7 @@ type Meta = DefineStepMethodMeta<{
 	SelfIssue: Internal.Issue
 }>
 interface PluginDef extends TStepPluginDef {
-	UnionShorthand: LiteralUnionShorthandDef
+	Capabilities: { UnionShorthand: LiteralUnionShorthandDef }
 	/**
 	 * ### Description:
 	 * Checks that the value matches the specified literal with `Object.is`.
@@ -81,4 +83,17 @@ export const literal = implStepPlugin<PluginDef>({
 					defaultMessage: `Expected literal value "${String(literalValue)}".`,
 				})))
 	},
-}, 'sync')
+}, 'sync', {
+	[unionShorthandCapability]: {
+		matches: (branch: unknown) => {
+			const type = typeof branch
+			return type === 'bigint'
+				|| type === 'boolean'
+				|| type === 'number'
+				|| type === 'string'
+				|| type === 'symbol'
+		},
+		method: 'literal',
+		toParams: (branch: unknown) => [branch],
+	} satisfies UnionShorthandProvider,
+})

@@ -1,8 +1,31 @@
 import type { AnyExecutionIssue, OperationMode, TStepPluginDef } from '../../core'
 
 /**
- * Type-state-only capability carried by a provider PluginDef. These fields do
- * not match DefineStepMethod, so they never become runtime Valchecker methods.
+ * Runtime half of the shorthand mechanism. A provider claims the branch values
+ * it recognizes and names the initial step that validates them, so `union`
+ * resolves a shorthand through whichever providers are registered instead of
+ * hardcoding the built-in three. Register one with
+ * `declareStepPluginCapability(plugin, unionShorthandCapability, provider)`.
+ *
+ * Providers are consulted in registration order and the first match wins, so
+ * two providers claiming the same value resolve to whichever was registered
+ * first. Keep `matches` mutually exclusive when that matters.
+ */
+export interface UnionShorthandProvider {
+	/** Whether this provider recognizes `branch` as one of its shorthand values. */
+	matches: (branch: unknown) => boolean
+	/** Initial step method that validates a matched branch. */
+	method: string
+	/** Parameters for that method; defaults to none. */
+	toParams?: (branch: unknown) => readonly unknown[]
+}
+
+export const unionShorthandCapability: unique symbol = Symbol.for('valchecker.unionShorthand')
+
+/**
+ * Type-state-only half of the shorthand mechanism, declared under a provider
+ * PluginDef's `Capabilities` slot so it can never be mistaken for a step
+ * method — as a top-level field it leaked into `RegisteredStepMethodName`.
  */
 export interface TUnionShorthandDef {
 	branch: unknown
@@ -14,7 +37,7 @@ export interface TUnionShorthandDef {
 
 type RegisteredUnionShorthandDef<
 	Registered extends TStepPluginDef,
-> = Registered extends { UnionShorthand: infer Def extends TUnionShorthandDef }
+> = Registered extends { Capabilities: { UnionShorthand: infer Def extends TUnionShorthandDef } }
 	? Def
 	: never
 

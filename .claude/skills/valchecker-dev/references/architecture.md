@@ -62,6 +62,14 @@ Metadata keys are well-known symbols owned by the declaring step module and impo
 
 Type-level metadata is represented by explicit optional `TExecutionContext` fields only when a type-system consumer exists; it is not a generic symbol map.
 
+## Plugin capabilities
+
+A capability lets one step discover what another registered step can do without importing it. It is declared as the third argument of `implStepPlugin`, keyed by a well-known symbol, and read by any step of the same instance through `context.getCapabilities(symbol)` in registration order. `union` resolves its shorthand branches this way, so a third-party plugin can add a branch kind.
+
+Declare a capability inside the `implStepPlugin` call. A top-level declaration statement after it is dropped by the bundler as an unused side effect, and the capability then exists in source but not in the published build.
+
+The type-state half goes under the plugin def's `Capabilities` slot, never at the top level, where it would be read as a step method name and surface in `core:unknown_exception`'s `payload.method`.
+
 ## Public-step integration
 
 A normal built-in step has:

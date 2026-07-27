@@ -1,14 +1,16 @@
 import type { IsEqual } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, InferExecutionContext, InferIssue, InferOperationMode, InferOutput, InferRegisteredStepPluginDefs, Next, OperationMode, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { TemplateLiteralPartDescriptor } from '../templateLiteral/template-literal-part'
-import type { ResolveUnionShorthand, UnionShorthandInput } from './union-shorthand'
+import type { ResolveUnionShorthand, UnionShorthandInput, UnionShorthandProvider } from './union-shorthand'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 import { declareLiteralMembers, getLiteralMembers } from '../literal/literal-members'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
+import { unionShorthandCapability } from './union-shorthand'
 
 interface UnionStepMethodContext {
 	createInitialSchema: (method: string, params?: readonly unknown[]) => Use<Valchecker>
+	getCapabilities: <Capability>(capability: symbol) => readonly Capability[]
 }
 
 declare namespace Internal {
@@ -108,29 +110,31 @@ function isValcheckerSchema(value: unknown): value is Use<Valchecker> {
 	) && typeof Reflect.get(value, '~execute') === 'function'
 }
 
-function isLiteralShorthand(value: unknown): value is bigint | boolean | number | string | symbol {
-	const type = typeof value
-	return type === 'bigint'
-		|| type === 'boolean'
-		|| type === 'number'
-		|| type === 'string'
-		|| type === 'symbol'
-}
-
+/**
+ * Resolves a branch that is not already a schema through the shorthand
+ * providers registered on this instance, in registration order. The set of
+ * accepted shorthand values is therefore exactly the set the type level accepts
+ * (the union of each registered provider's declared `input`), including
+ * providers this module knows nothing about.
+ */
 function normalizeBranch(
 	branch: unknown,
 	index: number,
 	context: UnionStepMethodContext,
+	providers: readonly UnionShorthandProvider[],
 ): Use<Valchecker> {
 	if (isValcheckerSchema(branch))
 		return branch
-	if (branch === null)
-		return context.createInitialSchema('null')
-	if (branch === undefined)
-		return context.createInitialSchema('undefined')
-	if (isLiteralShorthand(branch))
-		return context.createInitialSchema('literal', [branch])
-	throw new TypeError(`Invalid union branch at index ${index}.`)
+	for (let i = 0; i < providers.length; i++) {
+		const provider = providers[i]!
+		if (provider.matches(branch))
+			return context.createInitialSchema(provider.method, provider.toParams?.(branch) ?? [])
+	}
+	// A registry cannot name the provider that WOULD have claimed the value, so
+	// the message states the category instead: nothing registered accepts it.
+	throw new TypeError(
+		`Invalid union branch at index ${index}: it is neither a schema nor a value any registered shorthand provider accepts.`,
+	)
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -142,6 +146,8 @@ export const union = implStepPlugin<PluginDef>({
 	}) => {
 		if (!Array.isArray(branches) || branches.length === 0)
 			throw new TypeError('union() requires at least one branch.')
+
+		const shorthandProviders = context.getCapabilities<UnionShorthandProvider>(unionShorthandCapability)
 
 		const branchExecutors: Use<Valchecker>['~execute'][] = Array.from({ length: branches.length })
 		let operationMode: OperationMode = 'sync'
@@ -157,7 +163,7 @@ export const union = implStepPlugin<PluginDef>({
 		for (let index = 0; index < branches.length; index++) {
 			if (!Object.hasOwn(branches, index))
 				throw new TypeError(`union() branch at index ${index} is missing.`)
-			const branch = normalizeBranch(branches[index], index, context)
+			const branch = normalizeBranch(branches[index], index, context, shorthandProviders)
 			branchExecutors[index] = branch['~execute']
 			if (branch['~core']?.operationMode !== 'sync')
 				operationMode = 'maybe-async'

@@ -24,6 +24,7 @@ type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
 
 const stepPluginDefaultOperationMode = Symbol.for('valchecker.stepPluginDefaultOperationMode')
+const stepPluginCapabilities = Symbol.for('valchecker.stepPluginCapabilities')
 
 const RUNTIME_OPERATION_MODE_SYNC = 0
 const RUNTIME_OPERATION_MODE_MAYBE_ASYNC = 1
@@ -56,6 +57,7 @@ function toRuntimeOperationMode(operationMode: OperationMode): RuntimeOperationM
 }
 
 interface StepMethodContext {
+	getCapabilities: (capability: symbol) => readonly any[]
 	createInitialSchema: (method: string, params?: readonly unknown[]) => any
 }
 
@@ -111,14 +113,33 @@ function setIssueDraftMetadata(
 }
 
 /* @__NO_SIDE_EFFECTS__ */
+/**
+ * `capabilities` registers runtime capabilities discoverable by any other step
+ * of the same instance through `context.getCapabilities(key)`. A capability is
+ * how one step learns what another registered step can do without importing it
+ * or hardcoding its name — `union` resolves shorthand branches this way. Keys
+ * are well-known symbols owned by the consuming step, mirroring the
+ * construction metadata channel.
+ *
+ * They are declared here, as part of building the plugin, rather than by a
+ * separate call afterwards: this package is bundled with `moduleSideEffects:
+ * false`, so a top-level `declare(plugin, …)` statement is dropped as an unused
+ * side effect and the capability silently disappears from the published build.
+ */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
 	stepImpl: StepPluginImpl<StepPluginDef>,
 	defaultOperationMode: OperationMode = 'maybe-async',
+	capabilities?: Readonly<Record<symbol, unknown>>,
 ): StepPluginImpl<StepPluginDef> {
 	(stepImpl as any)[runtimeExecutionStepDefMarker] = true
 	Object.defineProperty(stepImpl, stepPluginDefaultOperationMode, {
 		value: toRuntimeOperationMode(defaultOperationMode),
 	})
+	if (capabilities !== undefined) {
+		Object.defineProperty(stepImpl, stepPluginCapabilities, {
+			value: capabilities,
+		})
+	}
 	return stepImpl
 }
 
@@ -876,10 +897,21 @@ export function createValchecker<
 	>
 }) {
 	const stepMethods = Object.create(null) as RegisteredStepMethods
+	const capabilityEntries = new Map<symbol, unknown[]>()
 	for (const def of steps) {
 		const defaultOperationMode = (def as any)[stepPluginDefaultOperationMode] ?? RUNTIME_OPERATION_MODE_MAYBE_ASYNC
+		const declaredCapabilities = (def as any)[stepPluginCapabilities] as Record<symbol, unknown> | undefined
+		if (declaredCapabilities != null) {
+			for (const capability of Object.getOwnPropertySymbols(declaredCapabilities)) {
+				const entries = capabilityEntries.get(capability)
+				if (entries == null)
+					capabilityEntries.set(capability, [declaredCapabilities[capability]])
+				else
+					entries.push(declaredCapabilities[capability])
+			}
+		}
 		for (const method of Reflect.ownKeys(def)) {
-			if (method === runtimeExecutionStepDefMarker || method === stepPluginDefaultOperationMode)
+			if (method === runtimeExecutionStepDefMarker || method === stepPluginDefaultOperationMode || method === stepPluginCapabilities)
 				continue
 			if (typeof method !== 'string')
 				throw new TypeError(`Invalid step method name: ${String(method)}`)
@@ -927,7 +959,9 @@ export function createValchecker<
 		return instance
 	}
 
+	const emptyCapabilities: readonly unknown[] = Object.freeze([])
 	const context: StepMethodContext = {
+		getCapabilities: capability => capabilityEntries.get(capability) ?? emptyCapabilities,
 		createInitialSchema: (method, params = []) => {
 			const registeredStepMethod = stepMethods[method]
 			if (registeredStepMethod == null)

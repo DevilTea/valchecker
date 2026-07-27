@@ -249,6 +249,37 @@ Do not spread a draft issue on a propagation path. Its unresolved message metada
 
 The declaring module owns the symbol and any required snapshot or freeze of mutable metadata. Package-private symbols are not barrel-exported.
 
+## Plugin capabilities
+
+A capability is how one step discovers what another registered step can do, without importing it or hardcoding its name. Declare it as the third argument of `implStepPlugin`, keyed by a well-known symbol owned by the consuming step:
+
+<!-- typecheck-skip -->
+```ts
+import { implStepPlugin, unionShorthandCapability } from 'valchecker'
+
+export const dateBranch = implStepPlugin<PluginDef>({
+	dateBranch: ({ utils, params: [expected] }) => {
+		utils.addSuccessStep(value => utils.success(value))
+	},
+}, 'sync', {
+	[unionShorthandCapability]: {
+		matches: (branch: unknown) => branch instanceof Date,
+		method: 'dateBranch',
+		toParams: (branch: unknown) => [branch],
+	},
+})
+```
+
+A step implementation reads every registered entry with `context.getCapabilities(symbol)`, in registration order. Declaring the same capability from several plugins is normal — that is how `union` collects its shorthand providers.
+
+Declare capabilities inside the `implStepPlugin` call, never as a separate statement afterwards. This package is bundled with `moduleSideEffects: false`, so a top-level `declare(plugin, …)` call is eliminated as an unused side effect and the capability silently disappears from the published build.
+
+The type-state half belongs under the plugin def's `Capabilities` slot. A field at the top level of a plugin def is treated as a step method name and leaks into `core:unknown_exception`'s `payload.method`.
+
+### Union shorthand providers
+
+`union` accepts non-schema branch values through this mechanism. A provider declares which values it claims (`matches`), the initial step that validates them (`method`), and the parameters to pass (`toParams`). Providers are consulted in registration order and the first match wins, so keep `matches` mutually exclusive with the built-in `literal`, `null`, and `undefined` providers unless overriding them is the intent. The type-state counterpart, `Capabilities: { UnionShorthand: … }`, declares the branch input and the resulting output and issue types.
+
 ## Supported plugin API
 
 Use only root exports from `@valchecker/internal`. Package-private source paths and unexported runtime helpers are not semver-covered.
