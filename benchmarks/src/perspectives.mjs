@@ -11,7 +11,7 @@
  */
 
 export const INTERPRETED_PERSPECTIVE = 'interpreted'
-export const COMPLETE_PERSPECTIVE = 'complete'
+const COMPLETE_PERSPECTIVE = 'complete'
 
 function generatedCodeAdapters(raw) {
 	return new Set(raw.libraries
@@ -27,23 +27,40 @@ function generatedCodeAdapters(raw) {
 export function reportPerspectives(raw) {
 	const generated = generatedCodeAdapters(raw)
 	const interpreted = raw.libraries.filter(library => !generated.has(library.adapter))
-	if (generated.size === 0 || interpreted.length < 2)
-		return [{ key: COMPLETE_PERSPECTIVE, title: null, note: null, adapters: null }]
-
 	const generatedNames = raw.libraries
 		.filter(library => generated.has(library.adapter))
 		.map(library => library.name)
+		.sort()
 		.join(', ')
+
+	if (generated.size === 0)
+		return [{ key: COMPLETE_PERSPECTIVE, title: null, note: null, warning: null, adapters: null }]
+
+	// Fewer than two interpreted libraries cannot be ranked against each other,
+	// so the split collapses — but the run still mixes execution strategies, and
+	// that is exactly when a reader is most likely to quote a generated-code
+	// number as if it were like-for-like. Keep the warning even without a ranking.
+	if (interpreted.length < 2) {
+		return [{
+			key: COMPLETE_PERSPECTIVE,
+			title: null,
+			note: null,
+			warning: `${generatedNames} compiles each schema into generated code. This adapter selection leaves fewer than two interpreted libraries, so no interpreted-only ranking is possible here; add another interpreted adapter to get one.`,
+			adapters: null,
+		}]
+	}
 
 	return [
 		{
 			key: INTERPRETED_PERSPECTIVE,
+			warning: null,
 			title: 'Interpreted validators only',
 			note: `Ranks the libraries that interpret their schemas at execution time. ${generatedNames} compiles each schema into generated code, which is a different execution strategy rather than a faster version of the same work, so it is excluded here and ranked in the next section.`,
 			adapters: new Set(interpreted.map(library => library.adapter)),
 		},
 		{
 			key: COMPLETE_PERSPECTIVE,
+			warning: null,
 			title: 'Including generated-code validators',
 			note: `Ranks every measured library, including ${generatedNames}. Generated code trades schema-creation and first-execution cost for warmed throughput, so read this section together with the construction and cold groups rather than on its own.`,
 			adapters: null,
