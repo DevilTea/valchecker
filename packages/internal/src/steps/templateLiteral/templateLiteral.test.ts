@@ -1,6 +1,6 @@
 /* eslint-disable no-template-curly-in-string -- test titles and canonical template payloads use literal `${...}` template-type notation, not JS interpolation */
 import { describe, expect, it } from 'vitest'
-import { any, bigint, boolean, createValchecker, literal, null_, number, object, string, templateLiteral, toTrimmed, undefined_, union } from '../..'
+import { any, bigint, boolean, createValchecker, literal, looseBigint, looseNumber, null_, number, object, string, templateLiteral, toTrimmed, undefined_, union } from '../..'
 
 const v = createValchecker({
 	steps: [templateLiteral, string, number, bigint, boolean, literal, null_, undefined_, union, any, object, toTrimmed],
@@ -369,5 +369,33 @@ describe('templateLiteral step plugin', () => {
 			expect(() => v.templateLiteral([v.union(many as [string, ...string[]]), v.union(many as [string, ...string[]])]))
 				.toThrow(TypeError)
 		})
+	})
+})
+
+describe('templateLiteral placeholder grammars', () => {
+	// The `${number}` and `${bigint}` rules are owned by the loose primitives that
+	// carry their names. A placeholder and the corresponding schema must therefore
+	// accept exactly the same strings; this is the contract that sharing buys.
+	const w = createValchecker({ steps: [templateLiteral, number, bigint, looseBigint, looseNumber, string] })
+	const segments = ['0', '-0', '1', '-1', '42', '007', '1.5', '.5', '5.', '1e3', '1e999', '+1', ' 1 ', '', 'NaN', 'Infinity', '1_000', '0x10', '-0x10', '0b101', '0o17', '9007199254740993', 'abc']
+
+	it.each(segments)('agrees with looseNumber on %o', (segment) => {
+		const viaTemplate = 'value' in w.templateLiteral([w.number()])
+			.execute(segment)
+		const viaSchema = 'value' in w.looseNumber()
+			.execute(segment)
+
+		expect(viaTemplate)
+			.toBe(viaSchema)
+	})
+
+	it.each(segments)('agrees with looseBigint on %o', (segment) => {
+		const viaTemplate = 'value' in w.templateLiteral([w.bigint()])
+			.execute(segment)
+		const viaSchema = 'value' in w.looseBigint()
+			.execute(segment)
+
+		expect(viaTemplate)
+			.toBe(viaSchema)
 	})
 })

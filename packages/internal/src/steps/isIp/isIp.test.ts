@@ -10,6 +10,12 @@ const valid = [
 	'::1',
 	'2001:db8::8a2e:370:7334',
 	'::ffff:192.168.0.1',
+	// The octet range lives in the pattern now, so each rule needs a case on both
+	// sides of its edge.
+	'9.99.199.255',
+	'10.100.200.249',
+	'1.0.0.0',
+	'250.251.252.253',
 ]
 
 const invalid = [
@@ -21,6 +27,22 @@ const invalid = [
 	'1::2::3',
 	'hello',
 	'',
+	'255.255.255.256',
+	'260.1.1.1',
+	'300.1.1.1',
+	'999.1.1.1',
+	'1.1.1.',
+	'.1.1.1.1',
+	'1..1.1',
+	'1.1.1.1.',
+	'00.1.1.1',
+	'1.007.1.1',
+	'+1.1.1.1',
+	'1.1.1.1 ',
+	' 1.1.1.1',
+	// `$` is end of input, not end of line.
+	'1.1.1.1\nbad',
+	'bad\n1.1.1.1',
 ]
 
 describe('isIp step plugin', () => {

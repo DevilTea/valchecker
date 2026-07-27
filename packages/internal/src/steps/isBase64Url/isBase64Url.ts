@@ -1,7 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-
-const pattern = /^(?:[\w-]{4})*(?:[\w-]{2,3})?$/
+import { isBase64UrlString } from './base64url'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isBase64Url'
@@ -48,7 +47,7 @@ export const isBase64Url = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep(value => pattern.test(value)
+		addSuccessStep(value => isBase64UrlString(value)
 			? success(value)
 			: failure(
 					createIssue({
