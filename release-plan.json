@@ -3,6 +3,7 @@
 	"version": "0.0.33",
 	"npmTag": "latest",
 	"channel": "stable",
+	"state": "published",
 	"publish": false,
 	"packages": [
 		"@valchecker/internal",

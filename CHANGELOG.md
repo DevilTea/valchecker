@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-## [0.0.33] - Unreleased
+## [0.0.33] - 2026-07-27
 
 The first release in six months, published to the npm `latest` tag. It carries everything prepared for the `1.0.0-rc.0` candidate together with the refinements made on top of it; the 1.0 line has not shipped, so this continues the 0.x series, where a breaking change may land in any release.
 

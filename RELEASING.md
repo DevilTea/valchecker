@@ -17,7 +17,10 @@ The active candidate is defined in `release-plan.json`. It records:
 - the release channel,
 - the ordered package list,
 - external publishing prerequisites,
+- `state`, either `prepared` or `published`,
 - `publish: false` to assert that repository state never authorizes publication.
+
+`state` exists because the changelog heading must say different things at the two ends of a version's life: `Unreleased` while it is being prepared, since the repository must never claim a publication that has not happened, and the publication date once it has. The readiness gate enforces whichever one the state calls for. It cannot verify that a plan marked `published` really was published, so preparing the next version must set it back to `prepared`.
 
 The separate, manually dispatched npm workflow is the publication authorization: dispatching it from `main` and typing the exact confirmation string. A pull request, merge, tag, or value committed to `release-plan.json` must never publish a package by itself.
 
@@ -91,7 +94,7 @@ Prereleases must use the npm `next` tag. Stable versions must use `latest`.
 
 Before publishing a release candidate, all items must be true:
 
-- [ ] The version and npm tag in `release-plan.json` are correct.
+- [ ] The version and npm tag in `release-plan.json` are correct, and its `state` is back to `prepared`.
 - [ ] Root and all three publishable package manifests have the same version.
 - [ ] `CHANGELOG.md` has an `Unreleased` entry for the exact version.
 - [ ] `MIGRATION.md` documents every known pre-1.0 breaking change.
@@ -188,7 +191,7 @@ After npm publication succeeds:
 5. Repeat an ESM import and a TypeScript `NodeNext` compile outside the monorepo.
 6. Confirm the published package manifests contain exact internal dependency versions.
 7. Only then create the matching Git tag and GitHub release.
-8. Open a follow-up pull request replacing `- Unreleased` in that version's `CHANGELOG.md` heading with the publication date, and adding a fresh `## [Unreleased]` section above it. The readiness gate requires the heading to say `Unreleased` while the version is being prepared, so dating it is necessarily a post-publication step.
+8. Open a follow-up pull request that sets `release-plan.json`'s `state` to `published`, replaces `- Unreleased` in that version's `CHANGELOG.md` heading with the publication date, and makes sure a fresh `## [Unreleased]` section sits above it. The readiness gate requires the heading to say `Unreleased` while the version is being prepared and to carry the date once the state is `published`, so both edits belong in the same pull request; changing one without the other fails the gate.
 
 The tag must be exactly:
 
