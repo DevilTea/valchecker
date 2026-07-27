@@ -1,12 +1,8 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { isoTimeSource } from './iso-time-source'
 
-function isIsoTimeValue(value: string): boolean {
-	const match = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/.exec(value)
-	if (match === null)
-		return false
-	return Number(match[1]) <= 23 && Number(match[2]) <= 59 && Number(match[3]) <= 59
-}
+const isoTimePattern = new RegExp(String.raw`^${isoTimeSource}$`)
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoTime'
@@ -18,8 +14,8 @@ interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that the string is an ISO 8601 time of day in `HH:MM:SS` form
-	 * with an optional fractional-seconds part and no time-zone. Hours,
-	 * minutes, and seconds are range-checked (00-23, 00-59, 00-59).
+	 * with an optional fractional-seconds part and no time-zone. The field
+	 * ranges (00-23, 00-59, 00-59) are part of the accepted shape.
 	 *
 	 * ---
 	 *
@@ -53,7 +49,7 @@ export const isIsoTime = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		addSuccessStep(value => isIsoTimeValue(value)
+		addSuccessStep(value => isoTimePattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({

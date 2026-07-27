@@ -1,10 +1,12 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 import { isoCalendarDateSource } from '../isIsoDate/iso-calendar-date'
+import { isoHourMinuteSource, isoTimeSource } from '../isIsoTime/iso-time-source'
 
-// Time and offset ranges are part of the same pattern: an hour, minute, second,
-// optional fractional seconds, and an optional `Z` or `±HH:MM` offset.
-const isoDateTimePattern = new RegExp(String.raw`^${isoCalendarDateSource}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$`)
+// A calendar date, `T`, a time of day, and an optional `Z` or `±HH:MM` offset.
+// The date, time and offset grammars come from their owning steps, so this step
+// cannot drift from `isIsoDate` or `isIsoTime`.
+const isoDateTimePattern = new RegExp(String.raw`^${isoCalendarDateSource}T${isoTimeSource}(?:Z|[+-]${isoHourMinuteSource})?$`)
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoDateTime'
