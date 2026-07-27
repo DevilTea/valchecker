@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { warm } from './scenarios/define.mjs'
+import { canonicalizeOutput, warm } from './scenarios/define.mjs'
 import { getScenarioCatalog, getScenarios } from './scenarios/index.mjs'
 
 /**
@@ -58,6 +58,62 @@ test('the catalog carries steps through to the raw result', () => {
 	assert.equal(catalog.length, scenarios.length)
 	for (const [index, entry] of catalog.entries())
 		assert.deepEqual(entry.steps, scenarios[index].steps)
+})
+
+/**
+ * `canonicalizeOutput` decides whether an output assertion asserts anything. Two
+ * values it cannot tell apart make the assertion pass for the wrong output, which is
+ * indistinguishable from having no assertion — so what is checked here is that the
+ * values the suite actually produces are separated, and that a value it cannot
+ * separate is refused rather than silently flattened.
+ */
+
+function canonical(value) {
+	return JSON.stringify(canonicalizeOutput(value))
+}
+
+test('a materialized optional key is not the same output as an absent one', () => {
+	// Valchecker's `object` writes every declared-but-absent optional key as an own
+	// enumerable property valued `undefined`, so the sparse `optional-heavy` input
+	// produces a sixteen-key output where all four competitors produce a two-key one
+	// (executed on the four adapters, not assumed). `JSON.stringify` drops a property
+	// valued `undefined`, so these two used to canonicalize to the same string.
+	const materialized = { id: 'config-1', enabled: true, name: undefined, region: undefined }
+	const omitted = { id: 'config-1', enabled: true }
+	assert.notEqual(canonical(materialized), canonical(omitted))
+	// Not simply that everything differs now: the same shape still compares equal.
+	assert.equal(canonical(materialized), canonical({ ...materialized }))
+	assert.notEqual(canonical([1, undefined]), canonical([1, null]))
+})
+
+test('two Files and two Blobs that differ are not the same output', () => {
+	// A File and a Blob have no own enumerable properties, so the generic object branch
+	// would canonicalize both to `{}`: without their own branches `file-mime-type/valid`
+	// would accept a `text/plain` File as the output of an `image/png` check.
+	const png = new File(['payload'], 'payload.png', { type: 'image/png', lastModified: 0 })
+	const text = new File(['payload'], 'payload.txt', { type: 'text/plain', lastModified: 0 })
+	assert.notEqual(canonical(png), canonical(text))
+	assert.equal(canonical(png), canonical(new File(['payload'], 'payload.png', { type: 'image/png', lastModified: 0 })))
+	// Every File is a Blob, so the Blob branch alone would catch the pair above through
+	// their differing media types. These two differ in nothing a Blob has.
+	assert.notEqual(canonical(png), canonical(new File(['payload'], 'other.png', { type: 'image/png', lastModified: 0 })))
+	assert.notEqual(canonical(png), canonical(new File(['payload'], 'payload.png', { type: 'image/png', lastModified: 1 })))
+	assert.notEqual(canonical(new Blob(['payload'], { type: 'image/png' })), canonical(new Blob(['payload'], { type: 'text/plain' })))
+	assert.notEqual(canonical(new Blob(['payload'])), canonical(new Blob(['other payload'])))
+})
+
+test('a value canonicalizeOutput cannot tell apart from an empty object is refused', () => {
+	class Opaque {}
+	assert.throws(() => canonicalizeOutput(new Opaque()), /Opaque value.*no own enumerable properties/s)
+	assert.throws(() => canonicalizeOutput(new WeakMap()), /Add a branch for it/)
+	// An empty plain object really is an empty object, and one own property is enough to
+	// canonicalize an instance — which is why `BenchmarkResource` carries an `id`.
+	assert.deepEqual(canonicalizeOutput({}), {})
+	assert.deepEqual(canonicalizeOutput(new (class Resource {
+		constructor() {
+			this.id = 'resource-1'
+		}
+	})()), { id: 'resource-1' })
 })
 
 /**

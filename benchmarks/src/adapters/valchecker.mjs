@@ -1,5 +1,7 @@
 import process from 'node:process'
+import { featuresFor, issuePoliciesFor } from '../capabilities.mjs'
 import { asyncCallbacks, BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { versionOfModule } from './installed-version.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -103,41 +105,26 @@ function mapOptions(context, key, value) {
 		: { key, value }
 }
 
+// What "version" means for the build under test. The competitors report the version of
+// the package they resolved; this reports the version of the package that owns the dist
+// entry that was loaded, which for the default URL is `packages/valchecker` and for a
+// `VALCHECKER_DIST_URL` override is whichever checkout that build came from — the
+// impact workflow points this at two revisions of the same package, so the two sides
+// legitimately report the same version. Within one version it therefore does not
+// identify a build, and it is not what catches a mixed-build merge: `environment.commit`
+// is, and `merge` compares it across shards.
+const version = versionOfModule(valcheckerUrl)
+
 export default {
 	name: 'Valchecker',
-	version: 'workspace',
+	version,
 	capabilities: {
-		issuePolicies: ['first', 'all'],
+		issuePolicies: issuePoliciesFor('valchecker'),
 		generatedCode: false,
-		features: [
-			'file',
-			'template literal',
-			'combined IPv4/IPv6',
-			'base64url',
-			'JWT',
-			'hex',
-			'MAC address',
-			'hostname',
-			'boolean string parsing',
-			'bigint coercion',
-			'one-sided trim',
-			'Unicode normalization',
-			'undefined rejection',
-			'null rejection',
-			'nullish rejection',
-			// Separate from `file`: Zod 4 has `z.file()` but no blob schema, so a
-			// scenario gated on `file` would ask it for a build key it cannot provide.
-			'Blob',
-			// `json()` checks that a string parses. Zod 4's `z.json()` is a recursive
-			// JSON-value schema instead, which is a different comparison; see
-			// `scenarios/schema-kind.mjs`.
-			'JSON string validation',
-			// `toJSONValue()` and `toJSONString()` report a parse or serialization
-			// failure as an issue. Valibot's `parseJson()`/`stringifyJson()` do too;
-			// Zod's only spelling is a `transform` callback, and a throw inside one
-			// escapes `safeParse`.
-			'JSON conversion failure reporting',
-		],
+		// Declared in `../capabilities.mjs`. Valchecker appears in every feature entry
+		// there, because a feature name exists only where a competitor lacks something
+		// this library has.
+		features: featuresFor('valchecker'),
 	},
 	build: {
 		primitive: () => v.string()
@@ -325,6 +312,11 @@ export default {
 			.toBigint(),
 		convertString: () => v.number()
 			.toString(),
+		// The one conversion with a range guard of its own: a bigint becomes a number only
+		// inside the safe integer range. Every competitor spells the same decision as the
+		// native conversion piped into its own safe-range check.
+		safeNumber: () => v.bigint()
+			.toSafeNumber(),
 		mappedBoolean: () => v.string()
 			.toMappedBoolean(mappedBooleanValues),
 		shapeUppercase: () => v.string()

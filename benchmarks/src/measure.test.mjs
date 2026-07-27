@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { collectSamples, collectSamplesAsync, getProfile, hasEnoughSamples, measure, measureAsync } from './measure.mjs'
+import { collectSamples, collectSamplesAsync, getProfile, hasEnoughSamples, measure, measureAsync, summarize } from './measure.mjs'
 import { criticalValue, relativeMarginOfError } from './statistics.mjs'
 
 /**
@@ -176,6 +176,51 @@ test('past the table the quantile is computed, not replaced by the normal one', 
 
 test('a single sample is infinitely uncertain, not perfectly certain', () => {
 	assert.equal(relativeMarginOfError([42]), Number.POSITIVE_INFINITY)
+})
+
+/**
+ * The reported fields. Everything downstream reads these rather than the samples:
+ * `medianOpsPerSecond` is what every ranking, ratio, and geometric mean in the report
+ * is computed from, and `reachedTarget` is what marks a measurement that never reached
+ * the profile's precision. A test that only asserts they are finite accepts the first
+ * sample, the mean, or a constant in place of any of them, so these drive `summarize`
+ * with scripted samples whose answers are written out by hand.
+ */
+
+/** Three samples whose median, first value, and mean are three different numbers. */
+const scriptedSummary = [
+	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 1000, nanosecondsPerOperation: 50 },
+	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 3000, nanosecondsPerOperation: 10 },
+	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 2600, nanosecondsPerOperation: 20 },
+]
+
+test('the reported throughput is the median sample, not the first or the mean', () => {
+	// Sorted: 1000, 2600, 3000 — median 2600. The first sample is 1000 and the mean is
+	// (1000 + 3000 + 2600) / 3 = 2200, so all three answers are distinguishable.
+	const summary = summarize(scriptedSummary, fullProfile)
+	assert.equal(summary.medianOpsPerSecond, 2600)
+	assert.equal(summary.meanOpsPerSecond, 2200)
+	assert.deepEqual(summary.samples, scriptedSummary)
+})
+
+test('the reported nanoseconds are the median of the sampled nanoseconds', () => {
+	// Sorted: 10, 20, 50 — median 20, where the first sample says 50. The values are
+	// deliberately not 1e9 divided by the throughputs above (which would be 1,000,000,
+	// 333,333 and 384,615), so a summary that derived this field from the throughput
+	// median instead of from its own samples is also caught.
+	assert.equal(summarize(scriptedSummary, fullProfile).medianNanosecondsPerOperation, 20)
+})
+
+test('a measurement that missed the profile target says so', () => {
+	// The three scripted samples have a mean of 2200 and a sample standard deviation of
+	// 1058.3, which is 48% of the mean — far outside the 0.75% target — so this cannot be
+	// reported as having reached it. `reachedTarget` is what puts the `†` marker on a row.
+	assert.equal(summarize(scriptedSummary, fullProfile).reachedTarget, false)
+	// And the other direction, from five identical samples: nothing is more precise than
+	// zero spread, so a rule that never reports success is caught too.
+	const steady = Array.from({ length: fullProfile.minSamples }, () => sampleOf(1000))
+	assert.equal(summarize(steady, fullProfile).reachedTarget, true)
+	assert.equal(summarize(steady, fullProfile).medianOpsPerSecond, 1000)
 })
 
 /**

@@ -37,11 +37,19 @@
 //    spellings throw where Valchecker reports an issue, and the closest comparable
 //    rejection is `coercion/loose-bigint-invalid` below.
 //
-// `toSafeNumber` is absent on purpose. It converts a bigint to a number only
-// inside the safe integer range, and none of the three pinned libraries has an
-// equivalent — inventing an opponent out of a `refine`/`check` closure would
-// measure a closure, not a conversion. Its cost belongs to the focused benchmark
-// at `packages/internal/src/steps/toSafeNumber/toSafeNumber.bench.ts`.
+// `toSafeNumber` is measured here too, and was wrongly excluded before. It converts
+// a bigint to a number only inside the safe integer range, and all three pinned
+// libraries express that with built-ins: `z.bigint().transform(Number).pipe(z.number()
+// .safe())` on both Zod pins and `v.pipe(v.bigint(), v.transform(Number),
+// v.safeInteger())` on Valibot. The order is reversed — Valchecker range-checks the
+// bigint and then converts, the competitors convert and then range-check — but the
+// decision is not, because `Number(bigint)` rounds to a double outside the safe range
+// exactly when the bigint was outside it. Executed rather than argued: the four agree on
+// 42n, 2n**53n-1n, 2n**53n, ±2n**60n, and on 500,000 random bigints spanning the
+// boundary, with zero divergence in accept, reject, output, or issue count. The earlier
+// exclusion rested on two false claims — that `z.coerce.number()` was the only Zod
+// spelling, and that `Number(2n ** 60n)` loses precision; it is exactly 2^60, printed as
+// 1152921504606847000 only because that is the shortest round-tripping decimal.
 import { mappedBooleanValues } from '../fixtures.mjs'
 import { warm } from './define.mjs'
 
@@ -75,6 +83,13 @@ const inputs = {
 	// The first configured true value, taken from the list both adapters build their
 	// mapping from, so the fixture cannot drift away from the mapping under test.
 	mappedText: mappedBooleanValues.trueValues[0],
+	// The largest bigint every participant converts, so the valid row sits on the
+	// boundary rather than somewhere comfortably inside it.
+	safeBigint: 2n ** 53n - 1n,
+	// One above the boundary would also do; 2^60 is used because it is the value the
+	// removed allowlist entry claimed was converted with silent precision loss. It is
+	// converted exactly, and rejected by all four for being out of range.
+	unsafeBigint: 2n ** 60n,
 	// Matches no configured mapping on either side. `'YES'` was rejected as a
 	// fixture: `stringbool()` lowercases its input by default, so the adapter
 	// configures `case: 'sensitive'` to match `toMappedBoolean()`, and a fixture
@@ -89,6 +104,7 @@ const convertNumberSteps = ['string', 'toNumber']
 const convertBooleanSteps = ['string', 'toBoolean']
 const convertBigintSteps = ['string', 'toBigint']
 const convertStringSteps = ['number', 'toString']
+const safeNumberSteps = ['bigint', 'toSafeNumber']
 const mappedBooleanSteps = ['string', 'toMappedBoolean']
 
 const subset = 'compatible-subset'
@@ -136,6 +152,15 @@ export const coercionScenarios = [
 	// string check is already measured by `primitive/invalid-type` and
 	// `transform/invalid-type`, and the number check is measured nowhere.
 	warm('coercion/to-string-invalid-type', 'full', 'convertString', inputs.notNumber, { success: false }, { comparisonScope: subset, steps: convertStringSteps }),
+	// `toSafeNumber` against each competitor's conversion piped into its own safe-range
+	// check. `compatible-subset` for the reason every other `coercion/to-*` row carries —
+	// the competitors reach the same decision through a user callback plus a second
+	// schema — with the guard's position reversed as well, which is the difference the
+	// header records. The invalid row is the one conversion failure in this family that
+	// belongs to the step rather than to a leading type check, so unlike the other
+	// conversions it has a real invalid twin.
+	warm('coercion/to-safe-number-valid', 'standard', 'safeNumber', inputs.safeBigint, { success: true, output: Number.MAX_SAFE_INTEGER }, { comparisonScope: subset, steps: safeNumberSteps }),
+	warm('coercion/to-safe-number-invalid', 'full', 'safeNumber', inputs.unsafeBigint, { success: false, issueCount: 1 }, { comparisonScope: subset, steps: safeNumberSteps }),
 
 	// `toMappedBoolean` against `stringbool()` configured with the same two lists.
 	// `compatible-subset` for the reason `constraint/equal-to` carries: Valchecker

@@ -53,7 +53,7 @@ test('an out-of-range shard selector is refused', () => {
 	assert.throws(() => assertShardSelector(1.5, 3), /\[0, 3\)/)
 })
 
-function environmentOf(runner) {
+function environmentOf(runner, overrides = {}) {
 	return {
 		node: 'v24.0.0',
 		platform: 'linux',
@@ -65,11 +65,12 @@ function environmentOf(runner) {
 		runnerName: runner,
 		runnerImageOS: 'Ubuntu',
 		runnerImageVersion: '24.04',
+		...overrides,
 	}
 }
 
 /** One shard result, carrying only the fields the merge reads. */
-function shardResult({ index, count, ids, runner, startedAt, completedAt, ...overrides }) {
+function shardResult({ index, count, ids, runner, startedAt, completedAt, environment = environmentOf(runner), ...overrides }) {
 	return {
 		schemaVersion: 4,
 		mode: 'standard',
@@ -79,8 +80,8 @@ function shardResult({ index, count, ids, runner, startedAt, completedAt, ...ove
 		startedAt,
 		completedAt,
 		profile: { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 7, targetRelativeMarginOfError: 0.75 },
-		environment: environmentOf(runner),
-		shards: [{ index, count, scenarios: ids, startedAt, completedAt, environment: environmentOf(runner) }],
+		environment,
+		shards: [{ index, count, scenarios: ids, startedAt, completedAt, environment }],
 		order: ['valchecker', 'valibot'],
 		scenarioCatalog: ids.map(id => ({ id, group: 'warm/success' })),
 		libraries: [
@@ -198,6 +199,59 @@ test('shards that disagree about the count are refused', () => {
 	const shards = twoShards()
 	shards[1].shards[0].count = 3
 	assert.throws(() => mergeShardResults(shards), /reports a count of 3/)
+})
+
+/**
+ * The workflow can rerun one failed shard, so a merge can be handed shards produced
+ * from two builds or on two Node versions. Neither is visible in the merged file — the
+ * top-level environment is shard 0's — and both change what every number in the
+ * rerun shard means, so the merge is where they have to be caught. Only the machine
+ * may differ, which `twoShards` exercises by giving the two shards different CPUs.
+ */
+test('shards built from different commits or run on different Node versions are refused', () => {
+	for (const [field, value] of [['commit', 'def456'], ['node', 'v22.0.0']]) {
+		const shards = twoShards()
+		shards[1].environment = environmentOf('runner-b', { [field]: value })
+		shards[1].shards[0].environment = shards[1].environment
+		assert.throws(() => mergeShardResults(shards), new RegExp(`different environment ${field}`), `${field} was accepted`)
+	}
+})
+
+/**
+ * `interleaveShards` reads the shard catalogs row by row, which is only the run order
+ * if the shards really are a positional round-robin split of one selection. Sizes that
+ * no `p % count` assignment could produce mean they are not, and the reordering it
+ * would produce is a catalog `report` accepts and presents as the run order.
+ */
+test('shard sizes no round-robin split could produce are refused', () => {
+	// Shard 1 larger than shard 0: `p % 2` gives position 0 to shard 0, so shard 0 is
+	// never the smaller of the two.
+	const uneven = [
+		shardResult({ index: 0, count: 2, ids: ['a'], runner: 'runner-a', startedAt: '2026-07-28T10:00:00Z', completedAt: '2026-07-28T10:20:00Z' }),
+		shardResult({ index: 1, count: 2, ids: ['b', 'c'], runner: 'runner-b', startedAt: '2026-07-28T10:00:00Z', completedAt: '2026-07-28T10:20:00Z' }),
+	]
+	assert.throws(() => mergeShardResults(uneven), /never gives a later shard more scenarios/)
+
+	// Two apart in the other direction, which is the shape of a shard rerun against a
+	// changed scenario selection.
+	const lopsided = [
+		shardResult({ index: 0, count: 2, ids: ['a', 'c', 'e'], runner: 'runner-a', startedAt: '2026-07-28T10:00:00Z', completedAt: '2026-07-28T10:20:00Z' }),
+		shardResult({ index: 1, count: 2, ids: ['b'], runner: 'runner-b', startedAt: '2026-07-28T10:00:00Z', completedAt: '2026-07-28T10:20:00Z' }),
+	]
+	assert.throws(() => mergeShardResults(lopsided), /differ by more than one scenario/)
+
+	// One scenario more in shard 0 is the ordinary uneven split and must still merge.
+	const legitimate = [
+		shardResult({ index: 0, count: 2, ids: ['a', 'c'], runner: 'runner-a', startedAt: '2026-07-28T10:00:00Z', completedAt: '2026-07-28T10:20:00Z' }),
+		shardResult({ index: 1, count: 2, ids: ['b'], runner: 'runner-b', startedAt: '2026-07-28T10:00:00Z', completedAt: '2026-07-28T10:20:00Z' }),
+	]
+	assert.deepEqual(mergeShardResults(legitimate).scenarioCatalog.map(scenario => scenario.id), ['a', 'b', 'c'])
+})
+
+test('a shard whose recorded scenario list is not its catalog is refused', () => {
+	const shards = twoShards()
+	shards[1].shards[0].scenarios = ['d', 'b']
+	assert.throws(() => mergeShardResults(shards), /not its catalog/)
 })
 
 test('merging nothing is not a run', () => {

@@ -1,8 +1,17 @@
+import { assertDetectedFeatures, featuresFor, issuePoliciesFor } from '../capabilities.mjs'
 import { asyncCallbacks, BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { installedVersion } from './installed-version.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
-export function createZodAdapter(z, name, version) {
+/**
+ * One adapter over a pinned Zod module.
+ *
+ * `adapter` is the runner's key for it, which is also the key its declared
+ * capabilities are listed under; `specifier` is the bare import the version is read
+ * from, so the two Zod 4 adapters share one installed package and one declaration.
+ */
+export function createZodAdapter(z, { adapter, name, specifier }) {
 	const createFields = () => ({
 		id: z.string(),
 		name: z.string(),
@@ -161,23 +170,23 @@ export function createZodAdapter(z, name, version) {
 	// closure would be a stand-in for the built-in the other two libraries ship.
 	const hasNonOptional = typeof stringMethods.nonoptional === 'function'
 
-	const features = []
-	if (hasFile)
-		features.push('file')
-	if (hasTemplateLiteral)
-		features.push('template literal')
-	if (hasStringBool)
-		features.push('boolean string parsing')
-	if (hasBigintCoercion)
-		features.push('bigint coercion')
-	if (hasNormalize)
-		features.push('Unicode normalization')
-	if (hasNonOptional)
-		features.push('undefined rejection')
-	for (const [key, feature] of Object.entries(gatedFormatFeatures)) {
-		if (formatBuilds[key] !== null)
-			features.push(feature)
-	}
+	// What the installed build was found to have. It is checked against the declaration
+	// in `capabilities.mjs` rather than published directly, because the declaration is
+	// what the coverage gate reads without loading zod: a pin whose capabilities moved
+	// then fails to load here, where the disagreement is legible, instead of leaving the
+	// gate quietly wrong about which comparisons exist.
+	const detectedFeatures = [
+		...(hasFile ? ['file'] : []),
+		...(hasTemplateLiteral ? ['template literal'] : []),
+		...(hasStringBool ? ['boolean string parsing'] : []),
+		...(hasBigintCoercion ? ['bigint coercion'] : []),
+		...(hasNormalize ? ['Unicode normalization'] : []),
+		...(hasNonOptional ? ['undefined rejection'] : []),
+		...Object.entries(gatedFormatFeatures)
+			.filter(([key]) => formatBuilds[key] !== null)
+			.map(([, feature]) => feature),
+	]
+	assertDetectedFeatures(adapter, detectedFeatures)
 	const supportedFormatBuilds = Object.fromEntries(
 		Object.entries(formatBuilds)
 			.filter(([, build]) => build !== null),
@@ -185,10 +194,10 @@ export function createZodAdapter(z, name, version) {
 
 	return {
 		name,
-		version,
+		version: installedVersion(specifier),
 		capabilities: {
-			issuePolicies: ['all'],
-			features,
+			issuePolicies: issuePoliciesFor(adapter),
+			features: featuresFor(adapter),
 			generatedCode,
 		},
 		build: {
@@ -353,6 +362,20 @@ export function createZodAdapter(z, name, version) {
 				.transform(BigInt),
 			convertString: () => z.number()
 				.transform(String),
+			// `toSafeNumber()` converts a bigint to a number only inside the safe integer
+			// range. Zod's spelling is the conversion piped into the range check it already
+			// has: `.safe()` bounds a number to that range, and Zod 4's also requires an
+			// integer, which `Number(bigint)` always is. The decision is the same on both
+			// sides even though the order is reversed — Valchecker range-checks the bigint
+			// and then converts, this converts and then range-checks — because
+			// `Number(bigint)` rounds to a double that is outside the safe range whenever
+			// the bigint was. Executed rather than reasoned: the two agree on 42n, 2n**53n-1n,
+			// 2n**53n, ±2n**60n, and on 500,000 random bigints spanning the boundary, with
+			// zero divergence in accept, reject, output, or issue count.
+			safeNumber: () => z.bigint()
+				.transform(Number)
+				.pipe(z.number()
+					.safe()),
 			shapeUppercase: () => z.string()
 				.toUpperCase(),
 			variant: () => z.discriminatedUnion('type', createTaggedBranches()),

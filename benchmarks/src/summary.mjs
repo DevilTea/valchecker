@@ -48,6 +48,25 @@ function assertResult(raw) {
 	// measured. `report` validates the record in full; this only needs it present.
 	if (typeof raw.isolation !== 'string' || !Array.isArray(raw.shards) || raw.shards.length === 0)
 		throw new TypeError('Benchmark result does not record its isolation and sharding')
+	// Every row must be one of the catalog's scenarios, and each scenario at most once
+	// per library. `report` has always refused both; this file did not, and it is run
+	// standalone — the workflow calls `summary` on a raw result directly. A row naming a
+	// scenario the catalog does not contain is silently dropped by the lookups below, so
+	// it would shrink a group count with no sign of it, and a duplicated row would be
+	// ranked twice inside its scenario and counted twice in `totalMeasurements`.
+	const catalogIds = new Set(raw.scenarioCatalog.map(scenario => scenario.id))
+	for (const library of raw.libraries) {
+		if (!Array.isArray(library.results))
+			throw new TypeError(`${library.adapter}.results must be an array`)
+		const seen = new Set()
+		for (const result of library.results) {
+			if (!catalogIds.has(result.scenario))
+				throw new Error(`${library.adapter} reports the scenario ${result.scenario}, which is not in the run's catalog`)
+			if (seen.has(result.scenario))
+				throw new Error(`${library.adapter} reports the scenario ${result.scenario} more than once`)
+			seen.add(result.scenario)
+		}
+	}
 	return raw
 }
 

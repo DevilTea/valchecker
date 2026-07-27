@@ -21,6 +21,15 @@ function symbolIdentity(value) {
 }
 
 export function canonicalizeOutput(value) {
+	// `JSON.stringify` drops an object property whose value is `undefined` and maps a
+	// top-level `undefined` to no output at all, so without this branch an object that
+	// materializes a declared-but-absent optional key compares equal to one that omits
+	// it — which is exactly the difference between Valchecker's `object` and every
+	// competitor's on a sparse input. `assertResult` decides whether to assert an output
+	// before calling this, so turning `undefined` into a value here does not make a
+	// missing expectation assertable.
+	if (value === undefined)
+		return { type: 'Undefined' }
 	if (value instanceof Map)
 		return { type: 'Map', entries: [...value].map(([key, item]) => [canonicalizeOutput(key), canonicalizeOutput(item)]) }
 	if (value instanceof Set)
@@ -29,6 +38,16 @@ export function canonicalizeOutput(value) {
 	// would canonicalize every Date to `{}` and compare all of them as equal.
 	if (value instanceof Date)
 		return { type: 'Date', time: value.getTime() }
+	// A File and a Blob have the same problem, and it is not hypothetical: without this
+	// branch `file-mime-type/valid` would accept a `text/plain` File as the expected
+	// output of an `image/png` check. `File` is tested first because every `File` is a
+	// `Blob`. The contents are not read, because reading them is asynchronous and the
+	// three fields below already separate every file fixture in the suite; a fixture pair
+	// differing only in bytes would need a scenario that reads them.
+	if (value instanceof File)
+		return { type: 'File', name: value.name, size: value.size, mediaType: value.type, lastModified: value.lastModified }
+	if (value instanceof Blob)
+		return { type: 'Blob', size: value.size, mediaType: value.type }
 	// `JSON.stringify` throws on a bigint, so without this branch a bigint output
 	// could not be asserted at all — which is exactly what the bigint conversion
 	// scenarios produce.
@@ -43,6 +62,17 @@ export function canonicalizeOutput(value) {
 	if (Array.isArray(value))
 		return value.map(canonicalizeOutput)
 	if (value != null && typeof value === 'object') {
+		// The branches above exist because a class instance with no own enumerable
+		// properties canonicalizes to `{}` under the generic branch below, where it compares
+		// equal to every other such instance. Rather than trust that the next fixture of that
+		// shape gets a branch of its own, refuse it: an object this function cannot tell
+		// apart from an empty one is a missing branch, not an empty object.
+		if (Object.keys(value).length === 0 && Object.getPrototypeOf(value) !== Object.prototype) {
+			throw new TypeError(
+				`canonicalizeOutput cannot distinguish this ${value.constructor?.name ?? 'null-prototype'} value: it has no own enumerable properties, `
+				+ 'so every instance of it would compare equal and the output assertion would pass without asserting anything. Add a branch for it.',
+			)
+		}
 		return Object.fromEntries(Object.entries(value)
 			.map(([key, item]) => [key, canonicalizeOutput(item)]))
 	}

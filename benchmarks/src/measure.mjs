@@ -169,8 +169,14 @@ export async function collectSamplesAsync(takeSample, profile) {
  * The reported fields, derived from the kept samples. Shared by both measurement
  * paths so that an async cell reports the same fields computed the same way as a
  * sync one; the only difference between the two paths is how a sample is taken.
+ *
+ * Exported for the same reason `collectSamples` is: driven by scripted samples it can
+ * be checked against answers fixed by hand, where a test going through `measure` can
+ * only assert that real timings are finite — which is true of the wrong number too.
+ * `medianOpsPerSecond` is what the report ranks on and `reachedTarget` drives the `†`
+ * marker, so neither can rest on that.
  */
-function summarize(samples, profile) {
+export function summarize(samples, profile) {
 	const ops = samples.map(sample => sample.opsPerSecond)
 	const achievedRme = relativeMarginOfError(ops)
 

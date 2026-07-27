@@ -68,6 +68,44 @@ function assertSameAcrossShards(raws, read, field) {
 	}
 }
 
+/**
+ * Whether the shard sizes are ones positional round-robin could have produced.
+ *
+ * `p % count` gives shard 0 the most scenarios and each later shard at most one fewer,
+ * so the sizes read in shard-index order are non-increasing and span at most one. Any
+ * other set of sizes came from something else — a shard measured with a different
+ * scenario selection, a rerun against a changed registry, or a hand-assembled file —
+ * and `interleaveShards` would silently reorder it into a catalog the report accepts
+ * and presents as the run order. Refusing the shape is cheap and the alternative is a
+ * wrong catalog nothing downstream can notice.
+ */
+function assertRoundRobinShape(ordered) {
+	const sizes = ordered.map(({ raw, entry }) => {
+		if (!Array.isArray(raw.scenarioCatalog) || raw.scenarioCatalog.length === 0)
+			throw new Error(`Shard ${entry.index} carries no scenario catalog`)
+		const recorded = entry.scenarios
+		if (!Array.isArray(recorded) || recorded.length !== raw.scenarioCatalog.length
+			|| recorded.some((id, position) => id !== raw.scenarioCatalog[position].id)) {
+			throw new Error(`Shard ${entry.index} records a scenario list that is not its catalog, so what it measured cannot be placed in the run order`)
+		}
+		return recorded.length
+	})
+	for (let index = 1; index < sizes.length; index++) {
+		if (sizes[index] > sizes[index - 1]) {
+			throw new Error(
+				`Shard ${ordered[index].entry.index} measured ${sizes[index]} scenarios and shard ${ordered[index - 1].entry.index} measured ${sizes[index - 1]}; `
+				+ 'positional round-robin never gives a later shard more scenarios, so these are not the shards of one selection',
+			)
+		}
+	}
+	if (sizes[0] - sizes.at(-1) > 1) {
+		throw new Error(
+			`Shard sizes ${sizes.join(',')} differ by more than one scenario; positional round-robin splits a selection evenly, `
+			+ 'so these are not the shards of one selection',
+		)
+	}
+}
+
 function shardEntryOf(raw, position) {
 	if (!Array.isArray(raw.shards) || raw.shards.length !== 1)
 		throw new Error(`Shard input ${position} must record exactly one shard; received ${Array.isArray(raw.shards) ? raw.shards.length : 'none'}. Merge unmerged shard results only.`)
@@ -80,10 +118,11 @@ function shardEntryOf(raw, position) {
  * with no knowledge that it was sharded beyond the `shards` record itself.
  *
  * Everything that decides what a number means has to agree across the shards —
- * mode, profile, isolation, scenario selection, adapter order, adapter versions —
- * because the merged file presents them all as one run. What is allowed to differ
- * is the machine, which is why each shard keeps its own environment rather than
- * being folded into the top-level one.
+ * mode, profile, isolation, scenario selection, adapter order, adapter versions, the
+ * commit, the Node.js version, and the round-robin shape of the split — because the
+ * merged file presents them all as one run. What is allowed to differ is the machine:
+ * its CPU, its runner name, and its image, which is why each shard keeps its own
+ * environment rather than being folded into the top-level one.
  */
 export function mergeShardResults(raws) {
 	if (!Array.isArray(raws) || raws.length === 0)
@@ -96,6 +135,14 @@ export function mergeShardResults(raws) {
 
 	for (const field of ['schemaVersion', 'mode', 'seed', 'scenarioFilter', 'isolation', 'profile', 'order'])
 		assertSameAcrossShards(raws, raw => raw[field], field)
+	// The build and the runtime, which the machine is explicitly allowed to differ in and
+	// these are not. The workflow can rerun one failed shard, which is exactly how a merge
+	// of two commits or two Node versions would happen: the rerun job checks out whatever
+	// the branch points at now and installs whatever its image ships. Neither difference is
+	// visible in the merged file — the top-level environment is shard 0's — and both change
+	// what every number in that shard means, so they are refused here.
+	for (const field of ['commit', 'node'])
+		assertSameAcrossShards(raws, raw => raw.environment?.[field], `environment ${field}`)
 
 	const entries = raws.map((raw, position) => shardEntryOf(raw, position))
 	const count = entries[0].count
@@ -120,6 +167,7 @@ export function mergeShardResults(raws) {
 	const ordered = [...raws]
 		.map((raw, position) => ({ raw, entry: entries[position] }))
 		.sort((left, right) => left.entry.index - right.entry.index)
+	assertRoundRobinShape(ordered)
 	const scenarioCatalog = interleaveShards(ordered.map(({ raw }) => raw.scenarioCatalog))
 	const catalogPosition = new Map(scenarioCatalog.map((scenario, position) => [scenario.id, position]))
 	if (catalogPosition.size !== scenarioCatalog.length)

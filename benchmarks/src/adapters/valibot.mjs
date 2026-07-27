@@ -1,5 +1,7 @@
 import * as v from 'valibot'
+import { featuresFor, issuePoliciesFor } from '../capabilities.mjs'
 import { asyncCallbacks, BenchmarkResource, collectionTransforms, dateBounds, taggedUnionTags } from '../fixtures.mjs'
+import { installedVersion } from './installed-version.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 const integer = () => v.pipe(v.number(), v.integer())
@@ -61,38 +63,18 @@ function createTaggedBranches() {
 
 export default {
 	name: 'Valibot',
-	version: '1.4.2',
+	version: installedVersion('valibot'),
 	capabilities: {
-		issuePolicies: ['first', 'all'],
+		issuePolicies: issuePoliciesFor('valibot'),
 		generatedCode: false,
-		// Valibot has no `jwt` or `base64url` action, and no hostname action at
-		// all — `url()` is a whole-URL check, not a bare hostname one. It also has
-		// no boolean-string parser, and no bigint coercion that reports an issue:
-		// `v.transform(BigInt)` throws a `SyntaxError` out of `safeParse` on an
-		// unparseable string, so the invalid bigint scenario cannot be expressed.
-		features: [
-			'file',
-			'combined IPv4/IPv6',
-			'hex',
-			'MAC address',
-			'one-sided trim',
-			'Unicode normalization',
-			// `nonOptional`, `nonNullable`, and `nonNullish` are all built-in schemas
-			// here, which is more than either Zod pin has: Zod 4 ships `nonoptional()`
-			// only and Zod 3 none of the three.
-			'undefined rejection',
-			'null rejection',
-			'nullish rejection',
-			// `v.blob()` is `input instanceof Blob`, the same test `blob()` performs;
-			// neither Zod pin has a blob schema at all. Valibot has no equivalent of
-			// `json()`, so `JSON string validation` is absent.
-			'Blob',
-			// `parseJson()` and `stringifyJson()` catch what the native call throws and
-			// report it as an issue, which is what `toJSONValue()`/`toJSONString()` do.
-			// Zod has only a `transform` callback, and a throw inside one escapes
-			// `safeParse`.
-			'JSON conversion failure reporting',
-		],
+		// Declared in `../capabilities.mjs`, with the reason each gate exists. Valibot's
+		// absences, in short: no `jwt`, `base64url`, or hostname action — `url()` is a
+		// whole-URL check, not a bare hostname one — no boolean-string parser, no bigint
+		// coercion that reports an issue instead of throwing out of `safeParse`, and no
+		// equivalent of `json()`. Its presences that Zod lacks: `nonOptional`,
+		// `nonNullable`, and `nonNullish` as built-in schemas, `blob()`, and
+		// `parseJson()`/`stringifyJson()` reporting a failed conversion as an issue.
+		features: featuresFor('valibot'),
 	},
 	build: {
 		primitive: () => v.pipe(
@@ -252,6 +234,14 @@ export default {
 		convertBoolean: () => v.pipe(v.string(), v.transform(Boolean)),
 		convertBigint: () => v.pipe(v.string(), v.transform(BigInt)),
 		convertString: () => v.pipe(v.number(), v.transform(String)),
+		// `toSafeNumber()`'s Valibot spelling: the native conversion piped into
+		// `safeInteger()`, which is the range check Valibot already ships. Valchecker
+		// range-checks the bigint and then converts; this converts and then range-checks,
+		// which reaches the same decision because `Number(bigint)` rounds to a double
+		// outside the safe range whenever the bigint was outside it. Verified by execution
+		// against the other three adapters over the boundary values and 500,000 random
+		// bigints, with zero divergence.
+		safeNumber: () => v.pipe(v.bigint(), v.transform(Number), v.safeInteger()),
 		shapeUppercase: () => v.pipe(v.string(), v.toUpperCase()),
 		shapeTrimmedStart: () => v.pipe(v.string(), v.trimStart()),
 		shapeTrimmedEnd: () => v.pipe(v.string(), v.trimEnd()),
