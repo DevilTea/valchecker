@@ -3,6 +3,9 @@
 // participating initial-schema steps and `templateLiteral`, not public API.
 // (Precedent: `null.ts` imports `union-shorthand` by direct relative path.)
 
+import { bigintLiteralPattern } from '../looseBigint/bigint-literal'
+import { parseNumberLiteral } from '../looseNumber/number-literal'
+
 /**
  * Construction-time metadata key. A participating initial schema attaches a
  * `TemplateLiteralPartDescriptor` under this symbol via `utils.setMetadata`, so
@@ -44,21 +47,15 @@ export interface TemplateLiteralMember {
 // limit: eager enumeration; upgrade path is lazy per-member matching.
 const MEMBER_CEILING = 10000
 
-// Mirrors TypeScript's `${number}` grammar (`isValidNumberString(s, false)`),
-// which is `Number.isFinite(+s)` on a non-empty string — NOT a regex. Accepts
-// `' 1 '`, `'   '`, `'+1'`, `'0x10'`, `'5.'`, `'1e3'`; rejects `''`, `'NaN'`,
-// `'Infinity'`, `'1_000'`, `'1e999'`.
+// The `${number}` and `${bigint}` grammars are owned by the loose primitives
+// that carry their names, so a placeholder here and a `looseNumber`/`looseBigint`
+// schema can never disagree about what TypeScript accepts.
 function isValidNumberSegment(s: string): boolean {
-	return s !== '' && Number.isFinite(Number(s))
+	return parseNumberLiteral(s) !== undefined
 }
 
-// Mirrors TypeScript's `${bigint}` grammar (`isValidBigIntString(s, false)`):
-// optional sign, decimal without leading zeros, or `0x`/`0b`/`0o` radix literal.
-// Duplicated from `looseBigint.ts`; no numeric separators, no `n` suffix.
-const BIGINT_SEGMENT_RE = /^(?:-?(?:0|[1-9]\d*)|-?0x[\da-f]+|-?0b[01]+|-?0o[0-7]+)$/i
-
 function isValidBigintSegment(s: string): boolean {
-	return BIGINT_SEGMENT_RE.test(s)
+	return bigintLiteralPattern.test(s)
 }
 
 function isValidSegment(kind: PlaceholderKind, s: string): boolean {

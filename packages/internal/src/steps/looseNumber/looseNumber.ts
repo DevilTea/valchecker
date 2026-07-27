@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { parseNumberLiteral } from './number-literal'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'looseNumber'
@@ -48,18 +49,14 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-// Mirrors TypeScript's `${number}` template-literal grammar (tsc checker `isValidNumberString(s, /* roundTripOnly */ false)`),
-// not general JS coercion: `Number()` accepts `+1`, `0o17`, `0b101`, `01`, `5.` but rejects numeric separators (`1_000`),
-// `NaN`, and infinite strings via the `Number.isFinite` guard.
 function parseLooseNumber(value: unknown): number | undefined {
 	if (typeof value === 'number') {
 		return value
 	}
-	if (typeof value !== 'string' || value === '') {
+	if (typeof value !== 'string') {
 		return undefined
 	}
-	const parsed = Number(value)
-	return Number.isFinite(parsed) ? parsed : undefined
+	return parseNumberLiteral(value)
 }
 
 /* @__NO_SIDE_EFFECTS__ */

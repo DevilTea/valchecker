@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { base64UrlPattern } from '../isBase64Url/base64url'
 
 function decodeBase64Url(segment: string): string {
 	const normalized = segment.replace(/-/g, '+')
@@ -12,13 +13,15 @@ function isJwtValue(value: string): boolean {
 	const segments = value.split('.')
 	if (segments.length !== 3)
 		return false
-	const base64Url = /^[\w-]+$/
 	const header = segments[0] ?? ''
 	const payload = segments[1] ?? ''
 	const signature = segments[2] ?? ''
-	if (!base64Url.test(header) || !base64Url.test(payload))
+	// Segments are base64url, so they carry its length rule as well as its
+	// alphabet: a length of `1 (mod 4)` cannot encode any byte. The header and
+	// payload must also be non-empty, which the pattern alone does not require.
+	if (header === '' || payload === '')
 		return false
-	if (signature !== '' && !base64Url.test(signature))
+	if (!base64UrlPattern.test(header) || !base64UrlPattern.test(payload) || !base64UrlPattern.test(signature))
 		return false
 	try {
 		const decoded: unknown = JSON.parse(decodeBase64Url(header))

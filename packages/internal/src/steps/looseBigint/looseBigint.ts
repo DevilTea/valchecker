@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { bigintLiteralPattern } from './bigint-literal'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'looseBigint'
@@ -42,15 +43,11 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-// Mirrors TypeScript's `${bigint}` template-literal grammar (tsc checker `isValidBigIntString(s, /* roundTripOnly */ false)`):
-// optional sign, decimal without leading zeros, or `0x`/`0b`/`0o` radix literals. No numeric separators, no `n` suffix.
-const BIGINT_STRING_RE = /^(?:-?(?:0|[1-9]\d*)|-?0x[\da-f]+|-?0b[01]+|-?0o[0-7]+)$/i
-
 function parseLooseBigint(value: unknown): bigint | undefined {
 	if (typeof value === 'bigint') {
 		return value
 	}
-	if (typeof value !== 'string' || !BIGINT_STRING_RE.test(value)) {
+	if (typeof value !== 'string' || !bigintLiteralPattern.test(value)) {
 		return undefined
 	}
 	// The regex already validated the string, so any '-0'-prefixed value longer than 2 chars is a negative radix
