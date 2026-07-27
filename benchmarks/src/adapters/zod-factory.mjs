@@ -1,4 +1,4 @@
-import { BenchmarkResource, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
@@ -376,6 +376,53 @@ export function createZodAdapter(z, name, version) {
 			kindBigint: () => z.bigint(),
 			kindSymbol: () => z.symbol(),
 			kindInstance: () => z.instanceof(BenchmarkResource),
+			// The collection transformations. Zod has no transformation action for any
+			// of them, so every key here is `.transform()` around the same native call
+			// the Valchecker step delegates to — which is what those scenarios'
+			// `compatible-subset` scope records. The callbacks come from the shared
+			// fixture, so the four adapters cannot drift apart.
+			setToArray: () => z.set(z.string())
+				.transform(set => [...set]),
+			setToSize: () => z.set(z.string())
+				.transform(set => set.size),
+			mapToKeys: () => z.map(z.string(), z.number())
+				.transform(map => [...map.keys()]),
+			mapToValues: () => z.map(z.string(), z.number())
+				.transform(map => [...map.values()]),
+			mapToEntries: () => z.map(z.string(), z.number())
+				.transform(map => [...map.entries()]),
+			// `new Map(...)` keeps the last entry for a repeated key rather than
+			// rejecting it; `toMappedKeys()` also maintains a uniqueness map and reports
+			// a collision, which is the difference that scenario declares.
+			mapToMappedKeys: () => z.map(z.string(), z.number())
+				.transform(map => new Map(
+					[...map].map(([key, value]) => [collectionTransforms.upperCaseKey(key), value]),
+				)),
+			mapToMappedValues: () => z.map(z.string(), z.number())
+				.transform(map => new Map(
+					[...map].map(([key, value]) => [key, collectionTransforms.incrementValue(value)]),
+				)),
+			arrayToMapped: () => z.array(z.number())
+				.transform(items => items.map(collectionTransforms.double)),
+			arrayToFiltered: () => z.array(z.number())
+				.transform(items => items.filter(collectionTransforms.isEven)),
+			arrayToSorted: () => z.array(z.number())
+				.transform(items => items.toSorted(collectionTransforms.ascending)),
+			arrayToSliced: () => z.array(z.number())
+				.transform(items => items.slice(...collectionTransforms.sliceRange)),
+			stringToSplit: () => z.string()
+				.transform(text => text.split(collectionTransforms.splitSeparator)),
+			stringToLength: () => z.string()
+				.transform(text => text.length),
+			// `JSON.parse` and `JSON.stringify` are wrapped rather than passed directly:
+			// Zod calls a transform with `(value, ctx)`, and the second parameter of
+			// those two functions is a reviver and a replacer. The existing
+			// `.transform(Number)` keys are safe only because `Number` ignores its extra
+			// arguments.
+			jsonValue: () => z.string()
+				.transform(text => JSON.parse(text)),
+			jsonString: () => z.unknown()
+				.transform(value => JSON.stringify(value)),
 			// Declared only where the pinned version has them, so a scenario that
 			// forgets its `requiredFeatures` fails with the harness's actionable
 			// message instead of a `z.file is not a function` from inside the build.

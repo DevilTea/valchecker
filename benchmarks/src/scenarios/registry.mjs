@@ -4,6 +4,7 @@
 // the order that matters.
 import { builtinValidatorScenarios } from './builtin-validator.mjs'
 import { coercionScenarios } from './coercion.mjs'
+import { collectionTransformScenarios } from './collection-transform.mjs'
 import { collectionScenarios } from './collection.mjs'
 import { constraintScenarios } from './constraint.mjs'
 import { dateScenarios } from './date.mjs'
@@ -21,6 +22,7 @@ import { primitiveScenarios } from './primitive.mjs'
 import { recordTupleTemplateLiteralScenarios } from './record-tuple-template-literal.mjs'
 import { recursionScenarios } from './recursion.mjs'
 import { schemaKindScenarios } from './schema-kind.mjs'
+import { serializationScenarios } from './serialization.mjs'
 import { stringFormatExtendedScenarios } from './string-format-extended.mjs'
 import { stringFormatScenarios } from './string-format.mjs'
 import { stringShapeScenarios } from './string-shape.mjs'
@@ -66,6 +68,8 @@ const scenarioFamilies = [
 	fallbackScenarios,
 	nullishScenarios,
 	schemaKindScenarios,
+	collectionTransformScenarios,
+	serializationScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()

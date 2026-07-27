@@ -1,5 +1,5 @@
 import process from 'node:process'
-import { BenchmarkResource, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { BenchmarkResource, collectionTransforms, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -123,6 +123,11 @@ export default {
 			// JSON-value schema instead, which is a different comparison; see
 			// `scenarios/schema-kind.mjs`.
 			'JSON string validation',
+			// `toJSONValue()` and `toJSONString()` report a parse or serialization
+			// failure as an issue. Valibot's `parseJson()`/`stringifyJson()` do too;
+			// Zod's only spelling is a `transform` callback, and a throw inside one
+			// escapes `safeParse`.
+			'JSON conversion failure reporting',
 		],
 	},
 	build: {
@@ -362,6 +367,48 @@ export default {
 		// carries the `string()` check the step's expected state requires.
 		kindJsonString: () => v.string()
 			.json(),
+		// The collection transformations. Each step sits on the smallest schema that
+		// can carry it, so a row reads as the step rather than as its container, and
+		// the five Map keys deliberately share one `map(string, number)` baseline so
+		// their rows stay comparable with each other. Every callback comes from
+		// `collectionTransforms`, so the competitor closures call the same function
+		// objects rather than equivalent copies.
+		setToArray: () => v.set(v.string())
+			.toArray(),
+		setToSize: () => v.set(v.string())
+			.toSize(),
+		mapToKeys: () => v.map({ key: v.string(), value: v.number() })
+			.toKeys(),
+		mapToValues: () => v.map({ key: v.string(), value: v.number() })
+			.toValues(),
+		mapToEntries: () => v.map({ key: v.string(), value: v.number() })
+			.toEntries(),
+		mapToMappedKeys: () => v.map({ key: v.string(), value: v.number() })
+			.toMappedKeys(collectionTransforms.upperCaseKey),
+		mapToMappedValues: () => v.map({ key: v.string(), value: v.number() })
+			.toMappedValues(collectionTransforms.incrementValue),
+		arrayToMapped: () => v.array(v.number())
+			.toMapped(collectionTransforms.double),
+		arrayToFiltered: () => v.array(v.number())
+			.toFiltered(collectionTransforms.isEven),
+		// The comparator form on purpose: `toSorted()` without one delegates straight
+		// to `Array.prototype.toSorted` and never installs the callback sentinel, so
+		// it would measure a different step than the competitors' comparator
+		// spellings.
+		arrayToSorted: () => v.array(v.number())
+			.toSorted({ compareFn: collectionTransforms.ascending }),
+		arrayToSliced: () => v.array(v.number())
+			.toSliced(...collectionTransforms.sliceRange),
+		stringToSplit: () => v.string()
+			.toSplit(collectionTransforms.splitSeparator),
+		stringToLength: () => v.string()
+			.toLength(),
+		// The serialization steps. `toJSONString` accepts any current state, so
+		// `unknown()` keeps the serialization work unmixed with a structural walk.
+		jsonValue: () => v.string()
+			.toJSONValue(),
+		jsonString: () => v.unknown()
+			.toJSONString(),
 	},
 	parse(schema, input) {
 		return schema.execute(input)

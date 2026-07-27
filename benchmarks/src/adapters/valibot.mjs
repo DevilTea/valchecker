@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import { BenchmarkResource, dateBounds, taggedUnionTags } from '../fixtures.mjs'
+import { BenchmarkResource, collectionTransforms, dateBounds, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 const integer = () => v.pipe(v.number(), v.integer())
@@ -87,6 +87,11 @@ export default {
 			// neither Zod pin has a blob schema at all. Valibot has no equivalent of
 			// `json()`, so `JSON string validation` is absent.
 			'Blob',
+			// `parseJson()` and `stringifyJson()` catch what the native call throws and
+			// report it as an issue, which is what `toJSONValue()`/`toJSONString()` do.
+			// Zod has only a `transform` callback, and a throw inside one escapes
+			// `safeParse`.
+			'JSON conversion failure reporting',
 		],
 	},
 	build: {
@@ -266,6 +271,43 @@ export default {
 		kindSymbol: () => v.symbol(),
 		kindInstance: () => v.instance(BenchmarkResource),
 		kindBlob: () => v.blob(),
+		// The collection transformations. Valibot is the one competitor with real
+		// built-ins for part of this family — `mapItems`, `filterItems`, and
+		// `sortItems` are transformation actions, not user callbacks around a native
+		// method — so those three rows are built-in against built-in. Every other key
+		// here is a `v.transform` closure, because Valibot has no action for it.
+		setToArray: () => v.pipe(v.set(v.string()), v.transform(set => [...set])),
+		setToSize: () => v.pipe(v.set(v.string()), v.transform(set => set.size)),
+		mapToKeys: () => v.pipe(v.map(v.string(), v.number()), v.transform(map => [...map.keys()])),
+		mapToValues: () => v.pipe(v.map(v.string(), v.number()), v.transform(map => [...map.values()])),
+		mapToEntries: () => v.pipe(v.map(v.string(), v.number()), v.transform(map => [...map.entries()])),
+		// `new Map(...)` keeps the last entry for a repeated key instead of rejecting
+		// it, which is the difference `collection-transform/to-mapped-keys-valid`
+		// declares: `toMappedKeys()` also maintains a uniqueness map and reports a
+		// collision.
+		mapToMappedKeys: () => v.pipe(
+			v.map(v.string(), v.number()),
+			v.transform(map => new Map([...map].map(([key, value]) => [collectionTransforms.upperCaseKey(key), value]))),
+		),
+		mapToMappedValues: () => v.pipe(
+			v.map(v.string(), v.number()),
+			v.transform(map => new Map([...map].map(([key, value]) => [key, collectionTransforms.incrementValue(value)]))),
+		),
+		arrayToMapped: () => v.pipe(v.array(v.number()), v.mapItems(collectionTransforms.double)),
+		arrayToFiltered: () => v.pipe(v.array(v.number()), v.filterItems(collectionTransforms.isEven)),
+		// `sortItems` calls `Array.prototype.sort`, which mutates — but it mutates the
+		// fresh array `v.array()` produced, not the benchmark's input. Verified by
+		// executing this schema three times over the frozen fixture and getting the
+		// same result each time; `toSorted()` is non-mutating by construction.
+		arrayToSorted: () => v.pipe(v.array(v.number()), v.sortItems(collectionTransforms.ascending)),
+		arrayToSliced: () => v.pipe(v.array(v.number()), v.transform(items => items.slice(...collectionTransforms.sliceRange))),
+		stringToSplit: () => v.pipe(v.string(), v.transform(text => text.split(collectionTransforms.splitSeparator))),
+		stringToLength: () => v.pipe(v.string(), v.transform(text => text.length)),
+		// `parseJson()` and `stringifyJson()` are built-in transformation actions that
+		// report the native throw as an issue, which is why Valibot participates in the
+		// two invalid serialization scenarios and Zod does not.
+		jsonValue: () => v.pipe(v.string(), v.parseJson()),
+		jsonString: () => v.pipe(v.unknown(), v.stringifyJson()),
 	},
 	parse(schema, input, context) {
 		return v.safeParse(

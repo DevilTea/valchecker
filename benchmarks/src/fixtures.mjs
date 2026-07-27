@@ -162,3 +162,22 @@ export const mappedBooleanValues = {
 	trueValues: ['yes', 'y', '1'],
 	falseValues: ['no', 'n', '0'],
 }
+
+// The single source of truth for `collection-transform/*`. These live here rather
+// than with the family because every adapter needs them, and sharing the function
+// *objects* is the point: the callback Valchecker's step invokes and the callback
+// the competitor closure invokes are then the same function, so a row can only
+// differ by what the library does around the call. `sliceRange` and
+// `splitSeparator` are shared for the same reason `dateBounds` is — four copies of
+// a literal are four chances to drift.
+export const collectionTransforms = {
+	double: item => item * 2,
+	isEven: item => item % 2 === 0,
+	ascending: (left, right) => left - right,
+	upperCaseKey: key => key.toUpperCase(),
+	incrementValue: value => value + 1,
+	// Six of the ten items, taken from the middle so the slice is neither the whole
+	// array nor empty.
+	sliceRange: Object.freeze([2, 8]),
+	splitSeparator: ',',
+}
