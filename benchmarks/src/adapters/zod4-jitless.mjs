@@ -3,4 +3,6 @@ import { createZodAdapter } from './zod-factory.mjs'
 
 z.config({ jitless: true })
 
-export default createZodAdapter(z, 'Zod 4 (jitless)', '4.4.3')
+// The same installed package as `zod4`, measured with generated code disabled, so the
+// version it reports is that one pin's.
+export default createZodAdapter(z, { adapter: 'zod4-jitless', name: 'Zod 4 (jitless)', specifier: 'zod4' })

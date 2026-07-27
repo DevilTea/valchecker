@@ -1,5 +1,16 @@
 name: Performance Comparison
-run-name: Performance comparison ${{ inputs.profile }} by @${{ github.actor }}
+run-name: Performance comparison ${{ inputs.profile }} across ${{ inputs.shards }} shard(s) by @${{ github.actor }}
+
+# The suite is sharded by scenario, never by adapter. Ranking the adapters within
+# one scenario is the only comparison the report makes, so every adapter of a
+# scenario has to be measured on one machine; sharding by adapter would put each
+# library on a different runner and destroy exactly that comparison. Sharding by
+# scenario costs the cross-scenario reading instead, which the methodology already
+# declares invalid for aggregates — and the merged report says which shard and
+# which runner produced each scenario, so the second reason is visible too.
+#
+# All shards share one seed, so they agree on the adapter execution order and the
+# merge can refuse pieces of two different runs.
 
 on:
   workflow_dispatch:
@@ -18,6 +29,18 @@ on:
         required: true
         default: valchecker,zod3,zod4,zod4-jitless,valibot
         type: string
+      shards:
+        description: Machines to split the scenarios across
+        required: true
+        default: '4'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '6'
+          - '8'
       seed:
         description: Optional deterministic execution-order seed
         required: false
@@ -31,14 +54,58 @@ concurrency:
   group: performance-comparison-${{ github.ref }}-${{ inputs.profile }}
   cancel-in-progress: false
 
+env:
+  # One name for the shard artifacts and the merged one, so the merge job derives
+  # what to download instead of repeating the naming convention.
+  SHARD_ARTIFACT_PREFIX: performance-comparison-${{ inputs.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+      indices: ${{ steps.plan.outputs.indices }}
+      seed: ${{ steps.plan.outputs.seed }}
+    steps:
+      # The seed is resolved once here rather than per shard: the shards must agree
+      # on it, because it fixes the adapter execution order and the merge refuses
+      # shards whose order differs.
+      - name: Resolve shards and seed
+        id: plan
+        shell: bash
+        env:
+          REQUESTED_SEED: ${{ inputs.seed }}
+          REQUESTED_SHARDS: ${{ inputs.shards }}
+        run: |
+          set -euo pipefail
+          seed="$REQUESTED_SEED"
+          if [[ -z "$seed" ]]; then
+            seed="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fi
+          shards="$REQUESTED_SHARDS"
+          {
+            echo "seed=$seed"
+            echo "shards=$shards"
+            echo "indices=[$(seq -s, 0 "$((shards - 1))")]"
+          } >> "$GITHUB_OUTPUT"
+
   benchmark:
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 100
+    strategy:
+      # One shard's failure must not discard the evidence the others already
+      # produced; each uploads its own raw result before the merge job runs.
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.indices) }}
     env:
       BENCHMARK_MODE: ${{ inputs.profile }}
       BENCHMARK_ADAPTERS: ${{ inputs.adapters }}
-      REQUESTED_SEED: ${{ inputs.seed }}
+      BENCHMARK_SHARD: ${{ matrix.shard }}
+      BENCHMARK_SHARDS: ${{ needs.plan.outputs.shards }}
+      RESOLVED_SEED: ${{ needs.plan.outputs.seed }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -50,21 +117,74 @@ jobs:
         with:
           benchmarks: 'true'
 
+      # Verification is timing-free and covers every full-tier scenario on every
+      # adapter, including the ones this shard does not measure. Each shard job runs
+      # it so that rerunning one shard reproduces the whole job, not a subset of it.
       - name: Verify All Benchmark Scenarios
         run: pnpm --dir benchmarks verify
 
-      - name: Run Benchmark
+      - name: Run Benchmark Shard
         shell: bash
         run: |
-          seed="$REQUESTED_SEED"
-          if [[ -z "$seed" ]]; then
-            seed="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          fi
+          set -euo pipefail
           mkdir -p artifacts/performance-comparison
           pnpm --dir benchmarks bench \
             --mode "$BENCHMARK_MODE" \
             --adapters "$BENCHMARK_ADAPTERS" \
-            --seed "$seed" \
+            --seed "$RESOLVED_SEED" \
+            --shard-index "$BENCHMARK_SHARD" \
+            --shard-count "$BENCHMARK_SHARDS" \
+            --output ../artifacts/performance-comparison/raw.json
+
+      - name: Upload Benchmark Shard
+        if: always() && hashFiles('artifacts/performance-comparison/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.SHARD_ARTIFACT_PREFIX }}-shard-${{ matrix.shard }}
+          path: artifacts/performance-comparison
+          if-no-files-found: error
+          retention-days: 90
+
+  merge:
+    needs:
+      - plan
+      - benchmark
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # No build and no benchmark dependencies: merging and reporting read the raw
+      # results with plain Node.js and never load an adapter.
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+
+      - name: Download Benchmark Shards
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: ${{ env.SHARD_ARTIFACT_PREFIX }}-shard-*
+          path: artifacts/shards
+
+      # `merge` refuses an incomplete set of shards, so a lost artifact fails here
+      # rather than publishing a fraction of the scenarios as a whole run.
+      - name: Merge Benchmark Shards
+        shell: bash
+        env:
+          BENCHMARK_SHARDS: ${{ needs.plan.outputs.shards }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-comparison
+          merge_args=()
+          for shard in $(seq 0 "$((BENCHMARK_SHARDS - 1))"); do
+            merge_args+=(--input "../artifacts/shards/${SHARD_ARTIFACT_PREFIX}-shard-$shard/raw.json")
+          done
+          pnpm --dir benchmarks merge \
+            "${merge_args[@]}" \
             --output ../artifacts/performance-comparison/raw.json
 
       - name: Generate Reports
@@ -72,13 +192,15 @@ jobs:
 
       - name: Publish Job Summary
         shell: bash
-        run: cat artifacts/performance-comparison/summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -euo pipefail
+          cat artifacts/performance-comparison/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Benchmark Reports
         if: always() && hashFiles('artifacts/performance-comparison/**') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: performance-comparison-${{ inputs.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ env.SHARD_ARTIFACT_PREFIX }}
           path: artifacts/performance-comparison
           if-no-files-found: error
           retention-days: 90

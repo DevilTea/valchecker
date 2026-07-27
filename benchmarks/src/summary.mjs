@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { supportedSchemaVersion } from './comparability.mjs'
 import { perspectiveLibraries, reportPerspectives } from './perspectives.mjs'
 import { isSeparated, separationThresholdPercent } from './separation.mjs'
 
@@ -36,12 +37,36 @@ function parseArguments(argv) {
 }
 
 function assertResult(raw) {
-	if (!raw || typeof raw !== 'object' || raw.schemaVersion !== 3)
+	if (!raw || typeof raw !== 'object' || raw.schemaVersion !== supportedSchemaVersion)
 		throw new TypeError('Invalid benchmark result')
 	if (!Array.isArray(raw.scenarioCatalog) || raw.scenarioCatalog.length === 0)
 		throw new TypeError('Benchmark result has no scenario catalog')
 	if (!Array.isArray(raw.libraries) || raw.libraries.length === 0)
 		throw new TypeError('Benchmark result has no libraries')
+	// The concise view aggregates across scenarios, which is exactly the reading a
+	// sharded run invalidates a second way, so it has to know how the run was
+	// measured. `report` validates the record in full; this only needs it present.
+	if (typeof raw.isolation !== 'string' || !Array.isArray(raw.shards) || raw.shards.length === 0)
+		throw new TypeError('Benchmark result does not record its isolation and sharding')
+	// Every row must be one of the catalog's scenarios, and each scenario at most once
+	// per library. `report` has always refused both; this file did not, and it is run
+	// standalone — the workflow calls `summary` on a raw result directly. A row naming a
+	// scenario the catalog does not contain is silently dropped by the lookups below, so
+	// it would shrink a group count with no sign of it, and a duplicated row would be
+	// ranked twice inside its scenario and counted twice in `totalMeasurements`.
+	const catalogIds = new Set(raw.scenarioCatalog.map(scenario => scenario.id))
+	for (const library of raw.libraries) {
+		if (!Array.isArray(library.results))
+			throw new TypeError(`${library.adapter}.results must be an array`)
+		const seen = new Set()
+		for (const result of library.results) {
+			if (!catalogIds.has(result.scenario))
+				throw new Error(`${library.adapter} reports the scenario ${result.scenario}, which is not in the run's catalog`)
+			if (seen.has(result.scenario))
+				throw new Error(`${library.adapter} reports the scenario ${result.scenario} more than once`)
+			seen.add(result.scenario)
+		}
+	}
 	return raw
 }
 
@@ -146,6 +171,24 @@ function buildSummary(raw, libraries) {
 	}
 }
 
+/**
+ * How the run was measured, stated before the data-quality bullets, because both
+ * facts decide what the group aggregates above are allowed to mean. The group
+ * snapshot pools scenarios, so a sharded run pools machines and every geometric
+ * mean in this file spans them.
+ */
+function isolationBullets(raw) {
+	const shardCount = raw.shards[0].count
+	return [
+		raw.isolation === 'cell'
+			? '- Each (adapter, scenario) cell was measured in its own process, so no cell\'s number depends on which scenarios ran before it. A number from an `adapter`-isolated run is not comparable with one from this run.'
+			: '- One process measured every scenario of an adapter, so each cell\'s number depends on its position within that process — by up to 3.1× on an identical schema. Read a cell only against another cell from the same position in the same scenario selection, and prefer a `cell`-isolated run.',
+		...(shardCount === 1
+			? []
+			: [`- The scenarios were split across ${shardCount} machines. Every adapter of one scenario was measured on one machine, so the within-scenario rankings above are sound; the group columns pool scenarios and therefore pool machines, so read them as indicative rather than as measured aggregates. The detailed report names each scenario's shard and runner.`]),
+	]
+}
+
 function renderMarkdown(raw, sections) {
 	const lines = [
 		'# Benchmark summary',
@@ -187,6 +230,7 @@ function renderMarkdown(raw, sections) {
 		'',
 		'## Reliability and comparability',
 		'',
+		...isolationBullets(raw),
 		`- Across every measured library, ${summary.unstableMeasurements} of ${summary.totalMeasurements} measured rows have RME above 5% and should be rerun before interpretation.`,
 		`- Across every measured library, ${summary.skippedMeasurements} adapter/scenario combinations were intentionally omitted because the adapter exposes no equivalent diagnostic policy or lacks the schema kind entirely.`,
 		`- A "clear win" is one where Valchecker leads the runner-up by more than ${separationThresholdPercent}%. The plain win count includes leads too small to reproduce: across four full runs, most orderings that changed between runs were closer than that. Quote the clear count when the claim is that Valchecker is faster.`,
@@ -216,7 +260,10 @@ function renderHtml(raw, sections) {
 	})
 		.join('')
 	const summary = buildSummary(raw, raw.libraries)
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1040px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, cold execution, warmed success, and each failure-policy group are separate costs.</p>${collapseWarning == null ? '' : `<p class="notice">${htmlEscape(collapseWarning)}</p>`}${body}<h2>Reliability and comparability</h2><ul><li>Across every measured library, ${summary.unstableMeasurements} of ${summary.totalMeasurements} measured rows have RME above 5%.</li><li>Across every measured library, ${summary.skippedMeasurements} adapter/scenario combinations were intentionally omitted.</li><li>A clear win is a lead over the runner-up of more than ${separationThresholdPercent}%; smaller leads are not reproducible between runs.</li><li>Library defaults may perform different diagnostic work.</li><li>Explicit first/all scenarios verify issue counts before timing.</li><li>Compatible-subset scenarios test only behavior common to every participating library.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark summary</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1040px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:left}th{background:#e2e8f0}.notice{padding:12px 16px;border-left:4px solid #64748b;background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Benchmark summary</h1><p>Profile: <strong>${htmlEscape(raw.mode)}</strong> · Node: <strong>${htmlEscape(raw.environment.node)}</strong> · CPU: <strong>${htmlEscape(raw.environment.cpu)}</strong></p><p class="notice">Construction, cold execution, warmed success, and each failure-policy group are separate costs.</p>${collapseWarning == null ? '' : `<p class="notice">${htmlEscape(collapseWarning)}</p>`}${body}<h2>Reliability and comparability</h2><ul>${isolationBullets(raw)
+		.map(bullet => `<li>${htmlEscape(bullet.replace(/^- /, '')
+			.replaceAll('`', ''))}</li>`)
+		.join('')}<li>Across every measured library, ${summary.unstableMeasurements} of ${summary.totalMeasurements} measured rows have RME above 5%.</li><li>Across every measured library, ${summary.skippedMeasurements} adapter/scenario combinations were intentionally omitted.</li><li>A clear win is a lead over the runner-up of more than ${separationThresholdPercent}%; smaller leads are not reproducible between runs.</li><li>Library defaults may perform different diagnostic work.</li><li>Explicit first/all scenarios verify issue counts before timing.</li><li>Compatible-subset scenarios test only behavior common to every participating library.</li><li>Use the full report and raw JSON for detailed conclusions.</li></ul></body></html>\n`
 }
 
 const options = parseArguments(process.argv.slice(2))

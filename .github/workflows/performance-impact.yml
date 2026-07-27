@@ -12,6 +12,19 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 # via VALCHECKER_DIST_URL. valchecker before/after is measured with the rigorous
 # paired process comparison; selected competitor adapters are shown as standing
 # vs peers in each build via the ranking report.
+#
+# This gate is deliberately NOT sharded, unlike Performance Comparison. Scenario
+# sharding would preserve the per-scenario classifier — all repetitions of both
+# sides for one scenario would still be adjacent on one machine, and a paired ratio
+# cancels machine speed — but it would turn the severe-GROUP trigger (5% geometric
+# mean across two or more stable scenarios) into an aggregate over several runners,
+# and that trigger is the one that catches broad moderate regressions the 10%
+# per-scenario threshold misses. Every shard job would also have to install and
+# build both revisions, a fixed cost that does not shard, so the wall-time saving is
+# well under 1/N while runner minutes multiply and 5 repetitions x 2 sides x N
+# shards of artefacts have to be fanned out, merged, and paired. `compare` refuses
+# to pair runs whose shard count or isolation differs, so a future attempt to shard
+# one side fails loudly instead of comparing across machines silently.
 
 on:
   workflow_dispatch:

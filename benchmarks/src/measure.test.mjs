@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { collectSamples, getProfile, hasEnoughSamples, measure } from './measure.mjs'
+import { collectSamples, collectSamplesAsync, getProfile, hasEnoughSamples, measure, measureAsync, summarize } from './measure.mjs'
 import { criticalValue, relativeMarginOfError } from './statistics.mjs'
 
 /**
@@ -16,6 +16,12 @@ import { criticalValue, relativeMarginOfError } from './statistics.mjs'
  * answers are fixed by construction from chosen sequences, never recomputed with
  * the function under test — recomputing is self-consistent and would accept a
  * rule that looks at the wrong samples.
+ *
+ * The asynchronous path is held to the same standard, plus one rule of its own:
+ * every stopping-rule assertion about it is a *parity* assertion against the
+ * synchronous loop over the same scripted samples. The two loops cannot share an
+ * implementation, so what keeps them from drifting is that a difference in the
+ * count they keep, or in which samples they keep, fails here.
  */
 
 const fullProfile = getProfile('full')
@@ -108,16 +114,30 @@ test('the sampling loop spends the maximum when the target is never met', () => 
 	assert.equal(samples.length, fullProfile.maxSamples)
 })
 
+/**
+ * The warmup's share of all calls, halved as a margin. `executeFor` calls the
+ * operation once per iteration and reports the count, so calls beyond the ones the
+ * kept samples account for are the warmup's — but both measurement paths also call
+ * the operation once before any timing, to check that it is the kind of operation
+ * they measure. `calls > sampled` would therefore pass with no warmup at all, so
+ * the assertion has to be that the warmup is roughly as large as the profile says.
+ */
+function leastWarmupShare(mode) {
+	const profile = getProfile(mode)
+	return profile.warmupMs / (profile.sampleMs * profile.minSamples) / 2
+}
+
 test('measure warms up before it samples', () => {
-	// `executeFor` calls the operation once per iteration and reports the count, so
-	// calls beyond the ones the kept samples account for are the warmup's.
 	let calls = 0
 	const result = measure(() => {
 		calls++
 		return 1
 	}, 'smoke')
 	const sampled = result.samples.reduce((total, sample) => total + sample.iterations, 0)
-	assert.ok(calls > sampled, `no warmup: ${calls} calls for ${sampled} sampled iterations`)
+	assert.ok(
+		calls > sampled * (1 + leastWarmupShare('smoke')),
+		`no warmup: ${calls} calls for ${sampled} sampled iterations`,
+	)
 })
 
 test('every sample is a real measurement', () => {
@@ -156,4 +176,153 @@ test('past the table the quantile is computed, not replaced by the normal one', 
 
 test('a single sample is infinitely uncertain, not perfectly certain', () => {
 	assert.equal(relativeMarginOfError([42]), Number.POSITIVE_INFINITY)
+})
+
+/**
+ * The reported fields. Everything downstream reads these rather than the samples:
+ * `medianOpsPerSecond` is what every ranking, ratio, and geometric mean in the report
+ * is computed from, and `reachedTarget` is what marks a measurement that never reached
+ * the profile's precision. A test that only asserts they are finite accepts the first
+ * sample, the mean, or a constant in place of any of them, so these drive `summarize`
+ * with scripted samples whose answers are written out by hand.
+ */
+
+/** Three samples whose median, first value, and mean are three different numbers. */
+const scriptedSummary = [
+	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 1000, nanosecondsPerOperation: 50 },
+	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 3000, nanosecondsPerOperation: 10 },
+	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 2600, nanosecondsPerOperation: 20 },
+]
+
+test('the reported throughput is the median sample, not the first or the mean', () => {
+	// Sorted: 1000, 2600, 3000 — median 2600. The first sample is 1000 and the mean is
+	// (1000 + 3000 + 2600) / 3 = 2200, so all three answers are distinguishable.
+	const summary = summarize(scriptedSummary, fullProfile)
+	assert.equal(summary.medianOpsPerSecond, 2600)
+	assert.equal(summary.meanOpsPerSecond, 2200)
+	assert.deepEqual(summary.samples, scriptedSummary)
+})
+
+test('the reported nanoseconds are the median of the sampled nanoseconds', () => {
+	// Sorted: 10, 20, 50 — median 20, where the first sample says 50. The values are
+	// deliberately not 1e9 divided by the throughputs above (which would be 1,000,000,
+	// 333,333 and 384,615), so a summary that derived this field from the throughput
+	// median instead of from its own samples is also caught.
+	assert.equal(summarize(scriptedSummary, fullProfile).medianNanosecondsPerOperation, 20)
+})
+
+test('a measurement that missed the profile target says so', () => {
+	// The three scripted samples have a mean of 2200 and a sample standard deviation of
+	// 1058.3, which is 48% of the mean — far outside the 0.75% target — so this cannot be
+	// reported as having reached it. `reachedTarget` is what puts the `†` marker on a row.
+	assert.equal(summarize(scriptedSummary, fullProfile).reachedTarget, false)
+	// And the other direction, from five identical samples: nothing is more precise than
+	// zero spread, so a rule that never reports success is caught too.
+	const steady = Array.from({ length: fullProfile.minSamples }, () => sampleOf(1000))
+	assert.equal(summarize(steady, fullProfile).reachedTarget, true)
+	assert.equal(summarize(steady, fullProfile).medianOpsPerSecond, 1000)
+})
+
+/**
+ * The asynchronous measurement path. `measureAsync` awaits each operation inside
+ * the timed region, which is the cost an asynchronous caller actually pays, and
+ * everything else about it — profile, warmup, stopping rule, reported fields —
+ * must be the synchronous path's behaviour rather than a second standard.
+ */
+
+function scripted(values) {
+	let index = 0
+	return () => sampleOf(values[index++])
+}
+
+/** Three sequences chosen so the loop stops for a different reason in each. */
+const scriptedSequences = [
+	// Identical: satisfies the target at the floor and never spends more.
+	Array.from({ length: fullProfile.maxSamples + 3 })
+		.fill(1000),
+	// Never inside the target, so the cap is what stops it.
+	quietTail(fullProfile.maxSamples + 3),
+	// Outside the target at five samples and inside it at six: t(4) = 2.776 puts
+	// 0.62% of the mean at 0.770%, while the sixth identical value drops the sample
+	// standard deviation to 0.62% × √(4/5) = 0.5546% and t(5) = 2.571 puts that at
+	// 0.582%. Nothing here is computed with the loop under test.
+	[...spreadAround(1000, 0.0062), 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000],
+]
+
+function collectAsyncFrom(values) {
+	const takeSample = scripted(values)
+	return collectSamplesAsync(async () => takeSample(), fullProfile)
+}
+
+test('the async sampling loop keeps exactly the samples the sync loop keeps', async () => {
+	for (const values of scriptedSequences) {
+		// Each loop drives its own copy of the same script, so what is compared is the
+		// two loops rather than one shared closure.
+		const asynchronous = await collectAsyncFrom(values)
+		const label = values.slice(0, 6)
+			.join()
+		assert.deepEqual(asynchronous, collectSamples(scripted(values), fullProfile), `${label}…`)
+	}
+})
+
+test('the async loop stops at the counts the scripted sequences fix', async () => {
+	const [steady, never, sixth] = scriptedSequences
+	assert.equal((await collectAsyncFrom(steady)).length, fullProfile.minSamples)
+	assert.equal((await collectAsyncFrom(never)).length, fullProfile.maxSamples)
+	assert.equal((await collectAsyncFrom(sixth)).length, fullProfile.minSamples + 1)
+})
+
+test('measureAsync warms up before it samples', async () => {
+	let calls = 0
+	const result = await measureAsync(async () => {
+		calls++
+		return 1
+	}, 'smoke')
+	const sampled = result.samples.reduce((total, sample) => total + sample.iterations, 0)
+	assert.ok(
+		calls > sampled * (1 + leastWarmupShare('smoke')),
+		`no warmup: ${calls} calls for ${sampled} sampled iterations`,
+	)
+})
+
+test('measureAsync reports exactly the fields measure reports', async () => {
+	const synchronous = measure(() => 1, 'smoke')
+	const asynchronous = await measureAsync(async () => 1, 'smoke')
+	assert.deepEqual(Object.keys(asynchronous), Object.keys(synchronous))
+	assert.deepEqual(Object.keys(asynchronous.samples[0]), Object.keys(synchronous.samples[0]))
+	assert.equal(asynchronous.reachedTarget, null)
+	assert.ok(asynchronous.samples.length >= 1)
+	for (const sample of asynchronous.samples) {
+		assert.ok(sample.iterations > 0)
+		assert.ok(sample.elapsedNs > 0)
+		assert.ok(Number.isFinite(sample.opsPerSecond) && sample.opsPerSecond > 0)
+	}
+	assert.ok(Number.isFinite(asynchronous.medianNanosecondsPerOperation))
+})
+
+test('the await is inside the timed region', async () => {
+	// An operation that cannot complete in under a millisecond must not report a
+	// per-operation cost below one. This is the mutation that matters most on this
+	// path: a loop that started the operation without awaiting it would time promise
+	// creation — hundreds of nanoseconds — and publish it as validation throughput.
+	const result = await measureAsync(() => new Promise(resolve => setTimeout(resolve, 1)), 'smoke')
+	assert.ok(
+		result.medianNanosecondsPerOperation > 500_000,
+		`${result.medianNanosecondsPerOperation.toFixed(0)} ns/op for an operation that takes at least a millisecond`,
+	)
+})
+
+test('measure refuses an operation that is asynchronous', () => {
+	// The wiring guard: an async operation handed to the synchronous path would be
+	// timed as promise creation and published as validation throughput, which is a
+	// plausible-looking number rather than a visible failure.
+	assert.throws(() => measure(async () => 1, 'smoke'), /received a promise/)
+	assert.throws(() => measure(() => ({ then: () => {} }), 'smoke'), /received a promise/)
+})
+
+test('measureAsync refuses an operation that is not asynchronous', async () => {
+	// Awaiting a non-thenable succeeds silently and would report a synchronous
+	// number under an async label, so this is rejected before any timing.
+	await assert.rejects(() => measureAsync(() => 1, 'smoke'), /requires an operation that returns a promise/)
+	await assert.rejects(() => measureAsync(() => ({ value: 'abc' }), 'smoke'), /requires an operation that returns a promise/)
 })

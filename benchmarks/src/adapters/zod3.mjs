@@ -1,4 +1,4 @@
 import * as z from 'zod3'
 import { createZodAdapter } from './zod-factory.mjs'
 
-export default createZodAdapter(z, 'Zod 3', '3.25.76')
+export default createZodAdapter(z, { adapter: 'zod3', name: 'Zod 3', specifier: 'zod3' })

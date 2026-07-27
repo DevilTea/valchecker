@@ -53,6 +53,19 @@ const profiles = {
 // eslint-disable-next-line no-unused-vars, unused-imports/no-unused-vars -- write-only sink: assigning each result prevents V8 from dead-code-eliminating the benchmarked operation
 let sink
 
+function isThenable(value) {
+	return value != null && typeof value.then === 'function'
+}
+
+function sampleOf(iterations, elapsedNs) {
+	return {
+		iterations,
+		elapsedNs,
+		opsPerSecond: iterations * 1e9 / elapsedNs,
+		nanosecondsPerOperation: elapsedNs / iterations,
+	}
+}
+
 function executeFor(operation, durationMs) {
 	const started = process.hrtime.bigint()
 	const deadline = started + BigInt(Math.round(durationMs * 1e6))
@@ -66,13 +79,37 @@ function executeFor(operation, durationMs) {
 			now = process.hrtime.bigint()
 	} while (now < deadline)
 
-	const elapsedNs = Number(process.hrtime.bigint() - started)
-	return {
-		iterations,
-		elapsedNs,
-		opsPerSecond: iterations * 1e9 / elapsedNs,
-		nanosecondsPerOperation: elapsedNs / iterations,
-	}
+	return sampleOf(iterations, Number(process.hrtime.bigint() - started))
+}
+
+/**
+ * The asynchronous twin of `executeFor`, for an operation that returns a promise.
+ *
+ * The `await` is inside the timed region on purpose. A caller of an asynchronous
+ * validation cannot avoid the microtask turn that delivers its result, so an
+ * operation that resolves immediately still pays for one, and that cost is
+ * exactly what an async row is comparing. Removing it would time the creation of
+ * the promise and report that as validation throughput.
+ *
+ * Operations run strictly one at a time, so a sample measures the latency of a
+ * complete validation rather than the throughput of an overlapped batch — the
+ * same thing the synchronous loop measures, and the only version of it that a
+ * per-operation number can describe.
+ */
+async function executeForAsync(operation, durationMs) {
+	const started = process.hrtime.bigint()
+	const deadline = started + BigInt(Math.round(durationMs * 1e6))
+	let iterations = 0
+	let now = started
+
+	do {
+		sink = await operation()
+		iterations++
+		if ((iterations & 15) === 0)
+			now = process.hrtime.bigint()
+	} while (now < deadline)
+
+	return sampleOf(iterations, Number(process.hrtime.bigint() - started))
 }
 
 /**
@@ -106,12 +143,40 @@ export function collectSamples(takeSample, profile) {
 	return samples
 }
 
-export function measure(operation, mode) {
-	const profile = getProfile(mode)
+/**
+ * The same loop for a sample that arrives as a promise. It is a mirror rather
+ * than a shared implementation because a synchronous loop cannot await, and the
+ * synchronous one is the hot path of every existing scenario. The stopping rule
+ * itself is not duplicated — both call `hasEnoughSamples` — and the tests drive
+ * both loops with the same scripted sequences and require identical results, so
+ * a divergence fails rather than quietly measuring async cells to a different
+ * standard.
+ */
+export async function collectSamplesAsync(takeSample, profile) {
+	const samples = []
+	const operationsPerSecond = []
+	while (samples.length < profile.maxSamples) {
+		const sample = await takeSample()
+		samples.push(sample)
+		operationsPerSecond.push(sample.opsPerSecond)
+		if (hasEnoughSamples(operationsPerSecond, profile))
+			break
+	}
+	return samples
+}
 
-	executeFor(operation, profile.warmupMs)
-
-	const samples = collectSamples(() => executeFor(operation, profile.sampleMs), profile)
+/**
+ * The reported fields, derived from the kept samples. Shared by both measurement
+ * paths so that an async cell reports the same fields computed the same way as a
+ * sync one; the only difference between the two paths is how a sample is taken.
+ *
+ * Exported for the same reason `collectSamples` is: driven by scripted samples it can
+ * be checked against answers fixed by hand, where a test going through `measure` can
+ * only assert that real timings are finite — which is true of the wrong number too.
+ * `medianOpsPerSecond` is what the report ranks on and `reachedTarget` drives the `†`
+ * marker, so neither can rest on that.
+ */
+export function summarize(samples, profile) {
 	const ops = samples.map(sample => sample.opsPerSecond)
 	const achievedRme = relativeMarginOfError(ops)
 
@@ -130,6 +195,47 @@ export function measure(operation, mode) {
 			? null
 			: achievedRme <= profile.targetRelativeMarginOfError,
 	}
+}
+
+export function measure(operation, mode) {
+	const profile = getProfile(mode)
+
+	// The mirror of the probe in `measureAsync`, and the reason a wiring mistake
+	// cannot publish a wrong number: an operation that returns a promise measured
+	// here would time promise *creation*, which looks like an implausibly fast
+	// validation rather than like an error. One call before the warmup, outside every
+	// timed region, so nothing measured changes.
+	if (isThenable(operation()))
+		throw new TypeError('A synchronous measurement requires an operation that returns a value; received a promise. Measure it with `measureAsync`.')
+
+	executeFor(operation, profile.warmupMs)
+
+	return summarize(collectSamples(() => executeFor(operation, profile.sampleMs), profile), profile)
+}
+
+/**
+ * Measures an operation that returns a promise. Same profile, same warmup, same
+ * stopping rule, same reported fields as `measure`; the difference is that each
+ * iteration awaits, which is what an async caller pays.
+ *
+ * The operation is probed once before any timing, because an operation that does
+ * not return a thenable is not an asynchronous measurement: awaiting it would
+ * produce a synchronous number under an async label. This is the harness-level
+ * half of the guard — `scenarios/define.mjs` rejects the opposite mistake, a
+ * promise-returning operation declared synchronous, when it verifies the
+ * scenario's result.
+ */
+export async function measureAsync(operation, mode) {
+	const profile = getProfile(mode)
+
+	const probe = operation()
+	if (!isThenable(probe))
+		throw new TypeError('An asynchronous measurement requires an operation that returns a promise; received a synchronous value.')
+	await probe
+
+	await executeForAsync(operation, profile.warmupMs)
+
+	return summarize(await collectSamplesAsync(() => executeForAsync(operation, profile.sampleMs), profile), profile)
 }
 
 export function getProfile(mode) {

@@ -24,6 +24,7 @@ These need no manual audit — `pnpm verify` fails on them:
 | ESM-only packaging, no CJS artifacts, pinned internal deps | `scripts/test-packages.ts`, `publint` |
 | Type-complexity budget and pinned TypeScript version | `scripts/check-type-performance.ts` |
 | Tree-shaking markers and selective-bundle size | `benchmarks/src/treeshake.mjs` |
+| Every built-in step is compared against a competitor by a cross-library scenario, or allowlisted with a reason | `scripts/check-benchmark-coverage.ts` |
 | Piped CI commands run under `pipefail` | `scripts/check-workflow-pipefail.ts` |
 | A source change carries a `CHANGELOG.md` entry | `Changelog` job in `ci.yml` (`skip-changelog` label opts out) |
 | `main` takes no direct push, force-push, or non-squash merge | repository ruleset, with every CI check required |

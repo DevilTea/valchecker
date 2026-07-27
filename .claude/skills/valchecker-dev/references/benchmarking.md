@@ -44,7 +44,17 @@ pnpm --dir benchmarks report \
 	--html results/report.html
 ```
 
-Profiles are `smoke`, `standard`, and `full`. A run can select adapters, scenario ids, or benchmark groups. The generated raw JSON is the source of truth for samples, environment, semantic metadata, and skipped-adapter reasons.
+Profiles are `smoke`, `standard`, and `full`. A run can select adapters, scenario ids, or benchmark groups. The generated raw JSON is the source of truth for samples, environment, semantic metadata, skipped-adapter reasons, isolation, and sharding.
+
+### Isolation and sharding
+
+Every (adapter, scenario) cell is measured in its own process (`"isolation": "cell"`), one cell at a time, with the adapters of one scenario measured back to back. That is the fix for the intra-process position artefact four findings during the scenario expansion had to work around: under the previous one-process-per-adapter runner an identical array pipeline measured 83.5 ns as the first array-carried scenario and 261.9 ns after three others, and `schema-kind/unknown-valid` measured 6.4 ns alone and 14.8 ns behind two other scenarios.
+
+Measuring the whole standard tier both ways on one machine sized it: 684 of 773 cells more than 5% faster in isolation, a median 19.0% move in the adapter-versus-Valchecker ratios, and 153 of the 1,232 adapter pairs the report presented as *separated* reversed — 12.4% against the 2.3% rate the 5% threshold was calibrated to. Those pairs are not independent — they are the separated pairs of about 167 scenarios, and every pair inside one scenario rests on the same five cell measurements — so read the sample as about 167, at which 12.4% against 2.3% is still roughly nine standard errors. Counts of changed scenario orderings are deliberately not quoted, because they have no null baseline — the `zod4`/`zod4-jitless` pair alone flips in 31.6% of comparisons between two same-isolation runs. It was adapter-dependent — Zod 4 −38.5% against Valibot −13.5% — so it biased the within-scenario comparison rather than only adding noise, which is why it could not be documented instead of fixed; what replaced it is position independence rather than realism, so a number from either runner is a number about a different thing rather than a better or worse estimate of one thing. It cost 110 s on that pair of runs (143 ms per cell, 7.6% of that profile's budget; roughly 3% on a full-tier `full` run). `--isolation adapter` reproduces the old behaviour for reading an archived number, and nothing else. Absolute numbers from before 2026-07-28 are not comparable with numbers after it.
+
+The **Performance Comparison** workflow shards by scenario, never by adapter: every adapter of one scenario must be measured on one machine because that is the only comparison the report makes, and runners vary between jobs. Assignment is positional round-robin (`p % count`), deterministic from the selection and count alone, so rerunning one shard measures the same scenarios; it is also exactly invertible, which is how `merge` rebuilds the run order without the registry. `merge` refuses a differing mode, seed, profile, isolation, filter, adapter order, adapter version, commit, or Node.js version; shard sizes no `p % count` assignment could produce, or a shard whose recorded scenario list is not its own catalog, because `interleaveShards` would otherwise reorder them into a catalog the report presents as the run order; overlapping or duplicated shards; an already-merged input; and a missing shard. Only the machine may differ. Each adapter reports the version of the build it loaded rather than a source literal — read from the nearest `package.json` above the resolved entry — so the version guards compare something that can actually differ, and a published report's versions are traceable. For the Valchecker adapter that is `packages/valchecker`'s version, which does not identify a build within one version; `environment.commit` is what catches a mixed-build merge.
+
+The **Performance Impact** gate is deliberately unsharded — see `benchmarks/README.md` for the argument. `compare.mjs` refuses to pair runs whose isolation or shard count differs, the same guard that already refuses a differing mode or profile; it lives in `benchmarks/src/comparability.mjs` so it can be tested against results differing in exactly one field.
 
 Each measurement takes between `minSamples` and `maxSamples` samples and stops as soon as its 95% confidence interval is within `targetRelativeMarginOfError` of the mean. `smoke` sets no target and always takes its three. The interval uses Student's t, which is what makes the target mean what it says at these sample sizes. `pnpm --dir benchmarks test` checks the rule, and CI runs it in the `Benchmark-Smoke` job.
 
@@ -52,7 +62,7 @@ Two consequences to keep in mind when reading a report. Rows compared inside one
 
 The target is 0.75%, chosen by replaying the 440 cells of that run. What the replay bounds is movement in a reported ratio: at most 1.22% in that run's sample order, and 1.34% replaying the same samples in reverse, against the 5% threshold the harness uses for calling a difference meaningful at all. It does not bound rankings, and a criterion that appeared to would be measuring ties rather than precision — 28 of the 345 adjacent ranking pairs in that run sit closer together than 1.22%, and a stricter 0.5% target perturbs one ordering where 0.75% perturbs none. `minSamples` is 5 because 4 puts an 8% shift into a ratio.
 
-Both profiles save: on the CI runners, 59 to 65 of the 80 `standard` cells stop at five samples. Changing any profile field changes what a number means, so `compare` refuses to pair runs whose profiles differ rather than reporting the difference as a performance change.
+Both profiles save: on the CI runners, 59 to 65 of the 80 `standard` cells stop at five samples. Changing any profile field changes what a number means, so `compare` refuses to pair runs whose profile, isolation, or shard count differs rather than reporting the difference as a performance change.
 
 Switching the runner to Student's t also widened every published RME by about 12%, which moved one cell (`optional-heavy/sparse` on Zod 4 jitless, 4.72% to 5.31%) across the 5% stability line. Because a scenario counts as stable only when every row is, that scenario drops out of the summary's stable set and its group counts fall by one — including one Valchecker win. The measurements did not change; what changed is that their uncertainty is no longer understated.
 
@@ -64,6 +74,8 @@ The limit belongs next to the marker: 19 unreproducible orderings have gaps abov
 
 One run produces two perspectives when it measures a generated-code validator: interpreted libraries only, and every library. The rule lives in `benchmarks/src/perspectives.mjs` and keys on each adapter's `capabilities.generatedCode`. It collapses to a single ranking when no generated-code validator was measured, and also when excluding them would leave fewer than two libraries — that second case still warns that the run mixes execution strategies. Cite the interpreted perspective when comparing execution strategies, and read `Rank`/`Fastest` and `Rank (interpreted)`/`Fastest (interpreted)` as pairs; mixing one perspective's rank with the other's share is the mistake the split exists to prevent.
 
+A scenario also declares how it is measured and through which entry point, and both reach `raw.json`. `executionMode` is `sync` or `async`: an async cell is measured by awaiting the operation inside the timed loop, one at a time, because the microtask turn is part of what an asynchronous caller pays. It is declared rather than detected — a maybe-async pipeline returns a promise for some inputs and not others — and the harness rejects a mismatch in either direction, including handing `measure` a promise or `measureAsync` a plain value. Async cells take their own benchmark groups (`warm/async/success`, …) so no aggregate mixes them with synchronous work. `entry` is `native` or `standard`, the latter calling `schema['~standard'].validate(input)` over a build key a native scenario already measures; keep `adapter.parse` referenced rather than wrapped in `scenarios/define.mjs`, so adding an entry point never costs an existing cell a call frame.
+
 Keep these groups separate:
 
 1. schema construction;
@@ -71,7 +83,8 @@ Keep these groups separate:
 3. warmed success;
 4. warmed library-default failure;
 5. warmed first-issue failure;
-6. warmed all-issues failure.
+6. warmed all-issues failure;
+7. the same warmed groups measured asynchronously.
 
 Library-default failure modes may perform different diagnostic work. Compare equivalent first/all policies only where the adapter exposes them.
 
@@ -80,9 +93,12 @@ Library-default failure modes may perform different diagnostic work. Compare equ
 - existing scenario ids, fixtures, schemas, and tiers are stable — earlier runs are the baseline for the open performance issues, so add a new id instead of editing an old scenario;
 - stability is per scenario. Group aggregates, including the geometric means behind the performance-impact verdict, are not comparable across a scenario-set change;
 - keep `smoke` small because it gates every pull request, and prefer `full` for a secondary or failure variant so the standard-tier gate stays affordable;
-- when a library lacks a schema kind entirely, declare a required feature on the scenario and the supported features on the adapter; the runner skips with a stated reason. Never substitute a hand-rolled stand-in — verify first whether the library really lacks it, because a wrong assumption silently penalizes that library;
+- when a library lacks a schema kind entirely, declare a required feature on the scenario and add the adapter to that feature in `benchmarks/src/capabilities.mjs`; the runner skips with a stated reason, and the Zod adapters fail to load if the installed build disagrees with the declaration. Never substitute a hand-rolled stand-in — verify first whether the library really lacks it, because a wrong assumption silently penalizes that library, and the two allowlist entries removed since this suite began were both wrong assumptions;
+- a step is covered only when some scenario naming it has a *competitor* participating. `pnpm bench:coverage` enforces that, so a family every competitor is gated out of — `schema-kind/json-*` — puts its step in the allowlist rather than in the covered count;
+- an output assertion is worth only as much as `canonicalizeOutput`. It needs a branch for every value `JSON.stringify` cannot separate, and it refuses an object with no own enumerable properties instead of comparing it as `{}`; the `File` and `Blob` branches exist because without them a `text/plain` File passed as the expected output of an `image/png` check;
 - when the family exists everywhere but differs in detail, declare `compatible-subset` and pick fixtures every implementation agrees on;
-- a new tree-shaking scenario is not covered until `analyze()` gains a check for it and `markdown()` lists its group; otherwise it burns a bundle and asserts nothing.
+- a new tree-shaking scenario is not covered until `analyze()` gains a check for it and `markdown()` lists its group; otherwise it burns a bundle and asserts nothing;
+- do not add a field to `raw.json` that changes what a number means without extending the identity in `benchmarks/src/comparability.mjs`; a number must never be readable as comparable to one produced differently.
 
 ## Before/after impact
 
