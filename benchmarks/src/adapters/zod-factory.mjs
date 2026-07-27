@@ -1,4 +1,4 @@
-import { dateBounds, mappedBooleanValues } from '../fixtures.mjs'
+import { dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
@@ -66,6 +66,16 @@ export function createZodAdapter(z, name, version) {
 		first: z.string(),
 		second: z.string(),
 	})
+
+	// The twenty tagged branches, in the shared order, for both
+	// `z.discriminatedUnion()` and `z.union()`. Both pins build a discriminator map
+	// from the branches' literal values, so both dispatch by lookup.
+	const createTaggedBranches = () => taggedUnionTags.map(tag => z.object({
+		type: z.literal(tag),
+		id: z.string(),
+		size: z.number(),
+		enabled: z.boolean(),
+	}))
 
 	// Zod 4 promoted the string formats to top-level schemas and added
 	// `templateLiteral`; Zod 3 keeps the formats as string methods and has no
@@ -145,6 +155,11 @@ export function createZodAdapter(z, name, version) {
 	// has no bigint coercion that reports an issue instead of throwing.
 	const hasBigintCoercion = typeof z.coerce?.bigint === 'function'
 	const hasNormalize = typeof stringMethods.normalize === 'function'
+	// `nonoptional()` rejects `undefined` the way `isDefined()` does. Zod 3 has no
+	// such method, and neither pin has a `nonnullable()` or a non-nullish schema, so
+	// `isNonNull()` and `isNonNullish()` have no Zod opponent at all — a `refine`
+	// closure would be a stand-in for the built-in the other two libraries ship.
+	const hasNonOptional = typeof stringMethods.nonoptional === 'function'
 
 	const features = []
 	if (hasFile)
@@ -157,6 +172,8 @@ export function createZodAdapter(z, name, version) {
 		features.push('bigint coercion')
 	if (hasNormalize)
 		features.push('Unicode normalization')
+	if (hasNonOptional)
+		features.push('undefined rejection')
 	for (const [key, feature] of Object.entries(gatedFormatFeatures)) {
 		if (formatBuilds[key] !== null)
 			features.push(feature)
@@ -329,6 +346,20 @@ export function createZodAdapter(z, name, version) {
 				.transform(String),
 			shapeUppercase: () => z.string()
 				.toUpperCase(),
+			variant: () => z.discriminatedUnion('type', createTaggedBranches()),
+			unionLarge: () => z.union(createTaggedBranches()),
+			recursiveTree: () => {
+				const tree = z.object({
+					value: z.number(),
+					children: z.array(z.lazy(() => tree)),
+				})
+				return tree
+			},
+			// `.catch()` also accepts a bare value; the callback form is used so the
+			// three libraries pay for the same getter call.
+			fallback: () => z.number()
+				.min(0)
+				.catch(() => 0),
 			// Declared only where the pinned version has them, so a scenario that
 			// forgets its `requiredFeatures` fails with the harness's actionable
 			// message instead of a `z.file is not a function` from inside the build.
@@ -365,6 +396,12 @@ export function createZodAdapter(z, name, version) {
 				? {
 						shapeNormalized: () => z.string()
 							.normalize('NFC'),
+					}
+				: {}),
+			...(hasNonOptional
+				? {
+						narrowDefined: () => z.unknown()
+							.nonoptional(),
 					}
 				: {}),
 		},

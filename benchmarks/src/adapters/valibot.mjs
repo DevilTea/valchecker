@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import { dateBounds } from '../fixtures.mjs'
+import { dateBounds, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 const integer = () => v.pipe(v.number(), v.integer())
@@ -48,6 +48,17 @@ function issuePolicyFields() {
 	}
 }
 
+// The twenty tagged branches, in the shared order, for both `v.variant()` and
+// `v.union()`.
+function createTaggedBranches() {
+	return taggedUnionTags.map(tag => v.object({
+		type: v.literal(tag),
+		id: v.string(),
+		size: v.number(),
+		enabled: v.boolean(),
+	}))
+}
+
 export default {
 	name: 'Valibot',
 	version: '1.4.2',
@@ -59,7 +70,20 @@ export default {
 		// no boolean-string parser, and no bigint coercion that reports an issue:
 		// `v.transform(BigInt)` throws a `SyntaxError` out of `safeParse` on an
 		// unparseable string, so the invalid bigint scenario cannot be expressed.
-		features: ['file', 'combined IPv4/IPv6', 'hex', 'MAC address', 'one-sided trim', 'Unicode normalization'],
+		features: [
+			'file',
+			'combined IPv4/IPv6',
+			'hex',
+			'MAC address',
+			'one-sided trim',
+			'Unicode normalization',
+			// `nonOptional`, `nonNullable`, and `nonNullish` are all built-in schemas
+			// here, which is more than either Zod pin has: Zod 4 ships `nonoptional()`
+			// only and Zod 3 none of the three.
+			'undefined rejection',
+			'null rejection',
+			'nullish rejection',
+		],
 	},
 	build: {
 		primitive: () => v.pipe(
@@ -209,6 +233,24 @@ export default {
 		shapeTrimmedStart: () => v.pipe(v.string(), v.trimStart()),
 		shapeTrimmedEnd: () => v.pipe(v.string(), v.trimEnd()),
 		shapeNormalized: () => v.pipe(v.string(), v.normalize('NFC')),
+		// `v.variant()` is the tagged-union spelling, but it dispatches by running
+		// each option's discriminator schema in order until one matches rather than by
+		// looking the tag up in a map. That is a real implementation difference the
+		// scenarios are there to measure, not a reason to skip Valibot.
+		variant: () => v.variant('type', createTaggedBranches()),
+		unionLarge: () => v.union(createTaggedBranches()),
+		recursiveTree: () => {
+			const tree = v.object({
+				value: v.number(),
+				children: v.array(v.lazy(() => tree)),
+			})
+			return tree
+		},
+		// `fallback()` accepts a getter callback, matching `fallback(getValue)`.
+		fallback: () => v.fallback(v.pipe(v.number(), v.minValue(0)), () => 0),
+		narrowDefined: () => v.nonOptional(v.unknown()),
+		narrowNonNull: () => v.nonNullable(v.unknown()),
+		narrowNonNullish: () => v.nonNullish(v.unknown()),
 	},
 	parse(schema, input, context) {
 		return v.safeParse(

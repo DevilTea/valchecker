@@ -7,19 +7,23 @@ import { coercionScenarios } from './coercion.mjs'
 import { collectionScenarios } from './collection.mjs'
 import { constraintScenarios } from './constraint.mjs'
 import { dateScenarios } from './date.mjs'
+import { fallbackScenarios } from './fallback.mjs'
 import { fileMimeTypeScenarios } from './file-mime-type.mjs'
 import { fileScenarios } from './file.mjs'
 import { issuePolicyRecordTupleScenarios } from './issue-policy-record-tuple.mjs'
 import { issuePolicyScenarios } from './issue-policy.mjs'
 import { lifecycleScenarios } from './lifecycle.mjs'
+import { nullishScenarios } from './nullish.mjs'
 import { objectScenarios } from './object.mjs'
 import { optionalHeavyScenarios } from './optional-heavy.mjs'
 import { primitiveBuiltinScenarios } from './primitive-builtin.mjs'
 import { primitiveScenarios } from './primitive.mjs'
 import { recordTupleTemplateLiteralScenarios } from './record-tuple-template-literal.mjs'
+import { recursionScenarios } from './recursion.mjs'
 import { stringFormatExtendedScenarios } from './string-format-extended.mjs'
 import { stringFormatScenarios } from './string-format.mjs'
 import { stringShapeScenarios } from './string-shape.mjs'
+import { taggedUnionScenarios } from './tagged-union.mjs'
 import { transformScenarios } from './transform.mjs'
 import { unionScenarios } from './union.mjs'
 
@@ -56,6 +60,10 @@ const scenarioFamilies = [
 	primitiveBuiltinScenarios,
 	coercionScenarios,
 	stringShapeScenarios,
+	taggedUnionScenarios,
+	recursionScenarios,
+	fallbackScenarios,
+	nullishScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()

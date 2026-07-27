@@ -115,6 +115,34 @@ export const dateBounds = {
 	upper: new Date('2030-01-01T00:00:00.000Z'),
 }
 
+// The single source of truth for `variant/*` and `union-large/*`. Every adapter
+// builds its twenty tagged branches from this list, in this order, so the four
+// schemas cannot drift and `union-large/last` really is the same branch set
+// `variant/late` dispatches into. Twenty realistic event tags: see
+// `scenarios/tagged-union.mjs` for why twenty.
+export const taggedUnionTags = Object.freeze([
+	'text',
+	'count',
+	'point',
+	'flag',
+	'user',
+	'image',
+	'audio',
+	'video',
+	'link',
+	'label',
+	'range',
+	'color',
+	'money',
+	'stamp',
+	'blob',
+	'geo',
+	'quota',
+	'score',
+	'ticket',
+	'session',
+])
+
 // The single source of truth for `coercion/mapped-boolean-*`, for the same reason:
 // `toMappedBoolean` and Zod 4's `stringbool` are configured from the same two
 // lists, so a drift between the adapters would silently compare two mappings.

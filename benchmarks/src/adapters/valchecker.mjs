@@ -1,5 +1,5 @@
 import process from 'node:process'
-import { dateBounds, mappedBooleanValues } from '../fixtures.mjs'
+import { dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -69,6 +69,19 @@ function issuePolicyFields() {
 	}
 }
 
+// The twenty tagged branches behind `variant/*` and `union-large/*`. One shape
+// for every branch on purpose: the only thing separating an early hit from a
+// late one is then the dispatch, which is what those scenarios measure. The
+// five-branch `union` above keeps the varied-payload framing.
+function createTaggedBranches() {
+	return Object.fromEntries(taggedUnionTags.map(tag => [tag, v.object({
+		type: v.literal(tag),
+		id: v.string(),
+		size: v.number(),
+		enabled: v.boolean(),
+	})]))
+}
+
 function structuralOptions(context) {
 	return context?.issuePolicy === 'all'
 		? { collectAllIssues: true }
@@ -100,6 +113,9 @@ export default {
 			'bigint coercion',
 			'one-sided trim',
 			'Unicode normalization',
+			'undefined rejection',
+			'null rejection',
+			'nullish rejection',
 		],
 	},
 	build: {
@@ -293,6 +309,36 @@ export default {
 			.toTrimmedEnd(),
 		shapeNormalized: () => v.string()
 			.toNormalized({ form: 'NFC' }),
+		// `variant` looks the discriminator up and executes exactly one branch;
+		// `unionLarge` is the same twenty branches tried in declaration order, which
+		// is what makes the pair a lookup-versus-linear comparison rather than two
+		// unrelated schemas.
+		variant: () => v.variant({ discriminator: 'type', variants: createTaggedBranches() }),
+		unionLarge: () => v.union(Object.values(createTaggedBranches())),
+		// The recursive schema. `generic(factory)` resolves the self-reference on
+		// every execution, which is also why the schema's mode is maybe-async even
+		// though every step here completes synchronously.
+		recursiveTree: () => {
+			const tree = v.object({
+				value: v.number(),
+				children: v.array(v.generic(() => tree)),
+			})
+			return tree
+		},
+		// `fallback` takes a getter callback and nothing else. `.catch()` and
+		// Valibot's `fallback()` also accept a bare value, so both competitor builds
+		// pass a callback instead: the recovery paths then cost the same call.
+		fallback: () => v.number()
+			.isAtLeast(0)
+			.fallback(() => 0),
+		// Nullish narrowing. `unknown()` is the base because these steps require an
+		// output that can be `undefined` or `null` in the first place.
+		narrowDefined: () => v.unknown()
+			.isDefined(),
+		narrowNonNull: () => v.unknown()
+			.isNonNull(),
+		narrowNonNullish: () => v.unknown()
+			.isNonNullish(),
 	},
 	parse(schema, input) {
 		return schema.execute(input)
