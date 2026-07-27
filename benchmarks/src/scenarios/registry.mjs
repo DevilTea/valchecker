@@ -20,6 +20,7 @@ import { primitiveBuiltinScenarios } from './primitive-builtin.mjs'
 import { primitiveScenarios } from './primitive.mjs'
 import { recordTupleTemplateLiteralScenarios } from './record-tuple-template-literal.mjs'
 import { recursionScenarios } from './recursion.mjs'
+import { schemaKindScenarios } from './schema-kind.mjs'
 import { stringFormatExtendedScenarios } from './string-format-extended.mjs'
 import { stringFormatScenarios } from './string-format.mjs'
 import { stringShapeScenarios } from './string-shape.mjs'
@@ -64,6 +65,7 @@ const scenarioFamilies = [
 	recursionScenarios,
 	fallbackScenarios,
 	nullishScenarios,
+	schemaKindScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()

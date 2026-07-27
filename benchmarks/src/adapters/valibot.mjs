@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import { dateBounds, taggedUnionTags } from '../fixtures.mjs'
+import { BenchmarkResource, dateBounds, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 const integer = () => v.pipe(v.number(), v.integer())
@@ -83,6 +83,10 @@ export default {
 			'undefined rejection',
 			'null rejection',
 			'nullish rejection',
+			// `v.blob()` is `input instanceof Blob`, the same test `blob()` performs;
+			// neither Zod pin has a blob schema at all. Valibot has no equivalent of
+			// `json()`, so `JSON string validation` is absent.
+			'Blob',
 		],
 	},
 	build: {
@@ -251,6 +255,17 @@ export default {
 		narrowDefined: () => v.nonOptional(v.unknown()),
 		narrowNonNull: () => v.nonNullable(v.unknown()),
 		narrowNonNullish: () => v.nonNullish(v.unknown()),
+		// The remaining initial schemas. `null` and `undefined` are reserved words, so
+		// Valibot exports them as `null_` and `undefined_`.
+		kindAny: () => v.any(),
+		kindUnknown: () => v.unknown(),
+		kindNever: () => v.never(),
+		kindNull: () => v.null_(),
+		kindUndefined: () => v.undefined_(),
+		kindBigint: () => v.bigint(),
+		kindSymbol: () => v.symbol(),
+		kindInstance: () => v.instance(BenchmarkResource),
+		kindBlob: () => v.blob(),
 	},
 	parse(schema, input, context) {
 		return v.safeParse(

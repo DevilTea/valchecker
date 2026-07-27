@@ -143,6 +143,18 @@ export const taggedUnionTags = Object.freeze([
 	'session',
 ])
 
+// The single source of truth for `schema-kind/instance-valid`. Every adapter
+// imports this class so `v.instance(C)`, `z.instanceof(C)`, and Valibot's
+// `v.instance(C)` cannot end up pointing at different prototypes. It is declared
+// here rather than reusing a built-in like `Date` or `URL` so that no library can
+// recognize the constructor and take a dedicated path, and it carries one own
+// property so the scenario's output assertion has something to compare.
+export class BenchmarkResource {
+	constructor(id) {
+		this.id = id
+	}
+}
+
 // The single source of truth for `coercion/mapped-boolean-*`, for the same reason:
 // `toMappedBoolean` and Zod 4's `stringbool` are configured from the same two
 // lists, so a drift between the adapters would silently compare two mappings.

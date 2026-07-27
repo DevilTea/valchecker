@@ -6,6 +6,20 @@
 
 const explicitIssuePolicies = new Set(['first', 'all'])
 
+// Symbols compare by identity, not by description: two `Symbol('x')` are
+// different values. `canonicalizeOutput` therefore gives each distinct symbol a
+// stable index within the process instead of using its description, which two
+// unrelated symbols can share. The indices only ever have to separate the actual
+// output from the expected one inside a single `assertResult` call, so the map is
+// small and its numbering does not have to mean anything across calls.
+const symbolIdentities = new Map()
+
+function symbolIdentity(value) {
+	if (!symbolIdentities.has(value))
+		symbolIdentities.set(value, symbolIdentities.size)
+	return symbolIdentities.get(value)
+}
+
 export function canonicalizeOutput(value) {
 	if (value instanceof Map)
 		return { type: 'Map', entries: [...value].map(([key, item]) => [canonicalizeOutput(key), canonicalizeOutput(item)]) }
@@ -20,6 +34,12 @@ export function canonicalizeOutput(value) {
 	// scenarios produce.
 	if (typeof value === 'bigint')
 		return { type: 'BigInt', digits: value.toString() }
+	// `JSON.stringify` maps a top-level symbol to `undefined` rather than throwing,
+	// so without this branch every symbol output would serialize to the same thing
+	// as every other symbol — and as no output at all — and the `symbol` scenario's
+	// output assertion would pass without asserting anything.
+	if (typeof value === 'symbol')
+		return { type: 'Symbol', identity: symbolIdentity(value) }
 	if (Array.isArray(value))
 		return value.map(canonicalizeOutput)
 	if (value != null && typeof value === 'object') {

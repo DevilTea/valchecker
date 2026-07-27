@@ -1,5 +1,5 @@
 import process from 'node:process'
-import { dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { BenchmarkResource, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -116,6 +116,13 @@ export default {
 			'undefined rejection',
 			'null rejection',
 			'nullish rejection',
+			// Separate from `file`: Zod 4 has `z.file()` but no blob schema, so a
+			// scenario gated on `file` would ask it for a build key it cannot provide.
+			'Blob',
+			// `json()` checks that a string parses. Zod 4's `z.json()` is a recursive
+			// JSON-value schema instead, which is a different comparison; see
+			// `scenarios/schema-kind.mjs`.
+			'JSON string validation',
 		],
 	},
 	build: {
@@ -339,6 +346,22 @@ export default {
 			.isNonNull(),
 		narrowNonNullish: () => v.unknown()
 			.isNonNullish(),
+		// The remaining initial schemas, one build key each. `any` and `unknown` add
+		// no runtime check at all, which is what makes them the per-call floor, and
+		// `never` fails without one, which makes it the error-construction floor.
+		kindAny: () => v.any(),
+		kindUnknown: () => v.unknown(),
+		kindNever: () => v.never(),
+		kindNull: () => v.null(),
+		kindUndefined: () => v.undefined(),
+		kindBigint: () => v.bigint(),
+		kindSymbol: () => v.symbol(),
+		kindInstance: () => v.instance(BenchmarkResource),
+		kindBlob: () => v.blob(),
+		// `json()` is a step on a string rather than an initial schema, so the chain
+		// carries the `string()` check the step's expected state requires.
+		kindJsonString: () => v.string()
+			.json(),
 	},
 	parse(schema, input) {
 		return schema.execute(input)

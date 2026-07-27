@@ -1,4 +1,4 @@
-import { dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
+import { BenchmarkResource, dateBounds, mappedBooleanValues, taggedUnionTags } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
@@ -360,6 +360,22 @@ export function createZodAdapter(z, name, version) {
 			fallback: () => z.number()
 				.min(0)
 				.catch(() => 0),
+			// The remaining initial schemas. Both pins spell all of these the same way,
+			// so none of them is version-detected. `z.instanceof()` is a built-in in
+			// both, even though Zod 3 implements it on top of `z.custom()` and therefore
+			// reports a `custom` issue where Zod 4 reports an `invalid_type` — the
+			// accepted set is the same `instanceof` test either way. Neither pin has a
+			// blob schema, and Zod 4's `z.json()` is a recursive JSON-value schema rather
+			// than the string parse check `json()` performs, so both of those scenarios
+			// are gated by feature instead of built here.
+			kindAny: () => z.any(),
+			kindUnknown: () => z.unknown(),
+			kindNever: () => z.never(),
+			kindNull: () => z.null(),
+			kindUndefined: () => z.undefined(),
+			kindBigint: () => z.bigint(),
+			kindSymbol: () => z.symbol(),
+			kindInstance: () => z.instanceof(BenchmarkResource),
 			// Declared only where the pinned version has them, so a scenario that
 			// forgets its `requiredFeatures` fails with the harness's actionable
 			// message instead of a `z.file is not a function` from inside the build.
