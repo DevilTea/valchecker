@@ -161,6 +161,8 @@ Profiles:
 - `standard`: normal comparison run
 - `full`: longer samples and large-array scenarios
 
+`standard` and `full` sample each measurement until its 95% confidence interval is within 0.75% of the mean, between five samples and the profile's cap, so measurements in one run rest on different numbers of samples. The report's `Samples` column records how many, and `†` marks a measurement whose interval never reached the target. A measurement that stopped early reports the interval it had at that moment, which is at most the target and therefore understates the spread a longer run would find. `smoke` sets no target and always takes three samples.
+
 Raw output defaults to `benchmarks/results/raw.json`. Use `--output <path>`, `--seed <value>`, or `--adapters valchecker,zod4` to customize a run.
 
 Restrict a run to specific scenarios with `--scenarios`, accepting a comma-separated list of scenario ids (for example `primitive/valid`) or benchmark-group names (for example `warm/failure/first`); the union of matches runs and every other scenario is skipped. Explicit selection ignores the sampling tier, so a named scenario always runs regardless of `--mode`, and an unknown id or group is a hard error.

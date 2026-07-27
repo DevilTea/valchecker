@@ -140,7 +140,7 @@ for (const adapter of order) {
 }
 
 const result = {
-	schemaVersion: 2,
+	schemaVersion: 3,
 	mode: options.mode,
 	seed: options.seed,
 	scenarioFilter: options.scenarios.length > 0 ? options.scenarios : null,

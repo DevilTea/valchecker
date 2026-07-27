@@ -2,23 +2,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { median, relativeMarginOfError } from './statistics.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 const stabilityThreshold = 5
 const meaningfulThreshold = 5
 const severeScenarioRegression = -10
 const severeGroupRegression = -5
-const tCritical95 = new Map([
-	[2, 12.706],
-	[3, 4.303],
-	[4, 3.182],
-	[5, 2.776],
-	[6, 2.571],
-	[7, 2.447],
-	[8, 2.365],
-	[9, 2.306],
-	[10, 2.262],
-])
+const supportedSchemaVersion = 3
 
 function parseArguments(argv) {
 	const options = {
@@ -66,27 +57,6 @@ function parseArguments(argv) {
 	return options
 }
 
-function median(values) {
-	const sorted = [...values].sort((left, right) => left - right)
-	const middle = Math.floor(sorted.length / 2)
-	return sorted.length % 2 === 0
-		? (sorted[middle - 1] + sorted[middle]) / 2
-		: sorted[middle]
-}
-
-function mean(values) {
-	return values.reduce((total, value) => total + value, 0) / values.length
-}
-
-function relativeMarginOfError(values) {
-	const average = mean(values)
-	const variance = values.reduce((total, value) => total + (value - average) ** 2, 0) / (values.length - 1)
-	const critical = tCritical95.get(values.length) ?? 1.96
-	return average === 0
-		? 0
-		: critical * Math.sqrt(variance) / Math.sqrt(values.length) / Math.abs(average) * 100
-}
-
 function getValchecker(raw, label) {
 	if (!raw || typeof raw !== 'object' || !Array.isArray(raw.libraries))
 		throw new TypeError(`${label} benchmark result is invalid`)
@@ -96,12 +66,30 @@ function getValchecker(raw, label) {
 	return library
 }
 
+/**
+ * Two runs are comparable only if they were measured the same way. The mode name
+ * alone does not establish that: it selects a profile, and a profile can change
+ * between the commits that produced two result files. Comparing a run sampled to
+ * a 0.75% target against one that always took twelve samples would look like a
+ * performance difference.
+ */
+function measurementIdentity(raw, label) {
+	if (raw?.schemaVersion !== supportedSchemaVersion)
+		throw new Error(`${label} has benchmark schema version ${String(raw?.schemaVersion)}, expected ${supportedSchemaVersion}`)
+	if (!raw.profile || typeof raw.profile !== 'object')
+		throw new Error(`${label} is missing its measurement profile`)
+	const profileFields = Object.entries(raw.profile)
+		.sort(([left], [right]) => left.localeCompare(right))
+	return JSON.stringify([raw.mode, profileFields])
+}
+
 function aggregateRuns(raws, label) {
 	const mode = raws[0].mode
+	const identity = measurementIdentity(raws[0], `${label} run 1`)
 	const first = getValchecker(raws[0], label)
 	const resultMaps = raws.map((raw, index) => {
-		if (raw.mode !== mode)
-			throw new Error(`${label} run ${index + 1} mode differs`)
+		if (measurementIdentity(raw, `${label} run ${index + 1}`) !== identity)
+			throw new Error(`${label} run ${index + 1} was measured with a different mode or profile`)
 		return new Map(getValchecker(raw, `${label} run ${index + 1}`).results.map(result => [result.scenario, result]))
 	})
 	const results = first.results.map((template) => {
@@ -132,6 +120,7 @@ function aggregateRuns(raws, label) {
 	})
 	return {
 		mode,
+		identity,
 		runCount: raws.length,
 		commits: [...new Set(raws.map(raw => raw.environment?.commit ?? null))],
 		results,
@@ -167,6 +156,8 @@ function htmlEscape(value) {
 function compareResults(baseline, candidate) {
 	if (baseline.mode !== candidate.mode)
 		throw new Error(`Benchmark modes differ: ${baseline.mode} vs ${candidate.mode}`)
+	if (baseline.identity !== candidate.identity)
+		throw new Error('Baseline and candidate were measured with different profiles, so the difference between them is not attributable to the change under test')
 	if (baseline.runCount !== candidate.runCount)
 		throw new Error('Aggregated run counts differ')
 
