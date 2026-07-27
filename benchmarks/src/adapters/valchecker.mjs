@@ -1,5 +1,5 @@
 import process from 'node:process'
-import { dateBounds } from '../fixtures.mjs'
+import { dateBounds, mappedBooleanValues } from '../fixtures.mjs'
 
 const defaultValcheckerUrl = new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
 const valcheckerUrl = process.env.VALCHECKER_DIST_URL || defaultValcheckerUrl
@@ -87,7 +87,20 @@ export default {
 	capabilities: {
 		issuePolicies: ['first', 'all'],
 		generatedCode: false,
-		features: ['file', 'template literal', 'combined IPv4/IPv6', 'base64url', 'JWT', 'hex', 'MAC address', 'hostname'],
+		features: [
+			'file',
+			'template literal',
+			'combined IPv4/IPv6',
+			'base64url',
+			'JWT',
+			'hex',
+			'MAC address',
+			'hostname',
+			'boolean string parsing',
+			'bigint coercion',
+			'one-sided trim',
+			'Unicode normalization',
+		],
 	},
 	build: {
 		primitive: () => v.string()
@@ -254,6 +267,32 @@ export default {
 			.isStartingWith('avatars/')
 			.isEndingWith('.png')
 			.isIncluding('/user-'),
+		// The coercing initial schemas. Each is a single step that both accepts its
+		// own type and parses a string, so nothing precedes it in the chain.
+		looseNumber: () => v.looseNumber(),
+		looseBoolean: () => v.looseBoolean(),
+		looseBigint: () => v.looseBigint(),
+		// The conversion steps. A conversion has no type check of its own, so each
+		// chain starts with the type check its input needs — which is also the only
+		// failure `toNumber`, `toBoolean`, and `toString` have here.
+		convertNumber: () => v.string()
+			.toNumber(),
+		convertBoolean: () => v.string()
+			.toBoolean(),
+		convertBigint: () => v.string()
+			.toBigint(),
+		convertString: () => v.number()
+			.toString(),
+		mappedBoolean: () => v.string()
+			.toMappedBoolean(mappedBooleanValues),
+		shapeUppercase: () => v.string()
+			.toUppercase(),
+		shapeTrimmedStart: () => v.string()
+			.toTrimmedStart(),
+		shapeTrimmedEnd: () => v.string()
+			.toTrimmedEnd(),
+		shapeNormalized: () => v.string()
+			.toNormalized({ form: 'NFC' }),
 	},
 	parse(schema, input) {
 		return schema.execute(input)

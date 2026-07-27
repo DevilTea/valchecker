@@ -3,6 +3,7 @@
 // block is sorted by the lint rule and carries no meaning; `scenarioFamilies` is
 // the order that matters.
 import { builtinValidatorScenarios } from './builtin-validator.mjs'
+import { coercionScenarios } from './coercion.mjs'
 import { collectionScenarios } from './collection.mjs'
 import { constraintScenarios } from './constraint.mjs'
 import { dateScenarios } from './date.mjs'
@@ -18,6 +19,7 @@ import { primitiveScenarios } from './primitive.mjs'
 import { recordTupleTemplateLiteralScenarios } from './record-tuple-template-literal.mjs'
 import { stringFormatExtendedScenarios } from './string-format-extended.mjs'
 import { stringFormatScenarios } from './string-format.mjs'
+import { stringShapeScenarios } from './string-shape.mjs'
 import { transformScenarios } from './transform.mjs'
 import { unionScenarios } from './union.mjs'
 
@@ -52,6 +54,8 @@ const scenarioFamilies = [
 	fileMimeTypeScenarios,
 	constraintScenarios,
 	primitiveBuiltinScenarios,
+	coercionScenarios,
+	stringShapeScenarios,
 ]
 
 export const allScenarios = scenarioFamilies.flat()

@@ -55,8 +55,11 @@ export default {
 		issuePolicies: ['first', 'all'],
 		generatedCode: false,
 		// Valibot has no `jwt` or `base64url` action, and no hostname action at
-		// all — `url()` is a whole-URL check, not a bare hostname one.
-		features: ['file', 'combined IPv4/IPv6', 'hex', 'MAC address'],
+		// all — `url()` is a whole-URL check, not a bare hostname one. It also has
+		// no boolean-string parser, and no bigint coercion that reports an issue:
+		// `v.transform(BigInt)` throws a `SyntaxError` out of `safeParse` on an
+		// unparseable string, so the invalid bigint scenario cannot be expressed.
+		features: ['file', 'combined IPv4/IPv6', 'hex', 'MAC address', 'one-sided trim', 'Unicode normalization'],
 	},
 	build: {
 		primitive: () => v.pipe(
@@ -187,6 +190,25 @@ export default {
 			v.endsWith('.png'),
 			v.includes('/user-'),
 		),
+		// Valibot ships no coercing schema, so a pipe whose `transform` delegates to
+		// the native conversion function is not a stand-in for a built-in — it is the
+		// only spelling Valibot has. The trailing `v.number()` is what rejects the
+		// `NaN` that `Number('abc')` produces: `looseNumber()` and
+		// `z.coerce.number()` reject that string inside the coercion itself, so
+		// without it the three would disagree on the invalid fixture. Valibot
+		// therefore pays for a user callback and a second type check here, which is
+		// what the scenario's `compatible-subset` scope records.
+		looseNumber: () => v.pipe(v.string(), v.transform(Number), v.number()),
+		// The conversion scenarios keep the input type check and stop there, because
+		// the Valchecker step being measured is the bare conversion.
+		convertNumber: () => v.pipe(v.string(), v.transform(Number)),
+		convertBoolean: () => v.pipe(v.string(), v.transform(Boolean)),
+		convertBigint: () => v.pipe(v.string(), v.transform(BigInt)),
+		convertString: () => v.pipe(v.number(), v.transform(String)),
+		shapeUppercase: () => v.pipe(v.string(), v.toUpperCase()),
+		shapeTrimmedStart: () => v.pipe(v.string(), v.trimStart()),
+		shapeTrimmedEnd: () => v.pipe(v.string(), v.trimEnd()),
+		shapeNormalized: () => v.pipe(v.string(), v.normalize('NFC')),
 	},
 	parse(schema, input, context) {
 		return v.safeParse(

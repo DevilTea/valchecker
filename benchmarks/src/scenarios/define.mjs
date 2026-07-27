@@ -15,6 +15,11 @@ export function canonicalizeOutput(value) {
 	// would canonicalize every Date to `{}` and compare all of them as equal.
 	if (value instanceof Date)
 		return { type: 'Date', time: value.getTime() }
+	// `JSON.stringify` throws on a bigint, so without this branch a bigint output
+	// could not be asserted at all — which is exactly what the bigint conversion
+	// scenarios produce.
+	if (typeof value === 'bigint')
+		return { type: 'BigInt', digits: value.toString() }
 	if (Array.isArray(value))
 		return value.map(canonicalizeOutput)
 	if (value != null && typeof value === 'object') {

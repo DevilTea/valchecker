@@ -1,4 +1,4 @@
-import { dateBounds } from '../fixtures.mjs'
+import { dateBounds, mappedBooleanValues } from '../fixtures.mjs'
 
 const emailPattern = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]+$/
 
@@ -136,11 +136,27 @@ export function createZodAdapter(z, name, version) {
 		formatMac: 'MAC address',
 		formatHostname: 'hostname',
 	}
+	// `z.stringbool()` parses a boolean out of a string, which is what
+	// `looseBoolean()` and `toMappedBoolean()` do; `z.coerce.boolean()` is not an
+	// alternative spelling of it, because it is `Boolean()` truthiness and maps
+	// `'false'` to `true`. Zod 3 ships neither, so the family is gated there.
+	const hasStringBool = typeof z.stringbool === 'function'
+	// Both pins have `z.coerce.bigint()`; the feature name exists because Valibot
+	// has no bigint coercion that reports an issue instead of throwing.
+	const hasBigintCoercion = typeof z.coerce?.bigint === 'function'
+	const hasNormalize = typeof stringMethods.normalize === 'function'
+
 	const features = []
 	if (hasFile)
 		features.push('file')
 	if (hasTemplateLiteral)
 		features.push('template literal')
+	if (hasStringBool)
+		features.push('boolean string parsing')
+	if (hasBigintCoercion)
+		features.push('bigint coercion')
+	if (hasNormalize)
+		features.push('Unicode normalization')
 	for (const [key, feature] of Object.entries(gatedFormatFeatures)) {
 		if (formatBuilds[key] !== null)
 			features.push(feature)
@@ -294,6 +310,25 @@ export function createZodAdapter(z, name, version) {
 				.startsWith('avatars/')
 				.endsWith('.png')
 				.includes('/user-'),
+			// `z.coerce.number()` performs no input type check at all: it is
+			// `Number(input)` followed by the number checks, so it accepts booleans
+			// and `null` that `looseNumber()` rejects. The fixtures sit inside the
+			// intersection and the scenario declares `compatible-subset`.
+			looseNumber: () => z.coerce.number(),
+			// Zod has no conversion action, so a conversion that keeps its input type
+			// check is a `transform` around the same native function the Valchecker
+			// step delegates to. `z.coerce.*` would drop the type check that both
+			// invalid fixtures rely on.
+			convertNumber: () => z.string()
+				.transform(Number),
+			convertBoolean: () => z.string()
+				.transform(Boolean),
+			convertBigint: () => z.string()
+				.transform(BigInt),
+			convertString: () => z.number()
+				.transform(String),
+			shapeUppercase: () => z.string()
+				.toUpperCase(),
 			// Declared only where the pinned version has them, so a scenario that
 			// forgets its `requiredFeatures` fails with the harness's actionable
 			// message instead of a `z.file is not a function` from inside the build.
@@ -307,6 +342,30 @@ export function createZodAdapter(z, name, version) {
 				: {}),
 			...(hasTemplateLiteral
 				? { templateLiteral: () => z.templateLiteral([z.number(), z.enum(['px', 'em', 'rem'])]) }
+				: {}),
+			...(hasStringBool
+				? {
+						looseBoolean: () => z.stringbool(),
+						// `case: 'sensitive'` because `toMappedBoolean()` compares with
+						// SameValueZero and normalizes nothing, while `stringbool()`
+						// lowercases its input by default. Matching the Valchecker step is
+						// the same choice the ISO-time scenario makes with
+						// `isoTimeSecond()`.
+						mappedBoolean: () => z.stringbool({
+							truthy: mappedBooleanValues.trueValues,
+							falsy: mappedBooleanValues.falseValues,
+							case: 'sensitive',
+						}),
+					}
+				: {}),
+			...(hasBigintCoercion
+				? { looseBigint: () => z.coerce.bigint() }
+				: {}),
+			...(hasNormalize
+				? {
+						shapeNormalized: () => z.string()
+							.normalize('NFC'),
+					}
 				: {}),
 		},
 		parse(schema, input) {

@@ -114,3 +114,11 @@ export const dateBounds = {
 	lower: new Date('2020-01-01T00:00:00.000Z'),
 	upper: new Date('2030-01-01T00:00:00.000Z'),
 }
+
+// The single source of truth for `coercion/mapped-boolean-*`, for the same reason:
+// `toMappedBoolean` and Zod 4's `stringbool` are configured from the same two
+// lists, so a drift between the adapters would silently compare two mappings.
+export const mappedBooleanValues = {
+	trueValues: ['yes', 'y', '1'],
+	falseValues: ['no', 'n', '0'],
+}
