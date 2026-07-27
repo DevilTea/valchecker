@@ -10,6 +10,11 @@ const valid = [
 	'0000-01-01',
 	'0050-06-15',
 	'0099-12-31',
+	// The calendar rules now live in the validator's pattern.
+	'2024-02-29',
+	'0004-02-29',
+	'2026-01-31',
+	'2026-04-30',
 ]
 
 const invalid = [
@@ -19,6 +24,14 @@ const invalid = [
 	'2026-1-1',
 	'2023-02-29',
 	'',
+	'1900-02-29',
+	// `0000` is a leap year in the proleptic Gregorian calendar, but the previous
+	// implementation rejected this date through a `Date.UTC` roll-over and the
+	// accepted set is deliberately unchanged.
+	'0000-02-29',
+	'2026-04-31',
+	'2026-07-00',
+	'20260723',
 ]
 
 describe('isIsoDate step plugin', () => {
