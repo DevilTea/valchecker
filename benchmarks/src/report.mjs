@@ -84,6 +84,18 @@ function validateResult(raw) {
 	if (!modes.has(raw.mode))
 		throw new Error(`Unknown benchmark mode: ${raw.mode}`)
 
+	// The profile is reported as the sampling method the numbers came from, so a
+	// missing field must fail here rather than reach a reader as text. It read
+	// "exactly undefined samples" while every other field in this file was checked.
+	if (!raw.profile || typeof raw.profile !== 'object')
+		throw new TypeError('profile must be an object')
+	for (const field of ['warmupMs', 'sampleMs', 'minSamples', 'maxSamples'])
+		assertFinitePositive(raw.profile[field], `profile.${field}`)
+	if (raw.profile.maxSamples < raw.profile.minSamples)
+		throw new Error('profile.maxSamples must not be below profile.minSamples')
+	if (raw.profile.targetRelativeMarginOfError !== null)
+		assertFinitePositive(raw.profile.targetRelativeMarginOfError, 'profile.targetRelativeMarginOfError')
+
 	assertNonEmptyString(raw.seed, 'seed')
 	assertNonEmptyString(raw.startedAt, 'startedAt')
 	assertNonEmptyString(raw.completedAt, 'completedAt')
@@ -244,6 +256,11 @@ function scenarioRows(raw, scenario, interpreted) {
 		percentOfFastest: row.medianOpsPerSecond / fastest * 100,
 		versusValchecker: valchecker ? row.medianOpsPerSecond / valchecker : null,
 		unstable: row.relativeMarginOfError > 5,
+		// Adaptive sampling means the rows compared here can rest on different
+		// numbers of samples. `reachedTarget === false` marks the ones whose
+		// interval is wider than the run asked for.
+		missedTarget: row.reachedTarget === false,
+		sampleCount: row.samples.length,
 	}))
 }
 
@@ -326,11 +343,11 @@ function renderMarkdown(raw) {
 			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}**`,
 			'',
 			interpreted == null
-				? '| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME |'
-				: '| Rank | Rank (interpreted) | Library | Version | Median ops/s | Median ns/op | Fastest | Fastest (interpreted) | vs Valchecker | RME |',
+				? '| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME | Samples |'
+				: '| Rank | Rank (interpreted) | Library | Version | Median ops/s | Median ns/op | Fastest | Fastest (interpreted) | vs Valchecker | RME | Samples |',
 			interpreted == null
-				? '| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |'
-				: '| ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
+				? '| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |'
+				: '| ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
 			...rows.map(row => `| ${[
 				row.rank,
 				...(interpreted == null ? [] : [row.interpretedRank ?? '—']),
@@ -343,7 +360,8 @@ function renderMarkdown(raw) {
 					? []
 					: [row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`]),
 				row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`,
-				`${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : ''}`,
+				`${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : row.missedTarget ? ' †' : ''}`,
+				String(row.sampleCount),
 			].join(' | ')} |`),
 			'',
 		)
@@ -364,7 +382,8 @@ function renderMarkdown(raw) {
 		'- `first` and `all` scenarios verify issue-count semantics before timing; unsupported adapters are omitted instead of being assigned a synthetic mode.',
 		'- `compatible-subset` scenarios intentionally test only behavior that is common to every participating library.',
 		'- Treat results with RME above 5% as unstable and rerun before drawing conclusions.',
-		'- Sampling stops once a measurement reaches the profile\'s precision target, so cells differ in how many samples stand behind them; the RME column reports what each one actually achieved.',
+		'- Sampling stops once a measurement reaches the profile\'s precision target, so the rows compared within a scenario can rest on different numbers of samples; the Samples column says how many, and `†` marks a measurement whose interval stayed wider than the target.',
+		'- The RME of a measurement that stopped early is the value at the moment it first crossed the target, so it is at most the target by construction and understates the spread a longer run would have found.',
 		'- The raw JSON artifact remains the source of truth for every sample and skipped-adapter reason.',
 		'',
 	)
@@ -378,14 +397,14 @@ function renderHtml(raw) {
 		.join('')
 	const sections = raw.scenarioCatalog.map((scenario) => {
 		const rows = scenarioRows(raw, scenario, interpreted)
-		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}</td>${interpreted == null ? '' : `<td>${row.interpretedRank ?? '—'}</td>`}<td class="text">${htmlEscape(row.library)}</td><td class="text">${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td>${interpreted == null ? '' : `<td>${row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`}</td>`}<td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : ''}</td></tr>`)
+		const body = rows.map(row => `<tr${row.unstable ? ' class="unstable"' : ''}><td>${row.rank}</td>${interpreted == null ? '' : `<td>${row.interpretedRank ?? '—'}</td>`}<td class="text">${htmlEscape(row.library)}</td><td class="text">${htmlEscape(row.version)}</td><td>${formatNumber(row.medianOpsPerSecond)}</td><td>${formatNumber(row.medianNanosecondsPerOperation, 1)}</td><td>${row.percentOfFastest.toFixed(1)}%</td>${interpreted == null ? '' : `<td>${row.percentOfInterpretedFastest === null ? '—' : `${row.percentOfInterpretedFastest.toFixed(1)}%`}</td>`}<td>${row.versusValchecker === null ? 'n/a' : `${row.versusValchecker.toFixed(2)}×`}</td><td>${row.relativeMarginOfError.toFixed(2)}%${row.unstable ? ' ⚠' : row.missedTarget ? ' †' : ''}</td><td>${row.sampleCount}</td></tr>`)
 			.join('')
 		const skipped = skippedRows(raw, scenario)
 		const skippedText = skipped.length === 0
 			? ''
 			: `<p><strong>Not ranked:</strong> ${skipped.map(item => `${htmlEscape(item.library)} — ${htmlEscape(item.reason)}`)
 				.join('; ')}</p>`
-		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
+		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong></p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th><th>Samples</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
 	})
 		.join('')
 
@@ -406,7 +425,7 @@ function renderHtml(raw) {
 <table class="metadata"><tbody>${metadata}</tbody></table>
 ${sections}
 <h2>Interpretation rules</h2>
-<ul><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>RME above 5% is unstable.</li><li>The raw JSON remains the source of truth.</li></ul>
+<ul><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
 </body>
 </html>
 `

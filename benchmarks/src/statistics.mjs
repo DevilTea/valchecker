@@ -45,12 +45,28 @@ const tCritical95 = new Map([
 	[30, 2.045],
 ])
 
+const normalQuantile95 = 1.959964
+
 /**
- * Above 30 samples the t quantile is within 2% of the normal one, so the
- * asymptotic value is honest there rather than a silent fallback.
+ * Past the table the quantile is computed rather than approximated by the normal
+ * one. Falling back to 1.959964 looked harmless and is not: at 31 samples the
+ * true quantile is 2.0423, so the fallback would understate the interval by 4.2%
+ * — the same kind of understatement this module exists to remove — and it takes
+ * about 100 samples before the error drops under 2%.
+ *
+ * Two Cornish-Fisher correction terms bring it within 0.01% of the true quantile
+ * from 31 samples upward, which `measure.test.mjs` checks against an
+ * independently computed t distribution.
  */
 export function criticalValue(sampleCount) {
-	return tCritical95.get(sampleCount) ?? 1.96
+	const tabulated = tCritical95.get(sampleCount)
+	if (tabulated !== undefined)
+		return tabulated
+	const degreesOfFreedom = sampleCount - 1
+	const z = normalQuantile95
+	return z
+		+ (z ** 3 + z) / (4 * degreesOfFreedom)
+		+ (5 * z ** 5 + 16 * z ** 3 + 3 * z) / (96 * degreesOfFreedom ** 2)
 }
 
 export function mean(values) {

@@ -29,8 +29,8 @@ export default deviltea(
 		},
 	},
 	{
-		// The same reason applies to the harness tests: benchmarks/ installs its own
-		// dependencies and has no vitest, so its checks use the Node test runner.
+		// benchmarks/ installs its own dependencies and does not include vitest, so
+		// its harness checks run on the Node test runner instead.
 		files: ['benchmarks/**/*.test.mjs'],
 		rules: {
 			'test/no-import-node-test': 'off',

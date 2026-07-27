@@ -7,14 +7,21 @@ import { median, relativeMarginOfError } from './statistics.mjs'
  * it behaved, which spent the same budget on a cell that had already settled to
  * a 0.4% interval and on one still swinging by 12%.
  *
- * `targetRelativeMarginOfError` is 0.75%, chosen against the 440 cells of the
- * 2026-07-27 full run rather than picked for feel. Replaying that run under this
- * rule reproduces the ranking of all 95 scenarios exactly — not just the winner,
- * the complete order — with a worst-case shift of 1.21% in any reported ratio,
- * while taking 61% of the samples. Loosening it to 1.5% starts changing
- * scenario winners, and dropping `minSamples` to 4 puts an 8.3% shift into a
- * reported ratio, because an interval estimated from four samples is not yet
- * describing the distribution.
+ * `targetRelativeMarginOfError` is 0.75%, chosen by replaying the 440 cells of
+ * the 2026-07-27 full run. What that replay bounds is how far a reported ratio
+ * moves: at most 1.22% for that run's sample order, and 1.34% when the same
+ * samples are replayed in reverse order, against a 5% threshold for calling a
+ * difference meaningful at all. Taking 61% of the samples costs a fifth of the
+ * margin the harness already treats as noise.
+ *
+ * It does not bound scenario rankings, and a rule that appeared to would be
+ * measuring ties rather than precision: 28 of the 345 adjacent ranking pairs in
+ * that run are separated by less than 1.22%, so whether an ordering survives is
+ * decided by which near-ties are in the data. A stricter 0.5% target changes one
+ * ordering where 0.75% changes none.
+ *
+ * `minSamples` is 5 because 4 puts an 8% shift into a reported ratio — an
+ * interval estimated from four samples is not yet describing the distribution.
  */
 const profiles = {
 	smoke: {
@@ -22,7 +29,10 @@ const profiles = {
 		sampleMs: 30,
 		minSamples: 3,
 		maxSamples: 3,
-		targetRelativeMarginOfError: 0.75,
+		// Three samples cannot establish a 0.75% interval, so this profile asks for
+		// no target instead of recording a failure to reach one. It exists to
+		// exercise the pipeline, not to measure anything.
+		targetRelativeMarginOfError: null,
 	},
 	standard: {
 		warmupMs: 200,
@@ -72,8 +82,28 @@ function executeFor(operation, durationMs) {
  * either side of the target, which no timing-based test can do reliably.
  */
 export function hasEnoughSamples(operationsPerSecond, profile) {
-	return operationsPerSecond.length >= profile.minSamples
+	return profile.targetRelativeMarginOfError !== null
+		&& operationsPerSecond.length >= profile.minSamples
 		&& relativeMarginOfError(operationsPerSecond) <= profile.targetRelativeMarginOfError
+}
+
+/**
+ * The sampling loop, with the act of taking a sample passed in. Separating them
+ * is what makes the loop testable: driven by a scripted sequence of samples it
+ * behaves deterministically, whereas a test that drives it through real timing
+ * can only assert whatever the machine happened to produce.
+ */
+export function collectSamples(takeSample, profile) {
+	const samples = []
+	const operationsPerSecond = []
+	while (samples.length < profile.maxSamples) {
+		const sample = takeSample()
+		samples.push(sample)
+		operationsPerSecond.push(sample.opsPerSecond)
+		if (hasEnoughSamples(operationsPerSecond, profile))
+			break
+	}
+	return samples
 }
 
 export function measure(operation, mode) {
@@ -81,27 +111,24 @@ export function measure(operation, mode) {
 
 	executeFor(operation, profile.warmupMs)
 
-	const samples = []
-	const ops = []
-	while (samples.length < profile.maxSamples) {
-		const sample = executeFor(operation, profile.sampleMs)
-		samples.push(sample)
-		ops.push(sample.opsPerSecond)
-		if (hasEnoughSamples(ops, profile))
-			break
-	}
-	const currentRme = relativeMarginOfError(ops)
+	const samples = collectSamples(() => executeFor(operation, profile.sampleMs), profile)
+	const ops = samples.map(sample => sample.opsPerSecond)
+	const achievedRme = relativeMarginOfError(ops)
 
 	return {
 		samples,
 		medianOpsPerSecond: median(ops),
 		medianNanosecondsPerOperation: median(samples.map(sample => sample.nanosecondsPerOperation)),
 		meanOpsPerSecond: ops.reduce((total, value) => total + value, 0) / ops.length,
-		relativeMarginOfError: currentRme,
-		// A cell that ran out of samples without reaching the target is reporting a
-		// wider interval than the run asked for, which is a property of the cell
-		// worth carrying into the report rather than leaving to be re-derived.
-		reachedTarget: currentRme <= profile.targetRelativeMarginOfError,
+		relativeMarginOfError: achievedRme,
+		// Whether the profile's precision target was met. Null when the profile sets
+		// no target, so a fixed-sample profile does not report a failure to reach
+		// something it never asked for. The report marks the cells that missed it,
+		// because a run mixes measurements of different precision and which ones
+		// they are is not otherwise visible.
+		reachedTarget: profile.targetRelativeMarginOfError === null
+			? null
+			: achievedRme <= profile.targetRelativeMarginOfError,
 	}
 }
 
