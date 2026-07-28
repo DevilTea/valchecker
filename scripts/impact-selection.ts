@@ -1,3 +1,4 @@
+import type { SourceTree } from './source-tree'
 import ts from 'typescript'
 
 /**
@@ -28,15 +29,7 @@ import ts from 'typescript'
  * answers are written out by hand.
  */
 
-/** A repository tree, addressed by repository-relative POSIX paths. */
-export interface SourceTree {
-	/** The file's text, or `null` when it does not exist or is not a file. */
-	read: (path: string) => string | null
-	/** Names of the direct entries of a directory, or `null` when it is not one. */
-	list: (directory: string) => string[] | null
-	/** Whether the path is a directory. */
-	isDirectory: (path: string) => boolean
-}
+export type { SourceTree } from './source-tree'
 
 /** One scenario, as `benchmarks/src/scenarios/index.mjs` reports it. */
 export interface CatalogEntry {

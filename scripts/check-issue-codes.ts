@@ -1,6 +1,7 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+import { fileSystemTree } from './source-tree'
+import { discoverSteps } from './step-inventory'
 
 // Enforces the issue-code grammar documented in AGENTS.md: every issue a built-in step owns is
 // `<public-step-name>:<snake_case_description>`, where the prefix is that step's `Meta.Name`.
@@ -9,11 +10,15 @@ import process from 'node:process'
 // consumer's error handling.
 //
 // Core codes (`core:*`) are a separate namespace and are not step-owned, so they are not scanned.
+//
+// The set of steps comes from `step-inventory`, which fails rather than skipping a directory it
+// cannot read as a step — a scan that silently misses a step reports a clean grammar for a
+// namespace it never looked at.
 
-const root = process.cwd()
-const stepsRoot = path.join(root, 'packages/internal/src/steps')
+const root = fileURLToPath(new URL('..', import.meta.url))
 const descriptionPattern = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/
-const errors: string[] = []
+const { steps, problems } = discoverSteps(fileSystemTree(root))
+const errors: string[] = [...problems]
 
 function declaredCodes(source: string): string[] {
 	const codes: string[] = []
@@ -33,26 +38,7 @@ function declaredCodes(source: string): string[] {
 	return codes
 }
 
-for (const directory of fs.readdirSync(stepsRoot)) {
-	const stepDirectory = path.join(stepsRoot, directory)
-	if (!fs.statSync(stepDirectory)
-		.isDirectory()) {
-		continue
-	}
-
-	const mainFile = path.join(stepDirectory, `${directory}.ts`)
-	if (!fs.existsSync(mainFile))
-		continue
-
-	const source = fs.readFileSync(mainFile, 'utf8')
-	const relative = path.relative(root, mainFile)
-	const declaredName = /^\tName: '([^']+)'/m.exec(source)?.[1]
-
-	if (declaredName == null) {
-		errors.push(`${relative}: step must declare Meta.Name`)
-		continue
-	}
-
+for (const { directory, name: declaredName, path: relative, source } of steps) {
 	if (declaredName !== directory)
 		errors.push(`${relative}: Meta.Name '${declaredName}' must match the step directory '${directory}'`)
 

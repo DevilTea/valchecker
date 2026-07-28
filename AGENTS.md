@@ -118,6 +118,10 @@ Intentional additions, removals, renames, issue/payload changes, or semantic cha
 - READMEs, VitePress pages, and the skills under `.claude/skills/`;
 - `CHANGELOG.md`, and `MIGRATION.md` when the change is breaking.
 
+For a built-in step, `scripts/check-step-completeness.ts` (`pnpm steps:complete`) enforces the part of that list a script can decide, and it reports every missing piece for every incomplete step at once: a colocated `<name>.test.ts` registering at least one `it` or `test`, a `<name>.bench.ts` calling `bench`, an export reaching `api-surface.json`, the step's name in call form in a code span in the `docs/api/overview.md` catalog and on one further `docs/api` page, and every owned issue code both present under `docs/api` and present in a string in one of the directory's tests. HTML comments and fenced code blocks do not count as documentation, and a comment does not count as a test.
+
+Three of those rules are weaker than the requirement they stand for, and their messages say so: a registered test case may assert nothing, a string holding an issue code may never reach an assertion, and a page mentioning `toTrimmedStart()` may be saying it does not exist. They catch a piece going missing, not a piece going wrong — review still has to read what was written.
+
 Then search the complete repository for superseded names, signatures, codes, commands, and paths. Documentation examples compile against the built declarations as part of `pnpm verify`, and normative prose must be traceable to implementation or tests. A fenced `ts` example that cannot compile on its own — a deliberate fragment, a removed API, or a name the page only uses illustratively — needs one of the three `<!-- typecheck-… -->` directives documented at the top of `scripts/check-docs-examples.ts`. Reach for a directive only when the example genuinely cannot compile; a failure usually means the documentation is stale.
 
 ## Pull requests

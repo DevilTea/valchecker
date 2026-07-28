@@ -1,7 +1,8 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileSystemTree } from './source-tree'
+import { discoverSteps } from './step-inventory'
 
 // Keeps the cross-library benchmark suite's step coverage from reopening. Every built-in step
 // already has a colocated `*.bench.ts`, so "has a focused benchmark" would be true of all of them
@@ -70,29 +71,18 @@ const exemptions: Exemption[] = [
 // is about shape rather than about wording.
 const minimumReasonLength = 60
 
-const root = process.cwd()
-const stepsRoot = path.join(root, 'packages/internal/src/steps')
+const root = fileURLToPath(new URL('..', import.meta.url))
 const catalogEntry = path.join(root, 'benchmarks/src/scenarios/index.mjs')
 const defineEntry = path.join(root, 'benchmarks/src/scenarios/define.mjs')
 const capabilitiesEntry = path.join(root, 'benchmarks/src/capabilities.mjs')
-const errors: string[] = []
 
-/** Every built-in step's public name, from the `Meta` block that declares it. */
-function declaredStepNames(): Set<string> {
-	const names = new Set<string>()
-
-	for (const directory of fs.readdirSync(stepsRoot)) {
-		const mainFile = path.join(stepsRoot, directory, `${directory}.ts`)
-		if (!fs.existsSync(mainFile))
-			continue
-
-		const declaredName = /^\tName: '([^']+)'/m.exec(fs.readFileSync(mainFile, 'utf8'))?.[1]
-		if (declaredName != null)
-			names.add(declaredName)
-	}
-
-	return names
-}
+// The set of steps comes from `step-inventory`, which fails rather than skipping a directory it
+// cannot read as a step. Without that, an unreadable step is not an uncovered step — it is a
+// step this gate never asks about, and the coverage count it prints is over a smaller set than
+// the repository has.
+const { steps, problems } = discoverSteps(fileSystemTree(root))
+const errors: string[] = [...problems]
+const declared = new Set(steps.map(step => step.name))
 
 interface CatalogEntry {
 	id: string
@@ -127,7 +117,6 @@ const competitors = competitorKeys.map(adapter => ({
 	capabilities: { features: featuresFor(adapter), issuePolicies: issuePoliciesFor(adapter) },
 }))
 
-const declared = declaredStepNames()
 // `full` is the whole suite: the sampling tier decides how often a scenario runs, not whether it
 // exists, so a step covered only by a full-tier scenario is covered.
 const scenarios = getScenarioCatalog('full')

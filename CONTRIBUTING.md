@@ -80,6 +80,20 @@ if the behaviour it describes breaks — coverage numbers are a guardrail, not t
 checks reject `.only`, `.skip`, raw `setTimeout`/`setInterval` in tests, and test titles named
 after implementation details rather than behaviour.
 
+Coverage is an unreliable way to notice that a step lost its own tests, because other steps' tests
+execute it. Deleting the tests of nine steps at once, the per-file policy caught five and let four
+through — `string.ts` is a four-line file that stayed at 100%. So a built-in step is required to
+ship with its own `<name>.test.ts` and `<name>.bench.ts`, a public export, an entry in
+`docs/api/overview.md` and on one further `docs/api` page, and issue codes that are documented
+under `docs/api` and asserted by a test in the step's directory.
+
+`pnpm steps:complete` reports everything a step is still missing in one go. What it checks is
+mechanical: the test file registers an `it` or `test`, the bench file calls `bench`, the export is
+in `api-surface.json`, the step's name appears in call form in a code span on each of those two
+pages, and each issue code appears under `docs/api` and in a string in one of the directory's
+tests. It cannot tell whether the test asserts anything or whether the page says something true,
+so passing it is the floor, not the review.
+
 ## Pull requests
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/) for the PR title, for example

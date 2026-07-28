@@ -101,6 +101,10 @@ const config = v.string()
 	.fallback(() => ({ items: [], count: 0 }))
 ```
 
+If the callback itself throws or rejects, the received issues are kept and one more issue is appended.
+
+**Issue code:** `fallback:failed` (`operation`) — payload `{ receivedIssues, error }`, where `receivedIssues` is a defensive snapshot of the failure the callback was given and `error` is what it threw. Snapshot issues carry the unresolved step-default message rather than the finalized one; the issues returned to the caller finalize normally.
+
 ## `use(schema)`
 
 Delegates the current value to another Valchecker schema while preserving the delegated transformed output, issue types, paths, and execution mode.

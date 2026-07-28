@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/check-step-completeness.ts` (`pnpm steps:complete`, run by `pnpm verify` through `test:quality`) fails a built-in step that is missing a colocated `<name>.test.ts` registering at least one `it` or `test`, a `<name>.bench.ts` calling `bench`, a runtime export in `api-surface.json`, its name in call form in a code span in the `docs/api/overview.md` catalog and on one further `docs/api` page, or an owned issue code appearing under `docs/api` and in a string in one of the directory's tests. Fenced code blocks and HTML comments are removed from Markdown before matching, and TypeScript strings are read from the parsed AST, so a mention inside an HTML comment or a `//` comment satisfies nothing. It reports every missing piece for every incomplete step in one message. Coverage is an unreliable substitute for the test rule: other steps' tests execute a step's implementation, and deleting the tests of nine steps at once, the per-file policy caught five and let four through.
+- `scripts/step-completeness.ts` and `scripts/step-inventory.ts` hold that gate's logic as pure functions of an injected source tree, covered by 65 tests (51 and 14). Each rule that can be satisfied without the requirement being met — a test case asserting nothing, an issue code in a comment, a step named in a sentence saying it does not exist — has a test pinning either the rejection or the admitted limit.
+
+### Fixed
+
+- The API reference documents the issue codes `looseObject:expected_object`, `looseObject:missing_key`, and `fallback:failed`, which no page under `docs/api` had listed.
+- `scripts/check-issue-codes.ts`, `scripts/check-step-completeness.ts`, and `scripts/check-benchmark-coverage.ts` fail on a step directory they cannot read as a step, instead of skipping it and reporting a count over whatever they happened to find. The discovered set is cross-checked against the re-exports in `packages/internal/src/steps/index.ts`, so the two disagreeing is a failure rather than a silently smaller scan.
+
 ## [0.0.33] - 2026-07-27
 
 The first release in six months, published to the npm `latest` tag. It carries everything prepared for the `1.0.0-rc.0` candidate together with the refinements made on top of it; the 1.0 line has not shipped, so this continues the 0.x series, where a breaking change may land in any release.
