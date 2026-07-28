@@ -40,8 +40,33 @@ function estimateUnitNs(unit) {
 	return best
 }
 
+/**
+ * `--steps a,b` restricts the drive to those step directories. The gate always drives
+ * every step; the filter is for working on a slice of them, where importing a file that
+ * has not been converted yet would fail the whole run.
+ */
+function selectedSteps(argv) {
+	const index = argv.indexOf('--steps')
+	if (index < 0)
+		return null
+	const value = argv[index + 1]
+	if (value == null || value.length === 0)
+		throw new Error('--steps needs a comma-separated list of step directory names')
+	return new Set(value.split(',')
+		.map(step => step.trim())
+		.filter(Boolean))
+}
+
 async function report() {
-	const benches = await collectStepBenches(stepBenchFiles())
+	const only = selectedSteps(process.argv.slice(2))
+	const files = stepBenchFiles()
+		.filter(entry => only == null || only.has(entry.step))
+	if (only != null) {
+		const missing = [...only].filter(step => !files.some(entry => entry.step === step))
+		if (missing.length > 0)
+			throw new Error(`No bench file for the step directory ${missing.join(', ')}`)
+	}
+	const benches = await collectStepBenches(files)
 	const cells = []
 
 	for (const { step, url, cells: declared } of benches) {
