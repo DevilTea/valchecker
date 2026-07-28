@@ -133,6 +133,22 @@ describe('templateLiteral step plugin', () => {
 				.execute(input))
 				.toEqual({ value: input })
 		})
+		it('expands to exactly the member ceiling without throwing', () => {
+			// The ceiling is inclusive: 100 × 100 is the largest cross-product that
+			// still constructs. The exceeded side of the edge is asserted below, in
+			// `construction misuse throws`.
+			const hundred = Array.from({ length: 100 }, (_, index) => String(index))
+			const schema = v.templateLiteral([
+				v.union(hundred as [string, ...string[]]),
+				v.union(hundred as [string, ...string[]]),
+			])
+
+			expect(schema.execute('9999'))
+				.toEqual({ value: '9999' })
+			expect(schema.execute('nope'))
+				.toMatchObject({ issues: [{ code: 'templateLiteral:expected_template_literal' }] })
+		})
+
 		it('rejects xpx for [union([auto, number]), px]', () => {
 			expect(v.templateLiteral([v.union(['auto', v.number()]), 'px'])
 				.execute('xpx'))
@@ -199,6 +215,18 @@ describe('templateLiteral step plugin', () => {
 				.toEqual({ value: 'a-b' })
 			expect(schema.execute('nodash'))
 				.toMatchObject({ issues: [{ code: 'templateLiteral:expected_template_literal' }] })
+		})
+
+		it('${string}-${string}: an empty capture on either side of the delimiter matches', () => {
+			// `${string}` matches the empty string, so the delimiter may sit at the
+			// very start of the remaining text or at its very end.
+			const schema = v.templateLiteral([v.string(), '-', v.string()])
+			expect(schema.execute('-a'))
+				.toEqual({ value: '-a' })
+			expect(schema.execute('a-'))
+				.toEqual({ value: 'a-' })
+			expect(schema.execute('-'))
+				.toEqual({ value: '-' })
 		})
 	})
 
@@ -337,8 +365,14 @@ describe('templateLiteral step plugin', () => {
 				.toThrow(TypeError)
 		})
 		it('rejects a plain-object part', () => {
+			// A value that is no schema at all and a schema that is not a usable part
+			// are different diagnoses, and the message is what tells them apart.
 			expect(() => v.templateLiteral([{} as never]))
 				.toThrow(TypeError)
+			expect(() => v.templateLiteral([{} as never]))
+				.toThrowError('templateLiteral() part at index 0 must be an interpolatable literal or a supported schema.')
+			expect(() => v.templateLiteral([v.object({}) as never]))
+				.toThrowError('templateLiteral() schema part at index 0 is not a supported template-literal part (only bare number/bigint/string/boolean/null/undefined/literal/union/templateLiteral schemas are allowed).')
 		})
 		it('rejects a non-finite number part', () => {
 			expect(() => v.templateLiteral([Number.NaN as never]))

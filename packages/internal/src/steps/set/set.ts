@@ -234,6 +234,19 @@ export const set = implStepPlugin<PluginDef>({
 						issues = appended.issues
 						if (appended.hasInternal || !collectAllIssues)
 							return failure(issues)
+						// A buffered item is recorded under its buffer position, which is
+						// its source index only while nothing has been skipped. Collecting
+						// past a failure skips one, so the buffer is materialized here,
+						// while the two still agree, rather than misreporting `firstIndex`.
+						if (output == null) {
+							output = new Set()
+							firstItemMeta = new Map()
+							for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
+								const bufferedItem = buffer![bufferIndex]
+								output.add(bufferedItem)
+								firstItemMeta.set(bufferedItem, { firstIndex: bufferIndex, firstItem: bufferedItem })
+							}
+						}
 						index++
 						continue
 					}

@@ -24,7 +24,13 @@ The default accepted set is the [UTS #51](https://www.unicode.org/reports/tr51/)
 grammar, built from Unicode property escapes so it tracks the engine's Unicode version rather than a
 release date. It accepts an emoji-presentation character, an emoji character followed by VS16, a
 keycap sequence, a skin-tone modifier sequence, a regional indicator pair, a tag sequence, and a ZWJ
-chain of those — one after another, in any number.
+chain — one after another, in any number.
+
+A ZWJ chain joins only three of those: an emoji-presentation character, an emoji character followed
+by VS16, and a skin-tone modifier sequence. A keycap sequence, a regional indicator pair, and a tag
+sequence each stand on their own and cannot appear in a chain in either position, so keycap-ZWJ-heart
+(`1️⃣` ZWJ `❤️`), flag-ZWJ-flag, heart-ZWJ-flag, tag-ZWJ-skull, and skull-ZWJ-tag are all rejected.
+Nothing that excludes renders as an emoji anywhere, and no member of the RGI set is affected.
 
 A bare `Emoji_Component` is not an emoji by itself, so a lone skin-tone modifier (`🏽`), a lone hair
 component (`🦰`), a lone regional indicator (`🇦`), a lone ZWJ, a lone VS16, a lone tag character, and

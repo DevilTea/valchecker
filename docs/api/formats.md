@@ -382,8 +382,8 @@ v.string()
 
 ### `isNanoid(options?)` {#isNanoid}
 
-Uses only the default Nano ID alphabet (`A-Za-z0-9_-`). Length is not constrained because Nano ID
-size is configurable at generation time.
+One or more characters of the default Nano ID alphabet (`A-Za-z0-9_-`). No maximum length is
+imposed, because Nano ID size is configurable at generation time; the empty string is rejected.
 
 ```ts
 v.string()

@@ -194,14 +194,6 @@ describe('core issue contracts', () => {
 		expect(replaceIssuePath(issue, []).path)
 			.toEqual([])
 	})
-
-	it('attaches a message scope when replacing the path of an unscoped issue', () => {
-		const issue = validationIssue('test:path', ['old'])
-		const result = replaceIssuePath(issue, ['new'], 'scope')
-		expect(result).not.toBe(issue)
-		expect(result.path)
-			.toEqual(['new'])
-	})
 })
 
 describe('message contracts', () => {

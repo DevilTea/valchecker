@@ -267,7 +267,16 @@ describe('map step plugin', () => {
 
 	it('stops at an invalid value and does not validate later entries', () => {
 		expect(v.map({ key: v.string(), value: v.number() })
-			.execute(new Map<unknown, unknown>([['a', 'x'], ['b', 2]])))
+			.execute(new Map<unknown, unknown>([['a', 'x'], ['b', 'y']])))
+			.toMatchObject({ issues: [{ code: 'number:expected_number', path: [0, 'value'] }] })
+	})
+
+	it('does not reserve the transformed key of a failed entry in a maybe-async map resolved synchronously', () => {
+		const key = v.string()
+			.transform(entryKey => entryKey.toLowerCase())
+
+		expect(v.map({ key, value: v.number(), collectAllIssues: true })
+			.execute(new Map<unknown, unknown>([['A', 'x'], ['a', 2]])))
 			.toMatchObject({ issues: [{ code: 'number:expected_number', path: [0, 'value'] }] })
 	})
 
@@ -539,6 +548,22 @@ describe('map lazy output allocation', () => {
 			})
 	})
 
+	it('treats a NaN key as identity only when the transform keeps it NaN', () => {
+		const fromNaN = v.unknown()
+			.syncMap((sourceKey: unknown) => typeof sourceKey === 'number' && Number.isNaN(sourceKey) ? 'nan' : sourceKey)
+
+		expect(v.map({ key: fromNaN, value: v.number() })
+			.execute(new Map([[Number.NaN, 1]])))
+			.toEqual({ value: new Map([['nan', 1]]) })
+
+		const toNaN = v.unknown()
+			.syncMap(() => Number.NaN)
+
+		expect(v.map({ key: toNaN, value: v.number() })
+			.execute(new Map([['a', 1]])))
+			.toEqual({ value: new Map([[Number.NaN, 1]]) })
+	})
+
 	it('does not reserve a failed prefix key for later transformed output', () => {
 		const input = new Map([['failed', 1], ['a', 2]])
 		const key = v.unknown()
@@ -578,6 +603,34 @@ describe('map lazy output allocation', () => {
 				payload: {
 					firstSourceKey: 'kept',
 					firstIndex: 0,
+					sourceKey: 'later',
+					index: 2,
+				},
+			})
+	})
+
+	it('reports the source index of a first occurrence that follows a failed entry', () => {
+		const input = new Map<string, number | string>([['failed', 'bad'], ['kept', 1], ['later', 2]])
+		const key = v.unknown()
+			.syncMap((sourceKey: unknown) => sourceKey === 'later' ? 'kept' : sourceKey)
+		const value = v.unknown()
+			.syncProcess((entryValue: unknown) => entryValue === 'bad'
+				? { ok: false }
+				: { ok: true, value: entryValue })
+		const result = v.map({ key, value, collectAllIssues: true })
+			.execute(input)
+
+		expect(result.issues.map((issue: any) => issue.code))
+			.toEqual([
+				'fixture:rejected',
+				'map:duplicate_transformed_key',
+			])
+		expect(result.issues[1])
+			.toMatchObject({
+				path: [2, 'key'],
+				payload: {
+					firstSourceKey: 'kept',
+					firstIndex: 1,
 					sourceKey: 'later',
 					index: 2,
 				},
@@ -719,7 +772,7 @@ describe('map asynchronous value continuation', () => {
 			.transform(entryKey => Promise.resolve(entryKey))
 
 		await expect(v.map({ key, value: v.number() })
-			.execute(new Map<unknown, unknown>([['a', 1], [2, 3]])))
+			.execute(new Map<unknown, unknown>([['a', 1], [2, 'x']])))
 			.resolves.toMatchObject({ issues: [{ code: 'string:expected_string', path: [1, 'key'] }] })
 	})
 
@@ -728,7 +781,25 @@ describe('map asynchronous value continuation', () => {
 			.transform(entryKey => Promise.resolve(entryKey))
 
 		await expect(v.map({ key, value: v.number() })
-			.execute(new Map<unknown, unknown>([['a', 1], ['b', 'x']])))
+			.execute(new Map<unknown, unknown>([['a', 1], ['b', 'x'], ['c', 'y']])))
+			.resolves.toMatchObject({ issues: [{ code: 'number:expected_number', path: [1, 'value'] }] })
+	})
+
+	it('does not reserve the transformed key of an entry whose value failed while the key suspended', async () => {
+		const key = v.string()
+			.transform(entryKey => Promise.resolve(entryKey.toLowerCase()))
+
+		await expect(v.map({ key, value: v.number(), collectAllIssues: true })
+			.execute(new Map<unknown, unknown>([['A', 'x'], ['a', 2]])))
+			.resolves.toMatchObject({ issues: [{ code: 'number:expected_number', path: [0, 'value'] }] })
+	})
+
+	it('does not reserve the transformed key of an entry whose value failed during asynchronous continuation', async () => {
+		const key = v.string()
+			.transform(entryKey => Promise.resolve(entryKey.toLowerCase()))
+
+		await expect(v.map({ key, value: v.number(), collectAllIssues: true })
+			.execute(new Map<unknown, unknown>([['first', 1], ['A', 'x'], ['a', 2]])))
 			.resolves.toMatchObject({ issues: [{ code: 'number:expected_number', path: [1, 'value'] }] })
 	})
 })

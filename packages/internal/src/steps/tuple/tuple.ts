@@ -268,16 +268,18 @@ export const tuple = implStepPlugin<PluginDef>({
 			return { issues, stop: false }
 		}
 
+		// `length` is the one the synchronous entry point read, not `value.length`
+		// read again here: a child that mutates the input array must not move the
+		// rest slice or the suffix indices the traversal already committed to.
 		const runAsync = async (
 			phase: 'prefix' | 'rest' | 'suffix',
 			startIndex: number,
 			firstResult: PromiseLike<ExecutionResult>,
 			value: unknown[],
+			length: number,
 			output: unknown[],
 			issues: AnyExecutionIssue[] | undefined,
 		) => {
-			const length = value.length
-
 			if (phase === 'prefix') {
 				for (let i = startIndex; i < p; i++) {
 					const result = i === startIndex ? await firstResult : await prefixExecutes[i]!(value[i])
@@ -348,7 +350,7 @@ export const tuple = implStepPlugin<PluginDef>({
 			for (let i = 0; i < p; i++) {
 				const result = prefixExecutes[i]!(value[i])
 				if (!childrenAreSynchronous && isPromiseLike(result))
-					return runAsync('prefix', i, result, value, output, issues)
+					return runAsync('prefix', i, result, value, length, output, issues)
 				const handled = handleChildResult(result as ExecutionResult, i, output, issues)
 				issues = handled.issues
 				if (handled.stop)
@@ -358,7 +360,7 @@ export const tuple = implStepPlugin<PluginDef>({
 			if (hasRest) {
 				const result = restExecute!(sliceRest(value, length))
 				if (!childrenAreSynchronous && isPromiseLike(result))
-					return runAsync('rest', 0, result, value, output, issues)
+					return runAsync('rest', 0, result, value, length, output, issues)
 				const handled = handleRestResult(result as ExecutionResult, output, issues)
 				issues = handled.issues
 				if (handled.stop)
@@ -369,7 +371,7 @@ export const tuple = implStepPlugin<PluginDef>({
 				const idx = length - s + j
 				const result = suffixExecutes[j]!(value[idx])
 				if (!childrenAreSynchronous && isPromiseLike(result))
-					return runAsync('suffix', j, result, value, output, issues)
+					return runAsync('suffix', j, result, value, length, output, issues)
 				const handled = handleChildResult(result as ExecutionResult, idx, output, issues)
 				issues = handled.issues
 				if (handled.stop)

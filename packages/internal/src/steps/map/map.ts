@@ -321,6 +321,19 @@ export const map = implStepPlugin<PluginDef>({
 							firstKeyMeta!.set(transformedKey, { index, sourceKey })
 						}
 					}
+					// A buffered entry is recorded under its buffer position, which is its
+					// source index only while nothing has been skipped. Collecting past a
+					// failed entry skips one, so the buffer is materialized here, while the
+					// two still agree, rather than misreporting `firstIndex`.
+					else if (output == null) {
+						output = new Map()
+						firstKeyMeta = new Map()
+						for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
+							const bufferedKey = bufferKeys![bufferIndex]
+							output.set(bufferedKey, bufferValues![bufferIndex])
+							firstKeyMeta.set(bufferedKey, { index: bufferIndex, sourceKey: bufferedKey })
+						}
+					}
 					index++
 				}
 

@@ -148,7 +148,7 @@ Value-preserving format validators, on [String formats](/api/formats).
 - [`isHex()`](/api/formats#isHex) — one or more hexadecimal digits, with no `0x` prefix
 - [`isHostname()`](/api/formats#isHostname) — RFC 1123 hostname, labels of 1–63 characters within 253
 - [`isMac()`](/api/formats#isMac) — EUI-48 MAC address with `:` or `-` separators
-- [`isNanoid()`](/api/formats#isNanoid) — the default Nano ID alphabet, with no length constraint
+- [`isNanoid()`](/api/formats#isNanoid) — one or more characters of the default Nano ID alphabet
 - [`isUlid()`](/api/formats#isUlid) — 26 characters of Crockford base32
 - [`isUuid()`](/api/formats#isUuid) — RFC 9562 / RFC 4122 UUID, versions 1–8 plus nil and max
 

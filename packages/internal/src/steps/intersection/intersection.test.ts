@@ -23,7 +23,10 @@ describe('intersection plugin', () => {
 			.toEqual({ value: 'hello' })
 	})
 
-	it('should preserve the same plain-object reference', () => {
+	// `transform` makes a branch `maybe-async`, so the empty-output case below is
+	// awaited rather than cast: the result is synchronous at runtime, and awaiting
+	// says so without asserting it away.
+	it('should preserve the same plain-object reference', async () => {
 		const shared = { value: true }
 		const result = v.intersection([
 			v.unknown()
@@ -38,6 +41,24 @@ describe('intersection plugin', () => {
 		if (v.isSuccess(result)) {
 			expect(result.value)
 				.toBe(shared)
+		}
+
+		// An output with no own keys is the boundary of the disjoint-key shallow
+		// merge, which must not replace a shared reference with a fresh object.
+		const empty = {}
+		const emptyResult = await v.intersection([
+			v.unknown()
+				.transform(() => empty),
+			v.unknown()
+				.transform(() => empty),
+		])
+			.execute(null)
+
+		expect(v.isSuccess(emptyResult))
+			.toBe(true)
+		if (v.isSuccess(emptyResult)) {
+			expect(emptyResult.value)
+				.toBe(empty)
 		}
 	})
 
@@ -234,9 +255,98 @@ describe('intersection plugin', () => {
 				issues: [{
 					code: 'intersection:conflicting_outputs',
 					category: 'validation',
+					message: 'Intersection branch outputs conflict.',
 					payload: { path: [], leftBranch: 0, rightBranch: 1, leftValue: 'left', rightValue: 'right', reason: 'different_values' },
 				}],
 			})
+	})
+
+	it.each<[string, unknown, unknown, string]>([
+		['a plain object and a number', { value: true }, 5, 'incompatible_prototype'],
+		['a plain object and null', { value: true }, null, 'incompatible_prototype'],
+		['null and a plain object', null, { value: true }, 'incompatible_prototype'],
+		['a non-plain object and a number', new Date(0), 5, 'different_values'],
+		['a non-plain object and null', new Date(0), null, 'different_values'],
+	])('should report a conflict rather than an internal failure for %s', (_label, left, right, reason) => {
+		const result = v.intersection([
+			v.unknown()
+				.transform(() => left),
+			v.unknown()
+				.transform(() => right),
+		])
+			.execute(null)
+
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'intersection:conflicting_outputs',
+					category: 'validation',
+					payload: { path: [], leftBranch: 0, rightBranch: 1, leftValue: left, rightValue: right, reason },
+				}],
+			})
+	})
+
+	it('should attribute a top-level conflict to the earlier branch that supplied the key', () => {
+		const result = v.intersection([
+			v.unknown()
+				.transform(() => ({ shared: 'first' })),
+			v.unknown()
+				.transform(() => ({ unrelated: true })),
+			v.unknown()
+				.transform(() => ({ shared: 'third' })),
+		])
+			.execute(null)
+
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'intersection:conflicting_outputs',
+					payload: {
+						path: ['shared'],
+						leftBranch: 0,
+						rightBranch: 2,
+						leftValue: 'first',
+						rightValue: 'third',
+					},
+				}],
+			})
+	})
+
+	it('should merge an alias reached through a one-sided key into the merged partner', () => {
+		// `d` pairs the two objects during discovery, but `c` reaches the same
+		// object through a key only one side has, so the clone path has to find
+		// that pairing instead of cloning one side alone. The key order records
+		// which side was merged as the left one.
+		const runOneSidedAlias = (mirrored: boolean) => {
+			const fromLeft = { fromLeft: 1 }
+			const fromRight = { fromRight: 2 }
+			const left = mirrored ? { c: {}, d: fromLeft } : { c: { alias: fromLeft }, d: fromLeft }
+			const right = mirrored ? { c: { alias: fromRight }, d: fromRight } : { c: {}, d: fromRight }
+
+			return syncResult(v.intersection([
+				v.unknown()
+					.transform(() => left),
+				v.unknown()
+					.transform(() => right),
+			])
+				.execute(null))
+		}
+
+		for (const mirrored of [false, true]) {
+			const result = runOneSidedAlias(mirrored)
+
+			expect(v.isSuccess(result))
+				.toBe(true)
+			if (v.isSuccess(result)) {
+				const output = result.value as { c: { alias: unknown }, d: Record<string, unknown> }
+				expect(output.c.alias)
+					.toBe(output.d)
+				expect(output.d)
+					.toEqual({ fromLeft: 1, fromRight: 2 })
+				expect(Object.keys(output.d))
+					.toEqual(['fromLeft', 'fromRight'])
+			}
+		}
 	})
 
 	it('should reject distinct non-plain object outputs instead of stripping their state', () => {
@@ -312,6 +422,25 @@ describe('intersection plugin', () => {
 				issues: [{
 					code: 'intersection:conflicting_outputs',
 					payload: { reason: 'incompatible_prototype', leftValue: left, rightValue: right },
+				}],
+			})
+
+		// Disjoint keys are exactly what the shallow merge looks for, so the
+		// prototype check has to reject the pair before that path can combine
+		// them under one of the two prototypes.
+		const disjointLeft = Object.assign(Object.create(null) as Record<string, unknown>, { left: 1 })
+		const disjointRight = { right: 2 }
+		expect(v.intersection([
+			v.unknown()
+				.transform(() => disjointLeft),
+			v.unknown()
+				.transform(() => disjointRight),
+		])
+			.execute(null))
+			.toMatchObject({
+				issues: [{
+					code: 'intersection:conflicting_outputs',
+					payload: { reason: 'incompatible_prototype', leftValue: disjointLeft, rightValue: disjointRight },
 				}],
 			})
 	})
@@ -671,12 +800,46 @@ describe('intersection disjoint plain-object outputs', () => {
 		])
 			.execute(null))
 
+		// The surviving keys must still carry the values the scan read for them:
+		// a key list that is not compacted alongside its values pairs them up
+		// one position apart.
+		expect(result)
+			.toEqual({ value: { first: 1, nested: {}, second: 'b' } })
 		expect(v.isSuccess(result))
 			.toBe(true)
 		if (v.isSuccess(result)) {
 			expect(Object.keys(result.value as object))
 				.toEqual(['first', 'nested', 'second'])
 		}
+	})
+
+	it('should treat an own enumerable key named `undefined` as ordinary data read once', () => {
+		// Both scans in the shallow merge index their key array by position, and
+		// `propertyIsEnumerable(value, undefined)` answers for the key
+		// `'undefined'` — so an off-by-one bound only becomes visible on an
+		// object that actually carries that key.
+		let reads = 0
+		const left = Object.defineProperty({ left: 1 }, 'undefined', {
+			configurable: true,
+			enumerable: true,
+			get() {
+				reads++
+				return 'kept'
+			},
+		})
+
+		const result = syncResult(v.intersection([
+			v.unknown()
+				.transform(() => left),
+			v.unknown()
+				.transform(() => ({ right: 2 })),
+		])
+			.execute(null))
+
+		expect(result)
+			.toEqual({ value: { left: 1, undefined: 'kept', right: 2 } })
+		expect(reads)
+			.toBe(1)
 	})
 })
 

@@ -103,6 +103,23 @@ describe('object step plugin', () => {
 			})
 	})
 
+	it('validates a declared key named "undefined" exactly once', () => {
+		// `'undefined'` is an ordinary string key. Collecting all issues is what
+		// makes a key validated twice visible: the first issue alone would look
+		// identical.
+		expect(v.object({ undefined: v.string() }, { collectAllIssues: true })
+			.execute({ undefined: 1 }))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: ['undefined'],
+					payload: { value: 1 },
+				}],
+			})
+	})
+
 	it('collects child and missing-key issues in struct order', () => {
 		expect(v.object({
 			name: v.string(),

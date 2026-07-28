@@ -60,6 +60,34 @@ describe('looseObject step plugin', () => {
 			})
 	})
 
+	it('passes an unknown key named "undefined" through unchanged', () => {
+		// The output carries the value's own properties minus the declared ones,
+		// plus the declared outputs — and nothing else. A key named `'undefined'`
+		// is an ordinary own property on both sides of that split.
+		expect(v.looseObject({ name: v.string() })
+			.execute({ name: 'Ada', undefined: 1 }))
+			.toEqual({
+				value: {
+					name: 'Ada',
+					undefined: 1,
+				},
+			})
+	})
+
+	it('validates a declared key named "undefined" exactly once', () => {
+		expect(v.looseObject({ undefined: v.string() }, { collectAllIssues: true })
+			.execute({ undefined: 1 }))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: ['undefined'],
+					payload: { value: 1 },
+				}],
+			})
+	})
+
 	it('does not materialize extra descriptors after a declared field fails', () => {
 		let ownKeysCalls = 0
 		const input = new Proxy({ value: 42, extra: true }, {

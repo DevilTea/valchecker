@@ -48,6 +48,20 @@ describe('set step plugin', () => {
 			.toEqual(new Set(['a', 'b']))
 	})
 
+	it('stops at the first invalid item, returning only the first-item issue', () => {
+		expect(v.set(v.string())
+			.execute(new Set<unknown>([1, 2])))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: [0],
+					payload: { value: 1 },
+				}],
+			})
+	})
+
 	it('collects child issues with stable numeric paths', () => {
 		expect(v.set(v.string(), { collectAllIssues: true })
 			.execute(new Set<unknown>(['ok', 1, 2])))
@@ -267,7 +281,7 @@ describe('set step plugin', () => {
 			.transform(value => Promise.resolve(value))
 
 		await expect(v.set(item)
-			.execute(new Set<unknown>(['a', 2])))
+			.execute(new Set<unknown>(['a', 2, 3])))
 			.resolves.toMatchObject({ issues: [{ code: 'string:expected_string', path: [1] }] })
 	})
 })
@@ -441,6 +455,49 @@ describe('set native snapshots', () => {
 			.execute(new Set([Number.NaN, 0])))
 			.toEqual({
 				value: new Set([Number.NaN, 0]),
+			})
+	})
+
+	it('treats a NaN item as identity only when the transform keeps it NaN', () => {
+		const fromNaN = v.unknown()
+			.syncMap((value: unknown) => typeof value === 'number' && Number.isNaN(value) ? 'nan' : value)
+
+		expect(v.set(fromNaN)
+			.execute(new Set([Number.NaN])))
+			.toEqual({ value: new Set(['nan']) })
+
+		const toNaN = v.unknown()
+			.syncMap(() => Number.NaN)
+
+		expect(v.set(toNaN)
+			.execute(new Set(['a'])))
+			.toEqual({ value: new Set([Number.NaN]) })
+	})
+
+	it('reports the source index of a first occurrence that follows a failed item', () => {
+		const input = new Set(['failed', 'a', 'A'])
+		const item = v.unknown()
+			.syncProcess((value: unknown) => value === 'failed'
+				? { ok: false }
+				: { ok: true, value: String(value)
+						.toLowerCase() })
+		const result = v.set(item, { collectAllIssues: true })
+			.execute(input)
+
+		expect(result.issues.map((issue: any) => issue.code))
+			.toEqual([
+				'fixture:rejected',
+				'set:duplicate_transformed_item',
+			])
+		expect(result.issues[1])
+			.toMatchObject({
+				path: [2],
+				payload: {
+					firstItem: 'a',
+					firstIndex: 1,
+					item: 'A',
+					index: 2,
+				},
 			})
 	})
 

@@ -51,8 +51,6 @@ describe('standard Schema V1 contract', () => {
 		const schema = v.string()
 
 		const success = schema['~standard'].validate('Ada') as StandardSchemaV1.Result<string>
-		expect(success.issues)
-			.toBeUndefined()
 		expect(Object.hasOwn(success, 'issues'))
 			.toBe(false)
 

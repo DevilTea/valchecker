@@ -109,6 +109,23 @@ describe('strictObject step plugin', () => {
 			})
 	})
 
+	it('validates a declared key named "undefined" exactly once and does not call it unexpected', () => {
+		// `'undefined'` is an ordinary string key on both sides: in the struct that
+		// declares it and in the value whose own keys are checked against the
+		// declared set. Collecting all issues is what makes a duplicate visible.
+		expect(v.strictObject({ undefined: v.string() }, { collectAllIssues: true })
+			.execute({ undefined: 1 }))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: ['undefined'],
+					payload: { value: 1 },
+				}],
+			})
+	})
+
 	it('collects unexpected, child, and missing-key issues in stable order', () => {
 		expect(v.strictObject({
 			name: v.string(),
