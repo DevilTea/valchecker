@@ -278,6 +278,41 @@ describe('record step plugin — finite (closed, exhaustive) key domain', () => 
 			.toEqual({ value: { a: 1, b: 2 } })
 	})
 
+	it('keeps an earlier recoverable issue but stops at an internal member issue', async () => {
+		// Nothing is collected after the internal issue: with both members
+		// present it is the only issue reported, and the missing-key case shows
+		// the one issue that precedes it is the one raised before it.
+		expect(v.record({ key: v.union(['a', 'b']), value: v.number()
+			.internalFailure(), collectAllIssues: true })
+			.execute({ a: 1, b: 2 }))
+			.toMatchObject({ issues: [{ category: 'internal', path: ['a'] }] })
+
+		expect(v.record({ key: v.union(['a', 'b']), value: v.number()
+			.internalFailure(), collectAllIssues: true })
+			.execute({ b: 1 }))
+			.toMatchObject({
+				issues: [
+					{ code: 'record:missing_key', path: ['a'] },
+					{ category: 'internal', path: ['b'] },
+				],
+			})
+
+		await expect(v.record({ key: v.union(['a', 'b']), value: v.number()
+			.asyncInternalFailure(), collectAllIssues: true })
+			.execute({ a: 1, b: 2 })).resolves
+			.toMatchObject({ issues: [{ category: 'internal', path: ['a'] }] })
+
+		await expect(v.record({ key: v.union(['a', 'b', 'c']), value: v.number()
+			.asyncInternalFailure(), collectAllIssues: true })
+			.execute({ b: 1, c: 2 })).resolves
+			.toMatchObject({
+				issues: [
+					{ code: 'record:missing_key', path: ['a'] },
+					{ category: 'internal', path: ['b'] },
+				],
+			})
+	})
+
 	it('requires every member key and reports the full missing-key payload', () => {
 		const schema = v.record({ key: v.union(['a', 'b']), value: v.number() })
 		expect(schema.execute({ a: 1, b: 2 }))
