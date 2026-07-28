@@ -17,6 +17,7 @@ function resultOf(overrides = {}) {
 		isolation: 'cell',
 		profile: { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 7, targetRelativeMarginOfError: 0.75 },
 		shards: [{ index: 0, count: 1 }],
+		scenarioFilter: null,
 		...overrides,
 	}
 }
@@ -32,6 +33,35 @@ test('a result that does not record how it was measured has no identity', () => 
 	assert.throws(() => measurementIdentity(resultOf({ shards: undefined }), 'run'), /missing its shard record/)
 	assert.throws(() => measurementIdentity(resultOf({ shards: [] }), 'run'), /missing its shard record/)
 	assert.throws(() => measurementIdentity(resultOf({ shards: [{ index: 0, count: 0 }] }), 'run'), /invalid shard count/)
+	assert.throws(() => measurementIdentity(resultOf({ scenarioFilter: undefined }), 'run'), /does not record which scenarios it measured/)
+})
+
+test('the scenario selection is part of the identity', () => {
+	// The impact gate scopes a pull-request run to its diff, so two runs of the same
+	// profile can now measure different scenario sets. Their per-scenario rows would
+	// still be comparable under cell isolation; their group geometric means would not,
+	// because a mean is over whatever ran.
+	const whole = identityOf()
+	const scoped = identityOf({ scenarioFilter: ['primitive/valid', 'flat-object/valid'] })
+	assert.deepEqual(identityDifferences(whole, scoped), ['selection'])
+	assert.throws(
+		() => assertComparable(whole, scoped, 'Baseline and candidate'),
+		/they differ in selection — a group aggregate is a geometric mean over the scenarios that ran/,
+	)
+})
+
+test('the same selection written in another order is the same selection', () => {
+	const left = identityOf({ scenarioFilter: ['primitive/valid', 'flat-object/valid'] })
+	const right = identityOf({ scenarioFilter: ['flat-object/valid', 'primitive/valid'] })
+	assert.deepEqual(identityDifferences(left, right), [])
+})
+
+test('a filter naming every scenario is not the same as no filter', () => {
+	// `null` keeps meaning "the whole tier" as the suite grows; a list that happens to
+	// name today's whole tier does not.
+	const left = identityOf()
+	const right = identityOf({ scenarioFilter: ['primitive/valid'] })
+	assert.deepEqual(identityDifferences(left, right), ['selection'])
 })
 
 test('a run carrying only some of its shards is not a run', () => {

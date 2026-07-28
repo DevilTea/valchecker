@@ -11,6 +11,10 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 #     cancel, and the bisect it forces costs more than the runs it saves. At this
 #     repository's rate — six merges touching package source on the busiest recent day
 #     — per-merge runs are affordable on the hosted runners and name the merge outright.
+#     It covers every change class the selector treats as a full run, not only package
+#     source: a dependency bump or a compiler-configuration change is the class most
+#     able to move every number at once, and it is the class the scoped run cannot
+#     narrow.
 #   - workflow_dispatch: manual comparison of two arbitrary refs, with optional
 #     competitor adapters and scenario selection.
 #
@@ -24,7 +28,9 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 # mapping and everything it refuses to decide; anything it cannot place is a full run,
 # and a canary set — every construction and cold scenario plus the core execution paths
 # — runs whatever the diff says, because module initialisation is not attributable
-# through a scenario's `steps` at all.
+# through a scenario's `steps` at all. The `paths` filters below therefore have to
+# admit every path that module can call a full run, or the rule cannot fire;
+# `scripts/check-impact-triggers.ts` fails when they do not.
 #
 # The comparison *scripts* always come from the checked-out ref (PR merge ref, or
 # the dispatched ref), so the compare tooling and scenario selection are fixed;
@@ -95,23 +101,75 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+    # The complement of what `scripts/impact-selection.ts` can prove harmless, not an
+    # enumeration of source directories. The selector's most conservative rules force a
+    # full run for a lockfile, a package manifest, a `tsdown.config.ts`, a
+    # `tsconfig.json`, an unrecognised new path, and for the files that define this gate
+    # — and a rule whose path never starts the workflow can never fire. Listing source
+    # directories left every one of those unreachable, so the filter is now written as
+    # `**` minus the exclusions in `cannotChangeTheBuild`, with the gate-defining files
+    # re-included after the directories that would otherwise swallow them.
+    # `scripts/check-impact-triggers.ts` fails when the two disagree.
+    #
+    # `benchmarks/**` is not excluded here: it cannot change either build, so it is only
+    # ever the canary, but that canary is the one thing that would notice a change to the
+    # measuring apparatus moving both sides at once.
     paths:
-      - 'packages/internal/src/**'
-      - 'packages/valchecker/src/**'
-      - 'packages/all-steps/src/**'
-      - 'benchmarks/**'
+      - '**'
+      - '!docs/**'
+      - '!type-performance/**'
+      - '!artifacts/**'
+      - '!coverage/**'
+      - '!.agents/**'
+      - '!.claude/**'
+      - '!.vscode/**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.editorconfig'
+      - '!.gitignore'
+      - '!.npmrc'
+      - '!eslint.config.js'
+      - '!vitest.config.ts'
+      - '!api-surface.json'
+      - '!release-plan.json'
+      - '!scripts/**'
+      - '!.github/**'
+      - scripts/impact-selection.ts
+      - scripts/select-impact-scenarios.ts
       - .github/workflows/performance-impact.yml
       - .github/actions/setup/action.yml
   push:
     branches:
       - main
-    # `benchmarks/**` is deliberately absent. A merge that changes only the measuring
-    # apparatus leaves both revisions building the same library, so the comparison has
-    # nothing to find.
+    # The same complement, with one more exclusion: `benchmarks/**`. A merge that changes
+    # only the measuring apparatus leaves both revisions building the same library, so
+    # the unscoped post-merge comparison has nothing to find. Everything the selector can
+    # force a full run for is here, because this run is the net under the scoped one and
+    # a dependency bump or a compiler-configuration change is the class most able to move
+    # every number at once.
     paths:
-      - 'packages/internal/src/**'
-      - 'packages/valchecker/src/**'
-      - 'packages/all-steps/src/**'
+      - '**'
+      - '!docs/**'
+      - '!benchmarks/**'
+      - '!type-performance/**'
+      - '!artifacts/**'
+      - '!coverage/**'
+      - '!.agents/**'
+      - '!.claude/**'
+      - '!.vscode/**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.editorconfig'
+      - '!.gitignore'
+      - '!.npmrc'
+      - '!eslint.config.js'
+      - '!vitest.config.ts'
+      - '!api-surface.json'
+      - '!release-plan.json'
+      - '!scripts/**'
+      - '!.github/**'
+      - scripts/impact-selection.ts
+      - scripts/select-impact-scenarios.ts
       - .github/workflows/performance-impact.yml
       - .github/actions/setup/action.yml
 

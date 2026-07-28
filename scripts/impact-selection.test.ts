@@ -167,6 +167,114 @@ describe('attribution over the import graph', () => {
 		expect(attribution.problems)
 			.toEqual(['packages/internal/src/registry.ts: a dynamic import whose specifier this scan cannot resolve'])
 	})
+
+	it('records a static import whose specifier is not a literal', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/internal/src/registry.ts': 'import { grammar } from `./steps/alpha/grammar`\n\nexport const registry = [grammar]\n',
+		}))
+		expect(attribution.problems)
+			.toEqual(['packages/internal/src/registry.ts: an import declaration whose specifier is not a string literal'])
+	})
+
+	it('records `import =`, which it does not resolve', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/internal/src/registry.ts': `import grammar = require('./steps/alpha/grammar')\n\nexport const registry = [grammar]\n`,
+		}))
+		expect(attribution.problems)
+			.toEqual(['packages/internal/src/registry.ts: `import =` is not resolved by this scan'])
+	})
+
+	/**
+	 * The three guards above and this one are the same guard in four spellings: an edge
+	 * the scan cannot read is a step whose scenarios go unmeasured, so it is reported
+	 * rather than skipped. They are exercised here because unexercised defensive code is
+	 * indistinguishable from deleted defensive code.
+	 */
+	it('follows a `require` call, which would otherwise be an invisible edge', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/internal/src/steps/gamma/gamma.ts': [
+				`import { execute } from '../../core'`,
+				`const { grammar } = require('../alpha/grammar')`,
+				'',
+				'const Meta = {',
+				`\tName: 'gamma',`,
+				'} as const',
+				'',
+				'export const gamma = execute(Meta, grammar)',
+				'',
+			].join('\n'),
+		}))
+		expect(attribution.problems)
+			.toEqual([])
+		expect([...attribution.stepsByFile.get('packages/internal/src/steps/alpha/grammar.ts')!].sort())
+			.toEqual(['alpha', 'beta', 'gamma'])
+	})
+
+	it('resolves a `.js` specifier to the TypeScript file beside it', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/internal/src/steps/beta/beta.ts': step('beta', '../alpha/grammar.js'),
+		}))
+		expect(attribution.problems)
+			.toEqual([])
+		expect([...attribution.stepsByFile.get('packages/internal/src/steps/alpha/grammar.ts')!].sort())
+			.toEqual(['alpha', 'beta'])
+	})
+
+	it('records a module the build entry reaches but cannot read', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/ghost/package.json': '{ "name": "@valchecker/ghost" }',
+			'packages/internal/src/index.ts': `export * from './core'\nexport * from './steps'\nexport * from './registry'\nexport * from '@valchecker/ghost'\n`,
+		}))
+		expect(attribution.problems)
+			.toEqual(['packages/ghost/src/index.ts: reachable from the build entry but unreadable'])
+	})
+
+	it('records a step directory whose main module declares no name', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/internal/src/steps/delta/delta.ts': `import { execute } from '../../core'\n\nexport const delta = execute()\n`,
+		}))
+		expect(attribution.problems)
+			.toEqual(['packages/internal/src/steps/delta/delta.ts: no `Meta.Name`, so the scenarios of this step cannot be found'])
+		expect([...attribution.stepNames].sort())
+			.toEqual(['alpha', 'beta', 'gamma'])
+	})
+
+	/**
+	 * Removing a step from the barrel is how a step stops shipping, and it changes every
+	 * bundle. The graph cannot attribute the step any more — it is not in either build —
+	 * so the honest answer is that the attribution is incomplete, not that the step's
+	 * scenarios are safe to skip.
+	 */
+	it('records a step the build entry no longer reaches', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/internal/src/steps/index.ts': `export * from './alpha'\nexport * from './beta'\nexport * from './gamma'\n`,
+		}))
+		expect(attribution.problems)
+			.toEqual([`packages/internal/src/steps/delta/delta.ts: the 'delta' step is not reachable from the build entry`])
+	})
+
+	/**
+	 * The self-consistency check the whole test and benchmark exclusion rests on. The
+	 * pattern is only ever consulted for a deleted path, and it is only safe while no
+	 * file it excuses is actually in the bundle.
+	 */
+	it('refuses itself when the build entry reaches a file the non-shipping pattern excuses', () => {
+		const attribution = buildAttribution(syntheticTree({
+			...repository,
+			'packages/internal/src/index.ts': `export * from './core'\nexport * from './steps'\nexport * from './registry'\nexport * from './test-utils/fixtures'\n`,
+		}))
+		expect(attribution.problems)
+			.toEqual(['packages/internal/src/test-utils/fixtures.ts: treated as not shipping, but the build entry reaches it'])
+		expect(isNonShippingSourcePath('packages/internal/src/test-utils/fixtures.ts'))
+			.toBe(true)
+	})
 })
 
 describe('scenario selection', () => {
@@ -280,6 +388,38 @@ describe('scenario selection', () => {
 		}
 	})
 
+	/**
+	 * The rule this gate's own safety argument rests on: a pull request that edits what
+	 * decides the scope pays one complete comparison. `scripts/**` and `.github/**` are
+	 * otherwise ignored, which is exactly why this needs asserting — and why
+	 * `check-impact-triggers.ts` asserts the workflow's `paths` filters re-include these
+	 * four files, since a rule the workflow never starts for cannot fire.
+	 */
+	it('a change to what decides the scope measures everything', () => {
+		for (const path of [
+			'scripts/impact-selection.ts',
+			'scripts/select-impact-scenarios.ts',
+			'.github/workflows/performance-impact.yml',
+			'.github/actions/setup/action.yml',
+		]) {
+			const selection = select([path])
+			expect(selection.full, path)
+				.toBe(true)
+			expect(selection.classifications[0]!.reason, path)
+				.toBe('it decides how this gate runs')
+		}
+	})
+
+	it('leaves every other script and workflow ignored, so the rule above is the gate list and not a directory', () => {
+		for (const path of ['scripts/check-issue-codes.ts', '.github/workflows/ci.yml']) {
+			const selection = select([path])
+			expect(selection.full, path)
+				.toBe(false)
+			expect(selection.scenarioIds, path)
+				.toEqual(canaryIds)
+		}
+	})
+
 	it('a shipped module no step reaches measures everything', () => {
 		const selection = select(['packages/internal/src/registry.ts'])
 		expect(selection.full)
@@ -386,6 +526,18 @@ describe('the repository this gate runs in', () => {
 			expect(isNonShippingSourcePath(path), path)
 				.toBe(false)
 		}
+	})
+
+	it('excuses a deleted test only inside a package source tree', () => {
+		// The pattern answers "was this deleted file in the bundle", so it is about the
+		// published packages and nothing else. A `.test.ts` anywhere else is a different
+		// question with a different answer, and the two are only kept apart by the prefix.
+		expect(isNonShippingSourcePath('packages/internal/src/steps/isEmail/isEmail.test.ts'))
+			.toBe(true)
+		expect(isNonShippingSourcePath('docs/example.test.ts'))
+			.toBe(false)
+		expect(isNonShippingSourcePath('benchmarks/src/measure.test.ts'))
+			.toBe(false)
 	})
 
 	it('has a canary that exists and keeps every benchmark group triggerable', async () => {

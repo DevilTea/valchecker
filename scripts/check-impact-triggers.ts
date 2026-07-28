@@ -1,0 +1,253 @@
+import type { Attribution, SourceTree } from './impact-selection'
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
+import { buildAttribution, classifyChange, gateDefiningPaths } from './impact-selection'
+
+// The Performance Impact workflow's `paths` filters and `scripts/impact-selection.ts`
+// have to agree, and nothing but this check makes them.
+//
+// The selector's most conservative rules — a lockfile, a package manifest, a
+// `tsdown.config.ts`, a `tsconfig.json`, an unrecognised new path, and the files that
+// define the gate itself — force a full run. A rule whose path never starts the
+// workflow cannot fire, and the first version of this gate had exactly that shape: the
+// filters listed `packages/*/src/**` and two `.github` files, so a pull request that
+// only bumped a dependency got no comparison at all, and the claim that a selection
+// rule can never be relaxed without one complete comparison was false.
+//
+// The direction that matters is one-way. A path the selector forces a full run for MUST
+// start the workflow; a path that starts it without needing to only costs runner time.
+// So this fails on a full-run path the filters miss, and separately on a handful of
+// documentation-only paths that must stay out, because a filter of plain `**` would
+// satisfy the first rule while making the gate run on every README.
+
+const root = process.cwd()
+const workflowPath = '.github/workflows/performance-impact.yml'
+
+/**
+ * The `paths` list of one `on:` event, read positionally rather than with a YAML
+ * parser, which this repository does not depend on. Every step is anchored to an exact
+ * indentation and the function throws rather than returning an empty list, so a
+ * restructured workflow fails loudly instead of silently checking nothing.
+ */
+function readEventPaths(text: string, event: string): string[] {
+	const lines = text.split('\n')
+	const onIndex = lines.findIndex(line => line === 'on:')
+	if (onIndex < 0)
+		throw new Error(`${workflowPath}: no top-level \`on:\` block`)
+
+	let inEvent = false
+	let inPaths = false
+	const patterns: string[] = []
+	for (const line of lines.slice(onIndex + 1)) {
+		if (/^\S/.test(line))
+			break
+		if (line.trim() === '' || /^\s*#/.test(line))
+			continue
+		const eventMatch = /^ {2}(\S+):\s*$/.exec(line)
+		if (eventMatch != null) {
+			if (inPaths)
+				break
+			inEvent = eventMatch[1] === event
+			continue
+		}
+		if (!inEvent)
+			continue
+		if (/^ {4}\S/.test(line)) {
+			if (inPaths)
+				break
+			inPaths = line.trim() === 'paths:'
+			continue
+		}
+		if (!inPaths)
+			continue
+		const itemMatch = /^ {6}- (.+)$/.exec(line)
+		if (itemMatch == null)
+			throw new Error(`${workflowPath}: unreadable entry in the ${event} \`paths\` list: ${JSON.stringify(line)}`)
+		patterns.push(itemMatch[1]!.trim()
+			.replace(/^'(.*)'$/, '$1')
+			.replace(/^"(.*)"$/, '$1'))
+	}
+
+	if (patterns.length === 0)
+		throw new Error(`${workflowPath}: no \`paths\` list under \`on.${event}\``)
+	return patterns
+}
+
+/**
+ * One GitHub filter pattern as a regular expression. Only the subset this workflow
+ * uses is accepted — `**`, `*`, `?`, and literals — because a pattern this function
+ * silently mistranslated would make the whole check report agreement that is not there.
+ */
+function patternToRegExp(pattern: string): RegExp {
+	let source = '^'
+	for (let index = 0; index < pattern.length; index++) {
+		const character = pattern[index]!
+		if (character === '*') {
+			if (pattern[index + 1] === '*') {
+				source += '.*'
+				index++
+			}
+			else {
+				source += '[^/]*'
+			}
+		}
+		else if (character === '?') {
+			source += '[^/]'
+		}
+		else if ('+[]{}()^$|\\'.includes(character)) {
+			throw new Error(`${workflowPath}: the path filter '${pattern}' uses glob syntax this check does not implement; extend \`patternToRegExp\` before using it`)
+		}
+		else {
+			source += character.replace(/\./g, '\\$&')
+		}
+	}
+	return new RegExp(`${source}$`)
+}
+
+interface Filter {
+	event: string
+	rules: { expression: RegExp, negated: boolean }[]
+}
+
+function compileFilter(text: string, event: string): Filter {
+	return {
+		event,
+		rules: readEventPaths(text, event)
+			.map((pattern) => {
+				const negated = pattern.startsWith('!')
+				return { expression: patternToRegExp(negated ? pattern.slice(1) : pattern), negated }
+			}),
+	}
+}
+
+/**
+ * GitHub's own rule: every pattern is tested in order and the last one that matches
+ * decides, so a `!` pattern after a positive one removes the path and a positive one
+ * after a `!` puts it back.
+ */
+function triggers(filter: Filter, filePath: string): boolean {
+	let matched = false
+	for (const rule of filter.rules) {
+		if (rule.expression.test(filePath))
+			matched = !rule.negated
+	}
+	return matched
+}
+
+function fileSystemTree(rootDirectory: string): SourceTree {
+	const resolve = (relative: string): string => path.join(rootDirectory, relative)
+	return {
+		read: (relative) => {
+			try {
+				return fs.readFileSync(resolve(relative), 'utf8')
+			}
+			catch {
+				return null
+			}
+		},
+		list: (relative) => {
+			try {
+				return fs.readdirSync(resolve(relative))
+			}
+			catch {
+				return null
+			}
+		},
+		isDirectory: (relative) => {
+			try {
+				return fs.statSync(resolve(relative))
+					.isDirectory()
+			}
+			catch {
+				return false
+			}
+		},
+	}
+}
+
+function trackedFiles(): string[] {
+	return execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
+		.split('\n')
+		.map(line => line.trim())
+		.filter(Boolean)
+}
+
+/**
+ * Change classes the working tree does not currently contain, so that the check covers
+ * the selector's conservative rules even when no such file happens to exist today. A
+ * deleted source file is the important one: it has no tree entry left, which is the
+ * case the selector cannot place and therefore measures everything.
+ */
+const syntheticProbes = [
+	'Makefile',
+	'renovate.json',
+	'packages/new-package/package.json',
+	'packages/new-package/tsdown.config.ts',
+	'packages/internal/src/steps/isEmail/deleted-source.ts',
+	'packages/valchecker/src/removed.ts',
+]
+
+/**
+ * Paths that must not start the workflow. Without these the check would accept a
+ * filter of plain `**`, which agrees with the selector by triggering on everything and
+ * costs a 55-minute job on a typo in a Markdown file.
+ */
+const mustNotTrigger = [
+	'README.md',
+	'docs/guide/index.md',
+	'docs/.vitepress/config.ts',
+	'.claude/skills/valchecker-dev/SKILL.md',
+	'.github/workflows/ci.yml',
+	'scripts/check-issue-codes.ts',
+	'type-performance/budget.json',
+]
+
+const workflowText = fs.readFileSync(path.join(root, workflowPath), 'utf8')
+const filters = [compileFilter(workflowText, 'pull_request'), compileFilter(workflowText, 'push')]
+const attribution: Attribution = buildAttribution(fileSystemTree(root))
+const errors: string[] = []
+
+if (attribution.problems.length > 0) {
+	for (const problem of attribution.problems)
+		errors.push(`the import graph this check classifies with is incomplete: ${problem}`)
+}
+
+const probes = [...new Set([...trackedFiles(), ...syntheticProbes, ...gateDefiningPaths])]
+let fullRunPaths = 0
+for (const probe of probes.sort()) {
+	if (classifyChange(probe, attribution).effect !== 'full')
+		continue
+	fullRunPaths++
+	for (const filter of filters) {
+		if (!triggers(filter, probe))
+			errors.push(`${probe}: forces a full impact run, but does not match the \`on.${filter.event}\` paths filter of ${workflowPath}, so the run never starts`)
+	}
+}
+
+for (const probe of mustNotTrigger) {
+	for (const filter of filters) {
+		if (triggers(filter, probe))
+			errors.push(`${probe}: cannot change either build, but matches the \`on.${filter.event}\` paths filter of ${workflowPath}, which spends a full job on it`)
+	}
+}
+
+// `benchmarks/**` is the one deliberate asymmetry between the two events, and it is an
+// argument rather than an oversight, so state it as an expectation instead of leaving
+// the difference to be rediscovered.
+const [pullRequest, push] = filters as [Filter, Filter]
+if (!triggers(pullRequest, 'benchmarks/src/compare.mjs'))
+	errors.push(`benchmarks/src/compare.mjs: must start the pull-request gate, where the canary is the only thing that would notice the measuring apparatus moving both sides at once`)
+if (triggers(push, 'benchmarks/src/compare.mjs'))
+	errors.push(`benchmarks/src/compare.mjs: must not start the post-merge run, which compares two revisions that build the same library and so has nothing to find`)
+
+if (errors.length > 0) {
+	console.error(`Performance Impact triggers disagree with scripts/impact-selection.ts (${errors.length} problem${errors.length === 1 ? '' : 's'}):`)
+	for (const error of errors)
+		console.error(`- ${error}`)
+	process.exitCode = 1
+}
+else {
+	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run, and every one starts both the pull-request and post-merge jobs`)
+}

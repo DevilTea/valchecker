@@ -178,8 +178,19 @@ function renderMarkdown(selection: Selection): string {
 		'| Benchmark group | Scenarios measured | Severe-group trigger |',
 		'| --- | ---: | --- |',
 	)
-	for (const coverage of selection.groups)
-		lines.push(`| ${markdownCell(coverage.group)} | ${coverage.selected}/${coverage.total} | ${coverage.triggerPossible ? 'possible' : 'not possible — fewer than two scenarios measured'} |`)
+	for (const coverage of selection.groups) {
+		// "possible" alone reads as coverage of the group, which 5 of 113 is not. The
+		// trigger really is possible there — the scenarios left out are the ones the diff
+		// cannot move — but the aggregate is over what ran, and the reader has to be told
+		// which of the two they are looking at. `impact.md` repeats the same denominator
+		// beside the geometric mean it actually computed.
+		const trigger = !coverage.triggerPossible
+			? 'not possible — fewer than two scenarios measured'
+			: coverage.selected === coverage.total
+				? 'possible, over the whole group'
+				: `possible, over the ${coverage.selected} measured of ${coverage.total}`
+		lines.push(`| ${markdownCell(coverage.group)} | ${coverage.selected}/${coverage.total} | ${trigger} |`)
+	}
 
 	lines.push(
 		'',

@@ -135,8 +135,15 @@ const cannotChangeTheBuild: RegExp[] = [
  * Changing what decides which scenarios run makes every scenario run. It costs one
  * full gate on the pull request that edits the gate, and it means a selection rule can
  * never be introduced or relaxed without the complete comparison being visible once.
+ *
+ * That second sentence only holds while the workflow's own `paths` filters start the
+ * job for these files. They are inside `scripts/**` and `.github/**`, which the list
+ * above excludes, so the filters have to re-include them explicitly — and did not,
+ * for the first version of this gate, which made this the rule that could never fire.
+ * `scripts/check-impact-triggers.ts` now fails when a path this module classifies as a
+ * full run does not start the workflow.
  */
-const gateDefiningPaths = new Set([
+export const gateDefiningPaths: ReadonlySet<string> = new Set([
 	'.github/workflows/performance-impact.yml',
 	'.github/actions/setup/action.yml',
 	'scripts/impact-selection.ts',
@@ -490,7 +497,13 @@ export interface SelectionInput {
 	canary?: Canary
 }
 
-function classify(path: string, attribution: Attribution): ChangeClassification {
+/**
+ * What one changed path does to the run. Exported because it is also the authority
+ * `scripts/check-impact-triggers.ts` compares the workflow's `paths` filters against:
+ * a path this returns `full` for and the filters do not match is a rule that cannot
+ * fire.
+ */
+export function classifyChange(path: string, attribution: Attribution): ChangeClassification {
 	if (gateDefiningPaths.has(path))
 		return { path, effect: 'full', reason: 'it decides how this gate runs' }
 
@@ -539,7 +552,7 @@ export function selectImpactScenarios({ changedFiles, attribution, catalog, cana
 
 	const classifications = [...new Set(changedFiles)]
 		.sort()
-		.map(path => classify(path, attribution))
+		.map(path => classifyChange(path, attribution))
 
 	const steps = new Set<string>()
 	for (const path of changedFiles) {

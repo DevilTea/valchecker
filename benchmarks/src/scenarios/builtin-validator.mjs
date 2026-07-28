@@ -10,12 +10,16 @@ const membershipInputs = {
 	invalid: 'yellow',
 }
 
-// The adapter builds this shape by spreading `createFields()` and replacing the
-// email field, so the `check()` email schema is constructed and immediately
-// discarded. It is not part of the schema these scenarios execute — nor of the
-// schema construction they measure, which happens once during setup — so `check`
-// is deliberately absent.
-const builtinFlatObjectSteps = ['object', 'string', 'number', 'isInteger', 'isAtLeast', 'boolean', 'literal', 'isMatching']
+// `check` is here because the adapter builds this shape by spreading
+// `createFields()` and then replacing the email field, so a `check()` email schema
+// is constructed and immediately discarded. It cannot move either number these
+// scenarios report — the discarded schema executes nothing, and construction happens
+// once during setup — but `steps` declares what `build()` *calls*, not what the timed
+// operation reaches, and `step-audit.mjs` compares the declaration against the calls
+// it observes. Declaring the effect instead of the call is how the two mechanisms that
+// read this field, step coverage and impact selection, would go on trusting a claim
+// nothing checks.
+const builtinFlatObjectSteps = ['object', 'string', 'number', 'isInteger', 'isAtLeast', 'boolean', 'literal', 'isMatching', 'check']
 const membershipSteps = ['string', 'isOneOf']
 
 export const builtinValidatorScenarios = [

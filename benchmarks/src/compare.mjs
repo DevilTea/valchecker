@@ -1,15 +1,14 @@
+// The before/after comparison entry point: arguments, files, exit code. The comparison
+// itself — aggregation, classification, group trade-offs, coverage, and both reports —
+// is in `impact-verdict.mjs`, where a test can drive it without a filesystem.
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { assertComparable, measurementIdentity } from './comparability.mjs'
-import { median, relativeMarginOfError } from './statistics.mjs'
+import { aggregateRuns, compareResults, groupTotalsOf, renderHtml, renderMarkdown } from './impact-verdict.mjs'
+import { getScenarioCatalog } from './scenarios/index.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
-const stabilityThreshold = 5
-const meaningfulThreshold = 5
-const severeScenarioRegression = -10
-const severeGroupRegression = -5
 
 function parseArguments(argv) {
 	const options = {
@@ -57,267 +56,6 @@ function parseArguments(argv) {
 	return options
 }
 
-function getValchecker(raw, label) {
-	if (!raw || typeof raw !== 'object' || !Array.isArray(raw.libraries))
-		throw new TypeError(`${label} benchmark result is invalid`)
-	const library = raw.libraries.find(item => item.adapter === 'valchecker')
-	if (!library)
-		throw new Error(`${label} result does not contain valchecker`)
-	return library
-}
-
-function aggregateRuns(raws, label) {
-	const mode = raws[0].mode
-	const identity = measurementIdentity(raws[0], `${label} run 1`)
-	const first = getValchecker(raws[0], label)
-	const resultMaps = raws.map((raw, index) => {
-		assertComparable(identity, measurementIdentity(raw, `${label} run ${index + 1}`), `${label} run 1 and ${label} run ${index + 1}`)
-		return new Map(getValchecker(raw, `${label} run ${index + 1}`).results.map(result => [result.scenario, result]))
-	})
-	const results = first.results.map((template) => {
-		const runResults = resultMaps.map((resultMap) => {
-			const result = resultMap.get(template.scenario)
-			if (!result)
-				throw new Error(`${label} run is missing ${template.scenario}`)
-			for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
-				if (result[field] !== template[field])
-					throw new Error(`${label} metadata mismatch for ${template.scenario}.${field}`)
-			}
-			return result
-		})
-		const runMedians = runResults.map(result => result.medianOpsPerSecond)
-		return {
-			scenario: template.scenario,
-			category: template.category,
-			group: template.group,
-			resultKind: template.resultKind,
-			issuePolicy: template.issuePolicy,
-			comparisonScope: template.comparisonScope,
-			diagnosticIssueCount: template.diagnosticIssueCount,
-			medianOpsPerSecond: median(runMedians),
-			crossRunRme: relativeMarginOfError(runMedians),
-			runMedians,
-			withinRunRme: runResults.map(result => result.relativeMarginOfError),
-		}
-	})
-	return {
-		mode,
-		identity,
-		runCount: raws.length,
-		commits: [...new Set(raws.map(raw => raw.environment?.commit ?? null))],
-		results,
-	}
-}
-
-function geometricMean(values) {
-	return values.length === 0
-		? null
-		: Math.exp(values.reduce((sum, value) => sum + Math.log(value), 0) / values.length)
-}
-
-function formatDelta(value) {
-	const percentage = value * 100
-	return `${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%`
-}
-
-function markdownCell(value) {
-	return String(value)
-		.replaceAll('|', '\\|')
-		.replaceAll('\n', ' ')
-}
-
-function htmlEscape(value) {
-	return String(value)
-		.replaceAll('&', '&amp;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;')
-		.replaceAll('"', '&quot;')
-		.replaceAll('\'', '&#39;')
-}
-
-function compareResults(baseline, candidate) {
-	// The single comparability guard, covering mode, profile, isolation, and shard
-	// count. A difference in any of them means the gap between the two runs is not
-	// attributable to the change under test.
-	assertComparable(baseline.identity, candidate.identity, 'Baseline and candidate')
-	if (baseline.runCount !== candidate.runCount)
-		throw new Error('Aggregated run counts differ')
-
-	const candidateByScenario = new Map(candidate.results.map(result => [result.scenario, result]))
-	const rows = baseline.results.map((base) => {
-		const head = candidateByScenario.get(base.scenario)
-		if (!head)
-			throw new Error(`Candidate is missing scenario ${base.scenario}`)
-		for (const field of ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']) {
-			if (head[field] !== base[field])
-				throw new Error(`Metadata mismatch for ${base.scenario}.${field}`)
-		}
-		const pairedRatios = head.runMedians.map((value, index) => value / base.runMedians[index])
-		const ratio = median(pairedRatios)
-		const delta = ratio - 1
-		const pairedRme = relativeMarginOfError(pairedRatios)
-		const stable = pairedRme <= stabilityThreshold
-		const classification = !stable
-			? 'unstable'
-			: delta >= meaningfulThreshold / 100
-				? 'improvement'
-				: delta <= -meaningfulThreshold / 100
-					? 'regression'
-					: 'neutral'
-		return {
-			scenario: base.scenario,
-			category: base.category,
-			group: base.group,
-			resultKind: base.resultKind,
-			issuePolicy: base.issuePolicy,
-			comparisonScope: base.comparisonScope,
-			diagnosticIssueCount: base.diagnosticIssueCount,
-			baselineOps: base.medianOpsPerSecond,
-			candidateOps: head.medianOpsPerSecond,
-			baselineCrossRunRme: base.crossRunRme,
-			candidateCrossRunRme: head.crossRunRme,
-			pairedRme,
-			pairedRatios,
-			ratio,
-			delta,
-			stable,
-			classification,
-			baselineRunMedians: base.runMedians,
-			candidateRunMedians: head.runMedians,
-		}
-	})
-	if (candidateByScenario.size !== rows.length)
-		throw new Error('Candidate contains scenarios absent from baseline')
-
-	const groups = [...new Set(rows.map(row => row.group))].map((group) => {
-		const groupRows = rows.filter(row => row.group === group)
-		const stableRows = groupRows.filter(row => row.stable)
-		const ratio = geometricMean(stableRows.map(row => row.ratio))
-		return {
-			group,
-			scenarios: groupRows.length,
-			stableScenarios: stableRows.length,
-			ratio,
-			delta: ratio == null ? null : ratio - 1,
-		}
-	})
-
-	const severeScenarios = rows.filter(row => row.stable && row.delta * 100 <= severeScenarioRegression)
-	const severeGroups = groups.filter(row => row.delta != null && row.stableScenarios >= 2 && row.delta * 100 <= severeGroupRegression)
-	// The trigger that catches a broad moderate regression needs two stable scenarios
-	// in the group. A group that has fewer is not covered by it, and the verdict says
-	// so rather than reading as a group the trigger cleared.
-	const groupsWithoutTrigger = groups.filter(row => row.stableScenarios < 2)
-		.map(row => row.group)
-	const improvements = rows.filter(row => row.classification === 'improvement')
-	const regressions = rows.filter(row => row.classification === 'regression')
-	const verdict = severeScenarios.length > 0 || severeGroups.length > 0
-		? 'regression'
-		: regressions.length > 0 && improvements.length > 0
-			? 'tradeoff-review'
-			: regressions.length > 0
-				? 'review'
-				: improvements.length > 0
-					? 'improvement'
-					: 'neutral'
-
-	return {
-		schemaVersion: 5,
-		mode: baseline.mode,
-		// The measurement identity both sides had to share, recorded so the verdict
-		// carries the conditions it was reached under rather than only the numbers.
-		measurement: {
-			isolation: baseline.identity.isolation,
-			shardCount: baseline.identity.shardCount,
-		},
-		runCounts: { baseline: baseline.runCount, candidate: candidate.runCount },
-		commits: { baseline: baseline.commits, candidate: candidate.commits },
-		thresholds: {
-			stabilityPairedRmePercent: stabilityThreshold,
-			meaningfulChangePercent: meaningfulThreshold,
-			severeScenarioRegressionPercent: Math.abs(severeScenarioRegression),
-			severeGroupRegressionPercent: Math.abs(severeGroupRegression),
-		},
-		verdict,
-		counts: {
-			improvements: improvements.length,
-			regressions: regressions.length,
-			neutral: rows.filter(row => row.classification === 'neutral').length,
-			unstable: rows.filter(row => row.classification === 'unstable').length,
-		},
-		groups,
-		rows,
-		severeScenarios: severeScenarios.map(row => row.scenario),
-		severeGroups: severeGroups.map(row => row.group),
-		groupsWithoutTrigger,
-	}
-}
-
-function renderMarkdown(result) {
-	const lines = [
-		'# Valchecker benchmark impact',
-		'',
-		`Verdict: **${result.verdict}** · Paired process runs: **${result.runCounts.baseline}** · Isolation: **${result.measurement.isolation}** · Shards: **${result.measurement.shardCount}**`,
-		'',
-		`Meaningful change requires at least **${meaningfulThreshold}%** with paired-ratio RME at or below **${stabilityThreshold}%**.`,
-		'',
-		'## Benchmark-group tradeoffs',
-		'',
-		'| Group | Stable scenarios | Geometric mean change |',
-		'| --- | ---: | ---: |',
-	]
-	for (const row of result.groups)
-		lines.push(`| ${markdownCell(row.group)} | ${row.stableScenarios}/${row.scenarios} | ${row.delta == null ? 'n/a' : formatDelta(row.delta)} |`)
-
-	if (result.groupsWithoutTrigger.length > 0) {
-		lines.push(
-			'',
-			`> **No severe-group trigger** for ${result.groupsWithoutTrigger.map(group => `\`${group}\``)
-				.join(', ')}. It needs at least two stable scenarios in a group, and these have fewer, `
-				+ 'so a broad moderate regression inside one of them is watched only by the per-scenario 10% threshold.',
-		)
-	}
-
-	lines.push(
-		'',
-		'## Scenario changes',
-		'',
-		'| Scenario | Group | Issue policy | Issues | Baseline ops/s | Candidate ops/s | Change | Paired RME | Classification |',
-		'| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
-	)
-	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta)) {
-		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps)
-			.toLocaleString('en-US')} | ${Math.round(row.candidateOps)
-			.toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
-	}
-
-	lines.push(
-		'',
-		'## Decision rubric',
-		'',
-		'- Each observation is a candidate/base ratio from adjacent independent processes; the reported change is the median paired ratio.',
-		'- Paired RME uses a 95% Student’s t interval, which is intentionally conservative for three process pairs.',
-		'- Below 3% is normally noise; 3–5% needs corroboration; at least 5% with paired RME ≤5% is meaningful.',
-		'- Group-level gates keep success, library-default failure, first-issue failure, and all-issues failure tradeoffs separate.',
-		'- Construction or fresh-schema regressions require documented warm-path amortization.',
-		'- Added complexity or bundle size should normally buy at least 10% in a representative hot path or broad gains.',
-		'- Correctness, API stability, coverage, and package integrity remain hard constraints.',
-		'',
-	)
-	return `${lines.join('\n')}\n`
-}
-
-function renderHtml(result) {
-	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`)
-		.join('')
-	const rows = [...result.rows].sort((left, right) => left.delta - right.delta)
-		.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps)
-			.toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps)
-			.toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`)
-		.join('')
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p><h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
-}
-
 const options = parseArguments(process.argv.slice(2))
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 const baselineRaw = await Promise.all(options.baseline.map(path => readFile(path, 'utf8')
@@ -325,7 +63,12 @@ const baselineRaw = await Promise.all(options.baseline.map(path => readFile(path
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 const candidateRaw = await Promise.all(options.candidate.map(path => readFile(path, 'utf8')
 	.then(JSON.parse)))
-const result = compareResults(aggregateRuns(baselineRaw, 'baseline'), aggregateRuns(candidateRaw, 'candidate'))
+const baseline = aggregateRuns(baselineRaw, 'baseline')
+const candidate = aggregateRuns(candidateRaw, 'candidate')
+// The denominator of every coverage figure: how many scenarios the measured profile has,
+// per group, in the checked-out suite — the same copy that measured both sides.
+const groupTotals = groupTotalsOf(getScenarioCatalog(baseline.mode))
+const result = compareResults(baseline, candidate, { groupTotals })
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await Promise.all([
 	mkdir(dirname(options.markdown), { recursive: true }),
@@ -338,6 +81,6 @@ await Promise.all([
 	writeFile(options.json, `${JSON.stringify(result, null, 2)}\n`),
 	writeFile(options.html, renderHtml(result)),
 ])
-console.error(`[benchmark] verdict ${result.verdict}`)
+console.error(`[benchmark] verdict ${result.verdict} over ${result.coverage.measuredScenarios} of ${result.coverage.tierScenarios} \`${result.mode}\` scenarios`)
 if (options.failOnRegression && result.verdict === 'regression')
 	process.exitCode = 1

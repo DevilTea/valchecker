@@ -15,7 +15,7 @@
 		"treeshake": "node ./src/treeshake.mjs",
 		"smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke/raw.json && node ./src/report-all.mjs --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/report.md --html ../artifacts/benchmark-smoke/report.html",
 		"test": "node --test src/*.test.mjs",
-		"verify": "node ./src/verify.mjs"
+		"verify": "node ./src/verify.mjs && node ./src/step-audit.mjs"
 	},
 	"dependencies": {
 		"rollup": "^4.0.0",
