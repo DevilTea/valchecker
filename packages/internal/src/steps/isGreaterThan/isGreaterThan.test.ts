@@ -92,7 +92,10 @@ describe('isGreaterThan step plugin', () => {
 	})
 
 	it('follows the current output when typing the bound', () => {
-		if (false) {
+		// Never invoked: every call below is an expected compile-time rejection, and
+		// `pnpm typecheck` is what decides them. A function body keeps them reachable
+		// code, so the block does not also raise TS7027 on its first statement.
+		const rejectedAtCompileTime = (): void => {
 			v.number()
 				// @ts-expect-error a number output takes a number bound
 				.isGreaterThan(1n)
@@ -103,5 +106,8 @@ describe('isGreaterThan step plugin', () => {
 				// @ts-expect-error isGreaterThan is unavailable for a non-numeric output
 				.isGreaterThan(1)
 		}
+
+		expect(rejectedAtCompileTime)
+			.toBeTypeOf('function')
 	})
 })
