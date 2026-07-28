@@ -67,6 +67,8 @@ Composite and collection schemas, on [Structures](/api/structures).
 
 <!-- catalog: structures -->
 
+A one-element tuple marks an object property as optional — see [Optional fields](/api/structures#optional-fields).
+
 ## Transforms
 
 Output transformations, on [Transforms](/api/transforms).

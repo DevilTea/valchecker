@@ -14,5 +14,5 @@ collection.
 v.map({ key: v.string(), value: v.number() })
 	.toEntries()
 	.execute(new Map([['b', 2], ['a', 1]]))
-// { value: [['b', 2], ['a', 1]] }
+// { value: [['b', 2], ['a', 1]] }, inferred as `Array<[string, number]>`
 ```

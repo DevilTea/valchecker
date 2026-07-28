@@ -88,6 +88,12 @@ const scoreCount = v.map({ key: v.string(), value: v.number() })
 	.toSize()
 ```
 
+## Media types
+
+Matching a value's declared `type` is neither a size nor a membership check, so it sits on its own: it compares strings rather than values, and none of the equality rules above apply to it.
+
+<!-- steps: media-type -->
+
 ## Nested issue paths
 
 ```ts

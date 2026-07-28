@@ -1,6 +1,6 @@
 <!-- step-doc
 category: structures
-section: size-and-membership
+section: media-type
 summary: a value's `type` string against allowed MIME types, with `image/*` wildcards
 -->
 

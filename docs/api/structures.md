@@ -677,27 +677,6 @@ withScoreOne.execute(new Map([['primary', 2]])) // failure
 **Issue code:** `isIncludingValue:expected_including_value` — no entry value equals the configured
 value. Payload `{ value, expectedValue }`.
 
-### `isMimeType(types, options?)` {#isMimeType}
-
-Checks that a value's `type` string matches one of the allowed MIME types. Pass a single type or a
-list. A trailing `/*` matches any subtype, and matching is case-insensitive following MIME
-semantics. The successful value is preserved. Any output with a `type` string qualifies, including
-`File` and `Blob`.
-
-Matching compares the bare `type/subtype` only and does not parse MIME parameters: `text/plain` does
-not match `text/plain;charset=utf-8`, though a `text/*` wildcard would. An empty type list throws a
-`TypeError` during schema construction.
-
-```ts
-v.file()
-	.isMimeType(['image/*', 'application/pdf'])
-	.execute(new File(['data'], 'a.png', { type: 'image/png' })) // success
-```
-
-**Issue code:** `isMimeType:unexpected_mime_type` — the value's `type` matches no allowed MIME
-type. Payload `{ value, expected, actual }`, where `expected` is the configured type or list and
-`actual` is the observed `type`.
-
 ### `isSizeAtLeast(minimumSize, options?)` {#isSizeAtLeast}
 
 Checks that the observed `size` is greater than or equal to the minimum. It is available after any
@@ -758,6 +737,31 @@ const scoreCount = v.map({ key: v.string(), value: v.number() })
 	.isIncludingValue(1)
 	.toSize()
 ```
+
+## Media types
+
+Matching a value's declared `type` is neither a size nor a membership check, so it sits on its own: it compares strings rather than values, and none of the equality rules above apply to it.
+
+### `isMimeType(types, options?)` {#isMimeType}
+
+Checks that a value's `type` string matches one of the allowed MIME types. Pass a single type or a
+list. A trailing `/*` matches any subtype, and matching is case-insensitive following MIME
+semantics. The successful value is preserved. Any output with a `type` string qualifies, including
+`File` and `Blob`.
+
+Matching compares the bare `type/subtype` only and does not parse MIME parameters: `text/plain` does
+not match `text/plain;charset=utf-8`, though a `text/*` wildcard would. An empty type list throws a
+`TypeError` during schema construction.
+
+```ts
+v.file()
+	.isMimeType(['image/*', 'application/pdf'])
+	.execute(new File(['data'], 'a.png', { type: 'image/png' })) // success
+```
+
+**Issue code:** `isMimeType:unexpected_mime_type` — the value's `type` matches no allowed MIME
+type. Payload `{ value, expected, actual }`, where `expected` is the configured type or list and
+`actual` is the observed `type`.
 
 ## Nested issue paths
 

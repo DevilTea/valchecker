@@ -13,5 +13,5 @@ synchronous, emits no new issue, and does not mutate the source collection.
 v.map({ key: v.string(), value: v.number() })
 	.toValues()
 	.execute(new Map([['b', 2], ['a', 1]]))
-// { value: [2, 1] }
+// { value: [2, 1] }, inferred as `number[]`
 ```

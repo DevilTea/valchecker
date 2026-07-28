@@ -186,10 +186,15 @@ Composite and collection schemas, on [Structures](/api/structures).
 
 - [`isIncludingKey()`](/api/structures#isIncludingKey) — Map key membership
 - [`isIncludingValue()`](/api/structures#isIncludingValue) — Map value membership
-- [`isMimeType()`](/api/structures#isMimeType) — a value's `type` string against allowed MIME types, with `image/*` wildcards
 - [`isSizeAtLeast()`](/api/structures#isSizeAtLeast) — inclusive lower bound on a numeric `size`
 - [`isSizeAtMost()`](/api/structures#isSizeAtMost) — inclusive upper bound on a numeric `size`
 - [`isSizeExactly()`](/api/structures#isSizeExactly) — an exact numeric `size`
+
+### Media types
+
+- [`isMimeType()`](/api/structures#isMimeType) — a value's `type` string against allowed MIME types, with `image/*` wildcards
+
+A one-element tuple marks an object property as optional — see [Optional fields](/api/structures#optional-fields).
 
 ## Transforms
 
