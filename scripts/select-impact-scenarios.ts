@@ -123,12 +123,12 @@ function markdownCell(value: string): string {
 }
 
 function renderMarkdown(selection: Selection): string {
-	const lines: string[] = ['## Scenario scope', '']
+	const lines: string[] = ['## Cell scope', '']
 
 	if (selection.full) {
 		const forcing = selection.classifications.filter(classification => classification.effect === 'full')
 		lines.push(
-			`Measuring **all ${selection.totalScenarios}** standard-tier scenarios.`,
+			`Measuring **all ${selection.totalScenarios}** cells.`,
 			'',
 			'Forced by:',
 			'',
@@ -144,7 +144,7 @@ function renderMarkdown(selection: Selection): string {
 		const attributed = new Set(selection.attributedIds)
 		const canaryOnly = selection.canaryIds.filter(id => !attributed.has(id))
 		lines.push(
-			`Measuring **${selection.scenarioIds.length} of ${selection.totalScenarios}** standard-tier scenarios: `
+			`Measuring **${selection.scenarioIds.length} of ${selection.totalScenarios}** cells: `
 			+ `${selection.attributedIds.length} the diff can move, ${canaryOnly.length} more from the canary set`
 			+ `${selection.topUpIds.length > 0 ? `, ${selection.topUpIds.length} to keep a group's severe-group trigger possible` : ''}.`,
 			'',
@@ -165,7 +165,7 @@ function renderMarkdown(selection: Selection): string {
 
 	lines.push(
 		'',
-		'| Benchmark group | Scenarios measured | Severe-group trigger |',
+		'| Benchmark group | Cells measured | Severe-group trigger |',
 		'| --- | ---: | --- |',
 	)
 	for (const coverage of selection.groups) {
@@ -184,7 +184,7 @@ function renderMarkdown(selection: Selection): string {
 
 	lines.push(
 		'',
-		'<details><summary>Scenarios measured</summary>',
+		'<details><summary>Cells measured</summary>',
 		'',
 		selection.scenarioIds.map(id => `- \`${id}\``)
 			.join('\n'),
@@ -196,10 +196,16 @@ function renderMarkdown(selection: Selection): string {
 }
 
 const options = parseArguments(process.argv.slice(2))
-const catalogEntry = path.join(root, 'benchmarks/src/scenarios/index.mjs')
-const { getScenarioCatalog } = await import(pathToFileURL(catalogEntry).href) as {
-	getScenarioCatalog: (mode: string) => CatalogEntry[]
+// The cell catalog, read from the checked-out tree by executing each step's declaration
+// against the built dist — the same collection the runner and `pnpm bench:cells` use, so
+// the selector cannot name a cell the runner does not have. It needs a build: run
+// `pnpm build` first, which the workflow has already done by this point.
+const catalogEntry = path.join(root, 'benchmarks/src/cells/collect.mjs')
+const { cellCatalog, collectStepBenches } = await import(pathToFileURL(catalogEntry).href) as {
+	cellCatalog: (benches: unknown[]) => CatalogEntry[]
+	collectStepBenches: () => Promise<unknown[]>
 }
+const catalog = cellCatalog(await collectStepBenches())
 
 const tree = fileSystemTree(options.tree)
 const attribution = buildAttribution(tree)
@@ -219,7 +225,7 @@ const inertPaths = revisions == null ? new Set<string>() : inertChangedPaths(opt
 const selection = selectImpactScenarios({
 	changedFiles: options.changedFiles,
 	attribution,
-	catalog: getScenarioCatalog('standard'),
+	catalog,
 	inertPaths,
 })
 

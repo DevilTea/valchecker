@@ -197,13 +197,28 @@ if (attribution.problems.length > 0) {
 
 const probes = [...new Set([...trackedFiles(), ...syntheticProbes, ...gateDefiningPaths])]
 let fullRunPaths = 0
+let measurementPaths = 0
 for (const probe of probes.sort()) {
-	if (classifyChange(probe, attribution).effect !== 'full')
+	const { effect } = classifyChange(probe, attribution)
+	if (effect === 'full') {
+		fullRunPaths++
+		for (const filter of filters) {
+			if (!triggers(filter, probe))
+				errors.push(`${probe}: forces a full impact run, but does not match the \`on.${filter.event}\` paths filter of ${workflowPath}, so the run never starts`)
+		}
 		continue
-	fullRunPaths++
-	for (const filter of filters) {
-		if (!triggers(filter, probe))
-			errors.push(`${probe}: forces a full impact run, but does not match the \`on.${filter.event}\` paths filter of ${workflowPath}, so the run never starts`)
+	}
+	// A step's bench file is the third thing that has to start this workflow, for a reason
+	// neither of the other two covers: it cannot change either build, so nothing it does
+	// reaches the bundle, but it declares the cells the gate measures. A rewritten cell that
+	// never starts the job is a measurement change nothing ever looks at, and the first run
+	// to include it would be some later diff's, which would attribute it to that diff.
+	if (effect === 'measurement') {
+		measurementPaths++
+		for (const filter of filters) {
+			if (!triggers(filter, probe))
+				errors.push(`${probe}: declares benchmark cells the gate measures, but does not match the \`on.${filter.event}\` paths filter of ${workflowPath}, so a change to what is measured never starts a run`)
+		}
 	}
 }
 
@@ -230,5 +245,5 @@ if (errors.length > 0) {
 	process.exitCode = 1
 }
 else {
-	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run, and every one starts both the pull-request and post-merge jobs`)
+	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run and ${measurementPaths} select their own step's cells, and every one of them starts both the pull-request and post-merge jobs`)
 }
