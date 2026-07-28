@@ -118,6 +118,8 @@ Intentional additions, removals, renames, issue/payload changes, or semantic cha
 - READMEs, VitePress pages, and the skills under `.claude/skills/`;
 - `CHANGELOG.md`, and `MIGRATION.md` when the change is breaking.
 
+For a built-in step, `scripts/check-step-completeness.ts` (`pnpm steps:complete`) enforces the part of that list a script can decide: a colocated `<name>.test.ts` and `<name>.bench.ts`, an export reaching `api-surface.json`, an entry in the `docs/api/overview.md` catalog and on one further `docs/api` page, and every owned issue code both documented under `docs/api` and asserted by a test in the step's own directory. It reports every missing piece for every incomplete step at once.
+
 Then search the complete repository for superseded names, signatures, codes, commands, and paths. Documentation examples compile against the built declarations as part of `pnpm verify`, and normative prose must be traceable to implementation or tests. A fenced `ts` example that cannot compile on its own — a deliberate fragment, a removed API, or a name the page only uses illustratively — needs one of the three `<!-- typecheck-… -->` directives documented at the top of `scripts/check-docs-examples.ts`. Reach for a directive only when the example genuinely cannot compile; a failure usually means the documentation is stale.
 
 ## Pull requests

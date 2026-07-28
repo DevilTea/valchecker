@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/check-step-completeness.ts` (`pnpm steps:complete`, run by `pnpm verify` through `test:quality`) fails a built-in step that is missing a colocated `<name>.test.ts` or `<name>.bench.ts`, a runtime export in `api-surface.json`, an entry in the `docs/api/overview.md` catalog or on a further `docs/api` page, or documentation and a test assertion for an issue code it owns. It reports every missing piece for every incomplete step in one message. Coverage could not stand in for the test rule: other steps' tests execute a step's implementation, so a step can lose its own test file and stay at 100%.
+
+### Fixed
+
+- The API reference documents the issue codes `looseObject:expected_object`, `looseObject:missing_key`, and `fallback:failed`, which no page under `docs/api` had listed.
+
 ## [0.0.33] - 2026-07-27
 
 The first release in six months, published to the npm `latest` tag. It carries everything prepared for the `1.0.0-rc.0` candidate together with the refinements made on top of it; the 1.0 line has not shipped, so this continues the 0.x series, where a breaking change may land in any release.

@@ -83,3 +83,5 @@ packages/internal/src/steps/<name>/
 ```
 
 Additional type, async, collect-all, or regression tests remain colocated. Export the plugin from its local `index.ts` and `packages/internal/src/steps/index.ts`, then update every affected surface listed in [`AGENTS.md`](../../../../AGENTS.md#tests-and-public-api).
+
+`scripts/check-step-completeness.ts` fails on a step missing any of that, and reports every missing piece for every incomplete step in one message. Beyond the three files above it requires the export to reach `api-surface.json`, an entry in the `docs/api/overview.md` catalog and on one further `docs/api` page, and each owned issue code to appear under `docs/api` and be asserted by a test in the step's own directory. The pieces it leaves to other gates — `Meta.Name`, the JSDoc template, the parameter style, `index.ts` resolution, the runtime `code:` literal, and the cross-library scenario — are listed in the comment at the top of that file.

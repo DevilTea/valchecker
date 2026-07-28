@@ -15,6 +15,21 @@ describe('isMatching step plugin', () => {
 			.toEqual({ value: 'FOO' })
 	})
 
+	it('reports the owned issue shape', () => {
+		expect(v.string()
+			.isMatching(/^foo$/i)
+			.execute('bar'))
+			.toEqual({
+				issues: [{
+					code: 'isMatching:expected_matching',
+					category: 'validation',
+					message: 'Expected the string to match /^foo$/i.',
+					path: [],
+					payload: { value: 'bar', pattern: { source: '^foo$', flags: 'i' } },
+				}],
+			})
+	})
+
 	it('reports immutable schema-time pattern metadata and custom messages', () => {
 		const failure = v.string()
 			.isMatching(/^foo$/, { message: 'Pattern required' })

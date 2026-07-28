@@ -77,6 +77,12 @@ Unknown-key detection happens before declared-field validation. The single `stri
 
 Validates declared own fields and preserves unknown own properties in output. It is not an alias for `object()`.
 
+**Issues:**
+
+- `looseObject:expected_object`
+- `looseObject:missing_key`
+- issues from declared field schemas
+
 ```ts
 const loose = v.looseObject({
 	name: v.string()

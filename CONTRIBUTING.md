@@ -80,6 +80,12 @@ if the behaviour it describes breaks — coverage numbers are a guardrail, not t
 checks reject `.only`, `.skip`, raw `setTimeout`/`setInterval` in tests, and test titles named
 after implementation details rather than behaviour.
 
+Coverage will not tell you a step lost its own tests, because other steps' tests execute it. So a
+built-in step is required to ship with its own `<name>.test.ts` and `<name>.bench.ts`, a public
+export, an entry in `docs/api/overview.md` and on one further `docs/api` page, and issue codes that
+are documented under `docs/api` and asserted by a test in the step's directory. `pnpm steps:complete`
+reports everything a step is still missing in one go.
+
 ## Pull requests
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/) for the PR title, for example
