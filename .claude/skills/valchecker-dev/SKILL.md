@@ -26,12 +26,13 @@ These need no manual audit — `pnpm verify` fails on them:
 | Tree-shaking markers and selective-bundle size | `benchmarks/src/treeshake.mjs` |
 | Every built-in step is compared against a competitor by a cross-library scenario, or allowlisted with a reason | `scripts/check-benchmark-coverage.ts` |
 | Every built-in step holds only the files [the step unit](./references/step-unit.md) names, a one-line `index.ts`, and a `<name>.ts` declaring `Meta` then `PluginDef` above all non-erased syntax and ending in its single plugin export; the steps root holds only the barrel, kebab-case shared modules, and cross-step tests whose family is not a step | `scripts/check-step-completeness.ts` |
-| Every built-in step has a colocated test registering a case, a bench calling `bench`, a public export, its name in a code span in the `docs/api` catalog and on one further page, and issue codes appearing under `docs/api` and in a string in its own tests | `scripts/check-step-completeness.ts` |
+| Every built-in step has a colocated test registering a case, a bench calling `bench`, a public export, and a `<name>.doc.md` whose `### ` entry names it in call form in a code span, describes it, holds a `ts` example, and lists every issue code it owns — each code also appearing in a string in its own tests | `scripts/check-step-completeness.ts` |
+| `docs/api/*` and the API sidebar match what the steps' `<name>.doc.md` entries and the page templates compose, and every step can be placed on a page | `scripts/check-docs-api.ts` (`pnpm docs:api` / `pnpm docs:api:update`) |
 | Piped CI commands run under `pipefail` | `scripts/check-workflow-pipefail.ts` |
 | A source change carries a `CHANGELOG.md` entry | `Changelog` job in `ci.yml` (`skip-changelog` label opts out) |
 | `main` takes no direct push, force-push, or non-squash merge | repository ruleset, with every CI check required |
 
-What is **not** machine-checked, and therefore needs deliberate attention: whether a behaviour change earned a real `CHANGELOG.md` entry rather than merely touching the file, whether prose in `docs/` and the READMEs still describes current behaviour, and whether a removed name survives anywhere outside an explicit historical or migration context.
+What is **not** machine-checked, and therefore needs deliberate attention: whether a behaviour change earned a real `CHANGELOG.md` entry rather than merely touching the file, whether prose in the step entries, the page templates, the hand-written `docs/` pages, and the READMEs still describes current behaviour, and whether a removed name survives anywhere outside an explicit historical or migration context.
 
 ## Change discipline
 
