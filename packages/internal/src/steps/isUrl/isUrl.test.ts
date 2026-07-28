@@ -125,7 +125,7 @@ describe('isUrl step plugin', () => {
 	it('freezes the allow-list it reports, so a consumer cannot mutate it', () => {
 		const failure = v.string()
 			.isUrl()
-			.execute('ftp://example.com') as { issues: [{ payload: { protocols: string[] } }] }
+			.execute('ftp://example.com') as unknown as { issues: [{ payload: { protocols: string[] } }] }
 		expect(() => failure.issues[0].payload.protocols.push('ftp'))
 			.toThrow()
 	})
