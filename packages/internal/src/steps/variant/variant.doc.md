@@ -30,7 +30,12 @@ Inputs must be non-null, non-array objects. The discriminator must be an own pro
 a configured string, number, or symbol property key. Number and string values follow JavaScript
 property-key canonicalization, so `1` and `'1'` select the same object-key branch.
 
-Variant maps are non-empty schema-time snapshots. Child issue paths remain unchanged and receive
+Variant maps are non-empty schema-time snapshots, and a malformed configuration throws a `TypeError`
+while the schema is being constructed rather than failing at execution: a missing configuration
+object, a discriminator that is not a property key, a `variants` value that is not an object, an
+empty variant map, or a branch that is not a Valchecker schema.
+
+Child issue paths remain unchanged and receive
 `{ type: 'variant', discriminator, discriminatorValue }` context. A variant-level `message` is an
 enclosing structure scope; an originating child-step message retains priority.
 

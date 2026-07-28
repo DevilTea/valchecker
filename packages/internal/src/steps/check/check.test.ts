@@ -30,7 +30,7 @@ describe('check step plugin', () => {
 				issues: [{
 					code: 'check:failed',
 					category: 'validation',
-					message: 'Check failed',
+					message: 'Check failed.',
 					path: [],
 					payload: { reason: 'returned_false', value: 'fail' },
 				}],

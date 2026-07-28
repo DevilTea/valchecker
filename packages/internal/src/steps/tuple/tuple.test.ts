@@ -230,6 +230,28 @@ describe('tuple step plugin — construction validation', () => {
 		expect(() => v.tuple(42 as any))
 			.toThrow(TypeError)
 	})
+
+	it('reports a rest schema that succeeds with a non-array as a fatal internal issue', () => {
+		// The type gate rejects this rest schema, so reaching the guard needs `any`:
+		// a rest region has nothing to spread when its schema transforms the slice
+		// into something that is not an array. The guard throws a TypeError, which
+		// the core converts into an internal issue rather than letting it escape.
+		const schema = v.tuple([v.string(), '...', (v.array(v.number()) as any)
+			.transform((items: number[]) => items.length)] as any)
+
+		expect(schema.execute(['a', 1, 2]))
+			.toMatchObject({
+				issues: [{
+					code: 'core:unknown_exception',
+					category: 'internal',
+					path: [],
+					payload: {
+						method: 'tuple',
+						error: new TypeError('tuple() rest schema must output an array.'),
+					},
+				}],
+			})
+	})
 })
 
 describe('tuple step plugin — rest-region message scoping', () => {

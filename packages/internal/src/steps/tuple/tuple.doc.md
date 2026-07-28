@@ -32,6 +32,14 @@ A malformed element list is rejected by the type gate, and throws a `TypeError` 
 constructed: two `'...'` markers, a marker with no schema after it, an entry that is not a Valchecker
 schema, or an `elements` argument that is not an array.
 
+One further guard fires during *execution* rather than construction: a rest schema that succeeds with
+something other than an array leaves the rest region with nothing to spread. It is reachable only from
+a rest schema that transforms an array into a non-array, which the type gate rejects, so it is a
+programmer error rather than an input-driven failure. It does not escape the result type — the
+`TypeError` it raises is caught and reported as the fatal internal issue `core:unknown_exception`,
+carrying `payload.method` `'tuple'` and the original error, so it stops enclosing structures and is
+never recovered by `fallback()`.
+
 Optional tuple elements (`[A, B?]`) are not expressible today: TypeScript mapped tuples cannot
 conditionally emit `?` slots. Use a union of tuples as the rest to model exactly that shape:
 

@@ -266,13 +266,6 @@ export function hasInternalIssue(issues: readonly AnyExecutionIssue[]): boolean 
 	return false
 }
 
-/* @__NO_SIDE_EFFECTS__ */
-export function isRecoverableFailure(
-	result: ExecutionResult,
-): result is ExecutionFailureResult<AnyExecutionIssue> {
-	return isFailure(result) && !hasInternalIssue(result.issues)
-}
-
 /**
  * Runs a runtime step array over a seed result, switching to promise chaining
  * as soon as any step turns asynchronous.
@@ -709,7 +702,7 @@ function createUnknownExceptionFailure(
 	resolver: RuntimeMessageResolver,
 ): ExecutionFailureResult<CoreIssue> {
 	const code = 'core:unknown_exception'
-	const defaultMessage = 'An unexpected error occurred during step execution'
+	const defaultMessage = 'An unexpected error occurred during step execution.'
 	const globalMessage = resolver.globalMessage
 	const staticMessage = resolveStaticIssueMessage(code, undefined, globalMessage, defaultMessage)
 	const issue: ExecutionIssue<

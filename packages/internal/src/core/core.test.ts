@@ -8,7 +8,6 @@ import {
 	hasInternalIssue,
 	implStepPlugin,
 	isFailure,
-	isRecoverableFailure,
 	isSuccess,
 	prependIssuePath,
 	replaceIssuePath,
@@ -112,7 +111,7 @@ describe('core result contracts', () => {
 			.toBe(failure)
 	})
 
-	it('distinguishes recoverable validation failures from internal failures', () => {
+	it('detects an internal issue anywhere in a failure tuple', () => {
 		const validation = validationIssue()
 		const internal: ExecutionIssue<string, unknown, 'internal'> = {
 			...validationIssue('test:internal'),
@@ -123,12 +122,8 @@ describe('core result contracts', () => {
 			.toBe(false)
 		expect(hasInternalIssue([validation, internal]))
 			.toBe(true)
-		expect(isRecoverableFailure({ issues: [validation] }))
+		expect(hasInternalIssue([internal, validation]))
 			.toBe(true)
-		expect(isRecoverableFailure({ issues: [internal] }))
-			.toBe(false)
-		expect(isRecoverableFailure({ value: 'ok' }))
-			.toBe(false)
 	})
 })
 
@@ -465,7 +460,7 @@ describe('valchecker instance contracts', () => {
 				issues: [{
 					code: 'core:unknown_exception',
 					category: 'internal',
-					message: 'An unexpected error occurred during step execution',
+					message: 'An unexpected error occurred during step execution.',
 					path: [],
 					payload: {
 						method: 'throwSync',

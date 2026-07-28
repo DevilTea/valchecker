@@ -307,6 +307,10 @@ An internal child issue always stops later work, in both modes and under both po
 The configuration's `message` participates in normal structure message resolution for both owned and
 nested child issues, after their paths are prepended.
 
+A key schema that advertises a finite member set containing something that is not a valid property
+key throws a `TypeError` while the schema is being constructed, rather than producing an issue at
+execution.
+
 **Issues:**
 
 - `record:expected_object` — the value is not a non-null, non-array object. Payload `{ value }`.
@@ -387,6 +391,14 @@ synchronous elements keep the tuple synchronous.
 A malformed element list is rejected by the type gate, and throws a `TypeError` when the schema is
 constructed: two `'...'` markers, a marker with no schema after it, an entry that is not a Valchecker
 schema, or an `elements` argument that is not an array.
+
+One further guard fires during *execution* rather than construction: a rest schema that succeeds with
+something other than an array leaves the rest region with nothing to spread. It is reachable only from
+a rest schema that transforms an array into a non-array, which the type gate rejects, so it is a
+programmer error rather than an input-driven failure. It does not escape the result type — the
+`TypeError` it raises is caught and reported as the fatal internal issue `core:unknown_exception`,
+carrying `payload.method` `'tuple'` and the original error, so it stops enclosing structures and is
+never recovered by `fallback()`.
 
 Optional tuple elements (`[A, B?]`) are not expressible today: TypeScript mapped tuples cannot
 conditionally emit `?` slots. Use a union of tuples as the rest to model exactly that shape:
@@ -506,8 +518,11 @@ For example, `'auto'`, `null`, and `undefined` are equivalent to `v.literal('aut
 and `v.undefined()` respectively. They retain the provider's output, issue code, payload, message
 resolution, and equality semantics; `union()` does not implement a second primitive validator.
 
-Shorthand availability follows the steps registered on that specific instance. Importing a provider
-without registering it does not enable its shorthand. Registration order does not matter.
+Shorthand availability follows the steps registered on that specific instance, and registration order
+does not matter. Importing a provider without registering it does not enable its shorthand — and the
+branch is then not silently ignored: a value that is neither a schema nor something a registered
+provider accepts throws a `TypeError` while the schema is being constructed, naming the branch index.
+An empty branch array, and a hole in a sparse branch array, throw there too.
 
 Use an explicit provider schema when a branch needs provider-specific options such as a custom
 message:
@@ -564,7 +579,12 @@ Inputs must be non-null, non-array objects. The discriminator must be an own pro
 a configured string, number, or symbol property key. Number and string values follow JavaScript
 property-key canonicalization, so `1` and `'1'` select the same object-key branch.
 
-Variant maps are non-empty schema-time snapshots. Child issue paths remain unchanged and receive
+Variant maps are non-empty schema-time snapshots, and a malformed configuration throws a `TypeError`
+while the schema is being constructed rather than failing at execution: a missing configuration
+object, a discriminator that is not a property key, a `variants` value that is not an object, an
+empty variant map, or a branch that is not a Valchecker schema.
+
+Child issue paths remain unchanged and receive
 `{ type: 'variant', discriminator, discriminatorValue }` context. A variant-level `message` is an
 enclosing structure scope; an originating child-step message retains priority.
 

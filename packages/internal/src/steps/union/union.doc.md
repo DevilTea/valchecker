@@ -65,8 +65,11 @@ For example, `'auto'`, `null`, and `undefined` are equivalent to `v.literal('aut
 and `v.undefined()` respectively. They retain the provider's output, issue code, payload, message
 resolution, and equality semantics; `union()` does not implement a second primitive validator.
 
-Shorthand availability follows the steps registered on that specific instance. Importing a provider
-without registering it does not enable its shorthand. Registration order does not matter.
+Shorthand availability follows the steps registered on that specific instance, and registration order
+does not matter. Importing a provider without registering it does not enable its shorthand — and the
+branch is then not silently ignored: a value that is neither a schema nor something a registered
+provider accepts throws a `TypeError` while the schema is being constructed, naming the branch index.
+An empty branch array, and a hole in a sparse branch array, throw there too.
 
 Use an explicit provider schema when a branch needs provider-specific options such as a custom
 message:

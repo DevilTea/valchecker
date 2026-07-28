@@ -51,6 +51,10 @@ An internal child issue always stops later work, in both modes and under both po
 The configuration's `message` participates in normal structure message resolution for both owned and
 nested child issues, after their paths are prepended.
 
+A key schema that advertises a finite member set containing something that is not a valid property
+key throws a `TypeError` while the schema is being constructed, rather than producing an issue at
+execution.
+
 **Issues:**
 
 - `record:expected_object` — the value is not a non-null, non-array object. Payload `{ value }`.
