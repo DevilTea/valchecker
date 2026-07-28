@@ -1,6 +1,6 @@
 import type { ExecutionIssue } from '../../core'
 import { describe, expect, it } from 'vitest'
-import { check, createValchecker } from '../..'
+import { check, createValchecker, unknown } from '../..'
 
 const v = createValchecker({ steps: [check] })
 
@@ -164,6 +164,27 @@ describe('check step plugin', () => {
 				issues: [{
 					code: 'check:failed',
 					message: 'Custom: value',
+				}],
+			})
+	})
+})
+
+describe('check narrowing runtime contract', () => {
+	const v = createValchecker({ steps: [check, unknown] })
+
+	it('treats the narrowing utility result as a successful predicate result', () => {
+		const schema = v.unknown()
+			.check((value, { narrow }) => (
+				typeof value === 'string' ? narrow<string>() : false
+			))
+
+		expect(schema.execute('value'))
+			.toEqual({ value: 'value' })
+		expect(schema.execute(42))
+			.toMatchObject({
+				issues: [{
+					code: 'check:failed',
+					payload: { reason: 'returned_false', value: 42 },
 				}],
 			})
 	})
