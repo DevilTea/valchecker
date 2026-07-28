@@ -19,6 +19,12 @@
  *   over several. Cross-scenario aggregates of a sharded run mix machines, so
  *   pairing a sharded run with an unsharded one would attribute a runner difference
  *   to the change under test.
+ * - the scenario selection — which scenarios ran at all. Cell isolation makes one
+ *   scenario's number independent of the rest of the set, so the per-scenario rows of
+ *   two differently scoped runs would still be comparable; the group aggregates would
+ *   not, because a geometric mean is over whatever ran. The Performance Impact gate now
+ *   scopes a pull-request run to its diff, so the selection varies between runs of the
+ *   same profile and the identity has to carry it.
  *
  * This lives apart from `compare.mjs` because it is the load-bearing guard rather
  * than a formatting concern: it can be checked directly against hand-built results
@@ -46,6 +52,8 @@ export function measurementIdentity(raw, label) {
 		throw new Error(`${label} records an invalid shard count: ${String(shardCount)}`)
 	if (raw.shards.length !== shardCount)
 		throw new Error(`${label} carries ${raw.shards.length} of its ${shardCount} shards, so it is not a complete run`)
+	if (raw.scenarioFilter !== null && !Array.isArray(raw.scenarioFilter))
+		throw new Error(`${label} does not record which scenarios it measured`)
 
 	return {
 		mode: raw.mode,
@@ -53,6 +61,11 @@ export function measurementIdentity(raw, label) {
 			.sort(([left], [right]) => left.localeCompare(right)),
 		isolation: raw.isolation,
 		shardCount,
+		// Sorted, because the same selection written in a different order is the same
+		// set of scenarios; `null` is the whole tier and is deliberately not the same
+		// value as a filter that happens to name every scenario in it, since only the
+		// first is guaranteed to keep naming every scenario as the suite grows.
+		selection: raw.scenarioFilter == null ? null : [...raw.scenarioFilter].sort(),
 	}
 }
 
@@ -67,6 +80,7 @@ const reasons = {
 	profile: 'the sampling profile decides how much evidence stands behind every number',
 	isolation: 'a cell measured alone and a cell measured after other scenarios in the same process are not measurements of the same thing',
 	shardCount: 'scenarios measured on different machines cannot be pooled with scenarios measured on one',
+	selection: 'a group aggregate is a geometric mean over the scenarios that ran, so two runs of different scenario sets have group numbers that are not measurements of the same thing',
 }
 
 /**
