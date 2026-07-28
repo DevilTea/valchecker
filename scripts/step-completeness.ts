@@ -44,12 +44,20 @@ import { discoverSteps, stepsBarrel, stepsRoot } from './step-inventory'
 //   is a match over inline code spans, so a page saying ``never use `toTrimmedStart()` `` also
 //   satisfies it. What it does catch is the name disappearing from the reference entirely.
 //
-// The file-set and section-order rules are exact rather than weak, but they are narrower than the
-// standard they come from, and for the same reason: a local `type` declaration is the same syntax
-// whether it belongs to the contract above `Meta` or to the implementation below `PluginDef`. So
-// the order rules pin the anchors — the declaration names, `Meta` before `PluginDef`, no value
-// above `PluginDef`, the plugin last — and leave the placement of a type to review. A file can
-// satisfy every rule here with `interface FlatProperties` in the wrong section.
+// - **A helper module is one the step reaches.** Reached, not used: `import './x'` in `<name>.ts`
+//   satisfies it. That is a deliberate floor rather than an accident — the first version required
+//   only that the file exist, and a one-line `lazy-output.ts` containing `export {}` then
+//   re-admitted the 231-line suite this standard was written to fold in.
+// - **Only erased syntax may precede `PluginDef`.** Which section a *type* belongs to is not
+//   decidable here: a contract type above `Meta` and an implementation type below `PluginDef` are
+//   the same syntax. A file can satisfy every rule with `interface FlatProperties` in the wrong
+//   section, and a test pins that it is accepted either way.
+//
+// Both of those, and the steps-root rule, were weaker than they read until an adversarial review
+// walked past them — through a fake helper pair, a non-`declare` namespace holding a `const`, a
+// second `implStepPlugin` call, and `map.async.test.ts` moved one directory up. Each hole is now
+// closed and has a test named after it, which is why the wording above claims a floor rather than
+// a guarantee.
 //
 // The three matching rules read only what a reader of the rendered page or the running test
 // would see. HTML comments and fenced code blocks are removed from Markdown before matching,
@@ -77,6 +85,8 @@ export const surfacePackages = ['@valchecker/internal', 'valchecker'] as const
 /** Vitest's test-registering calls. `describe` is not one: a `describe` with nothing in it runs nothing. */
 const testCalls = ['it', 'test'] as const
 const benchCalls = ['bench'] as const
+/** What makes a `*.types.test.ts` a type-level suite rather than a runtime one under that name. */
+const typeAssertionCalls = ['expectTypeOf', 'assertType'] as const
 
 function parse(source: string): ts.SourceFile {
 	return ts.createSourceFile('input.ts', source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS)
@@ -153,26 +163,53 @@ export function isKebabCase(stem: string): boolean {
 	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(stem)
 }
 
-const fileSetRule = 'A step unit holds `<name>.ts`, `<name>.test.ts`, `<name>.bench.ts`, `index.ts`, optionally `<name>.types.test.ts`, and kebab-case helper modules each with an optional test — nothing else.'
+const fileSetRule = 'A step unit holds `<name>.ts`, `<name>.test.ts`, `<name>.bench.ts`, `index.ts`, optionally `<name>.types.test.ts`, and kebab-case helper modules the step imports, each with an optional test — nothing else.'
+
+/** Every `./x` a module imports or re-exports, so a helper can be told from a file nothing reaches. */
+export function localSpecifiers(source: string): string[] {
+	const names: string[] = []
+	for (const statement of parse(source).statements) {
+		const specifier = (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement))
+			? statement.moduleSpecifier
+			: undefined
+		if (specifier != null && ts.isStringLiteral(specifier) && specifier.text.startsWith('./'))
+			names.push(specifier.text.slice('./'.length))
+	}
+	return names
+}
 
 /**
  * Every entry in a step directory the step-unit standard does not name.
  *
  * A helper module is recognised first, so its own `<helper>.test.ts` is allowed and a `.test.ts`
- * with no module of that name is not. That is what separates a helper suite from a slice of the
- * step's own contract filed under a name of its own: `base64url.test.ts` beside `base64url.ts` is
- * the first, and `collectAllIssues.test.ts` or `map.async.test.ts` is the second.
+ * with no module of that name is not. What makes that a real distinction rather than a spelling
+ * one is the reachability requirement: a helper is a module the step's own source reaches, directly
+ * or through another helper. Without it the rule cost one line to defeat — `lazy-output.ts`
+ * containing `export {}` re-admitted the 231-line `lazy-output.test.ts` this standard exists to
+ * fold in, and an adversarial review demonstrated exactly that.
+ *
+ * The limit that remains: a helper is reached, not *used*. Adding `import './lazy-output'` to
+ * `<name>.ts` would satisfy this, at the cost of an import a reviewer reads in the implementation.
  */
-export function unexpectedEntries(entries: readonly string[], directory: string): string[] {
-	const required = new Set([`${directory}.ts`, `${directory}.test.ts`, `${directory}.bench.ts`, 'index.ts'])
+export function unexpectedEntries(tree: SourceTree, directory: string): string[] {
+	const entries = [...tree.list(`${stepsRoot}/${directory}`) ?? []]
+	const required = [`${directory}.ts`, `${directory}.test.ts`, `${directory}.bench.ts`, 'index.ts']
 	const known = new Set([...required, `${directory}.types.test.ts`])
 
-	const helpers = new Set(
-		entries
-			.filter(entry => entry.endsWith('.ts') && !entry.endsWith('.test.ts') && !known.has(entry))
-			.map(entry => entry.slice(0, -'.ts'.length))
-			.filter(isKebabCase),
-	)
+	const candidates = entries
+		.filter(entry => entry.endsWith('.ts') && !entry.endsWith('.test.ts') && !known.has(entry))
+		.map(entry => entry.slice(0, -'.ts'.length))
+		.filter(isKebabCase)
+
+	// Reachability from the step's own source, following helper-to-helper imports.
+	const reached = new Set<string>()
+	const sources = [`${directory}.ts`, ...candidates.map(stem => `${stem}.ts`)]
+		.map(entry => tree.read(`${stepsRoot}/${directory}/${entry}`) ?? '')
+	const reachable = new Set(sources.flatMap(localSpecifiers))
+	for (const stem of candidates) {
+		if (reachable.has(stem))
+			reached.add(stem)
+	}
 
 	const problems: string[] = []
 	for (const entry of [...entries].sort()) {
@@ -181,35 +218,37 @@ export function unexpectedEntries(entries: readonly string[], directory: string)
 
 		if (entry.endsWith('.test.ts')) {
 			const stem = entry.slice(0, -'.test.ts'.length)
-			if (helpers.has(stem))
+			const helperStem = stem.endsWith('.types') ? stem.slice(0, -'.types'.length) : stem
+			if (reached.has(helperStem))
 				continue
-			problems.push(isKebabCase(stem)
-				? `\`${entry}\` reads as the suite for \`${stem}.ts\`, which this directory does not hold. A test file is named after the module it tests: fold it into \`${directory}.test.ts\` as another \`describe\`, or move it to \`${stepsRoot}/<family>.<aspect>.test.ts\` if it is a contract spanning several steps.`
+			problems.push(isKebabCase(helperStem)
+				? `\`${entry}\` reads as the suite for \`${helperStem}.ts\`, which this directory does not hold, or holds without the step reaching it. A test file is named after the module it tests: fold it into \`${directory}.test.ts\` as another \`describe\`, or move it to \`${stepsRoot}/<family>.<aspect>.test.ts\` if it is a contract spanning several steps.`
 				: `\`${entry}\` is a slice of one step's suite filed under a name of its own. Fold it into \`${directory}.test.ts\` as another \`describe\`; the only auxiliary test the standard names is \`${directory}.types.test.ts\`, whose assertions \`pnpm typecheck\` decides rather than the vitest run. A contract spanning several steps goes to \`${stepsRoot}/<family>.<aspect>.test.ts\` instead.`)
 			continue
 		}
 
 		if (entry.endsWith('.bench.ts')) {
-			problems.push(`\`${entry}\` is a second benchmark file. A step has one, \`${directory}.bench.ts\`, and it is the unit the performance gate selects.`)
+			problems.push(`\`${entry}\` is a second benchmark file. A step has one, \`${directory}.bench.ts\`.`)
 			continue
 		}
 
 		if (entry.endsWith('.ts')) {
-			if (helpers.has(entry.slice(0, -'.ts'.length)))
+			const stem = entry.slice(0, -'.ts'.length)
+			if (reached.has(stem))
 				continue
-			problems.push(`\`${entry}\` is a helper module whose name is not kebab-case. Name it after the concept it owns, the way \`base64url.ts\` and \`iso-calendar-date.ts\` do.`)
+			problems.push(isKebabCase(stem)
+				? `\`${entry}\` is a module nothing in this step reaches. A helper module is imported by \`${directory}.ts\` or by another helper beside it; a file only its own test imports is a suite filed under a module's name.`
+				: `\`${entry}\` is a helper module whose name is not kebab-case. Name it after the concept it owns, the way \`base64url.ts\` and \`iso-calendar-date.ts\` do.`)
 			continue
 		}
 
 		problems.push(`\`${entry}\` is not part of a step unit. ${fileSetRule}`)
 	}
 
-	for (const entry of [...required].sort()) {
-		// `<name>.ts` is `step-inventory`'s discovery key and never reaches here missing; the test
-		// and bench files have their own rules with their own reasons. That leaves the barrel.
-		if (entry === 'index.ts' && !entries.includes(entry))
-			problems.push(`no \`index.ts\`. It is what \`${stepsBarrel}\` imports, and it holds exactly \`export * from './${directory}'\`.`)
-	}
+	// `<name>.ts` is `step-inventory`'s discovery key and never reaches here missing; the test and
+	// bench files have their own rules with their own reasons. That leaves the barrel.
+	if (!entries.includes('index.ts'))
+		problems.push(`no \`index.ts\`. It is what \`${stepsBarrel}\` imports, and it holds exactly \`export * from './${directory}'\`.`)
 
 	return problems
 }
@@ -220,9 +259,14 @@ export function unexpectedEntries(entries: readonly string[], directory: string)
  * The root holds the barrel, the modules shared across step directories, and the cross-step tests
  * — a contract spanning a family of steps, belonging to no one of them. Those are named
  * `<family>.<aspect>.test.ts` so that a test of a single step cannot sit among them looking like
- * one. Step directories are skipped: they have their own rules.
+ * one.
+ *
+ * `<family>` must therefore not be a step. Checking only the two-part shape left the rule
+ * satisfied by `map.async.test.ts` — one of the files this standard was written to eliminate,
+ * moved up one directory — because every all-lowercase step directory name is also a valid
+ * `kebab-case` family. Step directories themselves are skipped: they have their own rules.
  */
-export function stepsRootProblems(tree: SourceTree): string[] {
+export function stepsRootProblems(tree: SourceTree, stepDirectories: ReadonlySet<string>): string[] {
 	const problems: string[] = []
 
 	for (const entry of [...tree.list(stepsRoot) ?? []].sort()) {
@@ -232,9 +276,13 @@ export function stepsRootProblems(tree: SourceTree): string[] {
 		if (entry.endsWith('.test.ts')) {
 			const parts = entry.slice(0, -'.test.ts'.length)
 				.split('.')
-			if (parts.length === 2 && parts.every(isKebabCase))
+			if (parts.length === 2 && parts.every(isKebabCase)) {
+				if (!stepDirectories.has(parts[0]!))
+					continue
+				problems.push(`${stepsRoot}/${entry}: \`${parts[0]}\` is a step, so this is one step's test sitting where the cross-step contracts live. Fold it into \`${stepsRoot}/${parts[0]}/${parts[0]}.test.ts\`; a file here spans a family of steps and belongs to no single one of them.`)
 				continue
-			problems.push(`${stepsRoot}/${entry}: a cross-step test is named \`<family>.<aspect>.test.ts\` with both parts kebab-case, the way \`structural.sync-fast-path.test.ts\` and \`failure-payload.types.test.ts\` are. A test belonging to one step goes in that step's directory instead.`)
+			}
+			problems.push(`${stepsRoot}/${entry}: a cross-step test is named \`<family>.<aspect>.test.ts\` with both parts kebab-case, the way \`structural.sync-fast-path.test.ts\` and \`failure-payload.types.test.ts\` are, and \`<family>\` is not a step.`)
 			continue
 		}
 
@@ -270,26 +318,62 @@ function isPluginConstruction(statement: ts.Statement): boolean {
 		&& rootIdentifier(initializer.expression) === 'implStepPlugin'
 }
 
-/** The name a value declaration introduces, or `null` when the statement declares no value. */
-function declaredValueName(statement: ts.Statement): string | null {
+/** Whether the statement is erased by the compiler and so cannot run above `PluginDef`. */
+function isTypeOnly(statement: ts.Statement): boolean {
+	if (ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement))
+		return true
+	// `declare namespace Internal { … }` is erased; `namespace Internal { … }` emits an IIFE, and
+	// a `const` inside it is exactly the forward reference the order rule exists to prevent. An
+	// adversarial review got a runtime value above `Meta` through that gap.
+	if (ts.isModuleDeclaration(statement)) {
+		return ts.getModifiers(statement)
+			?.some(modifier => modifier.kind === ts.SyntaxKind.DeclareKeyword) ?? false
+	}
+	return false
+}
+
+/** How to name the statement in a failure message. */
+function describeStatement(statement: ts.Statement): string {
 	if (ts.isVariableStatement(statement)) {
 		const name = statement.declarationList.declarations[0]?.name
-		return name != null && ts.isIdentifier(name) ? name.text : 'a destructured binding'
+		return name != null && ts.isIdentifier(name) ? `\`${name.text}\`` : 'a destructured binding'
 	}
 	if (ts.isFunctionDeclaration(statement))
-		return statement.name?.text ?? 'an anonymous function'
-	if (ts.isClassDeclaration(statement) || ts.isEnumDeclaration(statement))
-		return statement.name?.text ?? 'an anonymous class'
-	return null
+		return statement.name == null ? 'an anonymous function' : `\`${statement.name.text}\``
+	if (ts.isClassDeclaration(statement))
+		return statement.name == null ? 'an anonymous class' : `\`${statement.name.text}\``
+	if (ts.isEnumDeclaration(statement))
+		return `\`${statement.name.text}\``
+	if (ts.isModuleDeclaration(statement))
+		return `the value-emitting \`namespace ${ts.isIdentifier(statement.name) ? statement.name.text : statement.name.text}\``
+	if (ts.isExpressionStatement(statement))
+		return 'a top-level expression statement'
+	if (ts.isImportEqualsDeclaration(statement))
+		return `\`import ${statement.name.text} = …\``
+	return `a top-level \`${ts.SyntaxKind[statement.kind]}\``
+}
+
+function isExported(statement: ts.Statement): boolean {
+	if (ts.isExportDeclaration(statement) || ts.isExportAssignment(statement))
+		return true
+	return ts.canHaveModifiers(statement)
+		&& (ts.getModifiers(statement)
+			?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false)
 }
 
 /**
  * Where `<name>.ts` departs from the canonical section order and the fixed declaration names.
  *
- * Only the syntactic half of the order is decidable here. A local type declaration is the same
- * syntax whether it belongs to the contract above `Meta` or to the implementation below
- * `PluginDef`, so which of the two a type belongs to stays review guidance; `step-unit.md` says so
- * in the same words.
+ * The rule is stated as an allow-list rather than a list of value kinds, because the first version
+ * enumerated `const`/`function`/`class`/`enum` and an adversarial review then walked four ways past
+ * it: a non-`declare` namespace holding a `const`, a bare expression statement, a top-level
+ * `await`, and `import x = require(…)`. Between the imports and `PluginDef` only erased syntax is
+ * admitted, so anything that can run has one place to be — below `PluginDef`, above the single
+ * statement that reads it.
+ *
+ * What stays undecidable: a local *type* is the same syntax whether it belongs to the contract
+ * above `Meta` or to the implementation below `PluginDef`, so which section a type belongs to is
+ * review guidance. `step-unit.md` says so in the same words.
  */
 export function declarationProblems(source: string, directory: string): string[] {
 	const statements = parse(source).statements
@@ -297,13 +381,16 @@ export function declarationProblems(source: string, directory: string): string[]
 
 	let meta = -1
 	let pluginDef = -1
-	let plugin = -1
-	let firstValue = -1
-	let firstValueName = ''
+	let firstRunnable = -1
+	let firstRunnableName = ''
+	const plugins: number[] = []
 
 	statements.forEach((statement, index) => {
+		if (ts.isImportDeclaration(statement))
+			return
+
 		if (ts.isModuleDeclaration(statement) && ts.isIdentifier(statement.name) && statement.name.text !== 'Internal')
-			problems.push(`the local issue namespace is \`${statement.name.text}\`, not \`Internal\`. No other module can see it, so a prefix only costs a reader comparing two steps.`)
+			problems.push(`the local namespace is \`${statement.name.text}\`, not \`Internal\`. A step's only namespace is the erased \`declare namespace Internal\` holding the issue types it owns; no other module can see it, so a different name only costs a reader comparing two steps.`)
 
 		if (ts.isTypeAliasDeclaration(statement) && statement.name.text === 'Meta')
 			meta = index
@@ -311,15 +398,16 @@ export function declarationProblems(source: string, directory: string): string[]
 			pluginDef = index
 
 		if (isPluginConstruction(statement)) {
-			plugin = index
+			plugins.push(index)
 			return
 		}
-		if (firstValue === -1) {
-			const name = declaredValueName(statement)
-			if (name != null) {
-				firstValue = index
-				firstValueName = name
-			}
+
+		if (isExported(statement))
+			problems.push(`${describeStatement(statement)} is exported. The plugin is the file's only export: a helper another step needs lives in its own kebab-case module, reached by direct relative path.`)
+
+		if (firstRunnable === -1 && !isTypeOnly(statement)) {
+			firstRunnable = index
+			firstRunnableName = describeStatement(statement)
 		}
 	})
 
@@ -331,13 +419,20 @@ export function declarationProblems(source: string, directory: string): string[]
 	if (meta !== -1 && pluginDef !== -1 && meta > pluginDef)
 		problems.push('`PluginDef` is declared before `Meta`. `Meta` comes first: it is what `PluginDef` is written against.')
 
-	if (pluginDef !== -1 && firstValue !== -1 && firstValue < pluginDef)
-		problems.push(`\`${firstValueName}\` is declared above \`PluginDef\`. Constants and functions the runtime reaches go below it, so opening the file shows what the step does before how — nothing forward-references, because the only statement that reads them is the last one.`)
+	if (pluginDef !== -1 && firstRunnable !== -1 && firstRunnable < pluginDef)
+		problems.push(`${firstRunnableName} is above \`PluginDef\`, and it is not erased syntax. Only types may sit between the imports and \`PluginDef\`; anything that runs goes below it, so opening the file shows what the step does before how — and nothing forward-references, because the only statement that reads it is the last one.`)
 
-	if (plugin === -1)
-		problems.push(`no \`export const … = implStepPlugin<PluginDef>(…)\` statement, so this file publishes no step.`)
-	else if (plugin !== statements.length - 1)
-		problems.push(`the \`implStepPlugin\` construction is not the last statement in the file. It is the unit's product and its only export, and \`/* @__NO_SIDE_EFFECTS__ */\` has to stay immediately above it.`)
+	if (plugins.length === 0) {
+		problems.push('no `implStepPlugin` construction, so this file publishes no step. (That it is `export`ed under the step\'s identifier is `step-inventory`\'s rule, not this one.)')
+	}
+	else if (plugins.length > 1) {
+		// Counted rather than overwritten: taking the last match let an earlier construction sit
+		// above `PluginDef` unexamined, which is also a value the order rule then never saw.
+		problems.push(`\`implStepPlugin\` is called ${plugins.length} times. A step unit constructs one plugin, as its last statement.`)
+	}
+	else if (plugins[0] !== statements.length - 1) {
+		problems.push('the `implStepPlugin` construction is not the last statement in the file. It is the unit\'s product, and `/* @__NO_SIDE_EFFECTS__ */` has to stay immediately above it.')
+	}
 
 	return problems.map(problem => `${directory}.ts: ${problem}`)
 }
@@ -472,9 +567,16 @@ function missingPieces(tree: SourceTree, step: StepWithCodes, context: {
 	const missing: string[] = []
 	const directory = `${stepsRoot}/${step.directory}`
 
-	missing.push(...unexpectedEntries(tree.list(directory) ?? [], step.directory))
+	missing.push(...unexpectedEntries(tree, step.directory))
 	missing.push(...barrelProblems(tree.read(`${directory}/index.ts`), step.directory))
 	missing.push(...declarationProblems(step.source, step.directory))
+
+	// The one auxiliary test the standard names is justified by its assertions being decided by a
+	// different tool. A file called `<name>.types.test.ts` holding runtime cases is that exception
+	// used as a way around the fold — so the name has to be earned.
+	const types = tree.read(`${directory}/${step.directory}.types.test.ts`)
+	if (types != null && !callsAnyOf(types, typeAssertionCalls))
+		missing.push(`\`${step.directory}.types.test.ts\` calls no \`expectTypeOf\` or \`assertType\`, so nothing in it is decided by \`pnpm typecheck\` — which is the only reason a step may hold a second test file. Fold it into \`${step.directory}.test.ts\`.`)
 
 	const test = tree.read(`${directory}/${step.directory}.test.ts`)
 	if (test == null)
@@ -551,7 +653,7 @@ export function checkStepCompleteness(tree: SourceTree): CompletenessReport {
 			.join('\n')}`)
 	}
 
-	errors.push(...stepsRootProblems(tree))
+	errors.push(...stepsRootProblems(tree, new Set(steps.map(step => step.directory))))
 
 	return { errors, complete, total: steps.length }
 }
@@ -560,12 +662,14 @@ export function checkStepCompleteness(tree: SourceTree): CompletenessReport {
 export function successMessage(report: CompletenessReport): string {
 	return [
 		`Built-in steps are complete: ${report.complete} steps each hold only the files a step unit names,`,
-		'a one-line `index.ts`, a `<name>.ts` declaring `Meta` then `PluginDef` above every value and ending in its plugin,',
+		'a one-line `index.ts`, a `<name>.ts` whose only export is a single `implStepPlugin` construction last in the file,',
+		'with `Meta` then `PluginDef` above every statement that is not erased syntax,',
 		'a `<name>.test.ts` registering at least one case,',
 		'a `<name>.bench.ts` calling `bench`, a runtime export in api-surface.json,',
 		`their name in call form in a code span in ${docsApiRoot}/${catalogPage} and on one further ${docsApiRoot} page,`,
 		'and every owned issue code both present under docs/api and present in a string in their own tests.',
-		'The three matching rules find mentions, not meaning: they cannot tell a real assertion from a tautology,',
-		'or a description from a passing reference; and the order rules pin the anchors, not where a type belongs.',
+		'The steps root holds only the barrel, kebab-case shared modules, and cross-step tests whose family is not a step.',
+		'None of it finds meaning: these rules cannot tell a real assertion from a tautology, a description from a passing',
+		'reference, a helper the step uses from one it merely imports, or a type in the right section from one in the wrong one.',
 	].join(' ')
 }
