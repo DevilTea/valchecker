@@ -1,6 +1,6 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callbackErrorSentinel'
+import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callback-error-sentinel'
 
 declare namespace Internal {
 	export type CallbackIssue<Input = any, Item = any> = ExecutionIssue<
