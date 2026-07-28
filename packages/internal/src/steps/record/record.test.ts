@@ -258,12 +258,6 @@ describe('record step plugin — finite (closed, exhaustive) key domain', () => 
 			})
 	})
 
-	// A case for `record` stopping at the first internal member issue under
-	// `collectAllIssues`, which AGENTS.md states as the contract, was written here
-	// and fails: a finite key domain collects a second issue instead of stopping.
-	// It is left out rather than skipped because a skipped test reads as covered.
-	// Reproduction and the failing expectation are recorded in issue #135.
-
 	it('stays synchronous when a maybe-async member schema resolves synchronously', () => {
 		const schema = v.record({
 			key: v.union(['a', 'b']),
