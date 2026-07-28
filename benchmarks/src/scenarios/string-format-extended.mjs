@@ -107,6 +107,12 @@ export const stringFormatExtendedScenarios = [
 	warm('string-format/iso-time-invalid', 'full', 'formatIsoTime', inputs.invalidIsoTime, { success: false }, { comparisonScope: subset, steps: isoTimeSteps }),
 	warm('string-format/emoji-valid', 'standard', 'formatEmoji', inputs.emoji, { success: true, output: inputs.emoji }, { comparisonScope: subset, steps: emojiSteps }),
 	warm('string-format/emoji-invalid', 'full', 'formatEmoji', inputs.invalidEmoji, { success: false }, { comparisonScope: subset, steps: emojiSteps }),
+	// Sitting next to their twins rather than appended at the end of the family,
+	// so a reader compares the two Valchecker semantics in adjacent rows. This
+	// shifts the report position of every later scenario once; under cell
+	// isolation a position no longer moves a number, so the cost is a diff.
+	warm('string-format/emoji-registered-valid', 'standard', 'formatEmojiRegistered', inputs.emoji, { success: true, output: inputs.emoji }, { comparisonScope: subset, steps: emojiSteps }),
+	warm('string-format/emoji-registered-invalid', 'full', 'formatEmojiRegistered', inputs.invalidEmoji, { success: false }, { comparisonScope: subset, steps: emojiSteps }),
 	warm('string-format/base64-valid', 'standard', 'formatBase64', inputs.base64, { success: true, output: inputs.base64 }, { comparisonScope: subset, steps: base64Steps }),
 	warm('string-format/base64-invalid', 'full', 'formatBase64', inputs.invalidBase64, { success: false }, { comparisonScope: subset, steps: base64Steps }),
 	warm('string-format/nanoid-valid', 'standard', 'formatNanoid', inputs.nanoid, { success: true, output: inputs.nanoid }, { comparisonScope: subset, steps: nanoidSteps }),

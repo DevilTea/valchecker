@@ -24,6 +24,11 @@ import ts from 'typescript'
  * anything this module cannot place is a full run, and a canary set runs regardless
  * of the diff.
  *
+ * **A rule about a file is a rule about what the file means.** Every judgement below is
+ * asked of a path whose two revisions differ in something a build or this gate can read.
+ * `inert-change.ts` decides that, the caller passes the answer in as `inertPaths`, and a
+ * path it proves inert is ignored here — it neither forces a full run nor selects a step.
+ *
  * Nothing here reads the filesystem or git. The tree is injected, which is what lets
  * the tests drive the whole mapping over a small synthetic repository whose expected
  * answers are written out by hand.
@@ -135,12 +140,23 @@ const cannotChangeTheBuild: RegExp[] = [
  * for the first version of this gate, which made this the rule that could never fire.
  * `scripts/check-impact-triggers.ts` now fails when a path this module classifies as a
  * full run does not start the workflow.
+ *
+ * The rule is about what these files *decide*, not about their bytes: a revision pair
+ * that `inert-change.ts` proves identical once comments and formatting are gone cannot
+ * decide anything differently, and forcing a 55-minute comparison for a comment was
+ * costing exactly that. `inert-change.ts` is itself on the list, because it now decides
+ * part of the scope too.
  */
 export const gateDefiningPaths: ReadonlySet<string> = new Set([
 	'.github/workflows/performance-impact.yml',
 	'.github/actions/setup/action.yml',
 	'scripts/impact-selection.ts',
+	'scripts/inert-change.ts',
 	'scripts/select-impact-scenarios.ts',
+	// `buildAttribution` reads the tree through this, so a change to how files are
+	// read or resolved can change which steps a diff reaches without touching any
+	// rule above.
+	'scripts/source-tree.ts',
 ])
 
 function parse(path: string, text: string): ts.SourceFile {
@@ -397,7 +413,7 @@ export function buildAttribution(tree: SourceTree): Attribution {
  * `construction` and `cold` are taken whole. Module initialisation, step registration,
  * and the shape of the prototype every schema shares are not attributable through a
  * scenario's `steps` at all — no scenario declares them — and construction is where
- * they show. Nineteen of the standard tier's 169 scenarios, so the completeness is
+ * they show. Nineteen standard-tier scenarios, so the completeness is
  * cheap.
  *
  * The named scenarios are the core execution machinery every other scenario is built
@@ -488,15 +504,29 @@ export interface SelectionInput {
 	catalog: CatalogEntry[]
 	/** Defaults to the repository's canary; injected by the tests so they can state their own. */
 	canary?: Canary
+	/**
+	 * Changed paths whose two revisions mean the same thing, from `inert-change.ts`.
+	 * Empty when the caller has no base revision to compare against, which classifies
+	 * every path from its path alone, exactly as this module did before.
+	 */
+	inertPaths?: ReadonlySet<string>
 }
 
 /**
  * What one changed path does to the run. Exported because it is also the authority
  * `scripts/check-impact-triggers.ts` compares the workflow's `paths` filters against:
  * a path this returns `full` for and the filters do not match is a rule that cannot
- * fire.
+ * fire. That check passes no inertness, which is right — the filters have to admit
+ * every path a *behaviour-changing* edit would force a full run for.
+ *
+ * `inert` comes first, ahead of the gate-defining list, because it is the stronger
+ * statement: a file whose two revisions parse to the same thing decides nothing
+ * differently, whichever rule would otherwise have applied to it.
  */
-export function classifyChange(path: string, attribution: Attribution): ChangeClassification {
+export function classifyChange(path: string, attribution: Attribution, inert: boolean = false): ChangeClassification {
+	if (inert)
+		return { path, effect: 'ignored', reason: 'its two revisions are the same once comments and formatting are removed, so neither build nor this selection can see the change' }
+
 	if (gateDefiningPaths.has(path))
 		return { path, effect: 'full', reason: 'it decides how this gate runs' }
 
@@ -533,7 +563,7 @@ export function classifyChange(path: string, attribution: Attribution): ChangeCl
 	return { path, effect: 'full', reason: 'not a path this gate can place, and an unplaced path is a full run' }
 }
 
-export function selectImpactScenarios({ changedFiles, attribution, catalog, canary = defaultCanary }: SelectionInput): Selection {
+export function selectImpactScenarios({ changedFiles, attribution, catalog, canary = defaultCanary, inertPaths = new Set() }: SelectionInput): Selection {
 	const known = new Set(catalog.map(scenario => scenario.id))
 	const missingCanary = canary.scenarios.filter(id => !known.has(id))
 	if (missingCanary.length > 0)
@@ -545,10 +575,15 @@ export function selectImpactScenarios({ changedFiles, attribution, catalog, cana
 
 	const classifications = [...new Set(changedFiles)]
 		.sort()
-		.map(path => classifyChange(path, attribution))
+		.map(path => classifyChange(path, attribution, inertPaths.has(path)))
 
+	// Attribution asks the same question the classification above does, so it takes the
+	// same answer: a JSDoc fix to a step's source used to select that step's scenarios,
+	// and a change nothing can read attributes nothing.
 	const steps = new Set<string>()
 	for (const path of changedFiles) {
+		if (inertPaths.has(path))
+			continue
 		for (const step of attribution.stepsByFile.get(path) ?? [])
 			steps.add(step)
 	}

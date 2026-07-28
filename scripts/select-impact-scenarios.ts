@@ -1,15 +1,17 @@
 import type { CatalogEntry, Selection } from './impact-selection'
+import type { Revisions } from './inert-change'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { buildAttribution, selectImpactScenarios } from './impact-selection'
+import { inertChangedPaths } from './inert-change'
 import { fileSystemTree } from './source-tree'
 
 // Scopes one Performance Impact run to the scenarios its diff can move.
 //
-// The gate used to measure all 169 standard-tier scenarios on every pull request,
+// The gate used to measure every standard-tier scenario on every pull request,
 // which is 55 minutes against a 90-minute timeout. Neither of the two decisions that
 // put it there can be reverted — five paired repetitions are what make a scenario
 // classifiable at all, and one process per cell is what makes a subset measure the
@@ -19,12 +21,21 @@ import { fileSystemTree } from './source-tree'
 //
 // Output is deliberately loud. A reader of a passing gate has to be able to see that
 // it measured 34 scenarios and which ones, rather than assume it measured everything.
+//
+// Two revisions are read here rather than one tree, because whether a changed file
+// *means* anything different is a question about a pair. `--base` names the baseline the
+// comparison is against; without it nothing can be judged inert and every path is
+// classified from its path alone, which is said out loud rather than assumed.
 
 const root = process.cwd()
 
 interface Options {
 	tree: string
 	changedFiles: string[]
+	/** The baseline revision, when there is one to read file contents from. */
+	base: string | null
+	/** The candidate revision, or `null` to read the candidate from `--tree`. */
+	head: string | null
 	markdown: string | null
 	githubOutput: string | null
 	summary: string | null
@@ -39,17 +50,26 @@ function readChangedFiles(source: string): string[] {
 		.filter(Boolean)
 }
 
-function diffNames(base: string, head: string): string[] {
-	return execFileSync('git', ['diff', '--name-only', base, head], { cwd: root, encoding: 'utf8' })
+/** `git diff --name-only base [head]`; with no head, against the working tree. */
+function diffNames(base: string, head: string | null): string[] {
+	return execFileSync('git', ['diff', '--name-only', base, ...head == null ? [] : [head]], { cwd: root, encoding: 'utf8' })
 		.split('\n')
 		.map(line => line.trim())
 		.filter(Boolean)
 }
 
+/** One revision's copy of a file, or `null` when that revision does not have it. */
+function gitText(ref: string, filePath: string): string | null {
+	try {
+		return execFileSync('git', ['show', `${ref}:${filePath}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+	}
+	catch {
+		return null
+	}
+}
+
 function parseArguments(argv: string[]): Options {
-	const options: Options = { tree: root, changedFiles: [], markdown: null, githubOutput: null, summary: null }
-	let base: string | null = null
-	let head: string | null = null
+	const options: Options = { tree: root, changedFiles: [], base: null, head: null, markdown: null, githubOutput: null, summary: null }
 	let changedFrom: string | null = null
 
 	for (let index = 0; index < argv.length; index++) {
@@ -64,11 +84,11 @@ function parseArguments(argv: string[]): Options {
 			index++
 		}
 		else if (argument === '--base' && value != null) {
-			base = value
+			options.base = value
 			index++
 		}
 		else if (argument === '--head' && value != null) {
-			head = value
+			options.head = value
 			index++
 		}
 		else if (argument === '--markdown' && value != null) {
@@ -90,10 +110,10 @@ function parseArguments(argv: string[]): Options {
 
 	if (changedFrom != null)
 		options.changedFiles = readChangedFiles(changedFrom)
-	else if (base != null && head != null)
-		options.changedFiles = diffNames(base, head)
+	else if (options.base != null)
+		options.changedFiles = diffNames(options.base, options.head)
 	else
-		throw new Error('Provide either --changed-files <path|-> or both --base <ref> and --head <ref>')
+		throw new Error('Provide either --changed-files <path|-> or --base <ref>, optionally with --head <ref>')
 
 	return options
 }
@@ -181,11 +201,26 @@ const { getScenarioCatalog } = await import(pathToFileURL(catalogEntry).href) as
 	getScenarioCatalog: (mode: string) => CatalogEntry[]
 }
 
-const attribution = buildAttribution(fileSystemTree(options.tree))
+const tree = fileSystemTree(options.tree)
+const attribution = buildAttribution(tree)
+
+// The candidate's text comes from `--head` when there is one and from `--tree` otherwise,
+// which is the working tree: that is what makes an uncommitted edit reproducible locally
+// with `--base main` alone. Both sides come from git in the workflow, where the tree is a
+// worktree of exactly the revision `--head` names.
+const revisions: Revisions | null = options.base == null
+	? null
+	: {
+			base: filePath => gitText(options.base!, filePath),
+			head: options.head == null ? filePath => tree.read(filePath) : filePath => gitText(options.head!, filePath),
+		}
+const inertPaths = revisions == null ? new Set<string>() : inertChangedPaths(options.changedFiles, revisions)
+
 const selection = selectImpactScenarios({
 	changedFiles: options.changedFiles,
 	attribution,
 	catalog: getScenarioCatalog('standard'),
+	inertPaths,
 })
 
 const markdown = renderMarkdown(selection)
@@ -210,5 +245,12 @@ console.error(selection.full
 	? `[impact-scope] full run: ${selection.totalScenarios} scenarios`
 	: `[impact-scope] ${selection.scenarioIds.length} of ${selection.totalScenarios} scenarios `
 		+ `(${selection.attributedIds.length} attributed, ${selection.canaryIds.filter(id => !selection.attributedIds.includes(id)).length} canary-only, ${selection.topUpIds.length} top-up)`)
+if (revisions == null) {
+	console.error('[impact-scope] no --base revision, so no change can be shown to be inert; every path is classified from its path alone')
+}
+else if (inertPaths.size > 0) {
+	console.error(`[impact-scope] ${inertPaths.size === 1 ? '1 changed path means' : `${inertPaths.size} changed paths mean`} the same in both revisions: ${[...inertPaths].sort()
+		.join(', ')}`)
+}
 for (const problem of selection.problems)
 	console.error(`[impact-scope] incomplete attribution: ${problem}`)

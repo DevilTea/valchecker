@@ -1,7 +1,10 @@
 import type { Canary, CatalogEntry } from './impact-selection'
+import type { SourceTree } from './source-tree'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { basename, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { buildAttribution, defaultCanary, isNonShippingSourcePath, selectImpactScenarios } from './impact-selection'
+import { buildAttribution, classifyChange, defaultCanary, gateDefiningPaths, isNonShippingSourcePath, selectImpactScenarios } from './impact-selection'
 import { objectTree } from './source-tree'
 
 /**
@@ -82,12 +85,13 @@ const canary: Canary = {
 
 const canaryIds = ['construct/alpha', 'construct/beta', 'warm/gamma', 'warm/gamma-two', 'fail/alpha', 'fail/gamma']
 
-function select(changedFiles: string[], tree = repository, useCanary = canary) {
+function select(changedFiles: string[], tree = repository, useCanary = canary, inertPaths?: ReadonlySet<string>) {
 	return selectImpactScenarios({
 		changedFiles,
 		attribution: buildAttribution(objectTree(tree)),
 		catalog,
 		canary: useCanary,
+		inertPaths,
 	})
 }
 
@@ -365,11 +369,12 @@ describe('scenario selection', () => {
 	 * decides the scope pays one complete comparison. `scripts/**` and `.github/**` are
 	 * otherwise ignored, which is exactly why this needs asserting — and why
 	 * `check-impact-triggers.ts` asserts the workflow's `paths` filters re-include these
-	 * four files, since a rule the workflow never starts for cannot fire.
+	 * five files, since a rule the workflow never starts for cannot fire.
 	 */
 	it('a change to what decides the scope measures everything', () => {
 		for (const path of [
 			'scripts/impact-selection.ts',
+			'scripts/inert-change.ts',
 			'scripts/select-impact-scenarios.ts',
 			'.github/workflows/performance-impact.yml',
 			'.github/actions/setup/action.yml',
@@ -436,6 +441,72 @@ describe('scenario selection', () => {
 				{ group: 'warm/success', selected: 2, total: 5, triggerPossible: true },
 				{ group: 'warm/failure', selected: 2, total: 4, triggerPossible: true },
 			])
+	})
+
+	/**
+	 * The other half of the same rule, and the reason it is expressed as a set of paths
+	 * rather than as a rule about paths: whether a change means anything is a question about
+	 * two revisions, which `inert-change.ts` answers and this module is only told.
+	 *
+	 * Each case names the answer it would have given without that, because the point is not
+	 * that an inert path is ignored — it is that the *same* path is a full run or a
+	 * selection when it changed for real.
+	 */
+	it('ignores a change proved to mean nothing, wherever the rule would otherwise have applied', () => {
+		for (const path of [
+			'scripts/impact-selection.ts',
+			'.github/workflows/performance-impact.yml',
+			'packages/internal/src/registry.ts',
+			'pnpm-lock.yaml',
+		]) {
+			expect(select([path]).full, `${path}: without inertness`)
+				.toBe(true)
+			const selection = select([path], repository, canary, new Set([path]))
+			expect(selection.full, path)
+				.toBe(false)
+			expect(selection.scenarioIds, path)
+				.toEqual(canaryIds)
+			expect(selection.classifications[0]!.effect, path)
+				.toBe('ignored')
+			expect(selection.classifications[0]!.reason, path)
+				.toContain('once comments and formatting are removed')
+		}
+	})
+
+	it('attributes nothing from a step source that means nothing different', () => {
+		const path = 'packages/internal/src/steps/delta/delta.ts'
+		expect(select([path]).steps, 'without inertness')
+			.toEqual(['delta'])
+		const selection = select([path], repository, canary, new Set([path]))
+		expect(selection.steps)
+			.toEqual([])
+		expect(selection.attributedIds)
+			.toEqual([])
+		expect(selection.scenarioIds)
+			.toEqual(canaryIds)
+	})
+
+	it('still selects when one file of the diff is inert and another is not', () => {
+		const selection = select(
+			['packages/internal/src/steps/alpha/grammar.ts', 'packages/internal/src/steps/delta/delta.ts'],
+			repository,
+			canary,
+			new Set(['packages/internal/src/steps/delta/delta.ts']),
+		)
+		expect(selection.steps)
+			.toEqual(['alpha', 'beta'])
+		expect(selection.scenarioIds).not.toContain('warm/delta')
+	})
+
+	it('measures everything for a real change to a gate-defining file even when another one is inert', () => {
+		const selection = select(
+			['scripts/impact-selection.ts', 'scripts/select-impact-scenarios.ts'],
+			repository,
+			canary,
+			new Set(['scripts/select-impact-scenarios.ts']),
+		)
+		expect(selection.full)
+			.toBe(true)
 	})
 
 	it('refuses a canary naming a scenario the catalog does not have', () => {
@@ -532,5 +603,55 @@ describe('the repository this gate runs in', () => {
 		}
 		expect(defaultCanary.scenarios.every(id => standard.some(scenario => scenario.id === id)))
 			.toBe(true)
+	})
+})
+
+describe('the gate-defining set', () => {
+	// Derived rather than listed. `source-tree.ts` was missing from the set for a
+	// while: `buildAttribution` reads the tree through it, so changing how files
+	// are read or resolved can change which steps a diff reaches — with no rule
+	// above it changing at all. Listing the members again here would have missed
+	// that the same way the set did, so this asks the question the set answers:
+	// does the selector depend on a module that can be edited without forcing a
+	// complete comparison?
+	const selectorRoot = fileURLToPath(new URL('.', import.meta.url))
+
+	function localImports(file: string): string[] {
+		const text = readFileSync(join(selectorRoot, file), 'utf8')
+		const specifiers = [...text.matchAll(/from\s+'(\.\/[^']+)'/g)]
+			.map(match => basename(match[1]!))
+		return specifiers.map((specifier) => {
+			const stem = specifier
+				.replace(/\.(?:js|ts)$/, '')
+			return `scripts/${stem}.ts`
+		})
+	}
+
+	it('contains every module the selector reads its answer from', () => {
+		const reached = new Set<string>()
+		const pending = ['impact-selection.ts', 'select-impact-scenarios.ts']
+		while (pending.length > 0) {
+			const current = pending.pop()!
+			for (const dependency of localImports(current)) {
+				if (reached.has(dependency))
+					continue
+				reached.add(dependency)
+				pending.push(basename(dependency))
+			}
+		}
+		const missing = [...reached].filter(path => !gateDefiningPaths.has(path))
+		expect(missing)
+			.toEqual([])
+	})
+
+	it('forces a complete comparison for every member', () => {
+		const attribution = buildAttribution(objectTree({}))
+		for (const path of gateDefiningPaths) {
+			// `false` because the question is what the rule does for a real edit; a
+			// truthy value here would assert nothing but the inert short-circuit.
+			const classification = classifyChange(path, attribution, false)
+			expect(classification.effect)
+				.toBe('full')
+		}
 	})
 })

@@ -55,7 +55,7 @@
 		"bench:watch": "vitest bench",
 		"lint": "eslint .",
 		"lint:fix": "eslint --fix .",
-		"typecheck": "pnpm -r typecheck",
+		"typecheck": "pnpm -r typecheck && tsc -p tsconfig.scripts.json --noEmit",
 		"typeperf": "pnpm build && tsx ./scripts/check-type-performance.ts",
 		"prepare": "simple-git-hooks"
 	},

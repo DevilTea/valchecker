@@ -179,6 +179,10 @@ export default {
 		// scenario's fixture sits in the intersection of the two accepted sets.
 		formatIsoTime: () => v.pipe(v.string(), v.isoTimeSecond()),
 		formatEmoji: () => v.pipe(v.string(), v.emoji()),
+		// Deliberately the same schema as `formatEmoji`: Valibot has no
+		// registered-set mode, so the competitor side of the two emoji scenario
+		// pairs is one schema measured against two Valchecker semantics.
+		formatEmojiRegistered: () => v.pipe(v.string(), v.emoji()),
 		formatBase64: () => v.pipe(v.string(), v.base64()),
 		formatNanoid: () => v.pipe(v.string(), v.nanoid()),
 		formatUlid: () => v.pipe(v.string(), v.ulid()),

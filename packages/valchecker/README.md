@@ -191,7 +191,7 @@ v.string().isUuid()
 v.string().isIp({ version: 6 })
 v.string().isIsoDateTime()
 v.string().isJwt()
-v.string().isEmoji()
+v.string().isEmoji() // UTS #51 emoji sequences; { registered: true } for Unicode's RGI set
 ```
 
 Also available: `isHex()`, `isMac()`, `isHostname()`, `isBase64()`, `isBase64Url()`, `isCuid2()`, `isUlid()`, `isNanoid()`, `isIsoDate()`, and `isIsoTime()`. Each is value-preserving and enforces only its named format.
