@@ -134,6 +134,10 @@ export function createZodAdapter(z, { adapter, name, specifier }) {
 		formatIsoDate: resolveIsoFormat('date'),
 		formatIsoTime: resolveIsoFormat('time'),
 		formatEmoji: resolveFormat('emoji'),
+		// Deliberately the same schema as `formatEmoji`: neither Zod pin has a
+		// registered-set mode, so the competitor side of the two emoji scenario
+		// pairs is one schema measured against two Valchecker semantics.
+		formatEmojiRegistered: resolveFormat('emoji'),
 		formatBase64: resolveFormat('base64'),
 		formatBase64Url: resolveFormat('base64url'),
 		formatNanoid: resolveFormat('nanoid'),

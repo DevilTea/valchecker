@@ -224,6 +224,8 @@ export default {
 			.isIsoTime(),
 		formatEmoji: () => v.string()
 			.isEmoji(),
+		formatEmojiRegistered: () => v.string()
+			.isEmoji({ registered: true }),
 		formatBase64: () => v.string()
 			.isBase64(),
 		formatBase64Url: () => v.string()

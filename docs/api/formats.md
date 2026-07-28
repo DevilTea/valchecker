@@ -2,9 +2,10 @@
 
 String-format validators check that a `string` output matches a well-known
 format. Every validator is a dedicated, tree-shakable step: it is
-value-preserving (a success returns the input unchanged), owns one issue code of
-the form `<name>:expected_<format>`, and takes an optional trailing options
-object carrying at least `message`.
+value-preserving (a success returns the input unchanged), owns a validation issue
+code of the form `<name>:expected_<format>`, and takes an optional trailing
+options object carrying at least `message`. One of them, `isEmoji()`, owns a
+second issue for a runtime that cannot express the set it was asked for.
 
 They are available after any step whose output is a `string`, for example
 `v.string()`:
@@ -78,11 +79,45 @@ string `alg`. The signature segment may be empty (an unsecured JWS).
 
 ### `isEmoji(options?)`
 
-Checks that the string consists solely of RGI emoji, using `\p{RGI_Emoji}` with
-the `v` flag. ZWJ sequences (such as family emoji) and skin-tone modifier
-sequences each count as one emoji. The empty string is rejected.
+Checks that the string is one or more emoji and nothing else. The empty string is
+rejected.
 
-**Issue code:** `isEmoji:expected_emoji`
+The default accepted set is the [UTS #51](https://www.unicode.org/reports/tr51/)
+emoji sequence grammar, built from Unicode property escapes so it tracks the
+engine's Unicode version rather than a release date. It accepts an
+emoji-presentation character, an emoji character followed by VS16, a keycap
+sequence, a skin-tone modifier sequence, a regional indicator pair, a tag
+sequence, and a ZWJ chain of those — one after another, in any number.
+
+A bare `Emoji_Component` is not an emoji by itself, so a lone skin-tone modifier
+(`🏽`), a lone hair component (`🦰`), a lone regional indicator (`🇦`), a lone
+ZWJ, a lone VS16, a lone tag character, and a lone combining keycap are all
+rejected. So are `1`, `123`, `#`, `*`, and a text-presentation character without
+its VS16, such as `❤`, `☺`, or `©`.
+
+`isEmoji({ registered: true })` narrows the accepted set to Unicode's RGI set —
+`\p{RGI_Emoji}` minus bare components — which is the sequences every vendor is
+expected to render. It costs roughly 110× more on a bare emoji (about 5,300 ns
+against 47 ns) and it needs a runtime with the regular-expression `v` flag; where
+that flag is missing it fails with `isEmoji:unsupported_registered_set` rather
+than silently accepting a different set.
+
+The default therefore accepts structurally valid sequences that are not
+registered. Written with code points, because the joiners are invisible:
+
+| Input | Default | `{ registered: true }` | Why |
+| --- | :-: | :-: | --- |
+| `👍‍👍` (U+1F44D ZWJ U+1F44D) | accepted | rejected | a well-formed ZWJ chain that is not a registered emoji |
+| `😀‍🚀` (U+1F600 ZWJ U+1F680) | accepted | rejected | the same |
+| `1️` (U+0031 U+FE0F) | accepted | rejected | an emoji presentation sequence, but not the keycap sequence `1️⃣` |
+| `🇦🇦` (U+1F1E6 U+1F1E6) | accepted | rejected | a regional indicator pair that is not a country |
+| `⌚️` (U+231A U+FE0F) | accepted | rejected | a redundant VS16 on a character that already presents as emoji |
+| `🏴󠁵󠁳󠁣󠁡󠁿` (U+1F3F4 + `usca` + U+E007F) | accepted | rejected | a well-formed tag sequence; only `gbeng`, `gbsct`, and `gbwls` are registered |
+| `👪🏻` (U+1F46A U+1F3FB) | accepted | rejected | a modifier base and a skin tone whose combination is not registered |
+
+**Issue codes:** `isEmoji:expected_emoji` (payload `{ value, registered }`),
+`isEmoji:unsupported_registered_set` (category `operation`, payload
+`{ value, error }`, reachable only with `registered: true`)
 
 ### `isEmail(options?)`
 

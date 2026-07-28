@@ -9,7 +9,7 @@ import { fileSystemTree } from './source-tree'
 
 // Scopes one Performance Impact run to the scenarios its diff can move.
 //
-// The gate used to measure all 169 standard-tier scenarios on every pull request,
+// The gate used to measure all 170 standard-tier scenarios on every pull request,
 // which is 55 minutes against a 90-minute timeout. Neither of the two decisions that
 // put it there can be reverted — five paired repetitions are what make a scenario
 // classifiable at all, and one process per cell is what makes a subset measure the

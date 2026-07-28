@@ -92,6 +92,39 @@ Callback negative results remain validation issues. Throws and rejections are op
 
 `toJSONString:unserializable` is validation; `toJSONString:serialization_failed`, `toNumber:conversion_failed`, and `toBigint:conversion_failed` are operation issues. `toJSONValue:invalid_json` remains validation.
 
+## Emoji validation
+
+`isEmoji()` now accepts every structurally valid emoji sequence — the [UTS #51](https://www.unicode.org/reports/tr51/) emoji sequence grammar — where it used to accept only Unicode's RGI set. **A validator that accepts more is a breaking change**: input your schema used to reject now passes.
+
+Named inputs that changed verdict:
+
+| Input | Before | After |
+| --- | --- | --- |
+| `👍‍👍` (U+1F44D ZWJ U+1F44D) | rejected | accepted |
+| `😀‍🚀` (U+1F600 ZWJ U+1F680) | rejected | accepted |
+| `1️` (U+0031 U+FE0F) | rejected | accepted |
+| `🇦🇦` (U+1F1E6 U+1F1E6) | rejected | accepted |
+| `⌚️` (U+231A U+FE0F) | rejected | accepted |
+| `🏴󠁵󠁳󠁣󠁡󠁿` (U+1F3F4 + `usca` + U+E007F) | rejected | accepted |
+| `👪🏻` (U+1F46A U+1F3FB) | rejected | accepted |
+| `🏽` (U+1F3FD), a lone skin-tone modifier | **accepted** | rejected |
+| `🦰` (U+1F9B0), a lone hair component | **accepted** | rejected |
+
+The last two are a fix rather than the loosening: `\p{RGI_Emoji}` matches those nine characters on their own, so the previous "exact registered set" accepted a bare component as an emoji. They are still accepted where the grammar gives them a position, so `👨‍🦰` and `👍🏽` are unchanged.
+
+`{ registered: true }` restores the registered set:
+
+```ts
+const emoji = v.string()
+	.isEmoji({ registered: true })
+```
+
+Two things to know before reaching for it. It costs roughly 110× more — about 5,300 ns against 47 ns on a bare emoji — and it needs a runtime with the regular-expression `v` flag, which every supported Node.js has and browsers gained in Chrome 112, Firefox 116, and Safari 17. Where the flag is missing, that call fails with the operation issue `isEmoji:unsupported_registered_set` instead of quietly accepting a different set. It is also not byte-for-byte the old behaviour: the lone-component fix applies to it too, so `🏽`, `🦰`, `👪🏻`, and `👍🏽🏽` are rejected on both accepted sets.
+
+If a schema needs the old accepted set exactly, including the bare components, it needs a `check()` closure over `\p{RGI_Emoji}` rather than this step.
+
+The `isEmoji:expected_emoji` payload gained a `registered` boolean naming which accepted set rejected the value. A message handler reading the payload by destructuring is unaffected; one asserting the payload's exact shape needs updating.
+
 ## Primitive semantics
 
 `number()` accepts every JavaScript number, including `NaN`, infinities, and negative zero. Add policy explicitly:

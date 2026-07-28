@@ -397,7 +397,7 @@ export function buildAttribution(tree: SourceTree): Attribution {
  * `construction` and `cold` are taken whole. Module initialisation, step registration,
  * and the shape of the prototype every schema shares are not attributable through a
  * scenario's `steps` at all — no scenario declares them — and construction is where
- * they show. Nineteen of the standard tier's 169 scenarios, so the completeness is
+ * they show. Nineteen of the standard tier's 170 scenarios, so the completeness is
  * cheap.
  *
  * The named scenarios are the core execution machinery every other scenario is built

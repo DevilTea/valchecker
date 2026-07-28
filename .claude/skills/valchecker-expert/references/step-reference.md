@@ -46,6 +46,8 @@ Optional object fields use `[schema]`. Tuple rest uses a single `'...'` followed
 
 `json()` validates that a string is parseable JSON while preserving the string; `toJSONValue()` performs the parsing transformation.
 
+`isEmoji()` accepts every structurally valid UTS #51 emoji sequence. `isEmoji({ registered: true })` narrows that to Unicode's RGI set, costs roughly 110× more, and needs a runtime with the regular-expression `v` flag — without it that call fails with `isEmoji:unsupported_registered_set` instead of accepting a different set.
+
 ### File-like values
 
 `isMimeType`

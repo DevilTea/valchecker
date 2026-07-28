@@ -16,6 +16,8 @@ A Node.js release may be removed from support only in a new Valchecker major ver
 
 Valchecker does not guarantee behavior on end-of-life Node.js releases, alternative JavaScript runtimes, transpiled CommonJS output, or package-private import paths unless explicitly documented.
 
+Every step compiles and runs on an engine with the regular-expression `u` flag alone. One opt-in accepted set needs the `v` flag as well — `isEmoji({ registered: true })`, which is `\p{RGI_Emoji}`, a property of strings — and on an engine without it that call fails with `isEmoji:unsupported_registered_set` rather than accepting a different set. The `v` flag arrived in Node.js 20, Chrome 112, Firefox 116, and Safari 17, so it is always present on a supported Node.js and is only reachable in a browser bundle.
+
 ## Package support boundaries
 
 ### `valchecker`
