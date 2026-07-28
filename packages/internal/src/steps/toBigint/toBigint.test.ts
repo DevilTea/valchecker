@@ -7,7 +7,9 @@ const v = createValchecker({ steps: [bigint, boolean, number, string, toBigint, 
 describe('toBigint step plugin', () => {
 	it.each([
 		['42', 42n],
+		// An empty or whitespace-only string is 0n, not a syntax error.
 		['', 0n],
+		['  ', 0n],
 		['0x10', 16n],
 	] as const)('applies BigInt() to string %j', (value, expected) => {
 		expect(v.string()
@@ -78,7 +80,7 @@ describe('toBigint step plugin', () => {
 			})
 	})
 
-	it.each([null, undefined, Symbol('value')])('reports arbitrary values rejected by BigInt()', (value) => {
+	it.each([null, undefined, Symbol('value')])('reports %s, which BigInt() refuses to convert', (value) => {
 		expect(v.unknown()
 			.toBigint()
 			.execute(value))

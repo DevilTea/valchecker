@@ -50,6 +50,7 @@ describe('variant step plugin', () => {
 		'circle',
 		1,
 	] as const)('rejects non-object input %j', (input) => {
+		expect(input).not.toBeUndefined()
 		expect(v.variant({
 			discriminator: 'type',
 			variants: { circle: v.object({ type: v.literal('circle') }) },

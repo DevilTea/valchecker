@@ -109,6 +109,45 @@ describe('check step plugin', () => {
 			})
 	})
 
+	it('passes when the callback returns nothing at all', () => {
+		expect(v.check((): void => {})
+			.execute('value'))
+			.toEqual({ value: 'value' })
+	})
+
+	it('keeps explicitly added issues and appends the callback failure when the callback throws', () => {
+		const error = new Error('Thrown after adding')
+		expect(v.check<DomainIssue>((value, { addIssue }) => {
+			addDomainIssue(value, addIssue)
+			throw error
+		})
+			.execute('blocked'))
+			.toMatchObject({
+				issues: [
+					{ code: 'domain:blocked', payload: { value: 'blocked' } },
+					{
+						code: 'check:callback_failed',
+						category: 'operation',
+						payload: { phase: 'throw', value: 'blocked', error },
+					},
+				],
+			})
+	})
+
+	it('resolves an added issue through the step message option as its enclosing scope', () => {
+		expect(v.check<DomainIssue>((value, { addIssue }) => {
+			addDomainIssue(value, addIssue)
+			return true
+		}, { message: 'Enclosing check message' })
+			.execute('blocked'))
+			.toMatchObject({
+				issues: [{
+					code: 'domain:blocked',
+					message: 'Enclosing check message',
+				}],
+			})
+	})
+
 	it('supports asynchronous predicate success and failure', async () => {
 		await expect(v.check(async value => value === 'pass')
 			.execute('pass'))

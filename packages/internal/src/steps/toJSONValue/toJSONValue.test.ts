@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { createValchecker, string, toJSONValue } from '../..'
+import type { InferOutput } from '../..'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import { createValchecker, number, string, toJSONValue } from '../..'
 
-const v = createValchecker({ steps: [string, toJSONValue] })
+const v = createValchecker({ steps: [number, string, toJSONValue] })
 
 describe('toJSONValue step plugin', () => {
 	it('parses JSON values', () => {
@@ -10,6 +11,32 @@ describe('toJSONValue step plugin', () => {
 			.execute('{"value":42}'))
 			.toEqual({
 				value: { value: 42 },
+			})
+	})
+
+	it.each([
+		// A bare JSON literal is a document of its own, and surrounding whitespace
+		// is insignificant: parsing, not a structural check.
+		['null', null],
+		['42', 42],
+		['"text"', 'text'],
+		['  {"value":1}  ', { value: 1 }],
+	] as const)('parses the standalone JSON document %j', (value, expected) => {
+		expect(v.string()
+			.toJSONValue()
+			.execute(value))
+			.toEqual({ value: expected })
+	})
+
+	it('reports the empty string, which is not a JSON document', () => {
+		expect(v.string()
+			.toJSONValue()
+			.execute(''))
+			.toMatchObject({
+				issues: [{
+					code: 'toJSONValue:invalid_json',
+					payload: { value: '' },
+				}],
 			})
 	})
 
@@ -38,5 +65,20 @@ describe('toJSONValue step plugin', () => {
 			.toMatchObject({
 				issues: [{ message: 'Custom JSON' }],
 			})
+	})
+
+	it('infers the asserted output type, unknown by default, and is unavailable outside a string output', () => {
+		const _default = v.string()
+			.toJSONValue()
+		const _asserted = v.string()
+			.toJSONValue<{ value: number }>()
+		expectTypeOf<InferOutput<typeof _default>>()
+			.toEqualTypeOf<unknown>()
+		expectTypeOf<InferOutput<typeof _asserted>>()
+			.toEqualTypeOf<{ value: number }>()
+		if (false) {
+			// @ts-expect-error toJSONValue is unavailable when the output is not string
+			v.number().toJSONValue() // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
+		}
 	})
 })

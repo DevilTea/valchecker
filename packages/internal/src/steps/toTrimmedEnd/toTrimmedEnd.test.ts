@@ -1,103 +1,65 @@
-/**
- * Test Plan for toTrimmedEnd.ts
- *
- * This test file covers the `toTrimmedEnd` step plugin implementation.
- *
- * Functions and Classes:
- * - toTrimmedEnd: A step plugin that trims whitespace from the end of a string.
- *
- * Input Scenarios:
- * - Valid inputs: Strings with trailing whitespace, mixed whitespace, no trailing whitespace, leading only.
- * - Edge cases: Empty strings, strings with only whitespace.
- *
- * Expected Outputs and Behaviors:
- * - Success: Always returns { value: trimmedEndString }.
- *
- * Error Handling and Exceptions:
- * - No exceptions; always succeeds as a transformation.
- *
- * Coverage Goals: 100% statement, branch, and function coverage.
- */
-
 import { describe, expect, it } from 'vitest'
 import { createValchecker, string, toTrimmedEnd } from '../..'
 
 const v = createValchecker({ steps: [string, toTrimmedEnd] })
 
-describe('toTrimmedEnd plugin', () => {
-	describe('valid inputs', () => {
-		it('should remove trailing spaces', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('hello   ')
-			expect(result)
-				.toEqual({ value: 'hello' })
-		})
+const schema = v.string()
+	.toTrimmedEnd()
 
-		it('should remove trailing tabs', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('hello\t\t')
-			expect(result)
-				.toEqual({ value: 'hello' })
-		})
+// One representative per mechanism of the whitespace set `String.prototype.trimEnd`
+// removes; `toTrimmed` enumerates that set in full.
+const trimmed = [
+	{ label: 'U+0009 tab', pad: '\t' },
+	{ label: 'U+000A line feed', pad: '\n' },
+	{ label: 'U+0020 space', pad: ' ' },
+	{ label: 'U+00A0 no-break space', pad: ' ' },
+	{ label: 'U+2028 line separator', pad: ' ' },
+	{ label: 'U+3000 ideographic space', pad: '\u3000' },
+	{ label: 'U+FEFF zero width no-break space', pad: '\uFEFF' },
+]
 
-		it('should remove trailing newlines', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('hello\n\n')
-			expect(result)
-				.toEqual({ value: 'hello' })
-		})
+// Not members of that set: U+180E left it in Unicode 6.3, and the other two are
+// format characters that were never in it.
+const kept = [
+	{ label: 'U+180E mongolian vowel separator', pad: '\u180E' },
+	{ label: 'U+200B zero width space', pad: '\u200B' },
+	{ label: 'U+2060 word joiner', pad: '\u2060' },
+]
 
-		it('should remove mixed trailing whitespace', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('hello \t\n ')
-			expect(result)
-				.toEqual({ value: 'hello' })
-		})
-
-		it('should leave leading whitespace', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('  hello')
-			expect(result)
-				.toEqual({ value: '  hello' })
-		})
-
-		it('should handle strings with both leading and trailing whitespace', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('  hello  ')
-			expect(result)
-				.toEqual({ value: '  hello' })
-		})
-
-		it('should leave strings with no trailing whitespace unchanged', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('hello')
-			expect(result)
-				.toEqual({ value: 'hello' })
-		})
+describe('toTrimmedEnd step plugin', () => {
+	it('removes trailing whitespace and leaves the leading whitespace in place', () => {
+		expect(schema.execute('  hello  '))
+			.toEqual({ value: '  hello' })
+		expect(schema.execute(' \t\n hello \t\n '))
+			.toEqual({ value: ' \t\n hello' })
 	})
 
-	describe('edge cases', () => {
-		it('should handle empty string', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('')
-			expect(result)
-				.toEqual({ value: '' })
-		})
+	it('leaves a string with no trailing whitespace unchanged', () => {
+		expect(schema.execute('hello'))
+			.toEqual({ value: 'hello' })
+		expect(schema.execute('  hello'))
+			.toEqual({ value: '  hello' })
+	})
 
-		it('should handle string with only whitespace', () => {
-			const result = v.string()
-				.toTrimmedEnd()
-				.execute('   \t\n  ')
-			expect(result)
-				.toEqual({ value: '' })
-		})
+	it('returns the empty string for an all-whitespace input and for the empty string', () => {
+		expect(schema.execute(' \t\n\r '))
+			.toEqual({ value: '' })
+		expect(schema.execute(''))
+			.toEqual({ value: '' })
+	})
+
+	it.each(trimmed)('trims a trailing $label and keeps the leading one', ({ pad }) => {
+		expect(schema.execute(`${pad}x${pad}`))
+			.toEqual({ value: `${pad}x` })
+	})
+
+	it.each(kept)('keeps a trailing $label, which is not whitespace to trim', ({ pad }) => {
+		expect(schema.execute(`x${pad}`))
+			.toEqual({ value: `x${pad}` })
+	})
+
+	it('stops at the last non-whitespace code unit without splitting a surrogate pair', () => {
+		expect(schema.execute(' \u{1F44D} '))
+			.toEqual({ value: ' \u{1F44D}' })
 	})
 })

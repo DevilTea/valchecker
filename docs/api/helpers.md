@@ -140,8 +140,11 @@ message rather than the finalized one; the issues returned to the caller finaliz
 
 ### `use(schema)` {#use}
 
-Delegates the current value to another Valchecker schema while preserving the delegated transformed
-output, issue types, paths, and execution mode.
+Delegates the current value to another Valchecker schema, keeping the delegated transformed output,
+issue types, and paths. Execution mode is kept only when the delegated schema is `'sync'`: every
+other delegated mode — including the unconditional `'async'` of a `toAsync()` schema — becomes
+`'maybe-async'` here, because `use()` runs the delegate only after the current pipeline succeeds. Call
+`toAsync()` on the composed schema when it must always return a native promise.
 
 ```ts
 const normalizedName = v.string()
