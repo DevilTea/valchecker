@@ -1,22 +1,31 @@
+<!-- Generated file. Do not edit it: `pnpm docs:api` fails when it stops matching its sources,
+and `pnpm docs:api:update` rewrites it.
+
+Each step's entry comes from `packages/internal/src/steps/<name>/<name>.doc.md`. The prose
+around them, and the order the sections appear in, come from `scripts/docs-api-templates/<page>.md`. -->
+
 # Helpers and Utilities
 
 These steps provide generic validation, arbitrary transformation, recovery, delegation, recursion, type assertions, and execution-mode control.
 
 <!-- typecheck-prelude
 declare const input: unknown
+declare const schema: { execute: (input: unknown) => unknown }
 declare const i18n: { t: (key: string, params: Record<string, unknown>) => string }
 declare const createValchecker: typeof import('valchecker').createValchecker
 declare const allSteps: typeof import('valchecker').allSteps
 -->
 
-## `check<AddedIssue = never>(callback, options?)`
+## Escape hatches
 
-`check()` is the generic validation escape hatch. Under its supported callback contract, `true`, `undefined`/`void`, or a value returned by `utils.narrow()` passes. Returning `false` or any string—including an empty string—fails. The callback and its supported results may be direct or `PromiseLike`; other return types require bypassing the TypeScript contract and are unsupported.
+Reach for a built-in named validation or transformation first: it carries a semantic issue code, a default message, and its own tests. These two cover the conditions and outputs no built-in expresses.
 
-Built-in issues:
+### `check<AddedIssue = never>(callback, options?)` {#check}
 
-- `check:failed` — category `validation`; payload is either `{ reason: 'returned_false', value }` or `{ reason: 'returned_message', value, returnedMessage }`.
-- `check:callback_failed` — category `operation`; payload is `{ phase: 'throw' | 'reject', value, error }`.
+`check()` is the generic validation escape hatch. Under its supported callback contract, `true`,
+`undefined`/`void`, or a value returned by `utils.narrow()` passes. Returning `false` or any
+string — including the empty string — fails. The callback and its supported results may be direct or
+`PromiseLike`; other return types require bypassing the TypeScript contract and are unsupported.
 
 ```ts
 const positive = v.number()
@@ -32,7 +41,8 @@ const schema = v.unknown()
 	)
 ```
 
-Declare `AddedIssue` when `addIssue()` introduces a domain issue. The added issue remains in the inferred issue union and in the message-handler union:
+Declare `AddedIssue` when `addIssue()` introduces a domain issue. The added issue remains in the
+inferred issue union and in the message-handler union:
 
 ```ts
 import type { ExecutionIssue } from 'valchecker'
@@ -57,22 +67,24 @@ const username = v.string()
 	})
 ```
 
-If a callback throws or rejects after adding issues, Valchecker preserves those issues and appends `check:callback_failed`.
+An added issue fails the step even when the callback goes on to pass, as above: the step succeeds
+only when nothing was added. If a callback throws or rejects after adding issues, Valchecker
+preserves those issues and appends `check:callback_failed`.
 
-Use built-in named validations when available:
+**Issues:**
 
-```ts
-v.string()
-	.isLengthAtLeast(3)
-	.isLengthAtMost(20)
-v.number()
-	.isFinite()
-	.isAtLeast(0)
-```
+- `check:failed` (`validation`) — the callback returned `false` or a failure message string. Payload
+  is either `{ reason: 'returned_false', value }` or
+  `{ reason: 'returned_message', value, returnedMessage }`; a returned string is also the issue's
+  default message
+- `check:callback_failed` (`operation`) — the callback threw or rejected. Payload
+  `{ phase: 'throw' | 'reject', value, error }`
 
-## `transform(fn, options?)`
+### `transform(fn, options?)` {#transform}
 
-`transform()` is the generic arbitrary-output escape hatch. The inferred output follows the callback result. A thrown or rejected callback emits the operation issue `transform:callback_failed` with `{ phase, value, error }`.
+`transform()` is the generic arbitrary-output escape hatch, for an output change no `toXxx` step
+expresses. The inferred output follows the callback result. The callback may return a direct or a
+supported asynchronous value; a promise-like result makes the schema maybe-async.
 
 ```ts
 const schema = v.string()
@@ -80,9 +92,24 @@ const schema = v.string()
 	.transform(value => ({ value }))
 ```
 
-## `fallback(getValue, options?)`
+Type-changing transforms flow into subsequent state-aware methods:
 
-`fallback()` recovers earlier `validation` and `operation` failures in the current pipeline by supplying a replacement value. An `internal` issue is fatal and bypasses the fallback callback.
+```ts
+const tags = v.string()
+	.toSplit(',')
+	.toMapped(value => value.trim())
+	.toFiltered(value => value.length > 0)
+```
+
+**Issue code:** `transform:callback_failed` (`operation`) — the callback threw or rejected. Payload
+`{ phase, value, error }`, where `phase` is `'throw'` or `'reject'`.
+
+## Flow control
+
+### `fallback(getValue, options?)` {#fallback}
+
+`fallback()` recovers earlier `validation` and `operation` failures in the current pipeline by
+supplying a replacement value. An `internal` issue is fatal and bypasses the fallback callback.
 
 ```ts
 const safeNumber = v.number()
@@ -93,7 +120,9 @@ safeNumber.execute(-5) // { value: 0 }
 safeNumber.execute('invalid') // { value: 0 }
 ```
 
-The fallback result must be assignable to the pipeline's current output type. It may be direct or `PromiseLike`; a callback whose return type is definitely synchronous keeps a synchronous type-level mode, while a promise-like result makes the schema maybe-async.
+The fallback result must be assignable to the pipeline's current output type. It may be direct or
+`PromiseLike`; a callback whose return type is definitely synchronous keeps a synchronous type-level
+mode, while a promise-like result makes the schema maybe-async.
 
 ```ts
 const config = v.string()
@@ -101,13 +130,18 @@ const config = v.string()
 	.fallback(() => ({ items: [], count: 0 }))
 ```
 
-If the callback itself throws or rejects, the received issues are kept and one more issue is appended.
+If the callback itself throws or rejects, the received issues are kept and one more issue is
+appended.
 
-**Issue code:** `fallback:failed` (`operation`) — payload `{ receivedIssues, error }`, where `receivedIssues` is a defensive snapshot of the failure the callback was given and `error` is what it threw. Snapshot issues carry the unresolved step-default message rather than the finalized one; the issues returned to the caller finalize normally.
+**Issue code:** `fallback:failed` (`operation`) — the fallback callback threw or rejected. Payload
+`{ receivedIssues, error }`, where `receivedIssues` is a defensive snapshot of the failure the
+callback was given and `error` is what it threw. Snapshot issues carry the unresolved step-default
+message rather than the finalized one; the issues returned to the caller finalize normally.
 
-## `use(schema)`
+### `use(schema)` {#use}
 
-Delegates the current value to another Valchecker schema while preserving the delegated transformed output, issue types, paths, and execution mode.
+Delegates the current value to another Valchecker schema while preserving the delegated transformed
+output, issue types, paths, and execution mode.
 
 ```ts
 const normalizedName = v.string()
@@ -135,9 +169,14 @@ const config = v.string()
 	.use(v.object({ port }))
 ```
 
-## `as<T>()`
+This step owns no issue: it reports whatever the delegated schema reports, unchanged.
 
-Changes only the compile-time output type. It performs no runtime validation or transformation.
+## Type-level utilities
+
+### `as<T>()` {#as}
+
+Changes only the compile-time output type. It performs no runtime validation or transformation: the
+value reaches the result unchanged, whatever it is.
 
 ```ts
 const schema = v.unknown()
@@ -146,9 +185,14 @@ const schema = v.unknown()
 
 Use it only when an external invariant already guarantees the asserted type.
 
-## `generic<T>(factory)`
+This type-level step emits no issue.
 
-Builds lazy or recursive schemas.
+### `generic<T>(factory)` {#generic}
+
+Builds lazy or recursive schemas. `T` declares what the composed step contributes — its `output`,
+and optionally its `operationMode` and `issue` — and the argument is either another schema or a
+factory returning one. A factory is resolved on every execution, which is what makes a
+self-reference possible.
 
 ```ts
 interface TreeNode {
@@ -168,11 +212,19 @@ const treeSchema = v.object({
 })
 ```
 
-`InferOutput<typeof treeSchema>` is `{ value: number, children: TreeNode[] | undefined }`: the `[schema]` optional-field shorthand always materializes the property, so the output key is present with `undefined` rather than optional. Use `TreeNode` for the recursive annotation, as above, and read the schema's own output type when you need the exact shape.
+`InferOutput<typeof treeSchema>` is `{ value: number, children: TreeNode[] | undefined }`: the
+`[schema]` optional-field shorthand always materializes the property, so the output key is present
+with `undefined` rather than optional. Use `TreeNode` for the recursive annotation, as above, and
+read the schema's own output type when you need the exact shape.
 
-## `toAsync()`
+This step owns no issue: the issues are the composed schema's own.
 
-Forces every invocation of the complete schema to return a native promise, including synchronous successes and early failures.
+## Execution mode
+
+### `toAsync()` {#toAsync}
+
+Forces every invocation of the complete schema to return a native promise, including otherwise
+synchronous successes and early failures.
 
 ```ts
 const schema = v.string()
@@ -182,49 +234,7 @@ const schema = v.string()
 
 It changes execution mode, not the successful value.
 
-## Loose primitives
-
-Loose primitives are initial schemas, not generic helper coercions:
-
-```ts
-v.looseNumber() // number | `${number}` → number
-v.looseBoolean() // boolean | `${boolean}` → boolean
-v.looseBigint() // bigint | `${bigint}` → bigint
-```
-
-They accept only their documented TypeScript-compatible representations:
-
-```ts
-v.looseNumber()
-	.execute('42') // { value: 42 }
-v.looseNumber()
-	.execute('') // failure
-
-v.looseBoolean()
-	.execute('false') // { value: false }
-v.looseBoolean()
-	.execute(1) // failure
-
-v.looseBigint()
-	.execute('0x10') // { value: 16n }
-v.looseBigint()
-	.execute('1.0') // failure
-```
-
-## `looseObject(shape)`
-
-Validates declared own properties and preserves unknown own properties in the output.
-
-```ts
-const schema = v.looseObject({
-	name: v.string(),
-})
-
-schema.execute({ name: 'Alice', extra: 'preserved' })
-// { value: { name: 'Alice', extra: 'preserved' } }
-```
-
-This differs from `object()`, which omits unknown output properties, and `strictObject()`, which rejects them.
+This step emits no issue.
 
 ## Message handling
 

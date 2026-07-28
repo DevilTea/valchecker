@@ -42,6 +42,8 @@
 		"verify": "pnpm build && pnpm api:surface && pnpm publint && pnpm test:package && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm docs:examples && pnpm docs:build",
 		"docs:dev": "pnpm -r --filter=./docs run dev",
 		"docs:build": "pnpm -r --filter=./docs run build",
+		"docs:api": "tsx ./scripts/check-docs-api.ts",
+		"docs:api:update": "tsx ./scripts/check-docs-api.ts --write",
 		"docs:examples": "tsx ./scripts/check-docs-examples.ts",
 		"docs:preview": "pnpm -r --filter=./docs run preview",
 		"test": "pnpm test:quality && vitest --run",

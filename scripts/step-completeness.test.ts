@@ -8,6 +8,8 @@ import {
 	declarationProblems,
 	declaredCodes,
 	documents,
+	entryDescription,
+	hasTypeScriptExample,
 	isKebabCase,
 	localSpecifiers,
 	outsideFencedBlocks,
@@ -110,6 +112,28 @@ function bench({ name }: StepFixture): string {
 	].join('\n')
 }
 
+/** A conforming `<name>.doc.md`: the declaration block, one `###` entry, a description, an example. */
+function doc({ name, code }: StepFixture): string {
+	return [
+		'<!-- step-doc',
+		'category: primitives',
+		'section: initial',
+		'summary: does the thing',
+		'-->',
+		'',
+		`### \`${name}()\``,
+		'',
+		'Does the thing, and nothing the name does not say.',
+		'',
+		'```ts',
+		`v.${name}()`,
+		'```',
+		'',
+		code == null ? 'This step emits no issue.' : `**Issue code:** \`${code}\` — the value is not one.`,
+		'',
+	].join('\n')
+}
+
 const fixtures: StepFixture[] = [
 	{ name: 'isEmail', code: 'isEmail:expected_email' },
 	{ name: 'toTrimmed' },
@@ -127,22 +151,6 @@ function repository(overrides: Record<string, string | null> = {}): ReturnType<t
 		}),
 		[`${stepsRoot}/index.ts`]: `${fixtures.map(fixture => `export * from './${fixture.name}'`)
 			.join('\n')}\n`,
-		'docs/api/overview.md': [
-			'# API',
-			'',
-			...fixtures.map(fixture => `- \`${fixture.name}()\` — does the thing`),
-			'',
-		].join('\n'),
-		'docs/api/reference.md': [
-			'# Reference',
-			'',
-			...fixtures.flatMap(fixture => [
-				`## \`${fixture.name}()\``,
-				'',
-				fixture.code == null ? 'Issues: none.' : `Issues: \`${fixture.code}\`.`,
-				'',
-			]),
-		].join('\n'),
 	}
 
 	for (const fixture of fixtures) {
@@ -150,6 +158,7 @@ function repository(overrides: Record<string, string | null> = {}): ReturnType<t
 		files[`${stepsRoot}/${fixture.name}/${fixture.name}.ts`] = main(fixture)
 		files[`${stepsRoot}/${fixture.name}/${fixture.name}.test.ts`] = test_(fixture)
 		files[`${stepsRoot}/${fixture.name}/${fixture.name}.bench.ts`] = bench(fixture)
+		files[`${stepsRoot}/${fixture.name}/${fixture.name}.doc.md`] = doc(fixture)
 	}
 
 	for (const [path, text] of Object.entries(overrides)) {
@@ -186,13 +195,12 @@ describe('a complete repository', () => {
 		const crlf = objectTree(Object.fromEntries([
 			'api-surface.json',
 			`${stepsRoot}/index.ts`,
-			'docs/api/overview.md',
-			'docs/api/reference.md',
 			...fixtures.flatMap(fixture => [
 				`${stepsRoot}/${fixture.name}/index.ts`,
 				`${stepsRoot}/${fixture.name}/${fixture.name}.ts`,
 				`${stepsRoot}/${fixture.name}/${fixture.name}.test.ts`,
 				`${stepsRoot}/${fixture.name}/${fixture.name}.bench.ts`,
+				`${stepsRoot}/${fixture.name}/${fixture.name}.doc.md`,
 			]),
 		].map(path => [path, lf.read(path)!.replaceAll('\n', '\r\n')])))
 
@@ -206,6 +214,8 @@ describe('a complete repository', () => {
 			.toContain('114 steps')
 		expect(message)
 			.toContain('registering at least one case')
+		expect(message)
+			.toContain('`<name>.doc.md`')
 		expect(message)
 			.toContain('cannot tell a real assertion from a tautology')
 	})
@@ -225,11 +235,6 @@ describe('discovery problems', () => {
 	it('include a missing api-surface.json rather than treating every export as absent', () => {
 		expect(onlyError({ 'api-surface.json': null }))
 			.toBe('api-surface.json is missing. Regenerate it with `pnpm api:surface:update`.')
-	})
-
-	it('include a missing catalog page', () => {
-		expect(onlyError({ 'docs/api/overview.md': null }))
-			.toContain('docs/api/overview.md is missing')
 	})
 })
 
@@ -308,21 +313,36 @@ describe('the public export rule', () => {
 	})
 })
 
-describe('the catalog rule', () => {
-	it('fails a step the catalog does not list', () => {
-		expect(onlyError({ 'docs/api/overview.md': '# API\n\n- `isEmail()` — does the thing\n' }))
-			.toContain('no code span in docs/api/overview.md writes `toTrimmed(`')
+describe('the step-documentation rule', () => {
+	const docPath = `${stepsRoot}/toTrimmed/toTrimmed.doc.md`
+
+	it('fails a step with no `.doc.md`', () => {
+		expect(onlyError({ [docPath]: null }))
+			.toContain('no `toTrimmed.doc.md`')
 	})
 
-	// Bypass: the catalog entry replaced by a line inside a ```ts fence. The old comment claimed
-	// a fenced block could not produce a false span, which reasoned about the fence delimiters
-	// and not about the lines between them.
-	it('fails a catalog mention that lives inside a fenced code block', () => {
+	// What the rule this replaced could not reach: it asked only that *some* code span somewhere
+	// under `docs/api` wrote the name, so an entry belonging to another step satisfied it.
+	it('fails an entry whose heading names a different step', () => {
 		expect(onlyError({
-			'docs/api/overview.md': [
-				'# API',
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('### `toTrimmed()`', '### `toTrimmedStart()`'),
+		}))
+			.toContain('`toTrimmed.doc.md` writes no code span containing `toTrimmed(`')
+	})
+
+	it('fails a mention that lives only inside a fenced code block', () => {
+		expect(onlyError({
+			[docPath]: [
+				'<!-- step-doc',
+				'category: primitives',
+				'section: initial',
+				'summary: does the thing',
+				'-->',
 				'',
-				'- `isEmail()` — does the thing',
+				'### Trimming',
+				'',
+				'Does the thing.',
 				'',
 				'```ts',
 				'// `toTrimmed()` — removed in 2.0',
@@ -330,77 +350,103 @@ describe('the catalog rule', () => {
 				'',
 			].join('\n'),
 		}))
-			.toContain('no code span in docs/api/overview.md writes `toTrimmed(`')
+			.toContain('writes no code span containing `toTrimmed(`')
 	})
 
-	it('fails a catalog mention that lives inside an HTML comment', () => {
+	it('fails a mention that lives only in the declaration block', () => {
 		expect(onlyError({
-			'docs/api/overview.md': '# API\n\n- `isEmail()` — does the thing\n\n<!-- TODO: document `toTrimmed()`. -->\n',
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('summary: does the thing', 'summary: see `toTrimmed()`')
+				.replace('### `toTrimmed()`', '### Trimming'),
 		}))
-			.toContain('no code span in docs/api/overview.md writes `toTrimmed(`')
+			.toContain('writes no code span containing `toTrimmed(`')
 	})
 
-	it('accepts the entry once it is back outside the fence', () => {
+	it('fails a file with no `###` heading at all', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('### `toTrimmed()`', '# `toTrimmed()`'),
+		}))
+			.toContain('`toTrimmed.doc.md` holds no `### ` heading')
+	})
+
+	it('fails an entry that goes straight from its heading into the example', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('Does the thing, and nothing the name does not say.\n\n', ''),
+		}))
+			.toContain('goes straight from its heading into an example or a subheading')
+	})
+
+	it('fails an entry that goes straight from its heading into a subheading', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('Does the thing, and nothing the name does not say.', '#### Example'),
+		}))
+			.toContain('goes straight from its heading into an example or a subheading')
+	})
+
+	it('fails an entry with no `ts` example', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('```ts', '```js'),
+		}))
+			.toContain('holds no `ts` fenced example')
+	})
+
+	// The gap the message admits to: any mention in call form satisfies the heading rule, including
+	// a sentence saying the step does not exist. Pinned so the wording cannot quietly grow.
+	it('accepts an entry saying the step is unavailable, as its message says', () => {
 		expect(checkStepCompleteness(repository({
-			'docs/api/overview.md': '# API\n\n- `isEmail()` — does the thing\n- `toTrimmed()` — trims\n\n```ts\nv.string().toTrimmed()\n```\n',
-		})).errors)
-			.toEqual([])
-	})
-})
-
-describe('the reference-page rule', () => {
-	it('fails a step no page other than the catalog mentions', () => {
-		expect(onlyError({ 'docs/api/reference.md': '# Reference\n\n## `isEmail()`\n\nIssues: `isEmail:expected_email`.\n' }))
-			.toContain('no docs/api page other than overview.md writes `toTrimmed(` in a code span')
-	})
-
-	// The gap the message admits to: any mention in call form satisfies this, including a
-	// sentence saying the step does not exist. Pinned so the wording cannot quietly grow.
-	it('accepts a mention that says the step is unavailable, as its message says', () => {
-		expect(checkStepCompleteness(repository({
-			'docs/api/reference.md': [
-				'# Reference',
-				'',
-				'## `isEmail()`',
-				'',
-				'Issues: `isEmail:expected_email`.',
-				'',
-				'`toTrimmed()` has never been available on Map keys.',
-				'',
-			].join('\n'),
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('Does the thing, and nothing the name does not say.', '`toTrimmed()` has never been available on Map keys.'),
 		})).errors)
 			.toEqual([])
 	})
 })
 
 describe('the documented issue-code rule', () => {
-	it('fails a code no reference page carries', () => {
-		expect(onlyError({ 'docs/api/reference.md': '# Reference\n\n## `isEmail()`\n\n## `toTrimmed()`\n' }))
-			.toContain('the owned issue code `isEmail:expected_email` appears nowhere under docs/api')
+	const docPath = `${stepsRoot}/isEmail/isEmail.doc.md`
+
+	it('fails a code the step\'s own entry does not list', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'isEmail' }),
+		}))
+			.toContain('the owned issue code `isEmail:expected_email` appears in no code span of `isEmail.doc.md`')
 	})
 
-	// Bypass: the code lines replaced by an HTML comment saying they still need writing up.
 	it('fails a code that survives only in an HTML comment', () => {
 		expect(onlyError({
-			'docs/api/reference.md': [
-				'# Reference',
-				'',
-				'## `isEmail()`',
-				'',
-				'<!-- TODO: write up isEmail:expected_email. -->',
-				'',
-				'## `toTrimmed()`',
-				'',
-			].join('\n'),
+			[docPath]: doc({ name: 'isEmail' })
+				.replace('This step emits no issue.', '<!-- TODO: write up `isEmail:expected_email`. -->'),
 		}))
-			.toContain('appears nowhere under docs/api')
+			.toContain('appears in no code span of `isEmail.doc.md`')
 	})
 
 	it('fails a code that survives only inside a fenced block', () => {
 		expect(onlyError({
-			'docs/api/reference.md': '# Reference\n\n## `isEmail()`\n\n```json\n{ "code": "isEmail:expected_email" }\n```\n\n## `toTrimmed()`\n',
+			[docPath]: doc({ name: 'isEmail' })
+				.replace('v.isEmail()', 'v.isEmail() // `isEmail:expected_email`'),
 		}))
-			.toContain('appears nowhere under docs/api')
+			.toContain('appears in no code span of `isEmail.doc.md`')
+	})
+
+	it('fails a code written in prose rather than a code span', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'isEmail' })
+				.replace('This step emits no issue.', 'Fails with isEmail:expected_email.'),
+		}))
+			.toContain('appears in no code span of `isEmail.doc.md`')
+	})
+
+	// One cause, one finding: a missing entry is not also two missing codes.
+	it('says nothing about a code when the entry that would list it is absent', () => {
+		const error = onlyError({ [docPath]: null })
+		expect(error)
+			.toContain('no `isEmail.doc.md`')
+		expect(error)
+			.not
+			.toContain('appears in no code span')
 	})
 })
 
@@ -551,9 +597,9 @@ describe('the file-set rule', () => {
 			.toContain('`long-input.bench.ts` is a second benchmark file')
 	})
 
-	// Phase 3 of the step-unit work adds `<name>.doc.md`; until it does, a Markdown file in a step
-	// directory is documentation that no generator reads and no page shows.
-	it('fails an entry that is not a file the standard names at all', () => {
+	// `<name>.doc.md` is the one Markdown file a step unit holds, because it is the one a generator
+	// reads. Any other is documentation no page shows.
+	it('fails a Markdown file that is not the step\'s own entry', () => {
 		expect(onlyError({ [`${stepsRoot}/toTrimmed/README.md`]: '# toTrimmed\n' }))
 			.toContain('`README.md` is not part of a step unit')
 	})
@@ -580,6 +626,7 @@ describe('unexpectedEntries', () => {
 			'map.test.ts': '',
 			'map.types.test.ts': '',
 			'map.bench.ts': '',
+			'map.doc.md': '',
 			'lazy-output.ts': 'export const entries = 1\n',
 			'lazy-output.test.ts': '',
 		}), 'map'))
@@ -980,6 +1027,51 @@ describe('codeSpans over visibleMarkdown', () => {
 		].join('\n')
 		expect(codeSpans(visibleMarkdown(page)))
 			.toEqual(['kept()'])
+	})
+})
+
+describe('entryDescription', () => {
+	it('takes the prose between the heading and the first example', () => {
+		expect(entryDescription('### `x()`\n\nDoes it.\nTwice.\n\n```ts\nx()\n```\n'))
+			.toBe('Does it.\nTwice.')
+	})
+
+	it('stops at a subheading', () => {
+		expect(entryDescription('### `x()`\n\nDoes it.\n\n#### Example\n\nMore prose.\n'))
+			.toBe('Does it.')
+	})
+
+	// Not `outsideFencedBlocks` first: with the fence removed, the text after it would read as the
+	// description, and an entry with no description at all would satisfy the rule.
+	it('is empty when the heading runs straight into an example', () => {
+		expect(entryDescription('### `x()`\n\n```ts\nx()\n```\n\nAfterwards.\n'))
+			.toBe('')
+	})
+
+	it('does not count an HTML comment as prose', () => {
+		expect(entryDescription('### `x()`\n\n<!-- TODO: describe it. -->\n\n```ts\nx()\n```\n'))
+			.toBe('')
+	})
+
+	it('is null when there is no `### ` heading', () => {
+		expect(entryDescription('# `x()`\n\nDoes it.\n'))
+			.toBeNull()
+	})
+})
+
+describe('hasTypeScriptExample', () => {
+	it.each([
+		['```ts', true],
+		['```tsx', true],
+		['````ts twoslash', true],
+		['   ```ts', true],
+		['```js', false],
+		['```', false],
+		['~~~ts', false],
+		['```typescript', false],
+	])('reads %s as %s', (opener, expected) => {
+		expect(hasTypeScriptExample(`a\n${opener}\nx()\n\`\`\`\n`))
+			.toBe(expected)
 	})
 })
 

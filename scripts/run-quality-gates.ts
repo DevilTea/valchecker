@@ -58,6 +58,7 @@ const gates: Gate[] = [
 	localScript('step JSDoc', 'check-step-jsdoc.ts'),
 	localScript('issue codes', 'check-issue-codes.ts'),
 	packageScript('step completeness', 'steps:complete'),
+	packageScript('generated API reference', 'docs:api'),
 	packageScript('benchmark step coverage', 'bench:coverage'),
 	localScript('workflow pipefail', 'check-workflow-pipefail.ts'),
 	localScript('impact triggers', 'check-impact-triggers.ts'),

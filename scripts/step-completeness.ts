@@ -40,9 +40,20 @@ import { discoverSteps, stepsBarrel, stepsRoot } from './step-inventory'
 // - **An issue code appears in a string in the directory's tests.** Not "is asserted": the rule
 //   reads string literals out of the parsed test files, which is enough to reject a code that
 //   survives only in a comment, and not enough to know the string reached an assertion.
-// - **A page writes the step's name in call form in a code span.** Not "describes it": the rule
-//   is a match over inline code spans, so a page saying ``never use `toTrimmedStart()` `` also
-//   satisfies it. What it does catch is the name disappearing from the reference entirely.
+// - **The step's `<name>.doc.md` opens with a `### ` heading writing it in call form, carries a
+//   description and a `ts` example, and names every issue code it owns in a code span.** Not "the
+//   entry is right": the rule is a match over inline code spans and a non-empty region of prose, so
+//   an entry saying ``never use `toTrimmedStart()` `` satisfies the heading rule the same way the
+//   page rule it replaced did.
+//
+//   That rule is nonetheless strictly stronger than the two it replaced. The old pair asked that
+//   *some* code span *somewhere* under `docs/api` wrote the name in call form, on the catalog page
+//   and on one further page, and that the issue code appeared *somewhere* on any of those pages —
+//   satisfiable by a page describing a different step, and satisfied for a step whose own section
+//   had been deleted as long as another entry mentioned it in passing. Now the entry has to exist,
+//   in the step's own directory, holding its own name, its own description, its own example, and
+//   its own codes. `docs/api` is generated from these files by `scripts/docs-api.ts`, so it can no
+//   longer be a second hand-maintained copy for a rule to be satisfied by.
 //
 // - **A helper module is one the step reaches.** Reached, not used: `import './x'` in `<name>.ts`
 //   satisfies it. That is a deliberate floor rather than an accident — the first version required
@@ -59,12 +70,14 @@ import { discoverSteps, stepsBarrel, stepsRoot } from './step-inventory'
 // closed and has a test named after it, which is why the wording above claims a floor rather than
 // a guarantee.
 //
-// The three matching rules read only what a reader of the rendered page or the running test
-// would see. HTML comments and fenced code blocks are removed from Markdown before matching,
-// and comments are excluded from TypeScript by taking string literals from the AST — because a
+// The matching rules read only what a reader of the rendered entry or the running test would
+// see. HTML comments and fenced code blocks are removed from Markdown before matching, and
+// comments are excluded from TypeScript by taking string literals from the AST — because a
 // requirement satisfiable by writing `<!-- TODO -->` or `// FIXME` is not a requirement. Fenced
 // blocks come out too: a ```` ```ts ```` block is example code, not the reference entry, and a
-// span inside one is a span the earlier version accepted.
+// span inside one is a span the earlier version accepted. Stripping HTML comments is also what
+// keeps the `<!-- step-doc -->` declaration block from satisfying anything: a `summary:` line
+// holding a code span is a declaration, not documentation.
 //
 // Two derivations are reused rather than reinvented. Steps come from `step-inventory`, shared
 // with `check-issue-codes` and `check-benchmark-coverage`. Public exports come from
@@ -77,8 +90,6 @@ import { discoverSteps, stepsBarrel, stepsRoot } from './step-inventory'
 // whole-file or per-span text, never against an exact line, so a CRLF checkout reads the same as
 // an LF one.
 
-export const docsApiRoot = 'docs/api'
-export const catalogPage = 'overview.md'
 export const apiSurfacePath = 'api-surface.json'
 export const surfacePackages = ['@valchecker/internal', 'valchecker'] as const
 
@@ -163,7 +174,7 @@ export function isKebabCase(stem: string): boolean {
 	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(stem)
 }
 
-const fileSetRule = 'A step unit holds `<name>.ts`, `<name>.test.ts`, `<name>.bench.ts`, `index.ts`, optionally `<name>.types.test.ts`, and kebab-case helper modules the step imports, each with an optional test — nothing else.'
+const fileSetRule = 'A step unit holds `<name>.ts`, `<name>.test.ts`, `<name>.bench.ts`, `<name>.doc.md`, `index.ts`, optionally `<name>.types.test.ts`, and kebab-case helper modules the step imports, each with an optional test — nothing else.'
 
 /** Every `./x` a module imports or re-exports, so a helper can be told from a file nothing reaches. */
 export function localSpecifiers(source: string): string[] {
@@ -193,7 +204,7 @@ export function localSpecifiers(source: string): string[] {
  */
 export function unexpectedEntries(tree: SourceTree, directory: string): string[] {
 	const entries = [...tree.list(`${stepsRoot}/${directory}`) ?? []]
-	const required = [`${directory}.ts`, `${directory}.test.ts`, `${directory}.bench.ts`, 'index.ts']
+	const required = [`${directory}.ts`, `${directory}.test.ts`, `${directory}.bench.ts`, `${directory}.doc.md`, 'index.ts']
 	const known = new Set([...required, `${directory}.types.test.ts`])
 
 	const candidates = entries
@@ -437,6 +448,9 @@ export function declarationProblems(source: string, directory: string): string[]
 	return problems.map(problem => `${directory}.ts: ${problem}`)
 }
 
+/** A CommonMark fence opener or closer: up to three spaces, then three or more backticks or tildes. */
+const fenceDelimiter = /^ {0,3}(`{3,}|~{3,})/
+
 /** HTML comments blanked out, keeping every newline so the line structure survives. */
 export function stripHtmlComments(markdown: string): string {
 	return markdown.replace(/<!--[\s\S]*?-->/g, match => match.replace(/[^\n]/g, ' '))
@@ -453,7 +467,7 @@ export function outsideFencedBlocks(markdown: string): string {
 	const kept: string[] = []
 	let fence: string | null = null
 	for (const line of markdown.split(/\r?\n/)) {
-		const delimiter = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]
+		const delimiter = fenceDelimiter.exec(line)?.[1]
 		if (fence == null) {
 			if (delimiter == null)
 				kept.push(line)
@@ -475,8 +489,8 @@ export function visibleMarkdown(markdown: string): string {
 /**
  * The contents of every inline code span on a page.
  *
- * The reference writes API names in code spans — table cells, bullets, and headings alike — so a
- * step is looked for there rather than in prose. Pass the page through `visibleMarkdown` first:
+ * The reference writes API names in code spans — headings, bullets, and table cells alike — so a
+ * step is looked for there rather than in prose. Pass the text through `visibleMarkdown` first:
  * a span may not contain a backtick or a newline, but that does not stop one from appearing
  * inside a fenced block or an HTML comment, which is how the first version of this rule was
  * satisfied by the line `// \`toTrimmedStart()\` — removed in 2.0`.
@@ -497,25 +511,41 @@ export function documents(spans: string[], name: string): boolean {
 	return spans.some(span => pattern.test(span))
 }
 
-/** Every Markdown page under `docs/api`, keyed by its path relative to that directory. */
-export function readApiReference(tree: SourceTree): Map<string, string> {
-	const pages = new Map<string, string>()
+/**
+ * Whether the entry holds a TypeScript example — a fence opening ```` ```ts ```` or ```` ```tsx ````.
+ *
+ * The spelling `check-docs-examples` uses, so what counts here is what that gate will compile once
+ * the entry reaches its page. A tilde fence is deliberately not accepted: it is not a fence that
+ * gate reads, so an example inside one would never be compiled.
+ */
+export function hasTypeScriptExample(markdown: string): boolean {
+	return markdown.split(/\r?\n/)
+		.some(line => /^`{3,}(?:ts|tsx)(?:\s|$)/.test(line.trim()))
+}
 
-	const visit = (directory: string, prefix: string): void => {
-		for (const entry of [...tree.list(directory) ?? []].sort()) {
-			const entryPath = `${directory}/${entry}`
-			if (tree.isDirectory(entryPath)) {
-				if (entry !== 'node_modules')
-					visit(entryPath, `${prefix}${entry}/`)
-				continue
-			}
-			if (entry.endsWith('.md'))
-				pages.set(`${prefix}${entry}`, tree.read(entryPath) ?? '')
-		}
+/**
+ * The prose between the entry's `### ` heading and its first example or subheading, or `null` when
+ * the entry has no `### ` heading at all.
+ *
+ * Fenced blocks are not stripped first, they are the terminator: after `outsideFencedBlocks` an
+ * entry that goes straight from its heading into an example reads as though the text after that
+ * example were its description, which would let an entry with no description satisfy the rule.
+ */
+export function entryDescription(markdown: string): string | null {
+	const lines = stripHtmlComments(markdown)
+		.split(/\r?\n/)
+	const heading = lines.findIndex(line => line.startsWith('### '))
+	if (heading === -1)
+		return null
+
+	const prose: string[] = []
+	for (const line of lines.slice(heading + 1)) {
+		if (line.startsWith('#') || fenceDelimiter.test(line))
+			break
+		prose.push(line)
 	}
-
-	visit(docsApiRoot, '')
-	return pages
+	return prose.join('\n')
+		.trim()
 }
 
 function readPublicExports(tree: SourceTree): { exports: Record<string, Set<string>>, problems: string[] } {
@@ -559,9 +589,6 @@ interface StepWithCodes extends DiscoveredStep {
 }
 
 function missingPieces(tree: SourceTree, step: StepWithCodes, context: {
-	catalogSpans: string[]
-	detailSpans: string[]
-	referenceText: string
 	exports: Record<string, Set<string>>
 }): string[] {
 	const missing: string[] = []
@@ -595,18 +622,34 @@ function missingPieces(tree: SourceTree, step: StepWithCodes, context: {
 			missing.push(`\`${step.exportIdentifier}\` is not a runtime export of '${packageName}' in ${apiSurfacePath}. Add the step to \`${stepsRoot}/index.ts\` if it is missing there, then run \`pnpm api:surface:update\`.`)
 	}
 
-	if (!documents(context.catalogSpans, step.name))
-		missing.push(`no code span in ${docsApiRoot}/${catalogPage} writes \`${step.name}(\`, so the catalog of the public API does not list it. The rule matches the name in call form inside an inline code span, outside fenced blocks and HTML comments; it does not read the sentence around it.`)
+	// The step's own entry in the API reference. `docs/api` is generated from these files, so this
+	// asks whether the step documents itself — not whether some page under `docs/api` happens to
+	// spell its name, which is what the rule this replaced could reach.
+	const doc = tree.read(`${directory}/${step.directory}.doc.md`)
+	const docSpans = doc == null ? [] : codeSpans(visibleMarkdown(doc))
+	if (doc == null) {
+		missing.push(`no \`${step.directory}.doc.md\`. It is the step's entry in the API reference, which \`scripts/docs-api.ts\` composes \`docs/api/*\` from: without one the step appears nowhere on the documentation site. \`pnpm docs:api\` reports this from the other side, and reports the \`category\` and \`section\` it must declare.`)
+	}
+	else {
+		if (!documents(docSpans, step.name))
+			missing.push(`\`${step.directory}.doc.md\` writes no code span containing \`${step.name}(\`, so its entry does not name the step it documents. The heading is written in call form in a code span — \`### \\\`${step.name}()\\\`\` — and the rule matches that outside fenced blocks and HTML comments; it does not read the sentence around it.`)
 
-	if (!documents(context.detailSpans, step.name))
-		missing.push(`no ${docsApiRoot} page other than ${catalogPage} writes \`${step.name}(\` in a code span, so the catalog points at nothing. As above, this finds a mention in call form rather than a description.`)
+		const description = entryDescription(doc)
+		if (description == null)
+			missing.push(`\`${step.directory}.doc.md\` holds no \`### \` heading, so it composes into no entry. The file opens with the \`<!-- step-doc -->\` declaration block and then one \`### \` heading.`)
+		else if (description === '')
+			missing.push(`\`${step.directory}.doc.md\` goes straight from its heading into an example or a subheading, so the entry describes nothing. What this cannot decide is whether the description is true.`)
+
+		if (!hasTypeScriptExample(doc))
+			missing.push(`\`${step.directory}.doc.md\` holds no \`ts\` fenced example. One is what \`check-docs-examples\` compiles against the built declarations once the entry reaches its page, so an entry without one is the only kind whose code nothing checks.`)
+	}
 
 	if (step.codes.length > 0) {
 		const literals = testFileNames(tree, step.directory)
 			.flatMap(entry => stringLiteralTexts(tree.read(`${directory}/${entry}`) ?? ''))
 		for (const code of step.codes) {
-			if (!context.referenceText.includes(code))
-				missing.push(`the owned issue code \`${code}\` appears nowhere under ${docsApiRoot} outside fenced blocks and HTML comments. A consumer handling this failure has nothing to read.`)
+			if (doc != null && !docSpans.some(span => span.includes(code)))
+				missing.push(`the owned issue code \`${code}\` appears in no code span of \`${step.directory}.doc.md\`, outside fenced blocks and HTML comments, so a consumer handling this failure has nothing to read. This checks that the code is listed, not that what is written beside it is what the step does.`)
 			if (!literals.some(literal => literal.includes(code)))
 				missing.push(`the owned issue code \`${code}\` appears in no string of any \`*.test.ts\` in this directory, so a change to it would break consumers with every test still green. A mention in a comment does not count; the rule reads string literals, not whether one reached an assertion.`)
 		}
@@ -619,11 +662,6 @@ export function checkStepCompleteness(tree: SourceTree): CompletenessReport {
 	const { steps, problems } = discoverSteps(tree)
 	const errors = [...problems]
 
-	const pages = readApiReference(tree)
-	const catalog = pages.get(catalogPage)
-	if (catalog == null)
-		errors.push(`${docsApiRoot}/${catalogPage} is missing; it is the catalog every built-in step must appear in.`)
-
 	const { exports, problems: surfaceProblems } = readPublicExports(tree)
 	errors.push(...surfaceProblems)
 
@@ -632,15 +670,7 @@ export function checkStepCompleteness(tree: SourceTree): CompletenessReport {
 	if (errors.length > 0)
 		return { errors, complete: 0, total: steps.length }
 
-	const visible = new Map([...pages].map(([page, text]) => [page, visibleMarkdown(text)]))
-	const context = {
-		catalogSpans: codeSpans(visible.get(catalogPage)!),
-		detailSpans: [...visible]
-			.filter(([page]) => page !== catalogPage)
-			.flatMap(([, text]) => codeSpans(text)),
-		referenceText: [...visible.values()].join('\n'),
-		exports,
-	}
+	const context = { exports }
 
 	let complete = 0
 	for (const step of steps.map(step => ({ ...step, codes: declaredCodes(step.source) }))) {
@@ -666,10 +696,10 @@ export function successMessage(report: CompletenessReport): string {
 		'with `Meta` then `PluginDef` above every statement that is not erased syntax,',
 		'a `<name>.test.ts` registering at least one case,',
 		'a `<name>.bench.ts` calling `bench`, a runtime export in api-surface.json,',
-		`their name in call form in a code span in ${docsApiRoot}/${catalogPage} and on one further ${docsApiRoot} page,`,
-		'and every owned issue code both present under docs/api and present in a string in their own tests.',
+		'a `<name>.doc.md` whose `### ` entry writes their name in call form in a code span, describes them, and holds a `ts` example,',
+		'and every owned issue code both listed in a code span of that entry and present in a string in their own tests.',
 		'The steps root holds only the barrel, kebab-case shared modules, and cross-step tests whose family is not a step.',
-		'None of it finds meaning: these rules cannot tell a real assertion from a tautology, a description from a passing',
-		'reference, a helper the step uses from one it merely imports, or a type in the right section from one in the wrong one.',
+		'None of it finds meaning: these rules cannot tell a real assertion from a tautology, a description that is true from one',
+		'that is stale, a helper the step uses from one it merely imports, or a type in the right section from one in the wrong one.',
 	].join(' ')
 }

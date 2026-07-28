@@ -14,6 +14,7 @@ once; the rules live in `scripts/step-completeness.ts`.
 | `<name>.ts` | required | `Meta`, `PluginDef`, and the exported plugin |
 | `<name>.test.ts` | required | the runtime suite |
 | `<name>.bench.ts` | required | the focused benchmark |
+| `<name>.doc.md` | required | the step's entry in the API reference. [Its format is below](#the-documentation-file) |
 | `index.ts` | required | exactly `export * from './<name>'` |
 | `<name>.types.test.ts` | optional | the type-level suite. Must call `expectTypeOf` or `assertType`: its assertions are decided by `pnpm typecheck`, not by the vitest run that executes them |
 | `<helper>.ts` | optional | a helper module, `kebab-case`, named after the concept it owns — `base64url.ts`, `iso-calendar-date.ts`, `template-literal-part.ts`. `<name>.ts` must reach it, directly or through another helper. Other steps import it by direct relative path, and `index.ts` does not re-export it |
@@ -36,6 +37,67 @@ cost one line to defeat: a `lazy-output.ts` containing `export {}` re-admits the
 `<name>.ts` satisfies the rule, at the price of an import a reviewer reads in the implementation.
 
 Step tests use inline snapshots. There is no place in a step unit for a `__snapshots__` directory.
+
+## The documentation file
+
+`<name>.doc.md` is the step's entry in the API reference, and the only place that entry is written.
+`docs/api/*.md` is generated from these files by `scripts/docs-api.ts`; `pnpm docs:api` fails when a
+committed page stops matching, and `pnpm docs:api:update` rewrites them. Nothing under `docs/api` is
+hand-edited — the prose that belongs to no single step lives in the page templates under
+`scripts/docs-api-templates/`.
+
+The file opens with a declaration block and holds one `###` entry:
+
+````md
+<!-- step-doc
+category: formats
+section: parsed
+summary: pragmatic WHATWG `<input type="email">` pattern
+-->
+
+### `isEmail(options?)`
+
+Checks an email address with the pragmatic WHATWG HTML `<input type="email">` pattern. It is
+intentionally not a full RFC 5322 parser; …
+
+```ts
+v.string()
+	.isEmail()
+	.execute('ada@example.com')
+```
+
+**Issue code:** `isEmail:expected_email` — the string does not match the pattern. Payload
+`{ value }`.
+````
+
+- **`category`** is the page, one of `primitives`, `formats`, `structures`, `transforms`, `helpers`,
+  declared in `apiPages` in `scripts/docs-api.ts`. It is never inferred from the step's name:
+  `isXxx → formats` would file `isInteger` under string formats and would invent a category for a
+  step nobody has written yet.
+- **`section`** is a `<!-- steps: … -->` slot in that page's template. A section the template does
+  not offer fails, and so does a slot no step fills.
+- **`summary`** is one line, for the catalog on the overview page.
+
+Everything after the block is the entry, copied to the page verbatim except for the anchor
+(`{#isEmail}`) the generator appends to the heading — so the catalog's link and the heading it points
+at come from one string. Headings inside the file are therefore already at their published level:
+`###` for the step, `####` for anything under it.
+
+Entries are ordered within a section by a code-point sort of the public name, and sections in the
+order their slots appear in the template. Nothing is hand-ordered, so check mode is stable.
+
+A fenced `ts` example reaches the page unchanged and is compiled there by
+`scripts/check-docs-examples.ts`, against the built declarations, in the context of the whole page:
+earlier fences' bindings are in scope, `v` is imported automatically, and the page template's
+`<!-- typecheck-prelude -->` applies. The three `<!-- typecheck-… -->` directives work in a
+`.doc.md` for the same reason. An example that needs its own imports takes
+`<!-- typecheck-isolate -->`.
+
+`scripts/step-completeness.ts` decides four mechanical facts about the file: the entry's heading
+writes the step in call form in a code span, prose follows the heading, at least one ` ```ts ` fence
+is present, and every issue code the step declares appears in a code span outside the fences. It
+cannot decide whether the description is true or whether the sentence beside a code lists what that
+issue means — same limit as every other matching rule here.
 
 ## The steps root
 
