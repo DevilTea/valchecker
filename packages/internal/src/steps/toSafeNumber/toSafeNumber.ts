@@ -1,9 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER)
-const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'toSafeNumber'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: bigint }>
@@ -49,6 +46,9 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER)
+const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 
 /* @__NO_SIDE_EFFECTS__ */
 export const toSafeNumber = implStepPlugin<PluginDef>({

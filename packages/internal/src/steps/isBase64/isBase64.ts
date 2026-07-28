@@ -1,8 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-const pattern = /^(?:[A-Z0-9+/]{4})*(?:[A-Z0-9+/]{2}==|[A-Z0-9+/]{3}=)?$/i
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isBase64'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -41,6 +39,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const pattern = /^(?:[A-Z0-9+/]{4})*(?:[A-Z0-9+/]{2}==|[A-Z0-9+/]{3}=)?$/i
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isBase64 = implStepPlugin<PluginDef>({

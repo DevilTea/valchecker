@@ -1,8 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-const pattern = /^[\w-]+$/
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isNanoid'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -41,6 +39,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const pattern = /^[\w-]+$/
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isNanoid = implStepPlugin<PluginDef>({

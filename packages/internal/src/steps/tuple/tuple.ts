@@ -3,8 +3,6 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
-const REST_MARKER = '...'
-
 declare namespace Internal {
 	export type RestMarker = '...'
 	export type Element = Use<Valchecker> | RestMarker
@@ -132,6 +130,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const REST_MARKER = '...'
 
 function isValcheckerSchema(value: unknown): value is Use<Valchecker> {
 	return (

@@ -3,8 +3,6 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
-const nativeMapEntries = Map.prototype.entries
-
 declare namespace Internal {
 	type ResolveMode<M extends OperationMode> = IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
 	export type OpMode<K extends Use<Valchecker>, V extends Use<Valchecker>> = ResolveMode<InferOperationMode<K> | InferOperationMode<V>>
@@ -75,6 +73,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const nativeMapEntries = Map.prototype.entries
 
 /* @__NO_SIDE_EFFECTS__ */
 export const map = implStepPlugin<PluginDef>({

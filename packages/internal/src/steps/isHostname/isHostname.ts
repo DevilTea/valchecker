@@ -1,8 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-const pattern = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/i
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isHostname'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -42,6 +40,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const pattern = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/i
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isHostname = implStepPlugin<PluginDef>({

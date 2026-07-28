@@ -1,8 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-const pattern = /^[0-9a-f]+$/i
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isHex'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -41,6 +39,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const pattern = /^[0-9a-f]+$/i
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isHex = implStepPlugin<PluginDef>({

@@ -3,8 +3,6 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
-const nativeSetValues = Set.prototype.values
-
 declare namespace Internal {
 	export type OpMode<I extends Use<Valchecker>> = IsEqual<InferOperationMode<I>, 'sync'> extends true ? 'sync' : 'maybe-async'
 	export type ExpectedIssue = ExecutionIssue<'set:expected_set', { value: unknown }>
@@ -73,6 +71,8 @@ interface FirstItemMetadata {
 	firstIndex: number
 	firstItem: unknown
 }
+
+const nativeSetValues = Set.prototype.values
 
 /* @__NO_SIDE_EFFECTS__ */
 export const set = implStepPlugin<PluginDef>({

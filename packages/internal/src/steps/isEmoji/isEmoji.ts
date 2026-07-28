@@ -16,6 +16,86 @@ declare namespace Internal {
 	}
 }
 
+type Meta = DefineStepMethodMeta<{
+	Name: 'isEmoji'
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
+	SelfIssue: Internal.SelfIssue
+}>
+
+interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the string is one or more emoji and nothing else. The empty
+	 * string is rejected.
+	 *
+	 * By default the accepted set is the Unicode UTS #51 emoji sequence
+	 * grammar: an emoji-presentation character, an emoji character followed by
+	 * VS16, a keycap sequence, a skin-tone modifier sequence, a regional
+	 * indicator pair, a tag sequence, and a ZWJ chain of those. A bare
+	 * `Emoji_Component` is not an emoji by itself, so a lone skin-tone modifier
+	 * (`🏽`), a lone hair component (`🦰`), a lone regional indicator (`🇦`), a
+	 * lone ZWJ, a lone VS16, a lone tag character, and a lone combining keycap
+	 * are all rejected — as are `1`, `123`, `#`, `*`, and a text-presentation
+	 * character without its VS16 such as `❤`, `☺`, or `©`. Adding VS16 does not
+	 * promote a component either: `🏽️` (U+1F3FD U+FE0F) and `🇦️` (U+1F1E6
+	 * U+FE0F) are rejected, because the keycap bases `#`, `*`, and `0`-`9` are
+	 * the only components Unicode gives an emoji presentation sequence.
+	 *
+	 * `{ registered: true }` narrows the accepted set to Unicode's RGI set
+	 * (`\p{RGI_Emoji}` minus bare components), the sequences every vendor is
+	 * expected to render. What it costs depends on the input, because a
+	 * property-of-strings match explores every longer registered sequence its
+	 * input is a prefix of: about 113× more on a bare `😀`, 43× on a flag, and
+	 * 1.3× on a four-person ZWJ family. It also needs the regular-expression `v`
+	 * flag; where the runtime has no `v` flag it fails with
+	 * `'isEmoji:unsupported_registered_set'` rather than quietly falling back to
+	 * a different accepted set.
+	 *
+	 * The default therefore accepts structurally valid sequences that are not
+	 * registered. Named examples, written with code points because the joiners
+	 * are invisible:
+	 *
+	 * - `👍‍👍` (U+1F44D ZWJ U+1F44D) and `😀‍🚀` (U+1F600 ZWJ U+1F680) —
+	 *   well-formed ZWJ chains of registered emoji that are not themselves
+	 *   registered;
+	 * - `1️` (U+0031 U+FE0F) — a digit with VS16 and no combining keycap, so an
+	 *   emoji presentation sequence but not a keycap sequence;
+	 * - `🇦🇦` (U+1F1E6 U+1F1E6) — a regional indicator pair that is not a
+	 *   country;
+	 * - `⌚️` (U+231A U+FE0F) — a redundant VS16 on a character that already
+	 *   presents as emoji, which the registered set does not list and real text
+	 *   contains anyway.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isEmoji, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isEmoji] })
+	 * const result = v.string().isEmoji().execute('😀')
+	 * const registered = v.string().isEmoji({ registered: true }).execute('😀')
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isEmoji:expected_emoji'`: The string is not an emoji.
+	 * - `'isEmoji:unsupported_registered_set'`: `registered: true` was asked for
+	 *   on a runtime without the regular-expression `v` flag, so the RGI set
+	 *   cannot be expressed. Reachable only with that option.
+	 */
+	isEmoji: DefineStepMethod<
+		Meta,
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? (options?: Internal.Options) => Next<
+					{ issue: Meta['SelfIssue'] },
+					this['CurrentValchecker']
+				>
+			: never
+	>
+}
+
 // The default accepted set is the UTS #51 emoji sequence grammar, independently
 // written and informed by prior art: the fragments below are derived from the
 // specification's own productions, which is checkable against the ED numbers
@@ -130,7 +210,9 @@ const emojiPattern = new RegExp(`^${emojiSequence}+$`, 'u')
 // (1.485 ms against 0.052 ms at 256 ZWJ families) and no faster anywhere else,
 // and the two agree on all 7,784,448 inputs of the differential corpus.
 const registeredSource = String.raw`[\p{RGI_Emoji}--\p{Emoji_Component}]`
+
 type RegisteredSupport = { pattern: RegExp, error?: undefined } | { pattern?: undefined, error: unknown }
+
 let registeredSupport: RegisteredSupport | undefined
 // `\p{RGI_Emoji}` needs the `v` flag, and a literal asking for a flag the engine
 // does not have is a parse-time SyntaxError — which takes this whole module down
@@ -153,86 +235,6 @@ function resolveRegisteredSupport(): RegisteredSupport {
 		}
 	}
 	return registeredSupport
-}
-
-type Meta = DefineStepMethodMeta<{
-	Name: 'isEmoji'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
-	SelfIssue: Internal.SelfIssue
-}>
-
-interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Checks that the string is one or more emoji and nothing else. The empty
-	 * string is rejected.
-	 *
-	 * By default the accepted set is the Unicode UTS #51 emoji sequence
-	 * grammar: an emoji-presentation character, an emoji character followed by
-	 * VS16, a keycap sequence, a skin-tone modifier sequence, a regional
-	 * indicator pair, a tag sequence, and a ZWJ chain of those. A bare
-	 * `Emoji_Component` is not an emoji by itself, so a lone skin-tone modifier
-	 * (`🏽`), a lone hair component (`🦰`), a lone regional indicator (`🇦`), a
-	 * lone ZWJ, a lone VS16, a lone tag character, and a lone combining keycap
-	 * are all rejected — as are `1`, `123`, `#`, `*`, and a text-presentation
-	 * character without its VS16 such as `❤`, `☺`, or `©`. Adding VS16 does not
-	 * promote a component either: `🏽️` (U+1F3FD U+FE0F) and `🇦️` (U+1F1E6
-	 * U+FE0F) are rejected, because the keycap bases `#`, `*`, and `0`-`9` are
-	 * the only components Unicode gives an emoji presentation sequence.
-	 *
-	 * `{ registered: true }` narrows the accepted set to Unicode's RGI set
-	 * (`\p{RGI_Emoji}` minus bare components), the sequences every vendor is
-	 * expected to render. What it costs depends on the input, because a
-	 * property-of-strings match explores every longer registered sequence its
-	 * input is a prefix of: about 113× more on a bare `😀`, 43× on a flag, and
-	 * 1.3× on a four-person ZWJ family. It also needs the regular-expression `v`
-	 * flag; where the runtime has no `v` flag it fails with
-	 * `'isEmoji:unsupported_registered_set'` rather than quietly falling back to
-	 * a different accepted set.
-	 *
-	 * The default therefore accepts structurally valid sequences that are not
-	 * registered. Named examples, written with code points because the joiners
-	 * are invisible:
-	 *
-	 * - `👍‍👍` (U+1F44D ZWJ U+1F44D) and `😀‍🚀` (U+1F600 ZWJ U+1F680) —
-	 *   well-formed ZWJ chains of registered emoji that are not themselves
-	 *   registered;
-	 * - `1️` (U+0031 U+FE0F) — a digit with VS16 and no combining keycap, so an
-	 *   emoji presentation sequence but not a keycap sequence;
-	 * - `🇦🇦` (U+1F1E6 U+1F1E6) — a regional indicator pair that is not a
-	 *   country;
-	 * - `⌚️` (U+231A U+FE0F) — a redundant VS16 on a character that already
-	 *   presents as emoji, which the registered set does not list and real text
-	 *   contains anyway.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, isEmoji, string } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [string, isEmoji] })
-	 * const result = v.string().isEmoji().execute('😀')
-	 * const registered = v.string().isEmoji({ registered: true }).execute('😀')
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'isEmoji:expected_emoji'`: The string is not an emoji.
-	 * - `'isEmoji:unsupported_registered_set'`: `registered: true` was asked for
-	 *   on a runtime without the regular-expression `v` flag, so the RGI set
-	 *   cannot be expressed. Reachable only with that option.
-	 */
-	isEmoji: DefineStepMethod<
-		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (options?: Internal.Options) => Next<
-					{ issue: Meta['SelfIssue'] },
-					this['CurrentValchecker']
-				>
-			: never
-	>
 }
 
 /* @__NO_SIDE_EFFECTS__ */

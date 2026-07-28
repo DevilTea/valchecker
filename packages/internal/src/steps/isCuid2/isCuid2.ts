@@ -1,8 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-const pattern = /^[a-z][0-9a-z]{1,31}$/
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isCuid2'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -42,6 +40,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const pattern = /^[a-z][0-9a-z]{1,31}$/
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isCuid2 = implStepPlugin<PluginDef>({

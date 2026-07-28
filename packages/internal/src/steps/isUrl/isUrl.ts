@@ -8,17 +8,6 @@ declare namespace Internal {
 	}
 }
 
-function isUrlValue(value: string, protocols: readonly string[]): boolean {
-	let url: URL
-	try {
-		url = new URL(value)
-	}
-	catch {
-		return false
-	}
-	return protocols.includes(url.protocol.slice(0, -1))
-}
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isUrl'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -58,6 +47,17 @@ interface PluginDef extends TStepPluginDef {
 				>
 			: never
 	>
+}
+
+function isUrlValue(value: string, protocols: readonly string[]): boolean {
+	let url: URL
+	try {
+		url = new URL(value)
+	}
+	catch {
+		return false
+	}
+	return protocols.includes(url.protocol.slice(0, -1))
 }
 
 /* @__NO_SIDE_EFFECTS__ */

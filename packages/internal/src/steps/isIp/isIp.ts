@@ -8,6 +8,47 @@ declare namespace Internal {
 	}
 }
 
+type Meta = DefineStepMethodMeta<{
+	Name: 'isIp'
+	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
+	SelfIssue: Internal.Issue
+}>
+
+interface PluginDef extends TStepPluginDef {
+	/**
+	 * ### Description:
+	 * Checks that the string is an IP address. By default both IPv4 and IPv6
+	 * are accepted; restrict to one with the `version` option (`4` or `6`).
+	 * IPv4 octets are range-checked (0-255, no leading zeros) and IPv6
+	 * supports `::` zero-compression and an embedded IPv4 suffix. Zone
+	 * identifiers are not accepted.
+	 *
+	 * ---
+	 *
+	 * ### Example:
+	 * ```ts
+	 * import { createValchecker, isIp, string } from 'valchecker'
+	 *
+	 * const v = createValchecker({ steps: [string, isIp] })
+	 * const result = v.string().isIp().execute('192.168.0.1')
+	 * ```
+	 *
+	 * ---
+	 *
+	 * ### Issues:
+	 * - `'isIp:expected_ip'`: The string is not a valid IP address.
+	 */
+	isIp: DefineStepMethod<
+		Meta,
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
+			? (options?: Internal.Options) => Next<
+					{ issue: Meta['SelfIssue'] },
+					this['CurrentValchecker']
+				>
+			: never
+	>
+}
+
 // The `0`-`255` range is part of the accepted shape, so an address is one
 // `test` rather than a split, four closure calls and up to four `Number()`
 // conversions. Measured 101.4 ns to 25.8 ns for a valid address (2026-07-27),
@@ -53,47 +94,6 @@ function isIpValue(value: string, version: 4 | 6 | undefined): boolean {
 	if (version === 6)
 		return isIPv6(value)
 	return isIPv4(value) || isIPv6(value)
-}
-
-type Meta = DefineStepMethodMeta<{
-	Name: 'isIp'
-	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
-	SelfIssue: Internal.Issue
-}>
-
-interface PluginDef extends TStepPluginDef {
-	/**
-	 * ### Description:
-	 * Checks that the string is an IP address. By default both IPv4 and IPv6
-	 * are accepted; restrict to one with the `version` option (`4` or `6`).
-	 * IPv4 octets are range-checked (0-255, no leading zeros) and IPv6
-	 * supports `::` zero-compression and an embedded IPv4 suffix. Zone
-	 * identifiers are not accepted.
-	 *
-	 * ---
-	 *
-	 * ### Example:
-	 * ```ts
-	 * import { createValchecker, isIp, string } from 'valchecker'
-	 *
-	 * const v = createValchecker({ steps: [string, isIp] })
-	 * const result = v.string().isIp().execute('192.168.0.1')
-	 * ```
-	 *
-	 * ---
-	 *
-	 * ### Issues:
-	 * - `'isIp:expected_ip'`: The string is not a valid IP address.
-	 */
-	isIp: DefineStepMethod<
-		Meta,
-		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
-			? (options?: Internal.Options) => Next<
-					{ issue: Meta['SelfIssue'] },
-					this['CurrentValchecker']
-				>
-			: never
-	>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
