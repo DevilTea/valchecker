@@ -18,7 +18,7 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 #   - workflow_dispatch: manual comparison of two arbitrary refs, with optional
 #     competitor adapters and scenario selection.
 #
-# Scenario scoping (pull requests only). Measuring all 170 standard-tier scenarios is
+# Scenario scoping (pull requests only). Measuring every standard-tier scenario is
 # 55 minutes against a 90-minute timeout, and neither of the two decisions behind that
 # can be reverted: five paired repetitions are what make a scenario classifiable at
 # all (#124), and one process per cell is what makes a subset measure the same numbers
