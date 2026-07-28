@@ -7,6 +7,14 @@ const valid = [
 	'V1StGXR8_Z5jdHi6B-myT',
 	'abc',
 	'a_b-c',
+	// No length is imposed above one character, because Nano ID size is chosen
+	// at generation time: a single character and a 64-character ID both pass.
+	'a',
+	'a'.repeat(64),
+	// `_` and `-` are the two non-alphanumeric characters of the default
+	// alphabet, and either case of letter is accepted.
+	'-_',
+	'AbC123',
 ]
 
 const invalid = [
@@ -14,6 +22,14 @@ const invalid = [
 	'abc+',
 	'a/b',
 	'',
+	// `+` and `/` belong to base64, not to the Nano ID alphabet, and `=` to
+	// neither.
+	'a=b',
+	// `.` and `~` are URL-safe but are not in the default alphabet.
+	'a.b',
+	'a~b',
+	// `$` without the `m` flag is end-of-input.
+	'abc\n',
 ]
 
 describe('isNanoid step plugin', () => {

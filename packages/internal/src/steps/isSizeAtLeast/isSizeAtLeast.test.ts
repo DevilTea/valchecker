@@ -43,7 +43,7 @@ describe('isSizeAtLeast step plugin', () => {
 		const value = {
 			get size() {
 				reads++
-				return 1
+				return reads === 1 ? 1 : 99
 			},
 		}
 
@@ -52,8 +52,19 @@ describe('isSizeAtLeast step plugin', () => {
 			.execute(value)
 		expect(reads)
 			.toBe(1)
-		expect(result)
-			.toMatchObject({ issues: [{ payload: { minimumSize: 3, size: 1 } }] })
+		expect(v.isFailure(result))
+			.toBe(true)
+		if (v.isFailure(result)) {
+			const issue = result.issues[0]!
+			if (issue.code !== 'isSizeAtLeast:expected_size_at_least')
+				throw new Error(`Unexpected issue: ${issue.code}`)
+			expect(issue.payload)
+				.toMatchObject({ minimumSize: 3, size: 1 })
+			expect(issue.payload.value)
+				.toBe(value)
+		}
+		expect(reads)
+			.toBe(1)
 	})
 
 	it('does not add an undocumented non-negative policy', () => {

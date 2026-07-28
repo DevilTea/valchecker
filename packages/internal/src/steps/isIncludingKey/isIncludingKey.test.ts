@@ -31,5 +31,9 @@ describe('isIncludingKey step plugin', () => {
 					payload: { value, expectedKey: 'b' },
 				}],
 			})
+		expect(v.map({ key: v.string(), value: v.number() })
+			.isIncludingKey('b')
+			.execute(value))
+			.toMatchObject({ issues: [{ message: 'Expected the Map to include the configured key.' }] })
 	})
 })

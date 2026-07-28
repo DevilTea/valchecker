@@ -154,7 +154,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 			for (let i = 0; i < keysLen; i++)
 				delete descriptors[keys[i] as keyof typeof descriptors]
 			const output = Object.defineProperties({}, descriptors)
-			for (let i = 0; i < keysLen; i++)
+			for (let i = 0; i <= keysLen; i++)
 				setOutputValue(output, keys[i]!, transformedValues[i])
 			return output
 		}

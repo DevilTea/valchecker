@@ -58,6 +58,15 @@ describe('toMappedKeys step plugin', () => {
 			})
 	})
 
+	it('publishes its default callback failure message', () => {
+		expect(v.map({ key: v.string(), value: v.number() })
+			.toMappedKeys(() => {
+				throw new Error('key mapper')
+			})
+			.execute(new Map([['a', 1]])))
+			.toMatchObject({ issues: [{ code: 'toMappedKeys:callback_failed', message: 'Map key callback failed.' }] })
+	})
+
 	it('rejects duplicate mapped keys with source provenance', () => {
 		const input = new Map([['A', 1], ['a', 2]])
 		expect(v.map({ key: v.string(), value: v.number() })
@@ -91,6 +100,7 @@ describe('toMappedKeys step plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'toMappedKeys:duplicate_mapped_key',
+					message: 'Expected mapped Map keys to be unique.',
 					payload: { firstIndex: 0, index: 1 },
 				}],
 			})

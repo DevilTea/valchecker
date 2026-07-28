@@ -73,6 +73,23 @@ describe('toLength plugin', () => {
 	})
 
 	describe('edge cases', () => {
+		it('reads a dynamic length once and outputs the observed value', () => {
+			let reads = 0
+			const value = {
+				get length() {
+					reads++
+					return reads === 1 ? 3 : 99
+				},
+			}
+
+			expect(v.any()
+				.toLength()
+				.execute(value))
+				.toEqual({ value: 3 })
+			expect(reads)
+				.toBe(1)
+		})
+
 		it('should handle large arrays', () => {
 			const largeArray = Array.from({ length: 1000 })
 				.fill(0)

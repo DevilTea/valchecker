@@ -28,6 +28,7 @@ describe('isOneOf step plugin', () => {
 				issues: [{
 					code: 'isOneOf:expected_one_of',
 					category: 'validation',
+					message: 'Expected one of the configured primitive values.',
 					payload: { value: undefined, expectedValues: ['a', 'b'] },
 				}],
 			})

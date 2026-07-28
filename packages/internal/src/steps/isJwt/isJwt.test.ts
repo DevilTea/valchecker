@@ -11,6 +11,16 @@ const valid = [
 	'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig0',
 	'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.si',
 	'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig',
+	// No signature is verified: a full-length signature of the wrong bytes is
+	// structurally indistinguishable from a correct one, and is accepted.
+	'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+	// Only the header is decoded. The payload is checked as base64url and for
+	// non-emptiness, so a token whose payload decodes to `abc` rather than to
+	// JSON is still a JWT by this step's stated condition.
+	'eyJhbGciOiJIUzI1NiJ9.YWJj.sig',
+	// The header carries a string `alg`; nothing constrains its value or the
+	// rest of the header.
+	'eyJhbGciOiJ3aGF0ZXZlciIsImtpZCI6MX0.eyJzdWIiOiJ4In0.sig',
 ]
 
 const invalid = [
@@ -32,6 +42,15 @@ const invalid = [
 	// carry their own non-emptiness requirement. Without it this token — valid
 	// header, empty payload, empty signature — would be accepted.
 	'eyJhbGciOiJIUzI1NiJ9..',
+	// The decoded header must be a JSON object carrying a string `alg`. Each of
+	// these decodes to valid JSON that fails one clause of that: `"nope"`,
+	// `null`, `["HS256"]`, and `{"alg":1}`.
+	'Im5vcGUi.eyJzdWIiOiJ4In0.sig',
+	'bnVsbA.eyJzdWIiOiJ4In0.sig',
+	'WyJIUzI1NiJd.eyJzdWIiOiJ4In0.sig',
+	'eyJhbGciOjF9.eyJzdWIiOiJ4In0.sig',
+	// A header outside the base64url alphabet never reaches the JSON step.
+	'eyJhbGciOiJIUzI1NiJ9+.eyJzdWIiOiJ4In0.sig',
 ]
 
 describe('isJwt step plugin', () => {

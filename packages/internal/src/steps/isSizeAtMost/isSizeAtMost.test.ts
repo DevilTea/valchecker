@@ -43,7 +43,7 @@ describe('isSizeAtMost step plugin', () => {
 		const value = {
 			get size() {
 				reads++
-				return 2
+				return reads === 1 ? 2 : 0
 			},
 		}
 
@@ -52,8 +52,19 @@ describe('isSizeAtMost step plugin', () => {
 			.execute(value)
 		expect(reads)
 			.toBe(1)
-		expect(result)
-			.toMatchObject({ issues: [{ payload: { maximumSize: 1, size: 2 } }] })
+		expect(v.isFailure(result))
+			.toBe(true)
+		if (v.isFailure(result)) {
+			const issue = result.issues[0]!
+			if (issue.code !== 'isSizeAtMost:expected_size_at_most')
+				throw new Error(`Unexpected issue: ${issue.code}`)
+			expect(issue.payload)
+				.toMatchObject({ maximumSize: 1, size: 2 })
+			expect(issue.payload.value)
+				.toBe(value)
+		}
+		expect(reads)
+			.toBe(1)
 	})
 
 	it('does not add an undocumented integer policy', () => {

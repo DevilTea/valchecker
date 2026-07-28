@@ -143,6 +143,7 @@ describe('toString plugin', () => {
 				issues: [{
 					code: 'toString:conversion_failed',
 					category: 'operation',
+					message: 'String conversion failed.',
 					payload: { value, error },
 				}],
 			})

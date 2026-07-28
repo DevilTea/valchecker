@@ -7,6 +7,11 @@ const valid = [
 	'deadBEEF',
 	'0',
 	'abcdef0123456789',
+	// No even-length policy: one, three and five digits are all accepted, so a
+	// caller wanting whole bytes composes a length check.
+	'abc',
+	// Either case, and the digits and letters may be mixed freely.
+	'ABCDEF',
 ]
 
 const invalid = [
@@ -14,6 +19,13 @@ const invalid = [
 	'xyz',
 	'gg',
 	'',
+	// The prefix is rejected in either case, and with a sign.
+	'0X1F',
+	'-1f',
+	'#1f',
+	// No whitespace is trimmed, and `$` without the `m` flag is end-of-input.
+	' 1f',
+	'1f\n',
 ]
 
 describe('isHex step plugin', () => {

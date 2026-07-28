@@ -13,7 +13,12 @@ describe('isNonNullish step plugin', () => {
 		expect(schema.execute('value'))
 			.toEqual({ value: 'value' })
 		expect(schema.execute(null))
-			.toMatchObject({ issues: [{ code: 'isNonNullish:expected_non_nullish' }] })
+			.toMatchObject({
+				issues: [{
+					code: 'isNonNullish:expected_non_nullish',
+					message: 'Expected a non-nullish value.',
+				}],
+			})
 		expect(schema.execute(undefined))
 			.toMatchObject({ issues: [{ code: 'isNonNullish:expected_non_nullish' }] })
 	})

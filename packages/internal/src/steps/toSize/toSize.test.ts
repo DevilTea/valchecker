@@ -1,8 +1,8 @@
 import type { InferOutput } from '../../core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { createValchecker, map, number, set, string, toSize } from '../..'
+import { any, createValchecker, map, number, set, string, toSize } from '../..'
 
-const v = createValchecker({ steps: [map, number, set, string, toSize] })
+const v = createValchecker({ steps: [any, map, number, set, string, toSize] })
 
 describe('toSize step plugin', () => {
 	it('returns Map and Set sizes without mutating the source value', () => {
@@ -20,6 +20,23 @@ describe('toSize step plugin', () => {
 			.toEqual(new Set(['a', 'b']))
 		expect(mapValue)
 			.toEqual(new Map([['a', 1]]))
+	})
+
+	it('reads a dynamic size once and outputs the observed value', () => {
+		let reads = 0
+		const value = {
+			get size() {
+				reads++
+				return reads === 1 ? 2 : 99
+			},
+		}
+
+		expect(v.any()
+			.toSize()
+			.execute(value))
+			.toEqual({ value: 2 })
+		expect(reads)
+			.toBe(1)
 	})
 
 	it('infers number output', () => {

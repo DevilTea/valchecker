@@ -27,8 +27,73 @@ describe('standard Schema V1 contract', () => {
 			.toBe('valchecker')
 		expect(standard['~standard'].validate)
 			.toBe(schema.execute)
-		expectTypeOf(standard)
-			.toMatchTypeOf<StandardSchemaV1<unknown, string>>()
+	})
+
+	it('carries the schema types through the specification inference entrypoints', () => {
+		// `~standard.types` is a type-only phantom the specification uses for
+		// `InferInput`/`InferOutput`; it has no runtime backing, and a consumer
+		// that reads it at runtime must see nothing rather than a placeholder.
+		const schema = v.string()
+			.transform(value => value.length)
+		expect(Object.hasOwn(schema['~standard'], 'types'))
+			.toBe(false)
+
+		expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>()
+			.toEqualTypeOf<unknown>()
+		expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>()
+			.toEqualTypeOf<number>()
+	})
+
+	it('discriminates success from failure the way the specification does', () => {
+		// A specification consumer branches on `issues` alone and reads `value`
+		// only on the success branch, so a failure must not carry a `value` key
+		// and a success must not carry an `issues` key.
+		const schema = v.string()
+
+		const success = schema['~standard'].validate('Ada') as StandardSchemaV1.Result<string>
+		expect(success.issues)
+			.toBeUndefined()
+		expect(Object.hasOwn(success, 'issues'))
+			.toBe(false)
+
+		const failure = schema['~standard'].validate(42) as StandardSchemaV1.Result<string>
+		expect(Object.hasOwn(failure, 'value'))
+			.toBe(false)
+		expect(failure.issues)
+			.toHaveLength(1)
+	})
+
+	it('reports an internal issue as a specification-shaped issue', () => {
+		// An internal issue is raised by the core itself rather than by a step,
+		// so it is the one issue kind whose specification shape nothing else
+		// guarantees. A global handler that throws produces one at the public
+		// boundary.
+		const throwing = createValchecker({
+			steps: [string],
+			message: () => {
+				throw new Error('message failure')
+			},
+		})
+
+		const result = throwing.string()['~standard'].validate(42) as StandardSchemaV1.FailureResult
+		expect(Object.hasOwn(result, 'value'))
+			.toBe(false)
+		expect(result.issues)
+			.toMatchObject([{
+				code: 'core:message_exception',
+				category: 'internal',
+				message: 'An unexpected error occurred while resolving an issue message.',
+				path: [],
+			}])
+	})
+
+	it('reports symbol path segments in the property-key form the specification allows', () => {
+		const key = Symbol('secret')
+		const schema = v.object({ [key]: v.string() })
+
+		const result = schema['~standard'].validate({ [key]: 42 }) as StandardSchemaV1.FailureResult
+		expect(result.issues[0]!.path)
+			.toEqual([key])
 	})
 
 	it('infers the schema output type through a generic Standard Schema consumer', () => {

@@ -16,6 +16,11 @@ describe('isMimeType step plugin', () => {
 		['wildcard list match', ['text/*', 'image/*'], 'image/gif'],
 		['case-insensitive pattern', 'IMAGE/PNG', 'image/png'],
 		['case-insensitive wildcard', 'IMAGE/*', 'image/png'],
+		['case-insensitive observed type', 'image/png', 'IMAGE/PNG'],
+		// A wildcard matches the prefix up to and including the slash, so a
+		// parameterised type matches its family even though it never matches a
+		// bare type/subtype.
+		['wildcard over a parameterised type', 'text/*', 'text/plain;charset=utf-8'],
 	])('accepts %s', (_label, types, actual) => {
 		const input = blobOf(actual)
 		expect(v.blob()
@@ -30,6 +35,14 @@ describe('isMimeType step plugin', () => {
 		['wildcard family mismatch', 'image/*', 'text/plain'],
 		['wildcard is not a prefix of a longer type', 'image/*', 'imagex/png'],
 		['empty type', 'image/png', ''],
+		// MIME parameters are not parsed off the observed type, so an exact
+		// pattern compares against the whole string including them.
+		['exact pattern against a parameterised type', 'text/plain', 'text/plain;charset=utf-8'],
+		['exact pattern is not a prefix match', 'text/plain', 'text/plaintext'],
+		// Only a trailing `/*` is a wildcard, and only over the subtype: `*` is
+		// compared literally as a type name, which nothing has.
+		['a full wildcard is not supported', '*/*', 'image/png'],
+		['a leading wildcard is not supported', '*/png', 'image/png'],
 	])('rejects %s', (_label, types, actual) => {
 		expect(v.blob()
 			.isMimeType(types)

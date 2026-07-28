@@ -56,6 +56,15 @@ describe('toMappedValues step plugin', () => {
 			})
 	})
 
+	it('publishes its default callback failure message', () => {
+		expect(v.map({ key: v.string(), value: v.number() })
+			.toMappedValues(() => {
+				throw new Error('value mapper')
+			})
+			.execute(new Map([['a', 1]])))
+			.toMatchObject({ issues: [{ code: 'toMappedValues:callback_failed', message: 'Map value callback failed.' }] })
+	})
+
 	it('preserves mapper promises as Map values instead of awaiting them', async () => {
 		const result = v.map({ key: v.string(), value: v.number() })
 			.toMappedValues(async value => value + 1)

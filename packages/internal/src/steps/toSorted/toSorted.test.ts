@@ -63,6 +63,15 @@ describe('toSorted step plugin', () => {
 			})
 	})
 
+	it('publishes its default comparator failure message', () => {
+		expect(v.array(v.any())
+			.toSorted({ compareFn: () => {
+				throw new Error('comparator')
+			} })
+			.execute([2, 1]))
+			.toMatchObject({ issues: [{ code: 'toSorted:callback_failed', message: 'Sort callback failed.' }] })
+	})
+
 	it('leaves failures outside the comparator callback to the core boundary', () => {
 		const error = new Error('sort method')
 		const value = [] as any[] & { toSorted: typeof Array.prototype.toSorted }

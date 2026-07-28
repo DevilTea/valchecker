@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, MessageHandler, Next, TStepPluginDef, TValchecker } from './types'
 import { describe, expect, it } from 'vitest'
-import { array, number, object } from '../steps'
+import { array, number, object, toAsync } from '../steps'
 import { createValchecker, implStepPlugin, resolveMessagePriority, resolveStaticIssueMessage } from './core'
 
 type MessageFixtureMeta = DefineStepMethodMeta<{
@@ -19,6 +19,9 @@ interface MessageFixtureDef extends TStepPluginDef {
 	dynamicCustom: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
 	noMessage: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
 	emptyFailure: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	throwingCustom: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	throwingDefault: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	replaceScoped: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
 }
 
 const frozenExternalIssue = Object.freeze({
@@ -71,6 +74,36 @@ const messageFixturePlugin = implStepPlugin<MessageFixtureDef>({
 	emptyFailure: ({ utils: { addSuccessStep, failure } }: any) => {
 		addSuccessStep(() => failure([]))
 	},
+	throwingCustom: ({ utils: { addSuccessStep, createIssue, failure } }: any) => {
+		addSuccessStep(() => failure(createIssue({
+			code: 'fixture:throwing_custom',
+			payload: {},
+			customMessage: () => {
+				throw new Error('step failure')
+			},
+			defaultMessage: 'default',
+		})))
+	},
+	throwingDefault: ({ utils: { addSuccessStep, createIssue, failure } }: any) => {
+		addSuccessStep(() => failure(createIssue({
+			code: 'fixture:throwing_default',
+			payload: {},
+			defaultMessage: () => {
+				throw new Error('default failure')
+			},
+		})))
+	},
+	// A statically resolved issue (no dynamic handler anywhere) carries no draft
+	// metadata, so the scope handed to `replaceIssuePath` is the only thing that
+	// can still change its message.
+	replaceScoped: ({ utils: { addSuccessStep, createIssue, failure, replaceIssuePath } }: any) => {
+		addSuccessStep(() => failure(replaceIssuePath(createIssue({
+			code: 'fixture:replace_scoped',
+			payload: {},
+			path: ['original'],
+			defaultMessage: 'default',
+		}), ['moved'], () => 'replaced scope')))
+	},
 })
 
 describe('issue message finalization', () => {
@@ -102,6 +135,61 @@ describe('issue message finalization', () => {
 			.toEqual(['age'])
 	})
 
+	it('resolves every issue exactly once across nesting, collect-all, and async finalization', async () => {
+		let calls = 0
+		const v = createValchecker({
+			steps: [number, object, toAsync],
+			// The running count is baked into the message, so a second resolution of
+			// the same issue is visible in the result and not only in the counter.
+			message: () => `resolved:${++calls}`,
+		})
+
+		expect(v.object({ profile: v.object({ age: v.number() }) })
+			.execute({ profile: { age: 'wrong' } }))
+			.toMatchObject({
+				issues: [{ message: 'resolved:1' }],
+			})
+		expect(calls)
+			.toBe(1)
+
+		calls = 0
+		expect(v.object({ first: v.number(), second: v.number() }, { collectAllIssues: true })
+			.execute({ first: 'wrong', second: 'wrong' }))
+			.toMatchObject({
+				issues: [{ message: 'resolved:1' }, { message: 'resolved:2' }],
+			})
+		expect(calls)
+			.toBe(2)
+
+		calls = 0
+		await expect(v.object({ age: v.number() })
+			.toAsync()
+			.execute({ age: 'wrong' })).resolves.toMatchObject({
+			issues: [{ message: 'resolved:1' }],
+		})
+		expect(calls)
+			.toBe(1)
+	})
+
+	it('uses the originating step message before an enclosing structure', () => {
+		// Every tier below the step is populated and answers, so only correct
+		// precedence can produce `step`.
+		const v = createValchecker({
+			steps: [number, object],
+			message: () => 'global',
+		})
+		const schema = v.object({
+			age: v.number({ message: () => 'step' }),
+		}, { message: {
+			'number:expected_number': () => 'structure',
+		} })
+
+		expect(schema.execute({ age: 'wrong' }))
+			.toMatchObject({
+				issues: [{ message: 'step', path: ['age'] }],
+			})
+	})
+
 	it('uses the nearest enclosing structure before outer and global handlers', () => {
 		const v = createValchecker({
 			steps: [number, object],
@@ -120,6 +208,32 @@ describe('issue message finalization', () => {
 		expect(schema.execute({ profile: { age: 'wrong' } }))
 			.toMatchObject({
 				issues: [{ message: 'inner:profile.age', path: ['profile', 'age'] }],
+			})
+	})
+
+	it('walks past a declining enclosing structure to the next outer one before the global handler', () => {
+		// Three enclosing scopes at once. The nearest declines this issue, so the
+		// next one out must answer: not the outermost, and not the global. Nothing
+		// short of the full scope chain, walked nearest-first, produces `middle`.
+		const v = createValchecker({
+			steps: [number, object],
+			message: () => 'global',
+		})
+		const schema = v.object({
+			a: v.object({
+				b: v.object({ age: v.number() }, { message: {
+					'number:expected_number': () => null,
+				} }),
+			}, { message: {
+				'number:expected_number': () => 'middle',
+			} }),
+		}, { message: {
+			'number:expected_number': () => 'outermost',
+		} })
+
+		expect(schema.execute({ a: { b: { age: 'wrong' } } }))
+			.toMatchObject({
+				issues: [{ message: 'middle', path: ['a', 'b', 'age'] }],
 			})
 	})
 
@@ -241,12 +355,41 @@ describe('issue message finalization', () => {
 			.toEqual(['age'])
 	})
 
+	it.each([
+		['step', 'throwingCustom'],
+		['default', 'throwingDefault'],
+	] as const)('reports a throwing %s handler as a message exception naming its tier', (source, method) => {
+		const v = createValchecker({ steps: [messageFixturePlugin] }) as any
+
+		expect(v[method]()
+			.execute('value'))
+			.toMatchObject({
+				issues: [{
+					code: 'core:message_exception',
+					category: 'internal',
+					payload: {
+						source,
+						error: expect.objectContaining({ message: `${source} failure` }),
+					},
+				}],
+			})
+	})
+
 	it('supports a message scope without changing an empty issue path', () => {
 		const v = createValchecker({ steps: [messageFixturePlugin] }) as any
 		expect(v.scoped()
 			.execute('value'))
 			.toMatchObject({
 				issues: [{ message: 'scope', path: [] }],
+			})
+	})
+
+	it('applies a message scope attached while an issue path is replaced', () => {
+		const v = createValchecker({ steps: [messageFixturePlugin] }) as any
+		expect(v.replaceScoped()
+			.execute('value'))
+			.toMatchObject({
+				issues: [{ message: 'replaced scope', path: ['moved'] }],
 			})
 	})
 
