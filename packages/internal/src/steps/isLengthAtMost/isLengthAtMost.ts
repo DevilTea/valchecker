@@ -1,20 +1,20 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-declare namespace LengthAtMostInternal {
+declare namespace Internal {
 	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<
 		'isLengthAtMost:expected_length_at_most',
 		{ value: T, maximumLength: number, length: number }
 	>
 }
 
-type LengthAtMostMeta = DefineStepMethodMeta<{
+type Meta = DefineStepMethodMeta<{
 	Name: 'isLengthAtMost'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: { length: number } }>
-	SelfIssue: LengthAtMostInternal.Issue
+	SelfIssue: Internal.Issue
 }>
 
-interface LengthAtMostPluginDef extends TStepPluginDef {
+interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that the value's observed `length` is less than or equal to the
@@ -39,11 +39,11 @@ interface LengthAtMostPluginDef extends TStepPluginDef {
 	 *   Payload: `{ value, maximumLength, length }`.
 	 */
 	isLengthAtMost: DefineStepMethod<
-		LengthAtMostMeta,
-		this['CurrentValchecker'] extends LengthAtMostMeta['ExpectedCurrentValchecker']
+		Meta,
+		this['CurrentValchecker'] extends Meta['ExpectedCurrentValchecker']
 			? InferOutput<this['CurrentValchecker']> extends infer CurrentOutput extends { length: number }
-				? (maximum: number, options?: StepOptions<LengthAtMostInternal.Issue<CurrentOutput>>) => Next<
-						{ issue: LengthAtMostInternal.Issue<CurrentOutput> },
+				? (maximum: number, options?: StepOptions<Internal.Issue<CurrentOutput>>) => Next<
+						{ issue: Internal.Issue<CurrentOutput> },
 						this['CurrentValchecker']
 					>
 				: never
@@ -52,7 +52,7 @@ interface LengthAtMostPluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const isLengthAtMost = implStepPlugin<LengthAtMostPluginDef>({
+export const isLengthAtMost = implStepPlugin<PluginDef>({
 	isLengthAtMost: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [maximum, options],

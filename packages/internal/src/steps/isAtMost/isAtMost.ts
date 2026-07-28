@@ -1,18 +1,18 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-declare namespace AtMostInternal {
+declare namespace Internal {
 	export type NumberIssue = ExecutionIssue<'isAtMost:expected_at_most', { target: 'number', value: number, maximum: number }>
 	export type BigIntIssue = ExecutionIssue<'isAtMost:expected_at_most', { target: 'bigint', value: bigint, maximum: bigint }>
 }
 
-type AtMostMeta<T extends number | bigint> = DefineStepMethodMeta<{
+type Meta<T extends number | bigint> = DefineStepMethodMeta<{
 	Name: 'isAtMost'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: T }>
-	SelfIssue: T extends number ? AtMostInternal.NumberIssue : AtMostInternal.BigIntIssue
+	SelfIssue: T extends number ? Internal.NumberIssue : Internal.BigIntIssue
 }>
 
-interface AtMostPluginDef extends TStepPluginDef {
+interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that a number or bigint is less than or equal to the specified maximum.
@@ -35,19 +35,19 @@ interface AtMostPluginDef extends TStepPluginDef {
 	 */
 	isAtMost:
 		| DefineStepMethod<
-			AtMostMeta<number>,
-			this['CurrentValchecker'] extends AtMostMeta<number>['ExpectedCurrentValchecker']
-				? (maximum: number, options?: StepOptions<AtMostInternal.NumberIssue>) => Next<
-						{ issue: AtMostInternal.NumberIssue },
+			Meta<number>,
+			this['CurrentValchecker'] extends Meta<number>['ExpectedCurrentValchecker']
+				? (maximum: number, options?: StepOptions<Internal.NumberIssue>) => Next<
+						{ issue: Internal.NumberIssue },
 						this['CurrentValchecker']
 					>
 				: never
 		>
 		| DefineStepMethod<
-			AtMostMeta<bigint>,
-			this['CurrentValchecker'] extends AtMostMeta<bigint>['ExpectedCurrentValchecker']
-				? (maximum: bigint, options?: StepOptions<AtMostInternal.BigIntIssue>) => Next<
-						{ issue: AtMostInternal.BigIntIssue },
+			Meta<bigint>,
+			this['CurrentValchecker'] extends Meta<bigint>['ExpectedCurrentValchecker']
+				? (maximum: bigint, options?: StepOptions<Internal.BigIntIssue>) => Next<
+						{ issue: Internal.BigIntIssue },
 						this['CurrentValchecker']
 					>
 				: never
@@ -55,7 +55,7 @@ interface AtMostPluginDef extends TStepPluginDef {
 }
 
 /* @__NO_SIDE_EFFECTS__ */
-export const isAtMost = implStepPlugin<AtMostPluginDef>({
+export const isAtMost = implStepPlugin<PluginDef>({
 	isAtMost: ({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [maximum, options],
