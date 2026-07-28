@@ -96,7 +96,7 @@ Callback negative results remain validation issues. Throws and rejections are op
 
 `isEmoji()` now accepts every structurally valid emoji sequence — the [UTS #51](https://www.unicode.org/reports/tr51/) emoji sequence grammar — where it used to accept only Unicode's RGI set. **A validator that accepts more is a breaking change**: input your schema used to reject now passes.
 
-Named inputs that changed verdict:
+Representative inputs that changed verdict — not the complete list. A differential over 7,784,448 inputs (every code point in seven positions) found 6,035 changed verdicts: 4,751 newly accepted and 1,284 newly rejected.
 
 | Input | Before | After |
 | --- | --- | --- |
@@ -112,6 +112,12 @@ Named inputs that changed verdict:
 
 The last two are a fix rather than the loosening: `\p{RGI_Emoji}` matches those nine characters on their own, so the previous "exact registered set" accepted a bare component as an emoji. They are still accepted where the grammar gives them a position, so `👨‍🦰` and `👍🏽` are unchanged.
 
+Two whole classes are worth naming, because a stored value is likely to be in them and neither is obvious from the rows above.
+
+**A component followed by VS16 is rejected.** Forty-seven `Emoji_Component` characters are also `\p{Emoji}`, so all forty-seven match the UTS #51 production for an emoji presentation sequence. ED-9a admits only the sequences in `emoji-variation-sequences.txt`, and the keycap bases `#`, `*`, and `0`–`9` are the only components in that file, so those twelve are accepted with VS16 and the other thirty-five — 26 regional indicators, 5 skin tones, 4 hair components — are not. `🏽️` (U+1F3FD U+FE0F) and `🇦️` (U+1F1E6 U+FE0F) are rejected, as are the composites they would otherwise unlock, such as `🏽️` opening a ZWJ chain or standing as a tag base. The previous implementation rejected all forty-seven, so this is unchanged behaviour, not a new rejection.
+
+**A skin tone after a VS16-qualified base is rejected.** `☝️🏽` (U+261D U+FE0F U+1F3FD) was **accepted** before and is rejected by both accepted sets now. ED-13 puts no VS16 between a modifier base and its skin tone; `\p{RGI_Emoji}` accepted the string anyway by decomposing it into the presentation sequence `☝️` plus a bare `🏽`. There are nine text-presentation modifier bases where this shape looks correct enough to have been stored — U+261D, U+26F9, U+270C, U+270D, U+1F3CB, U+1F3CC, U+1F574, U+1F575, U+1F590. The qualified-and-toned form Unicode registers is `☝🏽` (U+261D U+1F3FD), with no VS16.
+
 `{ registered: true }` restores the registered set:
 
 ```ts
@@ -119,9 +125,25 @@ const emoji = v.string()
 	.isEmoji({ registered: true })
 ```
 
-Two things to know before reaching for it. It costs roughly 110× more — about 5,300 ns against 47 ns on a bare emoji — and it needs a runtime with the regular-expression `v` flag, which every supported Node.js has and browsers gained in Chrome 112, Firefox 116, and Safari 17. Where the flag is missing, that call fails with the operation issue `isEmoji:unsupported_registered_set` instead of quietly accepting a different set. It is also not byte-for-byte the old behaviour: the lone-component fix applies to it too, so `🏽`, `🦰`, `👪🏻`, and `👍🏽🏽` are rejected on both accepted sets.
+Two things to know before reaching for it. What it costs depends on the input — 113× more on a bare `😀` (5,293 ns against 47 ns), 43× on a flag, and 1.3× on `👨‍👩‍👧‍👦`, which is already specific enough that the matcher finds one alternative and stops — and it needs a runtime with the regular-expression `v` flag, which every supported Node.js has and browsers gained in Chrome 112, Firefox 116, and Safari 17. Where the flag is missing, that call fails with the operation issue `isEmoji:unsupported_registered_set` instead of quietly accepting a different set. It is also not byte-for-byte the old behaviour: the lone-component fix applies to it too, so `🏽`, `🦰`, `👪🏻`, `☝️🏽`, and `👍🏽🏽` are rejected on both accepted sets.
 
-If a schema needs the old accepted set exactly, including the bare components, it needs a `check()` closure over `\p{RGI_Emoji}` rather than this step.
+If a schema needs the old accepted set exactly, including the bare components, it needs a `check()` closure over `\p{RGI_Emoji}` rather than this step. Build the pattern with `new RegExp` rather than a regular-expression literal: an unsupported flag in a literal is a parse-time `SyntaxError` that takes down the whole module it sits in, which is the hazard this release removed from the package and which a literal would reintroduce in yours.
+
+```ts
+// `\p{RGI_Emoji}` is a property of strings, so it needs the `v` flag. Keep the
+// source in a variable and build the pattern with `new RegExp`: written as the
+// literal `/\p{RGI_Emoji}/gv` this is a parse-time SyntaxError on an engine
+// without `v`, and it takes down the whole module it is written in.
+const rgiEmojiSource = String.raw`\p{RGI_Emoji}`
+const rgiEmoji = new RegExp(rgiEmojiSource, 'gv')
+
+const legacyEmoji = v.string()
+	.check(value => value !== '' && value.replace(rgiEmoji, '') === '', {
+		message: 'Expected an emoji.',
+	})
+```
+
+That reproduces the previous verdicts exactly, bare components included — verified against the old implementation on all 7,784,448 inputs of the differential corpus, with no mismatch. The issue it reports is `check:failed` rather than `isEmoji:expected_emoji`, so a message handler keyed on the old code needs the new one. On a runtime without the `v` flag the `new RegExp` throws where you can catch it, which is the point of the constructor form.
 
 The `isEmoji:expected_emoji` payload gained a `registered` boolean naming which accepted set rejected the value. A message handler reading the payload by destructuring is unaffected; one asserting the payload's exact shape needs updating.
 

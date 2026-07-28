@@ -101,6 +101,35 @@ const corpus: Case[] = [
 	{ label: 'a ZWJ followed by a skin-tone modifier', input: `😀${ZWJ}🏽`, byGrammar: false, byRegistered: false },
 	{ label: 'a tag sequence with no terminator', input: `🏴${tag('gbeng')}`, byGrammar: false, byRegistered: false },
 	{ label: 'a tag terminator with no specifier', input: `🏴${TAG_TERM}`, byGrammar: false, byRegistered: false },
+
+	// VS16 must not promote a component to a whole emoji. Every `Emoji_Component`
+	// that is also `\p{Emoji}` matches the ED-9a production `emoji_character
+	// emoji_presentation_selector`, but ED-9a admits only the sequences in
+	// `emoji-variation-sequences.txt`, and the twelve keycap bases are the only
+	// components in that file. Without the exclusion these all pass, and the lone
+	// component that the grammar is built to reject arrives wearing a VS16.
+	{ label: 'a skin-tone modifier with VS16', input: `🏽${VS16}`, byGrammar: false, byRegistered: false },
+	{ label: 'a hair component with VS16', input: `🦰${VS16}`, byGrammar: false, byRegistered: false },
+	{ label: 'a regional indicator with VS16', input: `🇦${VS16}`, byGrammar: false, byRegistered: false },
+	{ label: 'a skin-tone modifier with VS16 opening a ZWJ chain', input: `🏽${VS16}${ZWJ}👍`, byGrammar: false, byRegistered: false },
+	{ label: 'a skin-tone modifier with VS16 as a tag base', input: `🏽${VS16}${tag('gbeng')}${TAG_TERM}`, byGrammar: false, byRegistered: false },
+	{ label: 'a regional indicator with VS16 inside a ZWJ chain', input: `😀${ZWJ}🇦${VS16}`, byGrammar: false, byRegistered: false },
+	{ label: 'a skin-tone modifier with VS16 inside a ZWJ chain', input: `😀${ZWJ}🏽${VS16}`, byGrammar: false, byRegistered: false },
+
+	// A skin tone after a VS16-qualified text-presentation modifier base. There are
+	// nine such bases, and `☝️🏽` is the shape a caller is most likely to have
+	// stored, because qualifying `☝` with VS16 and then toning it looks correct.
+	// `\p{RGI_Emoji}` accepted it by decomposing it into a presentation sequence
+	// plus a lone component; ED-13 puts no VS16 between a base and its modifier.
+	{ label: 'a skin tone after a VS16-qualified text-presentation base', input: `☝${VS16}🏽`, byGrammar: false, byRegistered: false },
+
+	// The departures from ED-15a's `emoji_core_sequence | emoji_tag_sequence`
+	// element, documented in the implementation. No RGI member is affected.
+	{ label: 'a keycap sequence joined to a heart', input: `1${VS16}${COMBINING_KEYCAP}${ZWJ}❤${VS16}`, byGrammar: false, byRegistered: false },
+	{ label: 'two flag sequences joined by ZWJ', input: `🇹🇼${ZWJ}🇯🇵`, byGrammar: false, byRegistered: false },
+	{ label: 'a flag sequence joined to a heart', input: `❤${VS16}${ZWJ}🇹🇼`, byGrammar: false, byRegistered: false },
+	{ label: 'a tag sequence joined to a skull', input: `🏴${tag('gbeng')}${TAG_TERM}${ZWJ}💀`, byGrammar: false, byRegistered: false },
+	{ label: 'a skull joined to a tag sequence', input: `💀${ZWJ}🏴${tag('gbeng')}${TAG_TERM}`, byGrammar: false, byRegistered: false },
 ]
 
 describe('isEmoji step plugin', () => {
@@ -134,27 +163,38 @@ describe('isEmoji step plugin', () => {
 			.toBeGreaterThan(0)
 	})
 
-	it('stays linear on a long valid prefix that fails at its last character', () => {
+	it.each([
+		{ label: 'by default', schema: defaultSchema },
+		{ label: 'with registered: true', schema: registeredSchema },
+	])('stays linear on a long valid prefix that fails at its last character, $label', ({ schema }) => {
 		// `+` over an alternation whose members can partition a string more than
-		// one way is the shape that backtracks catastrophically. Doubling the input
-		// must roughly double the work, not square it.
+		// one way is the shape that backtracks catastrophically, so both accepted
+		// sets are pinned: the grammar's outer `+` and the registered path's
+		// unanchored `replace`.
+		//
+		// The input grows 64×, and the bound is 2× linear. That is what makes this
+		// assertion mean something: a 16× input under a 64× bound would pass on
+		// n^1.5, whereas 64× input under a 128× bound rejects n^1.5, which would
+		// cost 512×. Measured 2026-07-28: 59× by default and 37× with
+		// `registered: true`.
 		const family = `👨${ZWJ}👩${ZWJ}👧${ZWJ}👦`
 		const time = (count: number) => {
 			const input = `${family.repeat(count)}a`
 			const start = performance.now()
-			for (let index = 0; index < 200; index++) {
-				expect(defaultSchema.execute(input))
+			// Enough iterations that the 4-family measurement is hundreds of
+			// microseconds rather than tens, so an under-measured denominator cannot
+			// inflate the ratio on a loaded machine.
+			for (let index = 0; index < 500; index++) {
+				expect(schema.execute(input))
 					.toMatchObject({ issues: [{ code: 'isEmoji:expected_emoji' }] })
 			}
 			return performance.now() - start
 		}
-		time(16)
-		const short = time(16)
+		time(4)
+		const short = time(4)
 		const long = time(256)
-		// 16× the input for well under 16× the cost squared; the measured ratio is
-		// about 16, and a quadratic blow-up would be 256.
 		expect(long / short)
-			.toBeLessThan(64)
+			.toBeLessThan(128)
 	})
 
 	it('reports the owned issue shape', () => {

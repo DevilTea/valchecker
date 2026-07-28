@@ -46,7 +46,7 @@ Optional object fields use `[schema]`. Tuple rest uses a single `'...'` followed
 
 `json()` validates that a string is parseable JSON while preserving the string; `toJSONValue()` performs the parsing transformation.
 
-`isEmoji()` accepts every structurally valid UTS #51 emoji sequence. `isEmoji({ registered: true })` narrows that to Unicode's RGI set, costs roughly 110× more, and needs a runtime with the regular-expression `v` flag — without it that call fails with `isEmoji:unsupported_registered_set` instead of accepting a different set.
+`isEmoji()` accepts every structurally valid UTS #51 emoji sequence. `isEmoji({ registered: true })` narrows that to Unicode's RGI set and needs a runtime with the regular-expression `v` flag — without it that call fails with `isEmoji:unsupported_registered_set` instead of accepting a different set. What it costs depends on how specific the input is, because `\p{RGI_Emoji}` explores every longer registered sequence its input is a prefix of: 113× the default on a bare `😀`, 43× on the flag `🇹🇼`, and 1.3× on the ZWJ family `👨‍👩‍👧‍👦`. Quote the ratio for the inputs the schema actually sees rather than as one number.
 
 ### File-like values
 

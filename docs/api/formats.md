@@ -95,12 +95,36 @@ ZWJ, a lone VS16, a lone tag character, and a lone combining keycap are all
 rejected. So are `1`, `123`, `#`, `*`, and a text-presentation character without
 its VS16, such as `❤`, `☺`, or `©`.
 
+Adding VS16 does not promote a component to a whole emoji either. Forty-seven
+`Emoji_Component` characters are also `\p{Emoji}`, so all forty-seven match the
+UTS #51 production for an emoji presentation sequence — but ED-9a admits only the
+sequences listed in `emoji-variation-sequences.txt`, and the keycap bases `#`,
+`*`, and `0`–`9` are the only components in that file. So `1️` (U+0031 U+FE0F) is
+accepted while `🏽️` (U+1F3FD U+FE0F), `🇦️` (U+1F1E6 U+FE0F), and `🦰️`
+(U+1F9B0 U+FE0F) are rejected, as are the composites those would otherwise
+unlock, such as `🏽️` opening a ZWJ chain or standing as a tag base.
+
 `isEmoji({ registered: true })` narrows the accepted set to Unicode's RGI set —
 `\p{RGI_Emoji}` minus bare components — which is the sequences every vendor is
-expected to render. It costs roughly 110× more on a bare emoji (about 5,300 ns
-against 47 ns) and it needs a runtime with the regular-expression `v` flag; where
-that flag is missing it fails with `isEmoji:unsupported_registered_set` rather
-than silently accepting a different set.
+expected to render. What that costs depends on the input, because a
+property-of-strings match explores every longer registered sequence its input is
+a prefix of, and a fully specified sequence matches one alternative and stops:
+
+| Input | Default | `{ registered: true }` | Ratio |
+| --- | ---: | ---: | ---: |
+| `😀` | 47 ns | 5,293 ns | 113× |
+| `👍` | 51 ns | 5,282 ns | 104× |
+| `👍🏽` | 29 ns | 2,966 ns | 102× |
+| `🇹🇼` | 18 ns | 781 ns | 43× |
+| `👨‍👩‍👧‍👦` | 193 ns | 243 ns | 1.3× |
+| `👍a` (invalid) | 87 ns | 5,791 ns | 67× |
+
+Measured 2026-07-28 on Node.js 24.15.0, interleaved, median of nine runs of
+200,000 after a 100,000 warmup, through the built package.
+
+It also needs a runtime with the regular-expression `v` flag; where that flag is
+missing it fails with `isEmoji:unsupported_registered_set` rather than silently
+accepting a different set.
 
 The default therefore accepts structurally valid sequences that are not
 registered. Written with code points, because the joiners are invisible:

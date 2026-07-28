@@ -381,7 +381,16 @@ async function bundleScenario(item, output) {
 	const bundle = await rollup({
 		input: 'virtual:entry',
 		plugins: [resolver(item.code)],
-		treeshake: { annotations: true, moduleSideEffects: false, propertyReadSideEffects: false, tryCatchDeoptimization: false },
+		// `tryCatchDeoptimization` is left at Rollup's default `true` on purpose.
+		// Setting it to `false` hides a class of retention that a downstream Vite or
+		// Rollup consumer really pays: with the default, Rollup abandons analysis of
+		// a `try` block, so a module-scope `try`/`catch` survives even in a bundle
+		// that imports nothing near it. `isEmoji`'s registered-set capability probe
+		// was exactly that — 132 B and one `new RegExp(…, 'gv')` at import for an
+		// entry importing only `string` and `isEmail` — and this gate could not see
+		// it. A gate that measures a friendlier configuration than its consumers use
+		// is not a gate.
+		treeshake: { annotations: true, moduleSideEffects: false, propertyReadSideEffects: false },
 		onwarn(warning) {
 			if (warning.code !== 'CIRCULAR_DEPENDENCY')
 				warnings.push(warning.message)
