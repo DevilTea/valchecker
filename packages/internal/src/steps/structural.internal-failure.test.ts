@@ -1,15 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createValchecker, looseObject, strictObject, unknown } from '../index'
+import { createValchecker, looseObject, object, strictObject, unknown } from '../index'
 import { structuralFixture } from '../test-utils/fixtures'
 
 const structuralFailureFixture = structuralFixture
 
 const v = createValchecker({
-	steps: [looseObject, strictObject, structuralFailureFixture, unknown],
+	steps: [looseObject, object, strictObject, structuralFailureFixture, unknown],
 }) as any
 
 describe('structural internal-failure contracts', () => {
 	it.each([
+		['object', (struct: Record<string, any>) => v.object(struct)],
 		['strictObject', (struct: Record<string, any>) => v.strictObject(struct)],
 		['looseObject', (struct: Record<string, any>) => v.looseObject(struct)],
 	] as const)('stops %s traversal after an internal child failure', (name, createSchema) => {
