@@ -95,7 +95,14 @@ export const surfacePackages = ['@valchecker/internal', 'valchecker'] as const
 
 /** Vitest's test-registering calls. `describe` is not one: a `describe` with nothing in it runs nothing. */
 const testCalls = ['it', 'test'] as const
-const benchCalls = ['bench'] as const
+/**
+ * What a bench file calls to declare its cells. Not `bench` itself: a cell carries the
+ * group it aggregates into, what executing it must produce, and how many iterations make
+ * one measured unit, none of which fits `bench(name, fn)`. `stepBench()` registers the
+ * declaration with vitest for `pnpm bench` and with the registry the impact gate reads, so
+ * one call is what makes a step's cells reachable by both drivers.
+ */
+const cellDeclarationCalls = ['stepBench'] as const
 /** What makes a `*.types.test.ts` a type-level suite rather than a runtime one under that name. */
 const typeAssertionCalls = ['expectTypeOf', 'assertType'] as const
 
@@ -614,8 +621,8 @@ function missingPieces(tree: SourceTree, step: StepWithCodes, context: {
 	const bench = tree.read(`${directory}/${step.directory}.bench.ts`)
 	if (bench == null)
 		missing.push(`no focused \`${step.directory}.bench.ts\`. Copy the closest step's and replace its inputs with ones that exercise this step; it is the only benchmark file a step unit holds.`)
-	else if (!callsAnyOf(bench, benchCalls))
-		missing.push(`\`${step.directory}.bench.ts\` calls no \`bench\`, so \`vitest bench\` measures nothing for this step.`)
+	else if (!callsAnyOf(bench, cellDeclarationCalls))
+		missing.push(`\`${step.directory}.bench.ts\` calls no \`stepBench\`, so it declares no cell: \`vitest bench\` measures nothing for this step and the Performance Impact gate has nothing of it to select. This rule only checks that a declaration exists — \`pnpm bench:cells\` is what executes the cells and decides whether they measure this step.`)
 
 	for (const [packageName, identifiers] of Object.entries(context.exports)) {
 		if (!identifiers.has(step.exportIdentifier))
@@ -695,7 +702,7 @@ export function successMessage(report: CompletenessReport): string {
 		'a one-line `index.ts`, a `<name>.ts` whose only export is a single `implStepPlugin` construction last in the file,',
 		'with `Meta` then `PluginDef` above every statement that is not erased syntax,',
 		'a `<name>.test.ts` registering at least one case,',
-		'a `<name>.bench.ts` calling `bench`, a runtime export in api-surface.json,',
+		'a `<name>.bench.ts` declaring cells with `stepBench`, a runtime export in api-surface.json,',
 		'a `<name>.doc.md` whose `### ` entry writes their name in call form in a code span, describes them, and holds a `ts` example,',
 		'and every owned issue code both listed in a code span of that entry and present in a string in their own tests.',
 		'The steps root holds only the barrel, kebab-case shared modules, and cross-step tests whose family is not a step.',

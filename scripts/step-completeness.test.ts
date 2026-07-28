@@ -101,13 +101,11 @@ function test_({ name, code }: StepFixture): string {
 
 function bench({ name }: StepFixture): string {
 	return [
-		`import { bench, describe } from 'vitest'`,
+		`import { stepBench } from '../../test-utils/step-bench'`,
 		'',
-		`describe('${name}', () => {`,
-		`\tbench('valid input', () => {`,
-		`\t\trun()`,
-		'\t})',
-		'})',
+		`stepBench('${name}', [`,
+		`\t{ name: 'valid', group: 'warm/success', expect: { success: true }, batch: 100, run: () => schema.execute('x') },`,
+		'])',
 		'',
 	].join('\n')
 }
@@ -292,12 +290,15 @@ describe('the focused benchmark rule', () => {
 	// Bypass: the file truncated to 0 bytes, which the existence check accepted.
 	it('fails a benchmark file truncated to nothing', () => {
 		expect(onlyError({ [`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: '' }))
-			.toContain('`toTrimmed.bench.ts` calls no `bench`')
+			.toContain('`toTrimmed.bench.ts` calls no `stepBench`')
 	})
 
-	it('fails a benchmark file that only describes', () => {
-		expect(onlyError({ [`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: 'describe(\'toTrimmed\', () => {})\n' }))
-			.toContain('calls no `bench`')
+	it('fails a benchmark file that registers a bare vitest bench instead of declaring cells', () => {
+		// The previous generation of bench files, which `vitest bench` runs and the impact
+		// gate cannot read: a `bench(name, fn)` carries no group, no expectation, and no
+		// batch, so nothing downstream can measure it or check that it reaches its own step.
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: 'describe(\'toTrimmed\', () => {\n\tbench(\'valid\', () => run())\n})\n' }))
+			.toContain('calls no `stepBench`')
 	})
 })
 
@@ -805,7 +806,7 @@ describe('stepsRootProblems', () => {
 		expect(report.errors)
 			.toHaveLength(2)
 		expect(report.errors[0])
-			.toContain('calls no `bench`')
+			.toContain('calls no `stepBench`')
 		expect(report.errors[1])
 			.toContain('a cross-step test is named')
 	})

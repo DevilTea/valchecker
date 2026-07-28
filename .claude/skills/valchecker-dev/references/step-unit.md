@@ -13,7 +13,7 @@ once; the rules live in `scripts/step-completeness.ts`.
 | --- | --- | --- |
 | `<name>.ts` | required | `Meta`, `PluginDef`, and the exported plugin |
 | `<name>.test.ts` | required | the runtime suite |
-| `<name>.bench.ts` | required | the focused benchmark |
+| `<name>.bench.ts` | required | the step's benchmark cells, declared with `stepBench()`. [What a cell must be is below](#the-benchmark-file) |
 | `<name>.doc.md` | required | the step's entry in the API reference. [Its format is below](#the-documentation-file) |
 | `index.ts` | required | exactly `export * from './<name>'` |
 | `<name>.types.test.ts` | optional | the type-level suite. Must call `expectTypeOf` or `assertType`: its assertions are decided by `pnpm typecheck`, not by the vitest run that executes them |
