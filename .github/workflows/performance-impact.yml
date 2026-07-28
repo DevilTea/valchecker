@@ -32,6 +32,14 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 # admit every path that module can call a full run, or the rule cannot fire;
 # `scripts/check-impact-triggers.ts` fails when they do not.
 #
+# Every rule there is about what a changed file *means*, not about whether its bytes
+# moved. `scripts/inert-change.ts` compares the two revisions of each changed path — a
+# parsed YAML document, or the TypeScript AST reprinted without the comments no tool reads
+# — so a comment-only edit to this workflow no longer buys a 55-minute full run, and a
+# JSDoc fix to a step no longer selects that step's scenarios. Bundler annotations are not
+# comments by that definition: `@__NO_SIDE_EFFECTS__` and `@__PURE__` decide what rolldown
+# may drop, so moving one is a change to the bundle and is treated as one.
+#
 # The comparison *scripts* always come from the checked-out ref (PR merge ref, or
 # the dispatched ref), so the compare tooling and scenario selection are fixed;
 # `before` and `after` are only two valchecker builds the fixed scripts point at
@@ -135,7 +143,9 @@ on:
       - '!scripts/**'
       - '!.github/**'
       - scripts/impact-selection.ts
+      - scripts/inert-change.ts
       - scripts/select-impact-scenarios.ts
+      - scripts/source-tree.ts
       - .github/workflows/performance-impact.yml
       - .github/actions/setup/action.yml
   push:
@@ -169,7 +179,9 @@ on:
       - '!scripts/**'
       - '!.github/**'
       - scripts/impact-selection.ts
+      - scripts/inert-change.ts
       - scripts/select-impact-scenarios.ts
+      - scripts/source-tree.ts
       - .github/workflows/performance-impact.yml
       - .github/actions/setup/action.yml
 
@@ -344,10 +356,15 @@ jobs:
           mkdir -p artifacts/performance-impact
           # The diff between exactly the two revisions being built, and the attribution
           # graph read from the candidate worktree, which is the tree whose build is
-          # measured as `after`.
+          # measured as `after`. Both revisions are named as well as diffed, because
+          # whether a changed file means anything different is a question about the pair:
+          # a file whose two revisions differ only in comments or formatting cannot move a
+          # number and does not select anything.
           git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > artifacts/performance-impact/changed-files.txt
           pnpm bench:impact-scope \
             --changed-files artifacts/performance-impact/changed-files.txt \
+            --base "$BEFORE_SHA" \
+            --head "$AFTER_SHA" \
             --tree ../valchecker-after \
             --markdown artifacts/performance-impact/selection.md \
             --summary "$GITHUB_STEP_SUMMARY" \
