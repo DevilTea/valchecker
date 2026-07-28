@@ -8,15 +8,33 @@
  * `separation.mjs` and `comparability.mjs` were split out.
  */
 import { assertComparable, measurementIdentity } from './comparability.mjs'
-import { median, relativeMarginOfError } from './statistics.mjs'
+import { mean, median, relativeMarginOfError } from './statistics.mjs'
 
+/**
+ * A **reported diagnostic**, not the gate's decision input.
+ *
+ * It used to be the decision: a row counted only when `pairedRme <= 5`, and a row that
+ * did not count could not produce a regression verdict — which #124 named outright as
+ * "an unclassified scenario cannot produce a regression verdict — it is a silent
+ * pass." Two measurements showed why that had to go rather than be tuned. A row
+ * reading −12% with 6% RME has an interval of about [−18%, −6%], every value in it a
+ * regression, and the old rule passed it in silence. And the verdict itself was
+ * unreliable in the other direction: re-running one identical configuration on a hosted
+ * runner moved 54 of 170 cells across this threshold — 47 imprecise in one run against
+ * 21 in the other, same commit, same parameters — so a run's coverage was partly a
+ * property of the runner it drew.
+ *
+ * It stays reported because how precise a measurement is remains worth seeing; it no
+ * longer decides anything.
+ */
 export const stabilityThreshold = 5
+
 export const meaningfulThreshold = 5
 export const severeScenarioRegression = -10
 export const severeGroupRegression = -5
 
-/** The trigger needs this many stable scenarios in a group before it can fire. */
-export const minimumStableScenariosPerGroup = 2
+/** The trigger needs this many decisive rows in a group before it can fire. */
+export const minimumDecisiveScenariosPerGroup = 2
 
 function getValchecker(raw, label) {
 	if (!raw || typeof raw !== 'object' || !Array.isArray(raw.libraries))
@@ -83,6 +101,13 @@ export function formatDelta(value) {
 	return `${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%`
 }
 
+/** A row's 95% interval, as the pair of changes it spans. */
+export function formatInterval(row) {
+	return Number.isFinite(row.intervalLow) && Number.isFinite(row.intervalHigh)
+		? `${formatDelta(row.intervalLow)} … ${formatDelta(row.intervalHigh)}`
+		: 'unbounded'
+}
+
 function markdownCell(value) {
 	return String(value)
 		.replaceAll('|', '\\|')
@@ -120,7 +145,7 @@ function coveragePercent(measured, total) {
  * - declaring a trigger unavailable cannot catch anything. It converts a pass into an
  *   unknown, and the unknown it produces would be wrong in the common case above.
  *
- * What is genuinely unavailable is a trigger with fewer than two *stable* scenarios, and
+ * What is genuinely unavailable is a trigger with fewer than two *decisive* rows, and
  * that is reported separately and by name. What a reader must not have to guess is how
  * much of a group ran, which is why every group row carries `measured/total` and the
  * report says outright that a scoped aggregate is not comparable with an unscoped one.
@@ -128,8 +153,13 @@ function coveragePercent(measured, total) {
 function summarizeGroups(rows, groupTotals) {
 	return [...new Set(rows.map(row => row.group))].map((group) => {
 		const groupRows = rows.filter(row => row.group === group)
-		const stableRows = groupRows.filter(row => row.stable)
-		const ratio = geometricMean(stableRows.map(row => row.ratio))
+		// Decisive rows, not precise ones. A row whose interval settles the question
+		// belongs in the aggregate whichever side of the threshold it settled on, and
+		// improvements are included with the rest: dropping them would leave a mean over
+		// regressions and cleared rows only, which is biased toward firing the trigger on
+		// what is really a trade-off.
+		const decisiveRows = groupRows.filter(row => row.decisive)
+		const ratio = geometricMean(decisiveRows.map(row => row.ratio))
 		return {
 			group,
 			scenarios: groupRows.length,
@@ -138,7 +168,9 @@ function summarizeGroups(rows, groupTotals) {
 			// floor: a denominator smaller than the numerator would be a reporting bug
 			// standing in for a selection fact.
 			catalogScenarios: Math.max(groupTotals.get(group) ?? 0, groupRows.length),
-			stableScenarios: stableRows.length,
+			decisiveScenarios: decisiveRows.length,
+			/** How many rows the retry pass would have to settle before this group is fully judged. */
+			inconclusiveScenarios: groupRows.length - decisiveRows.length,
 			ratio,
 			delta: ratio == null ? null : ratio - 1,
 		}
@@ -151,6 +183,61 @@ export function groupTotalsOf(catalog) {
 	for (const scenario of catalog)
 		totals.set(scenario.group, (totals.get(scenario.group) ?? 0) + 1)
 	return totals
+}
+
+/**
+ * One row's verdict, taken against the **interval** rather than the point estimate.
+ *
+ * The gate used to ask two separate questions — is this estimate precise, and is the
+ * point estimate past the threshold — when the question it needs answered is one: *can a
+ * regression be ruled out?* Asking it as two produced errors in both directions, and both
+ * were measured rather than argued:
+ *
+ * - a **false positive that precision did not catch.** In a hosted-runner null run
+ *   (`before == after`, so every non-neutral result is false by construction) the gate
+ *   returned `review` and called `construct/tuple` a regression at −5.32% with a paired
+ *   RME of 3.12%: precise by the old test, and wrong. Its interval is about
+ *   [−8.3%, −2.4%], which spans −5%, so the honest answer is that this run cannot tell a
+ *   5% regression from noise on that cell. Under this rule it is `inconclusive`.
+ * - a **false negative that precision caused.** A row at −12% with 6% RME has an interval
+ *   of about [−18%, −6%]: every value in it is a regression, and the old rule discarded it
+ *   for imprecision and passed.
+ *
+ * The four largest false deltas of the same null runs (+14.88% at 19.47 RME, −7.71% at
+ * 15.72, −6.07% at 6.15, −5.64% at 11.09) all have intervals spanning everything, so all
+ * four land `inconclusive` here — which is what a run that cannot judge them should say.
+ *
+ * The interval is centred on the mean of the paired ratios, because that is what
+ * `relativeMarginOfError` is the half-width *of* — a t interval for the mean. The
+ * reported `delta` stays the median, which is the robust point estimate the report has
+ * always shown; where the two disagree the classification is the conservative one,
+ * because every rule below requires the whole interval to be on one side of a threshold.
+ *
+ * `severe` additionally requires the point estimate past −10%, so the one rule that fails
+ * the build keeps its stated meaning. It is still strictly more sensitive than the rule it
+ * replaces, which demanded precision on top.
+ */
+function classifyRow(pairedRatios, ratio) {
+	const centre = mean(pairedRatios)
+	const halfWidth = relativeMarginOfError(pairedRatios) / 100 * Math.abs(centre)
+	const low = centre - halfWidth - 1
+	const high = centre + halfWidth - 1
+	const meaningful = meaningfulThreshold / 100
+	const delta = ratio - 1
+
+	if (high <= -meaningful) {
+		return {
+			low,
+			high,
+			decisive: true,
+			classification: delta <= severeScenarioRegression / 100 ? 'severe' : 'regression',
+		}
+	}
+	if (low >= meaningful)
+		return { low, high, decisive: true, classification: 'improvement' }
+	if (low > -meaningful && high < meaningful)
+		return { low, high, decisive: true, classification: 'cleared' }
+	return { low, high, decisive: false, classification: 'inconclusive' }
 }
 
 export function compareResults(baseline, candidate, { groupTotals }) {
@@ -174,14 +261,7 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 		const ratio = median(pairedRatios)
 		const delta = ratio - 1
 		const pairedRme = relativeMarginOfError(pairedRatios)
-		const stable = pairedRme <= stabilityThreshold
-		const classification = !stable
-			? 'unstable'
-			: delta >= meaningfulThreshold / 100
-				? 'improvement'
-				: delta <= -meaningfulThreshold / 100
-					? 'regression'
-					: 'neutral'
+		const classified = classifyRow(pairedRatios, ratio)
 		return {
 			scenario: base.scenario,
 			category: base.category,
@@ -198,8 +278,14 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 			pairedRatios,
 			ratio,
 			delta,
-			stable,
-			classification,
+			/** The 95% interval the same repetitions establish, as a change like `delta`. */
+			intervalLow: classified.low,
+			intervalHigh: classified.high,
+			/** Diagnostic only: whether the estimate met the reported precision threshold. */
+			precise: pairedRme <= stabilityThreshold,
+			/** Whether the interval settled the question, either way. */
+			decisive: classified.decisive,
+			classification: classified.classification,
 			baselineRunMedians: base.runMedians,
 			candidateRunMedians: head.runMedians,
 		}
@@ -209,19 +295,26 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 
 	const groups = summarizeGroups(rows, groupTotals)
 
-	const severeScenarios = rows.filter(row => row.stable && row.delta * 100 <= severeScenarioRegression)
-	const severeGroups = groups.filter(row => row.delta != null && row.stableScenarios >= minimumStableScenariosPerGroup && row.delta * 100 <= severeGroupRegression)
-	// The trigger that catches a broad moderate regression needs two stable scenarios
-	// in the group. A group that has fewer is not covered by it, and the verdict says
-	// so rather than reading as a group the trigger cleared.
-	const groupsWithoutTrigger = groups.filter(row => row.stableScenarios < minimumStableScenariosPerGroup)
+	const severeScenarios = rows.filter(row => row.classification === 'severe')
+	const severeGroups = groups.filter(row => row.delta != null && row.decisiveScenarios >= minimumDecisiveScenariosPerGroup && row.delta * 100 <= severeGroupRegression)
+	// The trigger that catches a broad moderate regression needs two decisive rows in
+	// the group. A group that has fewer is not covered by it, and the verdict says so
+	// rather than reading as a group the trigger cleared.
+	const groupsWithoutTrigger = groups.filter(row => row.decisiveScenarios < minimumDecisiveScenariosPerGroup)
 		.map(row => row.group)
 	// The groups whose aggregate is over part of the group. Named for the same reason:
-	// `2/2 stable` says nothing about whether the group has 2 scenarios or 113.
+	// `2/2 decisive` says nothing about whether the group has 2 scenarios or 113.
 	const partiallyCoveredGroups = groups.filter(row => row.scenarios < row.catalogScenarios)
 		.map(row => ({ group: row.group, measured: row.scenarios, total: row.catalogScenarios }))
 	const improvements = rows.filter(row => row.classification === 'improvement')
-	const regressions = rows.filter(row => row.classification === 'regression')
+	// Severe rows are regressions too; the count is of everything the interval rule
+	// settled on the regression side, so it can never read as smaller than `severeScenarios`.
+	const regressions = rows.filter(row => row.classification === 'regression' || row.classification === 'severe')
+	// The retry input, and the one list a reader of a passing gate most needs. These are
+	// the rows this run could not judge — not rows it cleared. `inconclusive` is not a
+	// pass, and the verdict below refuses to call a run with any of them `neutral`.
+	const inconclusiveScenarios = rows.filter(row => row.classification === 'inconclusive')
+		.map(row => row.scenario)
 	const verdict = severeScenarios.length > 0 || severeGroups.length > 0
 		? 'regression'
 		: regressions.length > 0 && improvements.length > 0
@@ -230,14 +323,24 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 				? 'review'
 				: improvements.length > 0
 					? 'improvement'
-					: 'neutral'
+					// A run with unsettled rows is not `neutral`. It is reported as
+					// `inconclusive` so nothing downstream can read it as a clean sweep, and the
+					// rows are named so the retry pass has an input. It does not by itself fail
+					// the job: `--fail-on-regression` fails on a regression verdict, and making
+					// an unsettled row fail the build would turn a runner's noise — 54 of 170
+					// cells moved across the old precision threshold between two identical
+					// hosted-runner runs — into a red gate on pull requests that changed nothing.
+					// Not a pass and not a failure: an answer the gate does not have yet.
+					: inconclusiveScenarios.length > 0
+						? 'inconclusive'
+						: 'neutral'
 
 	return {
 		// 6 because `groups[].catalogScenarios`, `partiallyCoveredGroups`,
 		// `groupsWithoutTrigger`, and `measurement.selection` were added; a reader of a
 		// stored report must be able to tell whether the absence of a scope note means
 		// full coverage or an older tool that could not report it.
-		schemaVersion: 6,
+		schemaVersion: 7,
 		mode: baseline.mode,
 		// The measurement identity both sides had to share, recorded so the verdict
 		// carries the conditions it was reached under rather than only the numbers.
@@ -247,7 +350,7 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 			selection: baseline.identity.selection,
 		},
 		// How much of the tier ran. Without it a reader of a passing report cannot tell a
-		// complete comparison from a scoped one, and `2/2 stable` in a group reads the
+		// complete comparison from a scoped one, and `2/2 decisive` in a group reads the
 		// same whether the group has two scenarios or a hundred and thirteen.
 		coverage: {
 			measuredScenarios: rows.length,
@@ -260,19 +363,27 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 			meaningfulChangePercent: meaningfulThreshold,
 			severeScenarioRegressionPercent: Math.abs(severeScenarioRegression),
 			severeGroupRegressionPercent: Math.abs(severeGroupRegression),
-			minimumStableScenariosPerGroup,
+			minimumDecisiveScenariosPerGroup,
 		},
 		verdict,
 		counts: {
 			improvements: improvements.length,
 			regressions: regressions.length,
-			neutral: rows.filter(row => row.classification === 'neutral').length,
-			unstable: rows.filter(row => row.classification === 'unstable').length,
+			cleared: rows.filter(row => row.classification === 'cleared').length,
+			severe: severeScenarios.length,
+			inconclusive: inconclusiveScenarios.length,
+			// Diagnostic only, and reported beside the classifications rather than inside
+			// them: how many rows met the precision threshold that used to be the gate.
+			imprecise: rows.filter(row => !row.precise).length,
 		},
 		groups,
 		rows,
 		severeScenarios: severeScenarios.map(row => row.scenario),
 		severeGroups: severeGroups.map(row => row.group),
+		// The retry input. A second pass measures exactly these rows for k more paired
+		// repetitions, pools them with the first pass, and judges once — never taking the
+		// better of two results, and never re-judging a row that was already decisive.
+		inconclusiveScenarios,
 		groupsWithoutTrigger,
 		partiallyCoveredGroups,
 	}
@@ -287,18 +398,21 @@ export function renderMarkdown(result) {
 		`Scenarios measured: **${result.coverage.measuredScenarios} of ${result.coverage.tierScenarios}** in the \`${result.mode}\` tier`
 		+ `${result.measurement.selection == null ? ' (unscoped)' : ' (scoped to the diff)'}.`,
 		'',
-		`Meaningful change requires at least **${meaningfulThreshold}%** with paired-ratio RME at or below **${stabilityThreshold}%**.`,
+		`A row is judged by its **95% interval**, not by its point estimate: **cleared** when the whole interval is inside ±${meaningfulThreshold}%, `
+		+ `**regression** when the whole interval is at or below −${meaningfulThreshold}%, **severe** when it is a regression and the point estimate is at or below `
+		+ `−${Math.abs(severeScenarioRegression)}%, and **inconclusive** when the interval spans a threshold. An inconclusive row is **not a pass** — `
+		+ `it is a row this run could not judge. Paired RME is reported as a diagnostic and decides nothing.`,
 		'',
 		'## Benchmark-group tradeoffs',
 		'',
-		'| Group | Scenarios measured | Stable | Geometric mean change |',
+		'| Group | Scenarios measured | Decisive | Geometric mean change |',
 		'| --- | ---: | ---: | ---: |',
 	]
 	for (const row of result.groups) {
 		lines.push(
 			`| ${markdownCell(row.group)} `
 			+ `| ${row.scenarios}/${row.catalogScenarios} (${coveragePercent(row.scenarios, row.catalogScenarios)}%) `
-			+ `| ${row.stableScenarios}/${row.scenarios} `
+			+ `| ${row.decisiveScenarios}/${row.scenarios} `
 			+ `| ${row.delta == null ? 'n/a' : formatDelta(row.delta)} |`,
 		)
 	}
@@ -317,8 +431,20 @@ export function renderMarkdown(result) {
 		lines.push(
 			'',
 			`> **No severe-group trigger** for ${result.groupsWithoutTrigger.map(group => `\`${group}\``)
-				.join(', ')}. It needs at least ${minimumStableScenariosPerGroup} stable scenarios in a group, and these have fewer, `
+				.join(', ')}. It needs at least ${minimumDecisiveScenariosPerGroup} decisive rows in a group, and these have fewer, `
 				+ 'so a broad moderate regression inside one of them is watched only by the per-scenario 10% threshold.',
+		)
+	}
+
+	if (result.inconclusiveScenarios.length > 0) {
+		lines.push(
+			'',
+			`> **${result.inconclusiveScenarios.length} row${result.inconclusiveScenarios.length === 1 ? '' : 's'} this run could not judge.** `
+			+ `${result.inconclusiveScenarios.slice(0, 12)
+				.map(scenario => `\`${scenario}\``)
+				.join(', ')}${result.inconclusiveScenarios.length > 12 ? `, and ${result.inconclusiveScenarios.length - 12} more` : ''}. `
+				+ 'Their intervals span a threshold, so this run can neither clear them nor call them a change. They are **not** part of any group aggregate, '
+				+ 'and they are what the retry pass re-measures: the same rows get further paired repetitions, pooled with these, and are judged once.',
 		)
 	}
 
@@ -326,13 +452,13 @@ export function renderMarkdown(result) {
 		'',
 		'## Scenario changes',
 		'',
-		'| Scenario | Group | Issue policy | Issues | Baseline ops/s | Candidate ops/s | Change | Paired RME | Classification |',
-		'| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
+		'| Scenario | Group | Issue policy | Issues | Baseline ops/s | Candidate ops/s | Change | 95% interval | Paired RME | Classification |',
+		'| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
 	)
 	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta)) {
 		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps)
 			.toLocaleString('en-US')} | ${Math.round(row.candidateOps)
-			.toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
+			.toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${formatInterval(row)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
 	}
 
 	lines.push(
@@ -340,8 +466,8 @@ export function renderMarkdown(result) {
 		'## Decision rubric',
 		'',
 		'- Each observation is a candidate/base ratio from adjacent independent processes; the reported change is the median paired ratio.',
-		'- Paired RME uses a 95% Student’s t interval, which is intentionally conservative for three process pairs.',
-		'- Below 3% is normally noise; 3–5% needs corroboration; at least 5% with paired RME ≤5% is meaningful.',
+		'- The interval is a 95% Student’s t interval over those paired ratios, which is intentionally conservative at five process pairs.',
+		'- A row is decided by whether its whole interval is on one side of a threshold, never by the point estimate alone. A point estimate past a threshold with an interval straddling it is `inconclusive`, which is what a run that cannot judge a row should say.',
 		'- Group-level gates keep success, library-default failure, first-issue failure, and all-issues failure tradeoffs separate.',
 		'- A group aggregate covers the scenarios that ran; read it with the coverage column beside it.',
 		'- Construction or fresh-schema regressions require documented warm-path amortization.',
@@ -353,7 +479,7 @@ export function renderMarkdown(result) {
 }
 
 export function renderHtml(result) {
-	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.scenarios}/${row.catalogScenarios} (${coveragePercent(row.scenarios, row.catalogScenarios)}%)</td><td>${row.stableScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`)
+	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.scenarios}/${row.catalogScenarios} (${coveragePercent(row.scenarios, row.catalogScenarios)}%)</td><td>${row.decisiveScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td></tr>`)
 		.join('')
 	const rows = [...result.rows].sort((left, right) => left.delta - right.delta)
 		.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps)
@@ -364,5 +490,5 @@ export function renderHtml(result) {
 		? ''
 		: `<p><strong>Partly covered groups:</strong> ${htmlEscape(result.partiallyCoveredGroups.map(row => `${row.group} ${row.measured}/${row.total}`)
 			.join(', '))}. A group's geometric mean is over the scenarios this run measured.</p>`
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p>${scope}<h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Scenarios measured</th><th>Stable scenarios</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p>${scope}<h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Scenarios measured</th><th>Decisive rows</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }
