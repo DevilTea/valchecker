@@ -1,33 +1,38 @@
 # Benchmarking Guide
 
-Every built-in step directory has a colocated `<step>.bench.ts`. A benchmark must preserve the public semantic contract and cover representative success and failure work rather than only the cheapest path.
-
-## Focused Vitest benchmarks
-
-Construct reusable schemas outside the benchmark callback unless construction is the subject:
+Every built-in step directory has a colocated `<step>.bench.ts`, and it is the unit the **Performance Impact** gate selects and measures. It declares its cells as data:
 
 ```ts
-import { bench, describe } from 'vitest'
 import { createValchecker, isAtLeast, number } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [number, isAtLeast] })
-const schema = v.number().isAtLeast(0)
+const schema = v.number()
+	.isAtLeast(0)
 
-describe('isAtLeast benchmarks', () => {
-	bench('success at boundary', () => schema.execute(0))
-	bench('success above boundary', () => schema.execute(42))
-	bench('failure below boundary', () => schema.execute(-1))
-})
+stepBench('isAtLeast', [
+	{ name: 'valid', group: 'warm/success', expect: { success: true }, batch: 100, run: () => schema.execute(42) },
+	{ name: 'below', group: 'warm/failure/library-default', expect: { success: false, issues: ['isAtLeast:expected_at_least'] }, batch: 100, run: () => schema.execute(-1) },
+])
 ```
 
-Run focused or complete Vitest benchmarks with the root script:
+**One declaration, two drivers.** `pnpm bench` is `vitest bench` over the TypeScript source; the gate compares two builds of `packages/valchecker/dist/index.mjs`, one process per cell, and a vitest `bench()` over source measures neither of them and produces no paired ratio. `stepBench()` registers the cells with vitest for the local loop and with a registry the gate reads, and the gate imports the same file in a plain Node process under two resolution hooks — `vitest` resolves to a shim, and the `'../..'` every bench file already has resolves to the dist under test. So a cell cannot exist for one driver and not the other. Those hooks are Node's own ESM resolution, which is why a caller running under another loader (a vitest worker, for instance) must spawn `benchmarks/src/cells/catalog.mjs` rather than import `collect.mjs`.
+
+A cell carries what `bench(name, fn)` cannot: the `group` it aggregates into, the `expect` that is verified by executing it outside every timed region, and the `batch` that makes the unit worth timing.
+
+**The required set, and its ceiling.** Per step: one success cell on a representative input; one failure cell producing one of *this step's own* issue codes; construction hoisted above the cells; a batch sized so one unit is roughly 1–10 µs. Where the feature exists: one cell per *distinct algorithm* behind an option (not per option value), a non-empty shape or element set plus one `collectAllIssues` cell for a structure, and one async cell for a step with an async path. Deliberately **not** required, and rejected in review: every issue code, every boundary, every size variant, every option value. Those belong in `<name>.test.ts`. Two to four cells per step is the norm.
+
+Batching is not optional. `measure.mjs` reads `process.hrtime.bigint()` every 16 iterations and that read costs about 15 ns, so an unbatched cell measures the harness: on `native-typeof` the real work was 12% of the number and on `kind-unknown/valid` 20%, which turns a real 25% regression into about 5% — at the threshold. Batching does not make a cell more stable (the noise is between processes, and a sample already fills a fixed 300 ms); it removes the dilution, and it is free for the same reason.
+
+`pnpm bench:cells` enforces the part of this a script can decide, by running the cells. It cannot decide whether a cell measures work worth measuring — a success cell on a degenerate input, a structure over an empty shape, and a transform whose enclosing collection dominates the unit all pass it — which is what review is for, and why the cell set is kept small enough to read.
 
 ```bash
 pnpm bench packages/internal/src/steps/isAtLeast
 pnpm bench
+pnpm bench:cells
 ```
 
-Do not compare a validation policy with a primitive identity, include construction in a warmed execution case, omit issue construction from failure work, or benchmark a schema that no longer compiles against the public API.
+Do not compare a validation policy with a primitive identity, include construction in a warmed cell, omit issue construction from failure work, or leave a JavaScript baseline in the gate set — a baseline measures neither build under comparison, so `group: 'baseline'` excludes it.
 
 ## Cross-library suite
 
@@ -54,7 +59,7 @@ Measuring the whole standard tier both ways on one machine sized it: 684 of 773 
 
 The **Performance Comparison** workflow shards by scenario, never by adapter: every adapter of one scenario must be measured on one machine because that is the only comparison the report makes, and runners vary between jobs. Assignment is positional round-robin (`p % count`), deterministic from the selection and count alone, so rerunning one shard measures the same scenarios; it is also exactly invertible, which is how `merge` rebuilds the run order without the registry. `merge` refuses a differing mode, seed, profile, isolation, filter, adapter order, adapter version, commit, or Node.js version; shard sizes no `p % count` assignment could produce, or a shard whose recorded scenario list is not its own catalog, because `interleaveShards` would otherwise reorder them into a catalog the report presents as the run order; overlapping or duplicated shards; an already-merged input; and a missing shard. Only the machine may differ. Each adapter reports the version of the build it loaded rather than a source literal — read from the nearest `package.json` above the resolved entry — so the version guards compare something that can actually differ, and a published report's versions are traceable. For the Valchecker adapter that is `packages/valchecker`'s version, which does not identify a build within one version; `environment.commit` is what catches a mixed-build merge.
 
-The **Performance Impact** gate is deliberately unsharded — see `benchmarks/README.md` for the argument. `compare.mjs` refuses to pair runs whose isolation or shard count differs, the same guard that already refuses a differing mode or profile; it lives in `benchmarks/src/comparability.mjs` so it can be tested against results differing in exactly one field.
+The **Performance Impact** gate shards four ways and merges before the verdict, so the group aggregate is computed once over the complete cell set. It used to say it was deliberately unsharded; both objections were checked and neither held. The severe-group trigger does become a cross-runner aggregate, and nothing breaks — every input to it is already a dimensionless machine-cancelled paired ratio and the aggregate is a bare geometric mean with no confidence interval, so there is no statistic a between-machine term can enter; the real effect is that a noisier runner leaves fewer of its own cells decisive, which the gate already reports as `groupsWithoutTrigger`. And the fixed cost was measured rather than estimated: 55m12s of measurement against about 40s of checkout, setup, both builds, and scoping, so wall time is `40s + measurement/N` and four shards is about 28.5 minutes. `compare.mjs` still refuses to pair runs whose isolation or shard count differs, so sharding one side only fails loudly.
 
 Each measurement takes between `minSamples` and `maxSamples` samples and stops as soon as its 95% confidence interval is within `targetRelativeMarginOfError` of the mean. `smoke` sets no target and always takes its three. The interval uses Student's t, which is what makes the target mean what it says at these sample sizes. `pnpm --dir benchmarks test` checks the rule, and CI runs it in the `Benchmark-Smoke` job.
 
