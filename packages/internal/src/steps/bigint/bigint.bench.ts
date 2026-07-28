@@ -1,32 +1,23 @@
-/**
- * Benchmark plan for bigint:
- * - Operations benchmarked: bigint validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { bigint, createValchecker } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [bigint] })
+const schema = v.bigint()
+const valid = 1n
 
-describe('bigint benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.bigint()
-				.execute(undefined)
-		})
-
-		bench('valid input - large', () => {
-			v.bigint()
-				.execute(undefined)
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.bigint()
-				.execute(undefined)
-		})
-	})
-})
+stepBench('bigint', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute(valid),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['bigint:expected_bigint'] },
+		batch: 100,
+		run: () => schema.execute(1),
+	},
+])

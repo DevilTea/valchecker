@@ -1,32 +1,22 @@
-/**
- * Benchmark plan for use:
- * - Operations benchmarked: use validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
+import { createValchecker, number, object, string, use } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-import { bench, describe } from 'vitest'
-import { createValchecker, string, use } from '../..'
+const v = createValchecker({ steps: [number, object, string, use] })
 
-const v = createValchecker({ steps: [string, use] })
+const delegate = v.object({ id: v.string(), age: v.number() })
+const schema = v.use(delegate)
 
-describe('use benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.use(v.string())
-				.execute('hello')
-		})
+const valid = { id: 'u-1', age: 36 }
 
-		bench('valid input - large', () => {
-			v.use(v.string())
-				.execute('x'.repeat(1000))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.use(v.string())
-				.execute(123)
-		})
-	})
-})
+// `use` is one delegating call and owns no issue code: it adds a step that hands the
+// value to another schema's `~execute`. A failure cell would measure the delegate's
+// failure path, so the success cell is the whole honest set.
+stepBench('use', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 50,
+		run: () => schema.execute(valid),
+	},
+])

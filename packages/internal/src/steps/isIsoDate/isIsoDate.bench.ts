@@ -1,22 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isIsoDate, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isIsoDate] })
-	.string()
+const v = createValchecker({ steps: [string, isIsoDate] })
+const schema = v.string()
 	.isIsoDate()
 
-describe('isIsoDate benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('2026-07-23')
-	})
-
-	// A leap day matches the pattern's first alternative and short-circuits,
-	// while an ordinary date walks past it into the month-length groups.
-	bench('valid leap day', () => {
-		schema.execute('2024-02-29')
-	})
-
-	bench('invalid input', () => {
-		schema.execute('2026-02-30')
-	})
-})
+stepBench('isIsoDate', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('2026-07-23'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isIsoDate:expected_iso_date'] },
+		batch: 100,
+		run: () => schema.execute('2026-02-30'),
+	},
+])

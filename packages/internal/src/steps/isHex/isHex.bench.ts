@@ -1,16 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isHex, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isHex] })
-	.string()
+const v = createValchecker({ steps: [string, isHex] })
+const schema = v.string()
 	.isHex()
 
-describe('isHex benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('deadBEEF')
-	})
-
-	bench('invalid input', () => {
-		schema.execute('0x1f')
-	})
-})
+stepBench('isHex', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('deadBEEF'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isHex:expected_hex'] },
+		batch: 100,
+		run: () => schema.execute('0x1f'),
+	},
+])

@@ -1,16 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isNanoid, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isNanoid] })
-	.string()
+const v = createValchecker({ steps: [string, isNanoid] })
+const schema = v.string()
 	.isNanoid()
 
-describe('isNanoid benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('V1StGXR8_Z5jdHi6B-myT')
-	})
-
-	bench('invalid input', () => {
-		schema.execute('abc def')
-	})
-})
+stepBench('isNanoid', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('V1StGXR8_Z5jdHi6B-myT'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isNanoid:expected_nanoid'] },
+		batch: 100,
+		run: () => schema.execute('V1StGXR8 Z5jdHi6B-myT'),
+	},
+])

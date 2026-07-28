@@ -1,45 +1,51 @@
-/**
- * Benchmark plan for toFiltered:
- * - Operations benchmarked: array and Set filtering
- * - Input scenarios: small/large success and callback failure
- * - Comparison baselines: collection traversal cost is represented by the existing transforms
- */
+import { as, createValchecker, toFiltered } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-import { bench, describe } from 'vitest'
-import { any, array, createValchecker, set, toFiltered } from '../..'
+const v = createValchecker({ steps: [as, toFiltered] })
 
-const v = createValchecker({ steps: [toFiltered, array, set, any] })
-const arraySmall = v.array(v.any())
-	.toFiltered(() => true)
-const arrayLarge = v.array(v.any())
-	.toFiltered((_item, index) => index % 2 === 0)
-const setSmall = v.set(v.any())
-	.toFiltered(() => true)
-const setLarge = v.set(v.any())
-	.toFiltered((_item, index) => index % 2 === 0)
-const setFailure = v.set(v.any())
-	.toFiltered(() => { throw new Error('x') })
-const largeArray = Array.from({ length: 1000 }, (_, index) => index)
-const largeSet = new Set(largeArray)
-
-describe('toFiltered benchmarks', () => {
-	bench('array success - small', () => {
-		arraySmall.execute([1, 2, 3])
+// `as` rather than `array(v.any())`/`set(v.any())`: the enclosing structural walk would be
+// most of the unit and an `array`/`set` regression would fire here. `as` is type-only and
+// installs no runtime step, so the unit is `execute()` plus this step.
+const filteredArray = v.as<number[]>()
+	.toFiltered(item => item % 2 === 0)
+// The Set branch is a second algorithm, not a second input: the array path delegates to
+// `Array.prototype.filter` under the callback-error sentinel, while the Set path runs its
+// own loop and rebuilds a Set.
+const filteredSet = v.as<Set<number>>()
+	.toFiltered(item => item % 2 === 0)
+// Pre-allocated, because `new Error()` captures a stack and that cost belongs to V8
+// rather than to this step's failure path.
+const boom = new Error('boom')
+const throwing = v.as<number[]>()
+	.toFiltered(() => {
+		throw boom
 	})
 
-	bench('array success - large', () => {
-		arrayLarge.execute(largeArray)
-	})
+const array = [1, 2, 3, 4]
+const set = new Set(array)
 
-	bench('set success - small', () => {
-		setSmall.execute(new Set([1, 2, 3]))
-	})
-
-	bench('set success - large', () => {
-		setLarge.execute(largeSet)
-	})
-
-	bench('set callback failure', () => {
-		setFailure.execute(new Set([1]))
-	})
-})
+stepBench('toFiltered', [
+	{
+		name: 'array-filtered',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 50,
+		run: () => filteredArray.execute(array),
+	},
+	{
+		name: 'set-filtered',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 50,
+		run: () => filteredSet.execute(set),
+	},
+	{
+		// The sentinel path: the throw crosses `Array.prototype.filter`, is recognised by
+		// `runWithCallbackErrorSentinel`, and becomes this step's operation issue.
+		name: 'callback-failed',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['toFiltered:callback_failed'] },
+		batch: 10,
+		run: () => throwing.execute(array),
+	},
+])

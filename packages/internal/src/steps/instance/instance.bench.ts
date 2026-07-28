@@ -1,32 +1,30 @@
-/**
- * Benchmark plan for instance:
- * - Operations benchmarked: instance validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, instance } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
+
+class Point {
+	x = 1
+	y = 2
+}
 
 const v = createValchecker({ steps: [instance] })
+// A user-defined class rather than `Object`, whose prototype chain every value shares:
+// the check is one `instanceof` regardless of the constructor, so one cell covers it.
+const schema = v.instance(Point)
+const valid = new Point()
 
-describe('instance benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.instance(Object)
-				.execute({})
-		})
-
-		bench('valid input - large', () => {
-			v.instance(Object)
-				.execute({ large: 'a'.repeat(1000) })
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.instance(Object)
-				.execute('string')
-		})
-	})
-})
+stepBench('instance', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute(valid),
+	},
+	{
+		name: 'other-class',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['instance:expected_instance'] },
+		batch: 100,
+		run: () => schema.execute('string'),
+	},
+])

@@ -1,28 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isIsoDateTime, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isIsoDateTime] })
-	.string()
+const v = createValchecker({ steps: [string, isIsoDateTime] })
+const schema = v.string()
 	.isIsoDateTime()
 
-describe('isIsoDateTime benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('2026-07-23T12:30:00Z')
-	})
-
-	// A leap day matches the pattern's first alternative and short-circuits,
-	// while an ordinary date walks past it into the month-length groups.
-	bench('valid leap day', () => {
-		schema.execute('2024-02-29T12:30:00Z')
-	})
-
-	bench('invalid input', () => {
-		schema.execute('2026-02-30T12:00:00')
-	})
-
-	// A near miss whose date part is valid is the one shape that costs more than
-	// it did before: the calendar alternation runs before the mismatch is found.
-	bench('invalid near miss after a valid date', () => {
-		schema.execute('2026-07-23 12:30:00')
-	})
-})
+stepBench('isIsoDateTime', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('2026-07-23T12:30:00Z'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isIsoDateTime:expected_iso_date_time'] },
+		batch: 100,
+		run: () => schema.execute('2026-02-30T12:00:00'),
+	},
+])

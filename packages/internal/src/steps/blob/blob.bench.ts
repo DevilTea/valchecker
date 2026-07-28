@@ -1,16 +1,25 @@
-import { bench, describe } from 'vitest'
 import { blob, createValchecker } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [blob] })
-	.blob()
+const v = createValchecker({ steps: [blob] })
+const schema = v.blob()
+// Hoisted, because constructing a `Blob` costs far more than the `instanceof` check the
+// cell exists to measure.
 const validBlob = new Blob(['data'])
 
-describe('blob benchmarks', () => {
-	bench('valid blob', () => {
-		schema.execute(validBlob)
-	})
-
-	bench('invalid value', () => {
-		schema.execute('not a blob')
-	})
-})
+stepBench('blob', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute(validBlob),
+	},
+	{
+		name: 'non-blob',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['blob:expected_blob'] },
+		batch: 100,
+		run: () => schema.execute('not a blob'),
+	},
+])

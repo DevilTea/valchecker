@@ -1,56 +1,69 @@
-import { bench, describe } from 'vitest'
-import { createValchecker, intersection, isLengthAtLeast, number, object, string } from '../..'
+import { createValchecker, intersection, number, object, string, transform } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const v = createValchecker({ steps: [intersection, string, isLengthAtLeast, number, object] })
-const schema = v.intersection([
-	v.string(),
-	v.string()
-		.isLengthAtLeast(5),
-])
+const v = createValchecker({ steps: [intersection, number, object, string, transform] })
 
-// Object branches exercise the output-merge path that primitive branches never
-// reach: disjoint flat objects take the shallow fast path, while overlapping or
-// nested keys fall through to the graph merge, which pairs and clones values.
-const disjointFlat = v.intersection([
-	v.object({ left: v.string() }),
-	v.object({ right: v.number() }),
-])
-const disjointFlatInput = { left: 'left', right: 1 }
-
-const overlappingFlat = v.intersection([
+// Object branches with an overlapping key are the representative case: primitive
+// branches never reach the output merge at all, and disjoint flat objects take the
+// shallow fast path, while a shared key pairs and merges values through the graph.
+const overlapping = v.intersection([
 	v.object({ shared: v.string(), left: v.string() }),
 	v.object({ shared: v.string(), right: v.number() }),
 ])
-const overlappingFlatInput = { shared: 'same', left: 'left', right: 1 }
-
-const nested = v.intersection([
-	v.object({ profile: v.object({ name: v.string() }) }),
-	v.object({ profile: v.object({ name: v.string() }), extra: v.number() }),
+// Two branches that agree on a key but not on its output cannot be merged, which is the
+// only issue this step owns.
+const conflicting = v.intersection([
+	v.object({ shared: v.string() }),
+	v.object({
+		shared: v.string()
+			.transform((value: string) => value.toUpperCase()),
+	}),
 ])
-const nestedInput = { profile: { name: 'Ada' }, extra: 1 }
+const collecting = v.intersection([
+	v.object({ left: v.string() }),
+	v.object({ right: v.number() }),
+], { collectAllIssues: true })
+const asyncSchema = v.intersection([
+	v.object({
+		left: v.string()
+			.transform((value: string) => Promise.resolve(value)),
+	}),
+	v.object({ right: v.number() }),
+])
 
-describe('intersection benchmarks', () => {
-	bench('valid input - small', () => {
-		schema.execute('hello')
-	})
+const overlappingInput = { shared: 'same', left: 'left', right: 1 }
+const conflictingInput = { shared: 'same' }
+const bothBranchesFail = { left: 1, right: 'x' }
+const asyncInput = { left: 'left', right: 1 }
 
-	bench('valid input - large', () => {
-		schema.execute('a'.repeat(1000))
-	})
-
-	bench('invalid input', () => {
-		schema.execute('hi')
-	})
-
-	bench('merge disjoint flat objects', () => {
-		disjointFlat.execute(disjointFlatInput)
-	})
-
-	bench('merge overlapping flat objects', () => {
-		overlappingFlat.execute(overlappingFlatInput)
-	})
-
-	bench('merge nested objects', () => {
-		nested.execute(nestedInput)
-	})
-})
+stepBench('intersection', [
+	{
+		name: 'merge-overlapping',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 2,
+		run: () => overlapping.execute(overlappingInput),
+	},
+	{
+		name: 'conflicting-outputs',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['intersection:conflicting_outputs'] },
+		batch: 5,
+		run: () => conflicting.execute(conflictingInput),
+	},
+	{
+		name: 'collect-all',
+		group: 'warm/failure/all',
+		expect: { success: false, issues: ['number:expected_number', 'string:expected_string'] },
+		batch: 10,
+		run: () => collecting.execute(bothBranchesFail),
+	},
+	{
+		name: 'async-valid',
+		group: 'warm/async/success',
+		async: true,
+		expect: { success: true },
+		batch: 5,
+		run: () => asyncSchema.execute(asyncInput),
+	},
+])

@@ -1,16 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isHostname, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isHostname] })
-	.string()
+const v = createValchecker({ steps: [string, isHostname] })
+const schema = v.string()
 	.isHostname()
 
-describe('isHostname benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('example.com')
-	})
-
-	bench('invalid input', () => {
-		schema.execute('-bad.com')
-	})
-})
+stepBench('isHostname', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('api.example.com'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isHostname:expected_hostname'] },
+		batch: 100,
+		run: () => schema.execute('-bad.example.com'),
+	},
+])

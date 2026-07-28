@@ -1,38 +1,30 @@
-import { bench, describe } from 'vitest'
-import { createValchecker, literal, number, string, templateLiteral, union } from '../..'
+import { createValchecker, literal, number, templateLiteral, union } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const v = createValchecker({ steps: [templateLiteral, string, number, literal, union] })
+const v = createValchecker({ steps: [literal, number, templateLiteral, union] })
 
-const literalPrefix = v.templateLiteral(['ID-', v.number()])
-const adjacent = v.templateLiteral([v.number(), v.string()])
-const unionCross = v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])])
+// A placeholder followed by a union part is the representative shape: it splits the
+// string and then tries the member set, where a pure literal template is one comparison.
+// The parts are compiled at construction and execution runs no child schema, so this
+// step has no child loop to make non-empty and no `collectAllIssues` option.
+const schema = v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])])
 
-describe('templateLiteral benchmarks', () => {
-	bench('construction (small)', () => {
-		v.templateLiteral(['ID-', v.number()])
-	})
+const matching = '12px'
+const notMatching = '12pt'
 
-	bench('construction (union cross-product)', () => {
-		v.templateLiteral([v.number(), v.union(['px', 'em', 'rem'])])
-	})
-
-	bench('valid match (literal prefix)', () => {
-		literalPrefix.execute('ID-42')
-	})
-
-	bench('valid match (adjacent placeholders)', () => {
-		adjacent.execute('1abc')
-	})
-
-	bench('valid match (union cross-product)', () => {
-		unionCross.execute('12px')
-	})
-
-	bench('invalid string', () => {
-		literalPrefix.execute('ID-x')
-	})
-
-	bench('non-string input', () => {
-		literalPrefix.execute(42)
-	})
-})
+stepBench('templateLiteral', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 50,
+		run: () => schema.execute(matching),
+	},
+	{
+		name: 'expected-template-literal',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['templateLiteral:expected_template_literal'] },
+		batch: 50,
+		run: () => schema.execute(notMatching),
+	},
+])

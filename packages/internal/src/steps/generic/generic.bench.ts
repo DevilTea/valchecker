@@ -1,32 +1,25 @@
-/**
- * Benchmark plan for generic:
- * - Operations benchmarked: generic validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
+import { createValchecker, generic, number, object, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-import { bench, describe } from 'vitest'
-import { createValchecker, generic, string } from '../..'
+const v = createValchecker({ steps: [generic, number, object, string] })
 
-const v = createValchecker({ steps: [generic, string] })
+const target = v.object({ id: v.string(), age: v.number() })
+// The factory form is the only one with per-execution work of its own: it resolves the
+// schema and runs its runtime steps through the shared loop on every execution. Handed a
+// schema directly, `generic` installs that schema's steps at construction and adds
+// nothing to the timed region, so a cell for it would measure `object`.
+const schema = v.generic<{ output: { id: string, age: number } }>(() => target)
 
-describe('generic benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.generic<{ output: string }>(() => v.string())
-				.execute('test')
-		})
+const valid = { id: 'u-1', age: 36 }
 
-		bench('valid input - large', () => {
-			v.generic<{ output: string }>(() => v.string())
-				.execute('a'.repeat(1000))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.generic<{ output: string }>(() => v.string())
-				.execute(123)
-		})
-	})
-})
+// `generic` owns no issue code, so a failure cell here would measure the resolved
+// schema's failure rather than this step's.
+stepBench('generic', [
+	{
+		name: 'factory-valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 20,
+		run: () => schema.execute(valid),
+	},
+])

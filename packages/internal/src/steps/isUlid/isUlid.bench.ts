@@ -1,16 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isUlid, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isUlid] })
-	.string()
+const v = createValchecker({ steps: [string, isUlid] })
+const schema = v.string()
 	.isUlid()
 
-describe('isUlid benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('01ARZ3NDEKTSV4RRFFQ69G5FAV')
-	})
-
-	bench('invalid input', () => {
-		schema.execute('01ARZ3NDEKTSV4RRFFQ69G5FA')
-	})
-})
+stepBench('isUlid', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('01ARZ3NDEKTSV4RRFFQ69G5FAV'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isUlid:expected_ulid'] },
+		batch: 100,
+		run: () => schema.execute('01ARZ3NDEKTSV4RRFFQ69G5FA'),
+	},
+])

@@ -1,39 +1,63 @@
-/**
- * Benchmark plan for string:
- * - Operations benchmarked: string validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [string] })
+const schema = v.string()
+const messaged = v.string({ message: 'custom' })
 
-describe('string benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.string()
-				.execute('hello')
-		})
-
-		bench('valid input - large', () => {
-			v.string()
-				.execute('x'.repeat(1000))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.string()
-				.execute(123)
-		})
-	})
-
-	describe('baselines', () => {
-		bench('native typeof check', () => {
-			// eslint-disable-next-line ts/no-unused-expressions
-			typeof 'hello' === 'string'
-		})
-	})
-})
+stepBench('string', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute('hello'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['string:expected_string'] },
+		batch: 100,
+		run: () => schema.execute(123),
+	},
+	{
+		// One of the designated message cells. The deferred message chain was dark: no cell
+		// anywhere passed a `message`, so `hasIssueDraft()` was always false and eight
+		// functions behind it never ran under the benchmark tree. It is closed with a couple
+		// of designated cells rather than one per step, because the chain is one mechanism
+		// and 92 copies of it would measure the same code 92 times.
+		//
+		// This is the originating-step half: the step's own message is the highest-priority
+		// scope an issue is finished against. The code is unchanged — a `message` changes how
+		// the issue is finished, not what it is.
+		name: 'custom-message',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['string:expected_string'] },
+		batch: 20,
+		run: () => messaged.execute(123),
+	},
+	{
+		// One of the designated construction/cold cells. Module initialisation and the shape
+		// of the prototype every schema shares are not attributable to a step through its
+		// execution cells, because a cell constructs its schema at module scope and the timed
+		// region never sees it. These two put that work back inside a measured unit, on the
+		// cheapest initial schema there is, so what they report is nearly all construction.
+		//
+		// Construction is also the noisiest kind of cell — allocation and garbage collection
+		// sit inside the timed region — so the batch is at the large end deliberately, to
+		// swamp allocator jitter rather than sample it.
+		name: 'construct',
+		group: 'construction',
+		expect: { constructs: true },
+		batch: 50,
+		run: () => v.string(),
+	},
+	{
+		name: 'cold',
+		group: 'cold',
+		expect: { success: true },
+		batch: 50,
+		run: () => v.string()
+			.execute('hello'),
+	},
+])

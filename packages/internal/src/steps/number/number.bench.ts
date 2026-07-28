@@ -1,19 +1,22 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, number } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [number] })
 const schema = v.number()
 
-describe('number benchmarks', () => {
-	bench('finite number', () => {
-		schema.execute(42)
-	})
-
-	bench('special number', () => {
-		schema.execute(Number.NaN)
-	})
-
-	bench('invalid input', () => {
-		schema.execute('42')
-	})
-})
+stepBench('number', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute(42),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['number:expected_number'] },
+		batch: 100,
+		run: () => schema.execute('42'),
+	},
+])

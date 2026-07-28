@@ -1,32 +1,17 @@
-/**
- * Benchmark plan for unknown:
- * - Operations benchmarked: unknown validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, unknown } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [unknown] })
+const schema = v.unknown()
 
-describe('unknown benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.unknown()
-				.execute(undefined)
-		})
-
-		bench('valid input - large', () => {
-			v.unknown()
-				.execute(undefined)
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.unknown()
-				.execute(undefined)
-		})
-	})
-})
+// `unknown` owns no issue code and passes for every value, so it has no failure cell to
+// write: the success cell is the whole contract.
+stepBench('unknown', [
+	{
+		name: 'passes',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute('hello'),
+	},
+])

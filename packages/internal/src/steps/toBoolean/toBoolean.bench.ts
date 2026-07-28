@@ -1,28 +1,18 @@
-import { bench, describe } from 'vitest'
-import { bigint, createValchecker, number, string, toBoolean } from '../..'
+import { createValchecker, string, toBoolean } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const v = createValchecker({ steps: [bigint, number, string, toBoolean] })
-const stringSchema = v.string()
-	.toBoolean()
-const numberSchema = v.number()
-	.toBoolean()
-const bigintSchema = v.bigint()
+// The step owns no issue: it is `Boolean(value)` truthiness coercion, which cannot fail.
+// So it has a success cell only, and no failure cell to be written.
+const v = createValchecker({ steps: [string, toBoolean] })
+const schema = v.string()
 	.toBoolean()
 
-describe('toBoolean benchmarks', () => {
-	bench('non-empty string', () => {
-		stringSchema.execute('false')
-	})
-
-	bench('empty string', () => {
-		stringSchema.execute('')
-	})
-
-	bench('number coercion', () => {
-		numberSchema.execute(1)
-	})
-
-	bench('bigint coercion', () => {
-		bigintSchema.execute(1n)
-	})
-})
+stepBench('toBoolean', [
+	{
+		name: 'truthy-string',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('false'),
+	},
+])

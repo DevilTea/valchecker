@@ -1,35 +1,29 @@
-/**
- * Benchmark plan for json:
- * - Operations benchmarked: json validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, json, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [json, string] })
 
-describe('json benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.string()
-				.json()
-				.execute('{}')
-		})
+const schema = v.string()
+	.json()
 
-		bench('valid input - large', () => {
-			v.string()
-				.json()
-				.execute(JSON.stringify({ large: 'a'.repeat(1000) }))
-		})
-	})
+const valid = '{"id":"u-1","name":"Ada","age":36,"active":true}'
+// The failure path is `JSON.parse` throwing and this step catching, which costs an order
+// of magnitude more than the parse it replaces — hence the much smaller batch.
+const invalid = '{"id":"u-1","name":'
 
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.string()
-				.json()
-				.execute('invalid json')
-		})
-	})
-})
+stepBench('json', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 20,
+		run: () => schema.execute(valid),
+	},
+	{
+		name: 'invalid-json',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['json:invalid_json'] },
+		batch: 5,
+		run: () => schema.execute(invalid),
+	},
+])
