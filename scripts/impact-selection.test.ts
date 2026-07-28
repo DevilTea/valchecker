@@ -1,7 +1,8 @@
-import type { Canary, CatalogEntry, SourceTree } from './impact-selection'
+import type { Canary, CatalogEntry } from './impact-selection'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { buildAttribution, defaultCanary, isNonShippingSourcePath, selectImpactScenarios } from './impact-selection'
+import { objectTree } from './source-tree'
 
 /**
  * What these protect is the one direction that costs something: a scenario the gate
@@ -13,35 +14,6 @@ import { buildAttribution, defaultCanary, isNonShippingSourcePath, selectImpactS
  * Every expectation is written out from the synthetic repository below, never computed
  * with the function under test.
  */
-
-function syntheticTree(files: Record<string, string>): SourceTree {
-	const paths = Object.keys(files)
-	const directories = new Set<string>()
-	for (const path of paths) {
-		const parts = path.split('/')
-		for (let index = 1; index < parts.length; index++) {
-			directories.add(parts.slice(0, index)
-				.join('/'))
-		}
-	}
-	return {
-		read: path => files[path] ?? null,
-		list: (directory) => {
-			if (!directories.has(directory))
-				return null
-			const prefix = `${directory}/`
-			const names = new Set<string>()
-			for (const path of paths) {
-				if (path.startsWith(prefix)) {
-					names.add(path.slice(prefix.length)
-						.split('/')[0]!)
-				}
-			}
-			return [...names]
-		},
-		isDirectory: path => directories.has(path),
-	}
-}
 
 function step(name: string, extraImport?: string): string {
 	return [
@@ -113,7 +85,7 @@ const canaryIds = ['construct/alpha', 'construct/beta', 'warm/gamma', 'warm/gamm
 function select(changedFiles: string[], tree = repository, useCanary = canary) {
 	return selectImpactScenarios({
 		changedFiles,
-		attribution: buildAttribution(syntheticTree(tree)),
+		attribution: buildAttribution(objectTree(tree)),
 		catalog,
 		canary: useCanary,
 	})
@@ -121,7 +93,7 @@ function select(changedFiles: string[], tree = repository, useCanary = canary) {
 
 describe('attribution over the import graph', () => {
 	it('reaches every step and nothing that is not published', () => {
-		const attribution = buildAttribution(syntheticTree(repository))
+		const attribution = buildAttribution(objectTree(repository))
 		expect(attribution.problems)
 			.toEqual([])
 		expect([...attribution.stepNames].sort())
@@ -135,7 +107,7 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('attributes a file to the steps that import it, not to the directory holding it', () => {
-		const attribution = buildAttribution(syntheticTree(repository))
+		const attribution = buildAttribution(objectTree(repository))
 		expect([...attribution.stepsByFile.get('packages/internal/src/steps/alpha/grammar.ts')!].sort())
 			.toEqual(['alpha', 'beta'])
 		expect([...attribution.stepsByFile.get('packages/internal/src/steps/gamma/gamma.ts')!])
@@ -145,13 +117,13 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('gives a step its own barrel, which re-exports it rather than importing it', () => {
-		const attribution = buildAttribution(syntheticTree(repository))
+		const attribution = buildAttribution(objectTree(repository))
 		expect([...attribution.stepsByFile.get('packages/internal/src/steps/beta/index.ts')!])
 			.toEqual(['beta'])
 	})
 
 	it('records a specifier it cannot resolve rather than dropping the edge', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/steps/gamma/gamma.ts': `import { missing } from './not-there'\n\nconst Meta = {\n\tName: 'gamma',\n} as const\n\nexport const gamma = missing(Meta)\n`,
 		}))
@@ -160,7 +132,7 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('records a dynamic import whose specifier is not a literal', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/registry.ts': `export const load = (name: string) => import(name)\n`,
 		}))
@@ -169,7 +141,7 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('records a static import whose specifier is not a literal', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/registry.ts': 'import { grammar } from `./steps/alpha/grammar`\n\nexport const registry = [grammar]\n',
 		}))
@@ -178,7 +150,7 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('records `import =`, which it does not resolve', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/registry.ts': `import grammar = require('./steps/alpha/grammar')\n\nexport const registry = [grammar]\n`,
 		}))
@@ -193,7 +165,7 @@ describe('attribution over the import graph', () => {
 	 * indistinguishable from deleted defensive code.
 	 */
 	it('follows a `require` call, which would otherwise be an invisible edge', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/steps/gamma/gamma.ts': [
 				`import { execute } from '../../core'`,
@@ -214,7 +186,7 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('resolves a `.js` specifier to the TypeScript file beside it', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/steps/beta/beta.ts': step('beta', '../alpha/grammar.js'),
 		}))
@@ -225,7 +197,7 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('records a module the build entry reaches but cannot read', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/ghost/package.json': '{ "name": "@valchecker/ghost" }',
 			'packages/internal/src/index.ts': `export * from './core'\nexport * from './steps'\nexport * from './registry'\nexport * from '@valchecker/ghost'\n`,
@@ -235,7 +207,7 @@ describe('attribution over the import graph', () => {
 	})
 
 	it('records a step directory whose main module declares no name', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/steps/delta/delta.ts': `import { execute } from '../../core'\n\nexport const delta = execute()\n`,
 		}))
@@ -252,7 +224,7 @@ describe('attribution over the import graph', () => {
 	 * scenarios are safe to skip.
 	 */
 	it('records a step the build entry no longer reaches', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/steps/index.ts': `export * from './alpha'\nexport * from './beta'\nexport * from './gamma'\n`,
 		}))
@@ -266,7 +238,7 @@ describe('attribution over the import graph', () => {
 	 * file it excuses is actually in the bundle.
 	 */
 	it('refuses itself when the build entry reaches a file the non-shipping pattern excuses', () => {
-		const attribution = buildAttribution(syntheticTree({
+		const attribution = buildAttribution(objectTree({
 			...repository,
 			'packages/internal/src/index.ts': `export * from './core'\nexport * from './steps'\nexport * from './registry'\nexport * from './test-utils/fixtures'\n`,
 		}))

@@ -26,8 +26,14 @@ The step is not done until all of these are true:
 - the naming, issue-code, and trailing-options rules in `AGENTS.md` hold;
 - `pnpm verify` passes.
 
-`pnpm steps:complete` checks most of that list on its own and reports everything still missing at
-once, so run it while working rather than waiting for the full gate.
+`pnpm steps:complete` reports everything still missing from that list at once, so run it while
+working rather than waiting for the full gate. It decides the mechanical half: that the test file
+registers an `it` or `test`, that the bench file calls `bench`, that the export reaches
+`api-surface.json`, that the step's name appears in call form in a code span on the catalog page
+and on one further `docs/api` page, and that each owned issue code appears under `docs/api` and in
+a string in one of the directory's tests. It cannot decide the other half — whether the test
+asserts anything, whether the string reaches an assertion, or whether the page describes the step
+rather than merely naming it. Those are on you.
 
 If the requested name or semantics conflict with the naming rules — for example a validation
 that hides conversion policy — say so in one sentence and propose the conforming name before

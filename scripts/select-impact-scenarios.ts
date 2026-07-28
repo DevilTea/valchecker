@@ -1,10 +1,11 @@
-import type { CatalogEntry, Selection, SourceTree } from './impact-selection'
+import type { CatalogEntry, Selection } from './impact-selection'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { buildAttribution, selectImpactScenarios } from './impact-selection'
+import { fileSystemTree } from './source-tree'
 
 // Scopes one Performance Impact run to the scenarios its diff can move.
 //
@@ -95,37 +96,6 @@ function parseArguments(argv: string[]): Options {
 		throw new Error('Provide either --changed-files <path|-> or both --base <ref> and --head <ref>')
 
 	return options
-}
-
-function fileSystemTree(rootDirectory: string): SourceTree {
-	const resolve = (relative: string): string => path.join(rootDirectory, relative)
-	return {
-		read: (relative) => {
-			try {
-				return fs.readFileSync(resolve(relative), 'utf8')
-			}
-			catch {
-				return null
-			}
-		},
-		list: (relative) => {
-			try {
-				return fs.readdirSync(resolve(relative))
-			}
-			catch {
-				return null
-			}
-		},
-		isDirectory: (relative) => {
-			try {
-				return fs.statSync(resolve(relative))
-					.isDirectory()
-			}
-			catch {
-				return false
-			}
-		},
-	}
 }
 
 function markdownCell(value: string): string {

@@ -25,7 +25,7 @@ These need no manual audit — `pnpm verify` fails on them:
 | Type-complexity budget and pinned TypeScript version | `scripts/check-type-performance.ts` |
 | Tree-shaking markers and selective-bundle size | `benchmarks/src/treeshake.mjs` |
 | Every built-in step is compared against a competitor by a cross-library scenario, or allowlisted with a reason | `scripts/check-benchmark-coverage.ts` |
-| Every built-in step has a colocated test and focused bench, a public export, catalog and reference entries under `docs/api`, and issue codes that are both documented and asserted | `scripts/check-step-completeness.ts` |
+| Every built-in step has a colocated test registering a case, a bench calling `bench`, a public export, its name in a code span in the `docs/api` catalog and on one further page, and issue codes appearing under `docs/api` and in a string in its own tests | `scripts/check-step-completeness.ts` |
 | Piped CI commands run under `pipefail` | `scripts/check-workflow-pipefail.ts` |
 | A source change carries a `CHANGELOG.md` entry | `Changelog` job in `ci.yml` (`skip-changelog` label opts out) |
 | `main` takes no direct push, force-push, or non-squash merge | repository ruleset, with every CI check required |
