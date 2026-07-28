@@ -87,6 +87,38 @@ describe('array step plugin', () => {
 			})
 	})
 
+	it('snapshots the length once, so a child appending to the input cannot extend an asynchronous traversal', async () => {
+		const input = [1, 2]
+		let appended = 0
+		const item = v.unknown()
+			.transform(async (value) => {
+				if (appended < 5) {
+					appended++
+					input.push(100 + appended)
+				}
+				return value
+			})
+
+		await expect(v.array(item)
+			.execute(input))
+			.resolves.toEqual({ value: [1, 2] })
+		expect(input.length)
+			.toBe(4)
+	})
+
+	it('snapshots the length once, so a child shortening the input still yields one output per original index', async () => {
+		const input = [1, 2, 3]
+		const item = v.unknown()
+			.transform(async (value) => {
+				input.length = 1
+				return value
+			})
+
+		await expect(v.array(item)
+			.execute(input))
+			.resolves.toEqual({ value: [1, undefined, undefined] })
+	})
+
 	it('continues remaining items after a recoverable asynchronous child failure', async () => {
 		const later = vi.fn((value: string) => value.toUpperCase())
 		let index = 0

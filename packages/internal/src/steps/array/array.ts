@@ -95,7 +95,11 @@ export const array = implStepPlugin<PluginDef>({
 			output: unknown[],
 			issues: AnyExecutionIssue[] | undefined,
 		) => {
-			for (let index = startIndex; index < value.length; index++) {
+			// `output` was allocated with the length read before traversal began, so it
+			// carries that snapshot. Re-reading `value.length` here would let a child
+			// that mutates the input decide how many indexes an asynchronous traversal
+			// visits, which the synchronous path below does not allow.
+			for (let index = startIndex; index < output.length; index++) {
 				const result = index === startIndex
 					? await firstResult
 					: await execute(value[index])
