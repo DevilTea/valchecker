@@ -15,22 +15,28 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 #     source: a dependency bump or a compiler-configuration change is the class most
 #     able to move every number at once, and it is the class the scoped run cannot
 #     narrow.
-#   - workflow_dispatch: manual comparison of two arbitrary refs, with optional
-#     competitor adapters and scenario selection.
+#   - workflow_dispatch: manual comparison of two arbitrary refs, with an optional
+#     cell selection. Competitor adapters are not an option here: this gate measures one
+#     library against itself, and the cross-library ranking is Performance Comparison's.
 #
-# Scenario scoping (pull requests only). Measuring every standard-tier scenario is
-# 55 minutes against a 90-minute timeout, and neither of the two decisions behind that
-# can be reverted: five paired repetitions are what make a scenario classifiable at
-# all (#124), and one process per cell is what makes a subset measure the same numbers
-# as the whole suite (#127). So the run is scoped instead, by mapping each changed file
-# through the internal import graph to the steps that import it and then to the
-# scenarios whose declared `steps` name them. `scripts/impact-selection.ts` holds the
-# mapping and everything it refuses to decide; anything it cannot place is a full run,
-# and a canary set — every construction and cold scenario plus the core execution paths
-# — runs whatever the diff says, because module initialisation is not attributable
-# through a scenario's `steps` at all. The `paths` filters below therefore have to
-# admit every path that module can call a full run, or the rule cannot fire;
-# `scripts/check-impact-triggers.ts` fails when they do not.
+# What is measured: each step's own `<name>.bench.ts` cells, not the cross-library
+# scenarios. A cell declares the group it aggregates into, what executing it must
+# produce, and how many iterations make one measured unit; `pnpm bench:cells` verifies
+# every one by running it. The scenarios remain the unit of Performance Comparison and
+# of `check-benchmark-coverage.ts`, which is what they are good at — a competitor
+# spelling of the same work cannot live inside a step's own bench file.
+#
+# Cell scoping (pull requests only). The run is scoped by mapping each changed file
+# through the internal import graph to the steps that import it, and then to those
+# steps' own cells. `scripts/impact-selection.ts` holds the mapping and everything it
+# refuses to decide; anything it cannot place is a full run, a `*.bench.ts` selects its
+# own step's cells because it changes the measurement without changing either build,
+# and a canary set — every construction and cold cell plus the named core cells — runs
+# whatever the diff says, because module initialisation is not attributable to a step
+# through cells that build their schema at module scope. The `paths` filters below
+# therefore have to admit every path that module can call a full run or a measurement
+# change, or the rule cannot fire; `scripts/check-impact-triggers.ts` fails when they
+# do not.
 #
 # Every rule there is about what a changed file *means*, not about whether its bytes
 # moved. `scripts/inert-change.ts` compares the two revisions of each changed path — a
@@ -43,22 +49,36 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 # The comparison *scripts* always come from the checked-out ref (PR merge ref, or
 # the dispatched ref), so the compare tooling and scenario selection are fixed;
 # `before` and `after` are only two valchecker builds the fixed scripts point at
-# via VALCHECKER_DIST_URL. valchecker before/after is measured with the rigorous
-# paired process comparison; selected competitor adapters are shown as standing
-# vs peers in each build via the ranking report.
+# via VALCHECKER_DIST_URL. The cell definitions come from the checked-out ref for the
+# same reason: they are part of the apparatus, and a cell that cannot execute against
+# the baseline build is reported as unmeasurable rather than dropped.
 #
-# This gate is deliberately NOT sharded, unlike Performance Comparison. Scenario
-# sharding would preserve the per-scenario classifier — all repetitions of both
-# sides for one scenario would still be adjacent on one machine, and a paired ratio
-# cancels machine speed — but it would turn the severe-GROUP trigger (5% geometric
-# mean across two or more stable scenarios) into an aggregate over several runners,
-# and that trigger is the one that catches broad moderate regressions the 10%
-# per-scenario threshold misses. Every shard job would also have to install and
-# build both revisions, a fixed cost that does not shard, so the wall-time saving is
-# well under 1/N while runner minutes multiply and 5 repetitions x 2 sides x N
-# shards of artefacts have to be fanned out, merged, and paired. `compare` refuses
-# to pair runs whose shard count or isolation differs, so a future attempt to shard
-# one side fails loudly instead of comparing across machines silently.
+# This gate IS sharded, four ways. It used to say it was deliberately not, and both
+# of that comment's objections were checked and did not survive.
+#
+# The first was that the severe-GROUP trigger would become a cross-runner aggregate.
+# True as a description, and nothing breaks: every input to it is already a
+# dimensionless, machine-cancelled per-cell paired ratio, and `summarizeGroups`
+# computes a bare geometric mean with no confidence interval, so there is no
+# statistic for a between-machine term to enter. The one real effect is that a
+# noisier runner widens its own cells' intervals, so fewer of them are decisive and
+# a group's aggregate runs over a smaller subset — a sensitivity loss the gate
+# already reports by name as `groupsWithoutTrigger`, not an invalidity. The merge
+# happens before the verdict, so the group aggregate is computed once over the
+# complete cell set.
+#
+# The second was that the fixed cost does not shard, so the saving is well under
+# 1/N. Measured against run 30357171722's predecessor 30353267140: the compare job
+# spent 55m12s measuring and about 40s on everything that does not shard — checkout
+# 1s, setup 10s, building both revisions 25s, scoping 2s. Wall time is therefore
+# 40s + measurement/N, and four shards is about 28.5 minutes. That is 1/N in all but
+# name. The original claim appears to have been estimated rather than measured.
+#
+# Sharding is also the only answer that scales, because the cell count grows with
+# every step added while a timeout is a constant that gets consumed.
+#
+# `compare` still refuses to pair runs whose shard count or isolation differs, so
+# sharding one side only fails loudly instead of comparing across machines silently.
 
 on:
   workflow_dispatch:
@@ -72,13 +92,8 @@ on:
         required: false
         default: ''
         type: string
-      adapters:
-        description: Competitor adapters to show alongside valchecker, comma-separated (e.g. valibot,zod3). Empty = valchecker only.
-        required: false
-        default: ''
-        type: string
       scenarios:
-        description: Scenario ids or group names to run, comma-separated (e.g. primitive/valid,warm/failure/first). Empty = all scenarios for the profile.
+        description: Cell ids to run, comma-separated (e.g. isEmail/valid,object/collect-all). Empty = every cell every step declares.
         required: false
         default: ''
         type: string
@@ -96,11 +111,6 @@ on:
         required: false
         default: '5'
         type: string
-      fail_on_regression:
-        description: Fail the job when the impact verdict is a regression
-        required: false
-        default: false
-        type: boolean
   pull_request:
     branches:
       - main
@@ -229,11 +239,19 @@ jobs:
       - name: Benchmark Harness Tests
         run: pnpm --dir benchmarks test
 
-  compare:
+  # One job per shard. Each resolves the same parameters and computes the same scope
+  # from the same diff — positional round-robin is deterministic from the selection and
+  # the count alone — so no scope has to be passed between jobs, and a shard that
+  # somehow disagreed would be refused by `merge` rather than silently reordered.
+  measure:
     needs: preflight
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout comparison tooling
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -257,34 +275,28 @@ jobs:
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           INPUT_BEFORE: ${{ inputs.before }}
           INPUT_AFTER: ${{ inputs.after }}
-          INPUT_ADAPTERS: ${{ inputs.adapters }}
           INPUT_SCENARIOS: ${{ inputs.scenarios }}
           INPUT_PROFILE: ${{ inputs.profile }}
           INPUT_RUNS: ${{ inputs.runs }}
-          INPUT_FAIL: ${{ inputs.fail_on_regression }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            # Five repetitions, not three. A scenario is only classified when its
-            # paired ratio is stable, and at three repetitions the interval is so
-            # wide that most scenarios are not: across four historical runs, 27 to
-            # 44 of 80 could be judged, so the gate was blind to more than half of
-            # what it was watching. The interval narrows with both the wider t
-            # quantile and the extra samples, which puts 56 to 68 of the same 80
-            # inside the threshold. It costs about ten minutes, and the gate can
-            # only ever pass a scenario it cannot judge.
+            # Five repetitions, not three. A row is judged by whether its whole 95%
+            # interval sits on one side of a threshold, and at three repetitions that
+            # interval is so wide that almost nothing is decided — the gate reports what
+            # it could not judge rather than passing it, so an imprecise run costs
+            # coverage rather than correctness. Five is where the interval starts
+            # settling most cells, and it costs about ten minutes.
             {
               echo "before=$PR_BASE_SHA"
               echo "after=$PR_HEAD_SHA"
-              echo "adapters="
-              echo "scenarios="
+              echo "cells="
               echo "profile=standard"
               echo "runs=5"
-              echo "fail_on_regression=true"
             } >> "$GITHUB_OUTPUT"
           elif [[ "$EVENT_NAME" == "push" ]]; then
-            # The unscoped comparison of one merge. `github.event.before` is the tip
-            # main pointed at before this push, so the diff measured here is exactly the
+            # The unscoped comparison of one merge. `github.event.before` is the tip main
+            # pointed at before this push, so the diff measured here is exactly the
             # merge's own; it is the all-zero sha only for a branch's first push, where
             # the parent is the honest baseline.
             before="$PUSH_BEFORE_SHA"
@@ -294,11 +306,9 @@ jobs:
             {
               echo "before=$before"
               echo "after=$GITHUB_SHA"
-              echo "adapters="
-              echo "scenarios="
+              echo "cells="
               echo "profile=standard"
               echo "runs=5"
-              echo "fail_on_regression=true"
             } >> "$GITHUB_OUTPUT"
           else
             runs="$INPUT_RUNS"
@@ -308,11 +318,9 @@ jobs:
             {
               echo "before=$INPUT_BEFORE"
               echo "after=${INPUT_AFTER:-$GITHUB_SHA}"
-              echo "adapters=$INPUT_ADAPTERS"
-              echo "scenarios=$INPUT_SCENARIOS"
+              echo "cells=$INPUT_SCENARIOS"
               echo "profile=$INPUT_PROFILE"
               echo "runs=$runs"
-              echo "fail_on_regression=$INPUT_FAIL"
             } >> "$GITHUB_OUTPUT"
           fi
 
@@ -344,13 +352,14 @@ jobs:
             echo "after_dist=$(dist_url ../valchecker-after/packages/valchecker/dist/index.mjs)"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Scope the run to the scenarios the diff can move
+      - name: Scope the run to the cells the diff can move
         id: scope
         if: ${{ github.event_name == 'pull_request' }}
         shell: bash
         env:
           BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
           AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/performance-impact
@@ -360,46 +369,54 @@ jobs:
           # whether a changed file means anything different is a question about the pair:
           # a file whose two revisions differ only in comments or formatting cannot move a
           # number and does not select anything.
+          #
+          # The cell catalog is read by executing each step's declaration against the
+          # candidate build, which is why this runs after the builds.
           git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > artifacts/performance-impact/changed-files.txt
-          pnpm bench:impact-scope \
+          VALCHECKER_DIST_URL="$AFTER_DIST" pnpm bench:impact-scope \
             --changed-files artifacts/performance-impact/changed-files.txt \
             --base "$BEFORE_SHA" \
             --head "$AFTER_SHA" \
             --tree ../valchecker-after \
             --markdown artifacts/performance-impact/selection.md \
-            --summary "$GITHUB_STEP_SUMMARY" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Run interleaved paired benchmarks
         shell: bash
         env:
           PROFILE: ${{ steps.params.outputs.profile }}
-          SCENARIOS: ${{ steps.scope.outputs.scenarios || steps.params.outputs.scenarios }}
+          CELLS: ${{ steps.scope.outputs.scenarios || steps.params.outputs.cells }}
           RUNS: ${{ steps.params.outputs.runs }}
           BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
           AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
           BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
           AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/performance-impact
 
-          scenario_args=()
-          if [[ -n "$SCENARIOS" ]]; then
-            scenario_args=(--scenarios "$SCENARIOS")
+          cell_args=()
+          if [[ -n "$CELLS" ]]; then
+            cell_args=(--cells "$CELLS")
           fi
           seed="compare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
+          # The cell *definitions* always come from this checked-out ref, whichever build
+          # they are pointed at. The apparatus is fixed and `before`/`after` are two
+          # builds it measures; if each side read its own cells, editing a bench file
+          # would be editing the measurement.
           run_side() {
             local side="$1" dist="$2" repetition="$3" sha="$4"
             VALCHECKER_DIST_URL="$dist" \
             BENCHMARK_COMMIT="$sha" \
-            pnpm --dir benchmarks bench \
+            pnpm --dir benchmarks cells \
               --mode "$PROFILE" \
-              --adapters valchecker \
               --seed "$seed-$repetition-$side" \
-              --output "../artifacts/performance-impact/$side-$repetition.json" \
-              "${scenario_args[@]}"
+              --shard-index "$SHARD" \
+              --shard-count 4 \
+              --output "../artifacts/performance-impact/$side-$repetition-shard$SHARD.json" \
+              "${cell_args[@]}"
           }
 
           for repetition in $(seq 1 "$RUNS"); do
@@ -412,118 +429,107 @@ jobs:
             fi
           done
 
-      - name: Compare benchmark impact
+      - name: Upload shard measurements
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-impact-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: artifacts/performance-impact
+          if-no-files-found: error
+          retention-days: 30
+
+  # The merge happens here, before the verdict, so every group aggregate is computed
+  # once over the complete cell set rather than four times over quarters of it.
+  compare:
+    needs: measure
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout comparison tooling
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # Built, because the coverage denominators come from the cell catalog and the
+      # catalog is read by executing each step's declaration against a build. This is the
+      # checked-out ref's build, which is the ref the cells come from.
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'true'
+          benchmarks: 'true'
+
+      - name: Download shard measurements
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: performance-impact-shard-*-${{ github.run_attempt }}
+          path: artifacts/shards
+
+      - name: Merge shards and compare
+        id: verdict
         shell: bash
         env:
-          RUNS: ${{ steps.params.outputs.runs }}
-          FAIL_ON_REGRESSION: ${{ steps.params.outputs.fail_on_regression }}
+          RUNS: ${{ github.event_name == 'workflow_dispatch' && inputs.runs || '5' }}
         run: |
           set -euo pipefail
+          mkdir -p artifacts/performance-impact
+          runs="$RUNS"
+          if ! [[ "$runs" =~ ^[0-9]+$ ]] || [ "$runs" -lt 3 ]; then
+            runs=3
+          fi
+
+          # One merged file per (side, repetition), from the four shards of that
+          # repetition. `merge` refuses an incomplete set, a shard shape no positional
+          # round-robin could produce, and shards built from different commits, so a
+          # missing or mismatched shard fails here rather than producing a partial run
+          # the report would present as a whole one.
+          for side in baseline candidate; do
+            for repetition in $(seq 1 "$runs"); do
+              inputs=()
+              for shard in 0 1 2 3; do
+                inputs+=(--input "../artifacts/shards/performance-impact-shard-$shard-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard$shard.json")
+              done
+              pnpm --dir benchmarks merge \
+                "${inputs[@]}" \
+                --output "../artifacts/performance-impact/$side-$repetition.json"
+            done
+          done
+
           compare_args=()
-          for repetition in $(seq 1 "$RUNS"); do
+          for repetition in $(seq 1 "$runs"); do
             compare_args+=(--baseline "../artifacts/performance-impact/baseline-$repetition.json")
           done
-          for repetition in $(seq 1 "$RUNS"); do
+          for repetition in $(seq 1 "$runs"); do
             compare_args+=(--candidate "../artifacts/performance-impact/candidate-$repetition.json")
           done
-          fail_flag=()
-          if [[ "$FAIL_ON_REGRESSION" == "true" ]]; then
-            fail_flag=(--fail-on-regression)
-          fi
+
+          cp -f artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/selection.md artifacts/performance-impact/selection.md 2> /dev/null || true
+
           pnpm --dir benchmarks compare \
             "${compare_args[@]}" \
+            --catalog cells \
             --markdown ../artifacts/performance-impact/impact.md \
             --json ../artifacts/performance-impact/impact.json \
             --html ../artifacts/performance-impact/impact.html \
-            "${fail_flag[@]}"
-
-      - name: Benchmark standing versus competitors
-        if: ${{ steps.params.outputs.adapters != '' }}
-        shell: bash
-        env:
-          PROFILE: ${{ steps.params.outputs.profile }}
-          SCENARIOS: ${{ steps.params.outputs.scenarios }}
-          ADAPTERS: ${{ steps.params.outputs.adapters }}
-          BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
-          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
-          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
-          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
-        run: |
-          set -euo pipefail
-          scenario_args=()
-          if [[ -n "$SCENARIOS" ]]; then
-            scenario_args=(--scenarios "$SCENARIOS")
-          fi
-          seed="compare-context-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-
-          # Each build reports into its own directory so report-all's sibling
-          # summary.md files (dirname(markdown)/summary.md) do not collide.
-          context() {
-            local side="$1" dist="$2" sha="$3"
-            mkdir -p "artifacts/performance-impact/$side-context"
-            VALCHECKER_DIST_URL="$dist" \
-            BENCHMARK_COMMIT="$sha" \
-            pnpm --dir benchmarks bench \
-              --mode "$PROFILE" \
-              --adapters "valchecker,$ADAPTERS" \
-              --seed "$seed-$side" \
-              --output "../artifacts/performance-impact/$side-context/raw.json" \
-              "${scenario_args[@]}"
-            pnpm --dir benchmarks report \
-              --input "../artifacts/performance-impact/$side-context/raw.json" \
-              --markdown "../artifacts/performance-impact/$side-context/report.md" \
-              --html "../artifacts/performance-impact/$side-context/report.html"
-          }
-
-          context before "$BEFORE_DIST" "$BEFORE_SHA"
-          context after "$AFTER_DIST" "$AFTER_SHA"
+            --fail-on-regression
 
       - name: Publish comparison summary
         if: always()
         shell: bash
-        env:
-          BEFORE_REF: ${{ steps.params.outputs.before }}
-          AFTER_REF: ${{ steps.params.outputs.after }}
-          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
-          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
-          ADAPTERS: ${{ steps.params.outputs.adapters }}
-          SCENARIOS: ${{ steps.params.outputs.scenarios }}
-          SCOPE_COUNT: ${{ steps.scope.outputs.count }}
-          PROFILE: ${{ steps.params.outputs.profile }}
         run: |
           set -euo pipefail
-          # A reader of a passing gate has to see how much was measured, so the count
-          # replaces the word "all" whenever the run was scoped.
-          scenarios_cell="${SCENARIOS:-all}"
-          if [[ -n "$SCOPE_COUNT" ]]; then
-            scenarios_cell="${SCOPE_COUNT} selected — see **Scenario scope** above"
-          fi
           {
             echo "# Performance impact"
             echo
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo "| Before | \`${BEFORE_REF}\` (${BEFORE_SHA:-unresolved}) |"
-            echo "| After | \`${AFTER_REF}\` (${AFTER_SHA:-unresolved}) |"
-            echo "| Profile | ${PROFILE} |"
-            echo "| Scenarios | ${scenarios_cell} |"
-            echo "| Competitors | ${ADAPTERS:-none} |"
-            echo
           } >> "$GITHUB_STEP_SUMMARY"
-
+          if [[ -f artifacts/performance-impact/selection.md ]]; then
+            cat artifacts/performance-impact/selection.md >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [[ -f artifacts/performance-impact/impact.md ]]; then
             cat artifacts/performance-impact/impact.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo "> Impact report was not produced; see the job logs." >> "$GITHUB_STEP_SUMMARY"
           fi
-
-          for side in after before; do
-            summary="artifacts/performance-impact/${side}-context/summary.md"
-            if [[ -f "$summary" ]]; then
-              printf '\n## Standing versus competitors — %s build\n\n' "$side" >> "$GITHUB_STEP_SUMMARY"
-              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
 
       - name: Upload benchmark comparison
         if: always() && hashFiles('artifacts/performance-impact/**') != ''

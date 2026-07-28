@@ -8,6 +8,8 @@
 	},
 	"scripts": {
 		"bench": "node ./src/run.mjs",
+		"cells": "node ./src/cells/run.mjs",
+		"cells:catalog": "node ./src/cells/catalog.mjs",
 		"compare": "node ./src/compare.mjs",
 		"merge": "node ./src/merge.mjs",
 		"report": "node ./src/report-all.mjs",
