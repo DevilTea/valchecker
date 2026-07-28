@@ -128,9 +128,10 @@ Brotli is the primary automated comparison metric. Cross-library numbers describ
 
 ## Before/after benchmark comparison
 
-The **Performance Impact** workflow measures the impact of a change and runs two ways:
+The **Performance Impact** workflow measures the impact of a change and runs three ways:
 
-- **Pull request (automatic gate).** Pull requests that modify runtime source or benchmark code compare the pull request base (`before`) against the head (`after`) with the standard profile, Valchecker only, all scenarios, five paired repetitions, and `fail_on_regression` enabled. Five rather than three because the gate classifies a scenario only when its paired-ratio interval is at most 5% wide, and three repetitions leave most scenarios unclassified and therefore unwatched.
+- **Pull request (automatic gate).** Pull requests that modify runtime source or benchmark code compare the pull request base (`before`) against the head (`after`) with the standard profile, Valchecker only, five paired repetitions, and `fail_on_regression` enabled. Five rather than three because the gate classifies a scenario only when its paired-ratio interval is at most 5% wide, and three repetitions leave most scenarios unclassified and therefore unwatched. The scenario set is [scoped to the diff](#scoping-a-gate-run-to-its-diff).
+- **Push to `main` (post-merge full run).** Every merge that touches package source compares the previous `main` tip against the merged commit over **every** scenario, so whatever the scoping missed surfaces within a day, attributed to the merge that caused it rather than to a day of them.
 - **Manual dispatch.** `workflow_dispatch` compares two arbitrary revisions on demand and lets you choose exactly what to measure:
   - `before`: baseline git ref (branch, tag, or SHA); required
   - `after`: candidate git ref; defaults to the dispatched ref
@@ -142,9 +143,42 @@ The **Performance Impact** workflow measures the impact of a change and runs two
 
 The comparison scripts always come from the checked-out ref (the pull request merge ref, or the dispatched ref), so scenario selection and the compare tooling stay fixed; `before` and `after` are only two Valchecker builds the fixed scripts point at via `VALCHECKER_DIST_URL`.
 
+### Scoping a gate run to its diff
+
+Measuring all 169 standard-tier scenarios costs 55 minutes against a 90-minute timeout, and neither of the decisions that put it there can be reverted: five paired repetitions are what make a scenario classifiable at all, and one process per cell is what makes a subset of scenarios measure the same numbers as the whole suite. So a pull-request run measures the scenarios its diff can move instead:
+
+> changed file → the steps that transitively import it → the scenarios whose declared `steps` name any of them.
+
+`scripts/impact-selection.ts` holds the mapping and `scripts/select-impact-scenarios.ts` runs it. Replaying the last twelve merges that touched package source, the perf-focused changes this gate exists for attribute 2 to 24 scenarios, a change to a widely used step attributes 153 to 155, and a core change attributes all of them.
+
+**Attribution follows imports, never directories.** `steps/isIsoDate/iso-calendar-date.ts` is reached by `isIsoDate` *and* `isIsoDateTime`, `steps/isIsoTime/iso-time-source.ts` by `isIsoTime` *and* `isIsoDateTime`, and `steps/isBase64Url/base64url.ts` by `isBase64Url` *and* `isJwt`. A rule keyed on the directory would drop the second step of each pair and with it every scenario that only that step names.
+
+Under-selection is the failure mode — a scenario that should have run and did not is a regression reaching `main` behind a green gate — so three things break toward measuring more.
+
+**Anything the mapping cannot place is a full run.** That is the default, and the exclusions are enumerated rather than inferred:
+
+- a file under `packages/*/src/` that the published build entry (`packages/valchecker/src/index.ts`, the single entry `tsdown` bundles) does not reach. It cannot be in either bundle. Today that is 273 of the 522 files there, every one a `*.test.ts`, a `*.bench.ts`, or a `src/test-utils/` fixture — a fact the graph establishes rather than a pattern that is trusted. The pattern is consulted only for a path the diff *deleted*, which has no tree entry left to compute reachability from, and the attribution refuses itself if it ever finds a file the pattern excuses reachable from the entry;
+- a re-export barrel, which has no runtime code of its own. What one can change is which modules the bundle holds — adding a step adds a method to the shared prototype — and that is what the canary's construction and cold scenarios measure. This is the one judged exclusion; making it a full run instead would have taken 3 of the last 12 merges from a scoped run to a complete one;
+- `benchmarks/**`, because one checked-out copy of the measuring apparatus measures both revisions, so a change there moves both sides together;
+- `docs/**`, `scripts/**`, `.github/**`, `type-performance/**`, Markdown, and editor or lint configuration, none of which is an input to `tsdown`'s compilation. The files that decide how this gate itself runs are the exception: changing one measures everything.
+
+Everything else — a lockfile, a package manifest, a `tsdown.config.ts`, a `tsconfig.json`, a new top-level path, a shipped module no step reaches such as `packages/valchecker/src/default.ts` — is a full run.
+
+**A canary set runs whatever the diff says:** every `construction` and `cold` scenario, plus `primitive/valid`, `flat-object/valid`, `schema-kind/unknown-valid`, `primitive/invalid-type`, `flat-object/invalid-first`, `issue-policy/{object,array}/invalid/{first,all}`, `async/check-valid`, and `async/wrapper-valid`. Thirty scenarios, about ten minutes of the job. Construction and cold are taken whole because module initialisation, step registration, and the shape of the prototype every schema shares are not attributable through a scenario's `steps` at all — no scenario declares them — and those two groups are the only ones that measure construction. The named scenarios are the core machinery every other scenario is built on, so a broad regression cannot hide behind a mapping that missed it.
+
+**Every benchmark group keeps at least two measured scenarios.** The severe-*group* trigger — a 5% geometric-mean regression across two or more stable scenarios in a group — needs two, and a group left with one has no trigger. The canary covers all seven groups, and selection tops any group with a single scenario back up to two, so the trigger is never silently absent. Stability is a property of the measurement rather than of the selection, so a group can still end with fewer than two *stable* scenarios; `impact.md` names those groups outright instead of presenting them as groups the trigger cleared.
+
+The job summary opens with a **Scenario scope** section stating how many scenarios ran of how many, which steps the diff reached, what each changed path did, and the per-group counts. A reader of a passing gate can see that it measured 34 scenarios and which ones, rather than assume it measured everything.
+
+Run the same selection locally:
+
+```bash
+pnpm bench:impact-scope --base main --head HEAD
+```
+
 **The impact gate is deliberately not sharded.** Its per-scenario classifier would survive sharding — the split is by scenario, so all five repetitions of both sides for one scenario would still be measured adjacently on one machine, and a paired ratio cancels machine speed. What would not survive is the severe-*group* trigger, a 5% geometric-mean regression across two or more stable scenarios in a group: sharding makes that an aggregate over several runners, and it is the trigger that catches broad moderate regressions the per-scenario 10% threshold misses. The cost side does not favour sharding either, because every shard job would have to install and build *both* revisions — a fixed several minutes that does not shard — so the wall-time saving is well under 1/N while runner minutes multiply, and 5 repetitions × 2 sides × N shards of artefacts would have to be fanned out, merged, and paired for a gate whose failure mode has to stay legible. `compare` refuses to pair runs whose shard count differs, so if one side is ever sharded the gate fails loudly instead of comparing across machines silently. Sharding by *repetition* rather than by scenario was also considered and rejected: it would put the repetitions of one scenario on different machines, which is precisely what the paired design exists to avoid.
 
-Isolation still applies: the gate measures each scenario in its own process like every other run, which at 143 ms per cell costs about 4 minutes across the 1,680 cells of its ten side-runs.
+Isolation still applies: the gate measures each scenario in its own process like every other run, which at 143 ms per cell costs about 4 minutes across the 1,690 cells of an unscoped run's ten side-runs, and proportionally less for a scoped one. A scenario therefore costs about 19.7 s of the job — 1.83 s of sampling plus 0.14 s of process isolation, ten times over — which is the number to multiply when reading a **Scenario scope** count: the 30-scenario canary floor is about ten minutes, and the full 169 about 55.
 
 Valchecker before/after uses paired independent process runs. Each candidate result is divided by the adjacent base result from the same repetition, and base/candidate order alternates to reduce thermal, scheduler, and runner drift. The reported change is the median of the paired ratios. Paired RME uses a 95% Student’s t interval, which is intentionally conservative for the small sample; separate base/candidate medians, cross-run variation, and within-process sample RME remain in the JSON evidence.
 

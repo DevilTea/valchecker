@@ -102,16 +102,18 @@ Library-default failure modes may perform different diagnostic work. Compare equ
 
 ## Before/after impact
 
-The **Performance Impact** workflow compares a baseline and candidate with interleaved paired independent processes. Pull requests that change runtime or benchmark source run the standard profile with five paired repetitions and fail on the workflow's severe-regression verdict.
+The **Performance Impact** workflow compares a baseline and candidate with interleaved paired independent processes. Pull requests that change runtime or benchmark source run the standard profile with five paired repetitions and fail on the workflow's severe-regression verdict. Every merge to `main` that touches package source runs the same comparison unscoped, so what a scoped run missed surfaces within a day against the merge that caused it.
 
 Five, because the gate can only pass a scenario it cannot judge. It classifies a scenario only when its paired-ratio interval is at most 5% wide, and three repetitions rarely achieve that: across four historical runs only 27 to 44 of 80 scenarios were classifiable, so more than half of what the gate watched was invisible to it. Five puts 56 to 68 of the same 80 inside the threshold, and costs about ten minutes of the job's runtime. Raising it further keeps helping — 6 reaches 59 to 73 — so the number is a cost decision, not a limit; the counts above come from replaying stored `impact.json` artifacts under the interval each repetition count would produce.
+
+A pull-request run is **scoped to its diff**: `scripts/impact-selection.ts` maps each changed file through the internal import graph to the steps that transitively import it, and then to the scenarios whose declared `steps` name them. Attribution follows imports rather than directories, because three grammar files are shared across step directories and a directory rule would drop the second step of each pair. Under-selection is the failure mode, so the default for anything the mapping cannot place is a full run; the exclusions are enumerated in `benchmarks/README.md` and each one is justified by why it cannot reach either bundle. A canary set — every `construction` and `cold` scenario plus eleven core-path scenarios, 30 in all, about ten minutes — runs regardless of the diff, because module initialisation and prototype shape are not attributable through `steps` at all, and because it keeps every benchmark group at two scenarios so the severe-group trigger is always possible. Selection tops a thin group back up to two, and `impact.md` names any group that still ended with fewer than two *stable* scenarios rather than presenting it as cleared. Reproduce a selection with `pnpm bench:impact-scope --base <ref> --head <ref>`.
 
 The comparison tool:
 
 - classifies a scenario only when paired-ratio RME is at most 5%;
 - treats an absolute change of at least 5% as meaningful;
 - treats a stable scenario regression of at least 10% as severe;
-- treats a geometric-mean regression of at least 5% across two or more stable scenarios in one group as severe.
+- treats a geometric-mean regression of at least 5% across two or more stable scenarios in one group as severe, and reports the groups that had fewer than two.
 
 Inspect raw runs, paired RME, group trade-offs, and more than one workflow run when the margin is small. Do not rewrite the harness while evaluating a runtime candidate unless the harness change is independently justified.
 

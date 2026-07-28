@@ -204,6 +204,11 @@ function compareResults(baseline, candidate) {
 
 	const severeScenarios = rows.filter(row => row.stable && row.delta * 100 <= severeScenarioRegression)
 	const severeGroups = groups.filter(row => row.delta != null && row.stableScenarios >= 2 && row.delta * 100 <= severeGroupRegression)
+	// The trigger that catches a broad moderate regression needs two stable scenarios
+	// in the group. A group that has fewer is not covered by it, and the verdict says
+	// so rather than reading as a group the trigger cleared.
+	const groupsWithoutTrigger = groups.filter(row => row.stableScenarios < 2)
+		.map(row => row.group)
 	const improvements = rows.filter(row => row.classification === 'improvement')
 	const regressions = rows.filter(row => row.classification === 'regression')
 	const verdict = severeScenarios.length > 0 || severeGroups.length > 0
@@ -244,6 +249,7 @@ function compareResults(baseline, candidate) {
 		rows,
 		severeScenarios: severeScenarios.map(row => row.scenario),
 		severeGroups: severeGroups.map(row => row.group),
+		groupsWithoutTrigger,
 	}
 }
 
@@ -262,6 +268,15 @@ function renderMarkdown(result) {
 	]
 	for (const row of result.groups)
 		lines.push(`| ${markdownCell(row.group)} | ${row.stableScenarios}/${row.scenarios} | ${row.delta == null ? 'n/a' : formatDelta(row.delta)} |`)
+
+	if (result.groupsWithoutTrigger.length > 0) {
+		lines.push(
+			'',
+			`> **No severe-group trigger** for ${result.groupsWithoutTrigger.map(group => `\`${group}\``)
+				.join(', ')}. It needs at least two stable scenarios in a group, and these have fewer, `
+				+ 'so a broad moderate regression inside one of them is watched only by the per-scenario 10% threshold.',
+		)
+	}
 
 	lines.push(
 		'',

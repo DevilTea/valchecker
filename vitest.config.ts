@@ -3,7 +3,7 @@ import { coveragePolicy } from './scripts/coverage-policy'
 
 export default defineConfig({
 	test: {
-		projects: ['packages/*'],
+		projects: ['packages/*', 'scripts'],
 		coverage: {
 			enabled: false,
 			provider: 'v8',

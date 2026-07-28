@@ -1,10 +1,30 @@
 name: Performance Impact
-run-name: Performance impact ${{ inputs.before || github.event.pull_request.base.sha }} → ${{ inputs.after || github.event.pull_request.head.sha || github.ref_name }} by @${{ github.actor }}
+run-name: Performance impact ${{ inputs.before || github.event.pull_request.base.sha || github.event.before }} → ${{ inputs.after || github.event.pull_request.head.sha || github.sha }} by @${{ github.actor }}
 
-# Before/after benchmark comparison, used two ways:
-#   - pull_request: automatic performance gate, before = PR base, after = PR head.
+# Before/after benchmark comparison, used three ways:
+#   - pull_request: automatic performance gate, before = PR base, after = PR head,
+#     scoped to the scenarios the diff can move.
+#   - push to main: the same comparison for one merge, unscoped, so whatever the
+#     scoping missed surfaces within a day and is attributed to the merge that caused
+#     it. A nightly aggregate was the alternative and was rejected: it would compare a
+#     day of merges at once, so a regression in one and an improvement in another can
+#     cancel, and the bisect it forces costs more than the runs it saves. At this
+#     repository's rate — six merges touching package source on the busiest recent day
+#     — per-merge runs are affordable on the hosted runners and name the merge outright.
 #   - workflow_dispatch: manual comparison of two arbitrary refs, with optional
 #     competitor adapters and scenario selection.
+#
+# Scenario scoping (pull requests only). Measuring all 169 standard-tier scenarios is
+# 55 minutes against a 90-minute timeout, and neither of the two decisions behind that
+# can be reverted: five paired repetitions are what make a scenario classifiable at
+# all (#124), and one process per cell is what makes a subset measure the same numbers
+# as the whole suite (#127). So the run is scoped instead, by mapping each changed file
+# through the internal import graph to the steps that import it and then to the
+# scenarios whose declared `steps` name them. `scripts/impact-selection.ts` holds the
+# mapping and everything it refuses to decide; anything it cannot place is a full run,
+# and a canary set — every construction and cold scenario plus the core execution paths
+# — runs whatever the diff says, because module initialisation is not attributable
+# through a scenario's `steps` at all.
 #
 # The comparison *scripts* always come from the checked-out ref (PR merge ref, or
 # the dispatched ref), so the compare tooling and scenario selection are fixed;
@@ -82,6 +102,18 @@ on:
       - 'benchmarks/**'
       - .github/workflows/performance-impact.yml
       - .github/actions/setup/action.yml
+  push:
+    branches:
+      - main
+    # `benchmarks/**` is deliberately absent. A merge that changes only the measuring
+    # apparatus leaves both revisions building the same library, so the comparison has
+    # nothing to find.
+    paths:
+      - 'packages/internal/src/**'
+      - 'packages/valchecker/src/**'
+      - 'packages/all-steps/src/**'
+      - .github/workflows/performance-impact.yml
+      - .github/actions/setup/action.yml
 
 permissions:
   contents: read
@@ -115,6 +147,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
           INPUT_BEFORE: ${{ inputs.before }}
           INPUT_AFTER: ${{ inputs.after }}
           INPUT_ADAPTERS: ${{ inputs.adapters }}
@@ -136,6 +169,24 @@ jobs:
             {
               echo "before=$PR_BASE_SHA"
               echo "after=$PR_HEAD_SHA"
+              echo "adapters="
+              echo "scenarios="
+              echo "profile=standard"
+              echo "runs=5"
+              echo "fail_on_regression=true"
+            } >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            # The unscoped comparison of one merge. `github.event.before` is the tip
+            # main pointed at before this push, so the diff measured here is exactly the
+            # merge's own; it is the all-zero sha only for a branch's first push, where
+            # the parent is the honest baseline.
+            before="$PUSH_BEFORE_SHA"
+            if ! git rev-parse --verify --quiet "${before}^{commit}" > /dev/null; then
+              before="${GITHUB_SHA}^"
+            fi
+            {
+              echo "before=$before"
+              echo "after=$GITHUB_SHA"
               echo "adapters="
               echo "scenarios="
               echo "profile=standard"
@@ -186,11 +237,32 @@ jobs:
             echo "after_dist=$(dist_url ../valchecker-after/packages/valchecker/dist/index.mjs)"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Scope the run to the scenarios the diff can move
+        id: scope
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
+          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact
+          # The diff between exactly the two revisions being built, and the attribution
+          # graph read from the candidate worktree, which is the tree whose build is
+          # measured as `after`.
+          git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > artifacts/performance-impact/changed-files.txt
+          pnpm bench:impact-scope \
+            --changed-files artifacts/performance-impact/changed-files.txt \
+            --tree ../valchecker-after \
+            --markdown artifacts/performance-impact/selection.md \
+            --summary "$GITHUB_STEP_SUMMARY" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Run interleaved paired benchmarks
         shell: bash
         env:
           PROFILE: ${{ steps.params.outputs.profile }}
-          SCENARIOS: ${{ steps.params.outputs.scenarios }}
+          SCENARIOS: ${{ steps.scope.outputs.scenarios || steps.params.outputs.scenarios }}
           RUNS: ${{ steps.params.outputs.runs }}
           BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
           AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
@@ -304,9 +376,16 @@ jobs:
           AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
           ADAPTERS: ${{ steps.params.outputs.adapters }}
           SCENARIOS: ${{ steps.params.outputs.scenarios }}
+          SCOPE_COUNT: ${{ steps.scope.outputs.count }}
           PROFILE: ${{ steps.params.outputs.profile }}
         run: |
           set -euo pipefail
+          # A reader of a passing gate has to see how much was measured, so the count
+          # replaces the word "all" whenever the run was scoped.
+          scenarios_cell="${SCENARIOS:-all}"
+          if [[ -n "$SCOPE_COUNT" ]]; then
+            scenarios_cell="${SCOPE_COUNT} selected — see **Scenario scope** above"
+          fi
           {
             echo "# Performance impact"
             echo
@@ -315,7 +394,7 @@ jobs:
             echo "| Before | \`${BEFORE_REF}\` (${BEFORE_SHA:-unresolved}) |"
             echo "| After | \`${AFTER_REF}\` (${AFTER_SHA:-unresolved}) |"
             echo "| Profile | ${PROFILE} |"
-            echo "| Scenarios | ${SCENARIOS:-all} |"
+            echo "| Scenarios | ${scenarios_cell} |"
             echo "| Competitors | ${ADAPTERS:-none} |"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
