@@ -87,12 +87,25 @@ ship with its own `<name>.test.ts` and `<name>.bench.ts`, a public export, an en
 `docs/api/overview.md` and on one further `docs/api` page, and issue codes that are documented
 under `docs/api` and asserted by a test in the step's directory.
 
+A step directory is also authored to one shape, and the same gate checks it. It holds `<name>.ts`,
+`<name>.test.ts`, `<name>.bench.ts`, and an `index.ts` containing exactly
+`export * from './<name>'` — nothing else, except an optional `<name>.types.test.ts` (which must
+carry an `expectTypeOf` or `assertType` assertion, since that is the only reason for a second test
+file) and `kebab-case` helper modules that `<name>.ts` actually imports, each with its own optional
+test. A runtime suite that grows large stays one file with more `describe` blocks; do not add
+`<name>.async.test.ts`. Inside `<name>.ts` the order is fixed: imports, then any local types, then
+`type Meta`, then `interface PluginDef` with its JSDoc, then the constants and functions the runtime
+uses, then `/* @__NO_SIDE_EFFECTS__ */` and the single `implStepPlugin` export as the last statement
+and the file's only export. A test that spans several steps goes to
+`packages/internal/src/steps/<family>.<aspect>.test.ts`, where `<family>` is not a step's name.
+
 `pnpm steps:complete` reports everything a step is still missing in one go. What it checks is
-mechanical: the test file registers an `it` or `test`, the bench file calls `bench`, the export is
-in `api-surface.json`, the step's name appears in call form in a code span on each of those two
-pages, and each issue code appears under `docs/api` and in a string in one of the directory's
-tests. It cannot tell whether the test asserts anything or whether the page says something true,
-so passing it is the floor, not the review.
+mechanical: the files present and their names, the declaration order above, the test file registers
+an `it` or `test`, the bench file calls `bench`, the export is in `api-surface.json`, the step's name
+appears in call form in a code span on each of those two pages, and each issue code appears under
+`docs/api` and in a string in one of the directory's tests. It cannot tell whether the test asserts
+anything, whether the page says something true, or whether a helper is used rather than merely
+imported, so passing it is the floor, not the review.
 
 ## Pull requests
 

@@ -35,7 +35,9 @@ The step is not done until all of these are true:
 - `pnpm verify` passes.
 
 `pnpm steps:complete` reports everything still missing from that list at once, so run it while
-working rather than waiting for the full gate. It decides the mechanical half: that the test file
+working rather than waiting for the full gate. It decides the mechanical half: that the directory
+holds only the files the step unit names and that `<name>.ts` runs in the canonical order, that the
+test file
 registers an `it` or `test`, that the bench file calls `bench`, that the export reaches
 `api-surface.json`, that the step's name appears in call form in a code span on the catalog page
 and on one further `docs/api` page, and that each owned issue code appears under `docs/api` and in

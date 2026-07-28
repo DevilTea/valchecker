@@ -1,6 +1,6 @@
 # Conventions
 
-Code style, the `isXxx`/`toXxx`/noun naming rules, the trailing-options-object contract, and the issue-code format are in [`AGENTS.md`](../../../../AGENTS.md). This file holds the detail behind them: concrete naming examples, the payload key vocabulary, categories, file layout, and canonical JSDoc.
+Code style, the `isXxx`/`toXxx`/noun naming rules, the trailing-options-object contract, and the issue-code format are in [`AGENTS.md`](../../../../AGENTS.md). This file holds the detail behind them: concrete naming examples, the payload key vocabulary, categories, and canonical JSDoc. What a step directory holds and how `<name>.ts` is laid out is [the step unit](./step-unit.md).
 
 ## Naming examples
 
