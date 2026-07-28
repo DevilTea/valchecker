@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { YAML } from 'zx'
 import { buildAttribution, classifyChange, gateDefiningPaths } from './impact-selection'
 
 // The Performance Impact workflow's `paths` filters and `scripts/impact-selection.ts`
@@ -26,53 +27,33 @@ const root = process.cwd()
 const workflowPath = '.github/workflows/performance-impact.yml'
 
 /**
- * The `paths` list of one `on:` event, read positionally rather than with a YAML
- * parser, which this repository does not depend on. Every step is anchored to an exact
- * indentation and the function throws rather than returning an empty list, so a
- * restructured workflow fails loudly instead of silently checking nothing.
+ * The `paths` list of one `on:` event.
+ *
+ * Parsed with the `yaml` package that `zx` — already a root devDependency — bundles
+ * and re-exports. An earlier version read the block positionally, on the belief that
+ * no parser was resolvable here; it was, and the hand-written reader failed on
+ * Windows because a CRLF checkout makes `on:` never match exactly. A check whose job
+ * is to prove two files agree must not be the thing that disagrees with the platform.
+ *
+ * It still throws rather than returning an empty list, so a restructured workflow
+ * fails loudly instead of silently checking nothing.
  */
 function readEventPaths(text: string, event: string): string[] {
-	const lines = text.split('\n')
-	const onIndex = lines.findIndex(line => line === 'on:')
-	if (onIndex < 0)
+	const document = YAML.parse(text) as { on?: Record<string, { paths?: unknown }> } | null
+	// `on` is the YAML 1.1 boolean `true`, which the parser preserves as the string
+	// key here; read both so a parser or schema change cannot silently find nothing.
+	const events = document?.on ?? (document as Record<string, unknown> | null)?.true as Record<string, { paths?: unknown }> | undefined
+	if (events == null || typeof events !== 'object')
 		throw new Error(`${workflowPath}: no top-level \`on:\` block`)
 
-	let inEvent = false
-	let inPaths = false
-	const patterns: string[] = []
-	for (const line of lines.slice(onIndex + 1)) {
-		if (/^\S/.test(line))
-			break
-		if (line.trim() === '' || /^\s*#/.test(line))
-			continue
-		const eventMatch = /^ {2}(\S+):\s*$/.exec(line)
-		if (eventMatch != null) {
-			if (inPaths)
-				break
-			inEvent = eventMatch[1] === event
-			continue
-		}
-		if (!inEvent)
-			continue
-		if (/^ {4}\S/.test(line)) {
-			if (inPaths)
-				break
-			inPaths = line.trim() === 'paths:'
-			continue
-		}
-		if (!inPaths)
-			continue
-		const itemMatch = /^ {6}- (.+)$/.exec(line)
-		if (itemMatch == null)
-			throw new Error(`${workflowPath}: unreadable entry in the ${event} \`paths\` list: ${JSON.stringify(line)}`)
-		patterns.push(itemMatch[1]!.trim()
-			.replace(/^'(.*)'$/, '$1')
-			.replace(/^"(.*)"$/, '$1'))
-	}
-
-	if (patterns.length === 0)
+	const paths = events[event]?.paths
+	if (!Array.isArray(paths) || paths.length === 0)
 		throw new Error(`${workflowPath}: no \`paths\` list under \`on.${event}\``)
-	return patterns
+	for (const pattern of paths) {
+		if (typeof pattern !== 'string')
+			throw new TypeError(`${workflowPath}: the ${event} \`paths\` list contains a non-string entry: ${JSON.stringify(pattern)}`)
+	}
+	return paths as string[]
 }
 
 /**
@@ -169,7 +150,7 @@ function fileSystemTree(rootDirectory: string): SourceTree {
 
 function trackedFiles(): string[] {
 	return execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
-		.split('\n')
+		.split(/\r?\n/)
 		.map(line => line.trim())
 		.filter(Boolean)
 }

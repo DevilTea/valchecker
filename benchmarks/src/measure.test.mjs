@@ -115,19 +115,20 @@ test('the sampling loop spends the maximum when the target is never met', () => 
 })
 
 /**
- * The warmup's share of all calls, halved as a margin. `executeFor` calls the
- * operation once per iteration and reports the count, so calls beyond the ones the
- * kept samples account for are the warmup's — but both measurement paths also call
- * the operation once before any timing, to check that it is the kind of operation
- * they measure. `calls > sampled` would therefore pass with no warmup at all, so
- * the assertion has to be that the warmup is roughly as large as the profile says.
+ * Calls a measurement makes that no sample accounts for, other than the warmup:
+ * both paths call the operation once before any timing, to check it is the kind
+ * of operation they measure. Subtracting it is what stops `calls > sampled` from
+ * passing with the warmup removed.
  */
-function leastWarmupShare(mode) {
-	const profile = getProfile(mode)
-	return profile.warmupMs / (profile.sampleMs * profile.minSamples) / 2
-}
+const unsampledProbeCalls = 1
 
 test('measure warms up before it samples', () => {
+	// Deriving a floor from the profile's warmup share looks tighter and is not:
+	// warmup runs before the code is hot, so it completes proportionally fewer
+	// iterations on a slow machine than its share of the time budget. That
+	// version passed here and failed on CI at 9% of a 22% expectation. Warmup
+	// either ran or it did not, and counting is enough to tell — with the probe
+	// subtracted, removing the warmup leaves the two counts exactly equal.
 	let calls = 0
 	const result = measure(() => {
 		calls++
@@ -135,8 +136,8 @@ test('measure warms up before it samples', () => {
 	}, 'smoke')
 	const sampled = result.samples.reduce((total, sample) => total + sample.iterations, 0)
 	assert.ok(
-		calls > sampled * (1 + leastWarmupShare('smoke')),
-		`no warmup: ${calls} calls for ${sampled} sampled iterations`,
+		calls > sampled + unsampledProbeCalls,
+		`no warmup: ${calls} calls for ${sampled} sampled iterations plus ${unsampledProbeCalls} probe`,
 	)
 })
 
@@ -280,8 +281,8 @@ test('measureAsync warms up before it samples', async () => {
 	}, 'smoke')
 	const sampled = result.samples.reduce((total, sample) => total + sample.iterations, 0)
 	assert.ok(
-		calls > sampled * (1 + leastWarmupShare('smoke')),
-		`no warmup: ${calls} calls for ${sampled} sampled iterations`,
+		calls > sampled + unsampledProbeCalls,
+		`no warmup: ${calls} calls for ${sampled} sampled iterations plus ${unsampledProbeCalls} probe`,
 	)
 })
 

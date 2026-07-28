@@ -181,7 +181,44 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Two minutes of cheap checks before spending up to fifty-five on measurement. A
+  # pull request whose lint, quality gates, or harness tests are already failing will
+  # need another commit regardless, and the comparison it produces would be discarded.
+  #
+  # This bounds the waste, it does not eliminate it: the checks run here, on this
+  # runner, so a failure specific to another platform or to a job in `ci.yml` still
+  # lets the measurement start. Depending on another workflow would need
+  # `workflow_run`, which does not attach to the pull request as a check and runs the
+  # default branch's definition rather than the one under review. The remaining waste
+  # is bounded instead by `cancel-in-progress`, which stops the run as soon as the
+  # author pushes a fix.
+  preflight:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+          benchmarks: 'true'
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Quality Gates
+        run: pnpm test:quality
+
+      - name: Benchmark Harness Tests
+        run: pnpm --dir benchmarks test
+
   compare:
+    needs: preflight
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
