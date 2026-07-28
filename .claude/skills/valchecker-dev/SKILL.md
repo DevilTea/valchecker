@@ -25,6 +25,7 @@ These need no manual audit — `pnpm verify` fails on them:
 | Type-complexity budget and pinned TypeScript version | `scripts/check-type-performance.ts` |
 | Tree-shaking markers and selective-bundle size | `benchmarks/src/treeshake.mjs` |
 | Every built-in step is compared against a competitor by a cross-library scenario, or allowlisted with a reason | `scripts/check-benchmark-coverage.ts` |
+| Every built-in step holds only the files [the step unit](./references/step-unit.md) names, a one-line `index.ts`, and a `<name>.ts` declaring `Meta` then `PluginDef` above every value and ending in its plugin | `scripts/check-step-completeness.ts` |
 | Every built-in step has a colocated test registering a case, a bench calling `bench`, a public export, its name in a code span in the `docs/api` catalog and on one further page, and issue codes appearing under `docs/api` and in a string in its own tests | `scripts/check-step-completeness.ts` |
 | Piped CI commands run under `pipefail` | `scripts/check-workflow-pipefail.ts` |
 | A source change carries a `CHANGELOG.md` entry | `Changelog` job in `ci.yml` (`skip-changelog` label opts out) |
@@ -44,6 +45,7 @@ What is **not** machine-checked, and therefore needs deliberate attention: wheth
 ## References
 
 - [Architecture](./references/architecture.md) — plugin layers, dispatch, issue finalization, structural execution, construction metadata
+- [The step unit](./references/step-unit.md) — the file set, auxiliary and helper naming, the in-file section order, and which half of it the gate decides
 - [Conventions](./references/conventions.md) — payload key vocabulary, categories, file layout, canonical JSDoc
 - [Testing](./references/testing.md) — test ownership by layer, case design, async and structural coverage
 - [Benchmarking](./references/benchmarking.md) — focused benches, cross-library suite, impact and tree-shaking workflows

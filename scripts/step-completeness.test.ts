@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { objectTree } from './source-tree'
 import {
+	barrelProblems,
 	callsAnyOf,
 	checkStepCompleteness,
 	codeSpans,
+	declarationProblems,
 	declaredCodes,
 	documents,
+	isKebabCase,
 	outsideFencedBlocks,
 	stringLiteralTexts,
 	stripHtmlComments,
 	successMessage,
+	unexpectedEntries,
 	visibleMarkdown,
 } from './step-completeness'
 
@@ -40,15 +44,33 @@ interface StepFixture {
 	exportIdentifier?: string
 }
 
+/**
+ * A conforming `<name>.ts`: the canonical sections in the canonical order, spelled out because the
+ * order rules read the declarations rather than the text around them.
+ */
 function main({ name, code }: StepFixture): string {
 	return [
+		`import type { TStepPluginDef } from '../../core'`,
 		`import { implStepPlugin } from '../../core'`,
 		'',
+		...(code == null
+			? []
+			: [
+					'declare namespace Internal {',
+					`\texport type SelfIssue = ExecutionIssue<'${code}', { value: string }>`,
+					'}',
+					'',
+				]),
 		'type Meta = DefineStepMethodMeta<{',
 		`\tName: '${name}'`,
-		code == null ? null : `\tSelfIssue: ExecutionIssue<'${code}', { value: string }>`,
+		code == null ? null : '\tSelfIssue: Internal.SelfIssue',
 		'}>',
 		'',
+		'interface PluginDef extends TStepPluginDef {',
+		`\t${name}: DefineStepMethod<Meta, () => Next<undefined, this['CurrentValchecker']>>`,
+		'}',
+		'',
+		'/* @__NO_SIDE_EFFECTS__ */',
 		`export const ${name} = implStepPlugin<PluginDef>({}, 'sync')`,
 		'',
 	].filter(line => line != null)
@@ -115,6 +137,7 @@ function repository(overrides: Record<string, string | null> = {}): ReturnType<t
 	}
 
 	for (const fixture of fixtures) {
+		files[`${stepsRoot}/${fixture.name}/index.ts`] = `export * from './${fixture.name}'\n`
 		files[`${stepsRoot}/${fixture.name}/${fixture.name}.ts`] = main(fixture)
 		files[`${stepsRoot}/${fixture.name}/${fixture.name}.test.ts`] = test_(fixture)
 		files[`${stepsRoot}/${fixture.name}/${fixture.name}.bench.ts`] = bench(fixture)
@@ -157,6 +180,7 @@ describe('a complete repository', () => {
 			'docs/api/overview.md',
 			'docs/api/reference.md',
 			...fixtures.flatMap(fixture => [
+				`${stepsRoot}/${fixture.name}/index.ts`,
 				`${stepsRoot}/${fixture.name}/${fixture.name}.ts`,
 				`${stepsRoot}/${fixture.name}/${fixture.name}.test.ts`,
 				`${stepsRoot}/${fixture.name}/${fixture.name}.bench.ts`,
@@ -412,8 +436,252 @@ describe('the asserted issue-code rule', () => {
 	it('reads a sibling test file in the same directory', () => {
 		expect(checkStepCompleteness(repository({
 			[`${stepsRoot}/isEmail/isEmail.test.ts`]: 'it(\'rejects\', () => {\n\texpect(1).toBe(1)\n})\n',
-			[`${stepsRoot}/isEmail/isEmail.async.test.ts`]: 'it(\'rejects\', () => {\n\texpect(run().issues[0].code).toBe(\'isEmail:expected_email\')\n})\n',
+			[`${stepsRoot}/isEmail/isEmail.types.test.ts`]: 'it(\'rejects\', () => {\n\texpect(run().issues[0].code).toBe(\'isEmail:expected_email\')\n})\n',
 		})).errors)
+			.toEqual([])
+	})
+})
+
+describe('the file-set rule', () => {
+	it('accepts the one auxiliary test the standard names', () => {
+		expect(checkStepCompleteness(repository({
+			[`${stepsRoot}/toTrimmed/toTrimmed.types.test.ts`]: 'it(\'infers a string\', () => {\n\texpectTypeOf(run()).toEqualTypeOf<string>()\n})\n',
+		})).errors)
+			.toEqual([])
+	})
+
+	it('fails a slice of the step\'s suite filed under a subject of its own', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/collectAllIssues.test.ts`]: 'it(\'collects\', () => {})\n' }))
+			.toContain('`collectAllIssues.test.ts` is a slice of one step\'s suite filed under a name of its own')
+	})
+
+	it('fails a slice named after the step and an aspect', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/toTrimmed.async.test.ts`]: 'it(\'awaits\', () => {})\n' }))
+			.toContain('`toTrimmed.async.test.ts` is a slice of one step\'s suite')
+	})
+
+	it('accepts a kebab-case helper module, with and without its own suite', () => {
+		expect(checkStepCompleteness(repository({
+			[`${stepsRoot}/toTrimmed/whitespace-class.ts`]: 'export const whitespace = /\\s/\n',
+		})).errors)
+			.toEqual([])
+		expect(checkStepCompleteness(repository({
+			[`${stepsRoot}/toTrimmed/whitespace-class.ts`]: 'export const whitespace = /\\s/\n',
+			[`${stepsRoot}/toTrimmed/whitespace-class.test.ts`]: 'it(\'matches a tab\', () => {})\n',
+		})).errors)
+			.toEqual([])
+	})
+
+	// The distinction that separates a helper's suite from a step's suite under another name: the
+	// module it claims to test has to be there. `lazy-output.test.ts` named no module at all.
+	it('fails a kebab-case test with no module of that name beside it', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/lazy-output.test.ts`]: 'it(\'is lazy\', () => {})\n' }))
+			.toContain('`lazy-output.test.ts` reads as the suite for `lazy-output.ts`, which this directory does not hold')
+	})
+
+	it('fails a helper module whose name is not kebab-case', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/whitespaceClass.ts`]: 'export const whitespace = /\\s/\n' }))
+			.toContain('`whitespaceClass.ts` is a helper module whose name is not kebab-case')
+	})
+
+	it('fails a second benchmark file', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/long-input.bench.ts`]: 'bench(\'long\', () => {})\n' }))
+			.toContain('`long-input.bench.ts` is a second benchmark file')
+	})
+
+	// Phase 3 of the step-unit work adds `<name>.doc.md`; until it does, a Markdown file in a step
+	// directory is documentation that no generator reads and no page shows.
+	it('fails an entry that is not a file the standard names at all', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/README.md`]: '# toTrimmed\n' }))
+			.toContain('`README.md` is not part of a step unit')
+	})
+
+	it('fails a missing barrel', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/index.ts`]: null }))
+			.toContain('no `index.ts`')
+	})
+})
+
+describe('unexpectedEntries', () => {
+	it('names nothing in a conforming directory', () => {
+		expect(unexpectedEntries(['index.ts', 'map.ts', 'map.test.ts', 'map.types.test.ts', 'map.bench.ts', 'lazy-output.ts', 'lazy-output.test.ts'], 'map'))
+			.toEqual([])
+	})
+
+	it('does not let a step whose own name is kebab-shaped smuggle a second suite in', () => {
+		expect(unexpectedEntries(['index.ts', 'map.ts', 'map.test.ts', 'map.bench.ts', 'map.async.test.ts'], 'map'))
+			.toHaveLength(1)
+	})
+
+	it('reports a subdirectory', () => {
+		expect(unexpectedEntries(['index.ts', 'map.ts', 'map.test.ts', 'map.bench.ts', 'helpers'], 'map')[0])
+			.toContain('`helpers` is not part of a step unit')
+	})
+})
+
+describe('isKebabCase', () => {
+	it.each([
+		['base64url', true],
+		['iso-calendar-date', true],
+		['template-literal-part', true],
+		['collectAllIssues', false],
+		['lazy-output.async', false],
+		['-leading', false],
+		['trailing-', false],
+		['double--dash', false],
+		['Upper', false],
+	])('reads %s as %s', (stem, expected) => {
+		expect(isKebabCase(stem))
+			.toBe(expected)
+	})
+})
+
+describe('the barrel rule', () => {
+	it('fails a barrel that re-exports a helper module alongside the step', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/index.ts`]: 'export * from \'./toTrimmed\'\nexport * from \'./whitespace-class\'\n',
+			[`${stepsRoot}/toTrimmed/whitespace-class.ts`]: 'export const whitespace = /\\s/\n',
+		}))
+			.toContain('`index.ts` is not exactly `export * from \'./toTrimmed\'`')
+	})
+
+	it('fails a barrel that exports the wrong directory', () => {
+		expect(onlyError({ [`${stepsRoot}/toTrimmed/index.ts`]: 'export * from \'./toTrimmedStart\'\n' }))
+			.toContain('is not exactly')
+	})
+
+	it('accepts a barrel however its trailing whitespace is written', () => {
+		expect(barrelProblems('export * from \'./map\'', 'map'))
+			.toEqual([])
+		expect(barrelProblems('export * from \'./map\'\r\n', 'map'))
+			.toEqual([])
+	})
+
+	// A missing barrel is the file-set rule's error, not two errors for one cause.
+	it('says nothing about a barrel that is not there', () => {
+		expect(barrelProblems(null, 'map'))
+			.toEqual([])
+	})
+})
+
+describe('the steps-root rule', () => {
+	it('accepts a cross-step test named after a family and an aspect', () => {
+		expect(checkStepCompleteness(repository({
+			[`${stepsRoot}/structural.sync-fast-path.test.ts`]: 'it(\'stays synchronous\', () => {})\n',
+			[`${stepsRoot}/failure-payload.types.test.ts`]: 'it(\'infers the payload\', () => {})\n',
+		})).errors)
+			.toEqual([])
+	})
+
+	it('fails a cross-step test with no aspect', () => {
+		expect(onlyError({ [`${stepsRoot}/structural-sync-fast-path.test.ts`]: 'it(\'stays synchronous\', () => {})\n' }))
+			.toContain(`${stepsRoot}/structural-sync-fast-path.test.ts: a cross-step test is named \`<family>.<aspect>.test.ts\``)
+	})
+
+	it('fails a cross-step test whose parts are not kebab-case', () => {
+		expect(onlyError({ [`${stepsRoot}/structural.syncFastPath.test.ts`]: 'it(\'stays synchronous\', () => {})\n' }))
+			.toContain('a cross-step test is named')
+	})
+
+	it('accepts a kebab-case shared module and fails a camelCase one', () => {
+		expect(checkStepCompleteness(repository({
+			[`${stepsRoot}/callback-error-sentinel.ts`]: 'export class CallbackErrorSentinel {}\n',
+		})).errors)
+			.toEqual([])
+		expect(onlyError({ [`${stepsRoot}/callbackErrorSentinel.ts`]: 'export class CallbackErrorSentinel {}\n' }))
+			.toContain('a module shared across step directories is kebab-case')
+	})
+
+	// A root finding is not an input problem: it must not replace the per-step verdict.
+	it('is reported alongside a per-step finding rather than instead of it', () => {
+		const report = checkStepCompleteness(repository({
+			[`${stepsRoot}/structural-sync-fast-path.test.ts`]: 'it(\'stays synchronous\', () => {})\n',
+			[`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: '',
+		}))
+		expect(report.errors)
+			.toHaveLength(2)
+		expect(report.errors[0])
+			.toContain('calls no `bench`')
+		expect(report.errors[1])
+			.toContain('a cross-step test is named')
+	})
+})
+
+describe('the section-order rule', () => {
+	const contract = [
+		'type Meta = DefineStepMethodMeta<{',
+		`\tName: 'toTrimmed'`,
+		'}>',
+		'',
+		'interface PluginDef extends TStepPluginDef {',
+		'\ttoTrimmed: DefineStepMethod<Meta, () => Next<undefined, this[\'CurrentValchecker\']>>',
+		'}',
+	]
+	const plugin = 'export const toTrimmed = implStepPlugin<PluginDef>({}, \'sync\')'
+
+	function file(...lines: (string | null)[]): string {
+		return `${lines.filter(line => line != null)
+			.join('\n')}\n`
+	}
+
+	it('accepts the canonical order, with values between PluginDef and the plugin', () => {
+		expect(declarationProblems(file(...contract, '', 'const pattern = /\\s/', '', plugin), 'toTrimmed'))
+			.toEqual([])
+	})
+
+	it('fails a value declared above PluginDef, naming it', () => {
+		expect(declarationProblems(file('const pattern = /\\s/', '', ...contract, '', plugin), 'toTrimmed'))
+			.toEqual(['toTrimmed.ts: `pattern` is declared above `PluginDef`. Constants and functions the runtime reaches go below it, so opening the file shows what the step does before how — nothing forward-references, because the only statement that reads them is the last one.'])
+	})
+
+	it('fails a function declared between Meta and PluginDef', () => {
+		expect(declarationProblems(file(...contract.slice(0, 3), '', 'function parse(): void {}', '', ...contract.slice(4), '', plugin), 'toTrimmed')[0])
+			.toContain('`parse` is declared above `PluginDef`')
+	})
+
+	it('fails Meta declared after PluginDef', () => {
+		expect(declarationProblems(file(...contract.slice(4), '', ...contract.slice(0, 3), '', plugin), 'toTrimmed'))
+			.toEqual(['toTrimmed.ts: `PluginDef` is declared before `Meta`. `Meta` comes first: it is what `PluginDef` is written against.'])
+	})
+
+	it.each([
+		['type StepMeta = DefineStepMethodMeta<{', 'no `type Meta` declaration'],
+	])('fails a Meta under another name (%s)', (line, expected) => {
+		expect(declarationProblems(file(line, `\tName: 'toTrimmed'`, '}>', '', ...contract.slice(4), '', plugin), 'toTrimmed')[0])
+			.toContain(expected)
+	})
+
+	it('fails a PluginDef under another name, as the four bound steps had', () => {
+		expect(declarationProblems(file(...contract.slice(0, 3), '', 'interface AtLeastPluginDef extends TStepPluginDef {', '}', '', 'export const isAtLeast = implStepPlugin<AtLeastPluginDef>({}, \'sync\')'), 'isAtLeast')[0])
+			.toContain('no `interface PluginDef extends TStepPluginDef` declaration')
+	})
+
+	it('fails an issue namespace under a prefixed name', () => {
+		expect(declarationProblems(file('declare namespace AtLeastInternal {', '}', '', ...contract, '', plugin), 'toTrimmed')[0])
+			.toContain('the local issue namespace is `AtLeastInternal`, not `Internal`')
+	})
+
+	it('accepts the issue namespace under its canonical name', () => {
+		expect(declarationProblems(file('declare namespace Internal {', '}', '', ...contract, '', plugin), 'toTrimmed'))
+			.toEqual([])
+	})
+
+	it('fails a statement after the plugin construction', () => {
+		expect(declarationProblems(file(...contract, '', plugin, '', 'const unused = 1'), 'toTrimmed')[0])
+			.toContain('the `implStepPlugin` construction is not the last statement in the file')
+	})
+
+	it('fails a file that constructs no plugin', () => {
+		expect(declarationProblems(file(...contract), 'toTrimmed')[0])
+			.toContain('publishes no step')
+	})
+
+	// The limit the module's comment admits to: a *type* is the same syntax in either section, so
+	// the gate cannot tell an implementation type placed above `Meta` from a contract one.
+	it('accepts a type declared in either section, as its comment says', () => {
+		expect(declarationProblems(file('interface FlatProperties { keys: string[] }', '', ...contract, '', plugin), 'toTrimmed'))
+			.toEqual([])
+		expect(declarationProblems(file(...contract, '', 'interface FlatProperties { keys: string[] }', '', plugin), 'toTrimmed'))
 			.toEqual([])
 	})
 })

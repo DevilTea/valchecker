@@ -5,14 +5,22 @@ argument-hint: <stepName> <one-line semantics>
 
 Add the built-in step described by `$ARGUMENTS`.
 
-Read [the dev skill](../skills/valchecker-dev/SKILL.md) plus its architecture, conventions, and
+Read [the dev skill](../skills/valchecker-dev/SKILL.md) plus its
+[step unit](../skills/valchecker-dev/references/step-unit.md), architecture, conventions, and
 testing references, and an existing step of the same family as the closest precedent before
 writing anything.
 
+[The step unit](../skills/valchecker-dev/references/step-unit.md) is the authority on what the
+directory holds and how `<name>.ts` is laid out. In short: the required files are `<name>.ts`,
+`<name>.test.ts`, `<name>.bench.ts`, and a one-line `index.ts`; the only auxiliary test is
+`<name>.types.test.ts`; a helper module is kebab-case after the concept it owns; and `<name>.ts` runs
+imports → contract types → `type Meta` → `interface PluginDef` → module-private values →
+`/* @__NO_SIDE_EFFECTS__ */` and the `implStepPlugin` export as the last statement. Do not split the
+runtime suite across files, and do not prefix `Meta`, `PluginDef`, or `Internal`.
+
 The step is not done until all of these are true:
 
-- `packages/internal/src/steps/<name>/` holds `<name>.ts`, `<name>.test.ts`, `<name>.bench.ts`,
-  and `index.ts`;
+- the directory conforms to the step unit, and `pnpm steps:complete` says so;
 - `Meta`, `PluginDef` with canonical JSDoc, and `implStepPlugin()` are all present, with
   `/* @__NO_SIDE_EFFECTS__ */` on the plugin construction;
 - it is exported from the local `index.ts` and from `packages/internal/src/steps/index.ts`;
