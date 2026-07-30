@@ -289,6 +289,40 @@ export interface ComposedDocs {
 }
 
 /**
+ * Line endings as the composition writes them.
+ *
+ * Everything above splits its sources on `/\r?\n/` and joins with `\n`, so a composed file is
+ * canonically LF whatever the checkout used. What a *committed* file holds is the platform's
+ * business: git hands a Windows working tree CRLF, and comparing that against the composition
+ * raw reported all seven generated files stale on `windows-latest` and none anywhere else — a
+ * gate green on every platform where the difference could not appear. `step-completeness.ts`
+ * avoids the same class of failure by matching whole-file or per-span rather than by line number.
+ */
+function withCanonicalNewlines(text: string): string {
+	return text.replaceAll('\r\n', '\n')
+}
+
+/**
+ * The generated files whose committed text is not what the sources compose.
+ *
+ * This is the comparison `pnpm docs:api` reports and `pnpm docs:api:update` acts on, kept here
+ * rather than in the CLI because it is a rule about the reference rather than an I/O concern —
+ * and the one rule of this generator that reads the committed pages, so it is the one the tests
+ * over a synthetic tree could otherwise not reach.
+ *
+ * Normalizing is not a relaxation: the whole file is still compared, so a single changed
+ * character still names the file.
+ */
+export function staleOutputs(tree: SourceTree, outputs: ReadonlyMap<string, string>): string[] {
+	return [...outputs]
+		.filter(([path, expected]) => {
+			const committed = tree.read(path)
+			return committed == null || withCanonicalNewlines(committed) !== withCanonicalNewlines(expected)
+		})
+		.map(([path]) => path)
+}
+
+/**
  * The reference as the step units define it.
  *
  * A problem anywhere means the outputs describe a tree this generator could not read completely,

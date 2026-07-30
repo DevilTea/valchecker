@@ -5,6 +5,7 @@ import {
 	parseStepDoc,
 	readSlots,
 	renderStepEntry,
+	staleOutputs,
 } from './docs-api'
 import { objectTree } from './source-tree'
 
@@ -326,6 +327,35 @@ describe('a complete repository', () => {
 
 		expect(composeDocsApi(objectTree(crlfFiles)))
 			.toEqual(lf)
+	})
+
+	// The gap the CRLF case above left open, and what `windows-latest` failed on while every other
+	// platform passed: the composition was already line-ending agnostic, but the committed pages it
+	// is compared against were read as bytes. On a Windows checkout that is CRLF, so all seven
+	// generated files came out stale on a tree nobody had edited.
+	it('accepts a committed page that differs from the composition only in line endings', () => {
+		const { outputs, problems } = composeDocsApi(repository())
+		expect(problems)
+			.toEqual([])
+		const committed: Record<string, string> = {}
+		for (const [path, text] of outputs)
+			committed[path] = text.replaceAll('\n', '\r\n')
+
+		expect(staleOutputs(objectTree(committed), outputs))
+			.toEqual([])
+	})
+
+	it('reports a committed page that differs in content, and one that is absent', () => {
+		const { outputs } = composeDocsApi(repository())
+		const committed: Record<string, string> = {}
+		for (const [path, text] of outputs)
+			committed[path] = text
+		committed['docs/api/primitives.md'] += 'a hand-edit\n'
+		delete committed['docs/api/helpers.md']
+
+		expect(staleOutputs(objectTree(committed), outputs)
+			.sort())
+			.toEqual(['docs/api/helpers.md', 'docs/api/primitives.md'])
 	})
 })
 

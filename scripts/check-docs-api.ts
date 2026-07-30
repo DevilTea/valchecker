@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { composeDocsApi } from './docs-api'
+import { composeDocsApi, staleOutputs } from './docs-api'
 import { fileSystemTree } from './source-tree'
 
 // `pnpm docs:api` / `pnpm docs:api:update`, the same pair as `pnpm api:surface`: the committed
@@ -13,7 +13,8 @@ import { fileSystemTree } from './source-tree'
 const root = path.resolve(import.meta.dirname, '..')
 const write = process.argv.includes('--write')
 
-const { outputs, problems } = composeDocsApi(fileSystemTree(root))
+const tree = fileSystemTree(root)
+const { outputs, problems } = composeDocsApi(tree)
 
 if (problems.length > 0) {
 	console.error('The API reference cannot be composed from the step units:')
@@ -23,18 +24,15 @@ if (problems.length > 0) {
 	process.exit(1)
 }
 
-const stale: string[] = []
-for (const [relative, expected] of outputs) {
-	const target = path.join(root, relative)
-	const actual = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null
-	if (actual === expected)
-		continue
-
-	if (write) {
+// Whether a committed file matches is decided in `docs-api.ts`, where a test over a synthetic tree
+// can reach it. This script only writes what that comparison names.
+const stale = staleOutputs(tree, outputs)
+if (write) {
+	for (const relative of stale) {
+		const target = path.join(root, relative)
 		fs.mkdirSync(path.dirname(target), { recursive: true })
-		fs.writeFileSync(target, expected)
+		fs.writeFileSync(target, outputs.get(relative)!)
 	}
-	stale.push(relative)
 }
 
 if (write) {
