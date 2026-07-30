@@ -14,13 +14,15 @@ import { criticalValue } from './statistics.mjs'
 const profile = { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 7, targetRelativeMarginOfError: 0.75 }
 
 /** One `raw.json`, carrying one result per named scenario. */
-function runOf(scenarios, { scenarioFilter = null, isolation = 'cell', shardCount = 1 } = {}) {
+function runOf(scenarios, { scenarioFilter = null, isolation = 'cell', shardCount = 1, cellCatalogHash = null, unmeasurableCells = [] } = {}) {
 	return {
 		schemaVersion: 4,
 		mode: 'standard',
 		isolation,
 		profile,
 		scenarioFilter,
+		cellCatalogHash,
+		unmeasurableCells,
 		shards: Array.from({ length: shardCount }, (unused, index) => ({ index, count: shardCount })),
 		environment: { commit: 'abc123' },
 		libraries: [{
@@ -170,9 +172,82 @@ test('one scenario past the per-scenario threshold is severe on its own', () => 
 test('the report carries the conditions the verdict was reached under', () => {
 	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
 	const result = compare(scenarios, scenarios, [['cold', 8]], { scenarioFilter: ['b', 'a'] })
-	assert.equal(result.schemaVersion, 7)
-	assert.deepEqual(result.measurement, { isolation: 'cell', shardCount: 1, selection: ['a', 'b'] })
+	assert.equal(result.schemaVersion, 8)
+	assert.deepEqual(result.measurement, { isolation: 'cell', shardCount: 1, selection: ['a', 'b'], cellCatalogHash: null })
 	assert.match(renderMarkdown(result), /scoped to the diff/)
+})
+
+test('the presence counts are reported whether or not anything moved', () => {
+	// Unconditional is the whole point. A line that appeared only when a cell was added or
+	// removed would leave a reader of a clean report unable to tell a comparison whose cell
+	// set held still from one that never looked.
+	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
+	const result = compare(scenarios, scenarios, [['cold', 8]])
+	assert.deepEqual(result.cells, {
+		catalogHash: null,
+		catalogCells: 8,
+		measured: 2,
+		added: [],
+		removed: [],
+		baselineUnmeasurable: [],
+		candidateUnmeasurable: [],
+	})
+	assert.match(renderMarkdown(result), /Cells: \*\*measured 2 \/ added 0 \/ removed 0\*\* of the 8 the catalog declares/)
+})
+
+test('a cell only one build can execute is named as added or removed, not thrown away', () => {
+	// A new step's cells cannot execute against the baseline build, and a deleted subject's
+	// cannot execute against the candidate's. Both used to abort the comparison — the
+	// candidate-side one with `Candidate contains scenarios absent from baseline` — so a
+	// pull request adding a step could not be measured at all. Each is now a named row of
+	// the presence line, and neither is silently absent.
+	const baseline = aggregateRuns(sideOf([['a', 'cold', 100], ['gone', 'cold', 100]], { unmeasurableCells: [{ cell: 'new', reason: 'threw' }] }), 'baseline')
+	const candidate = aggregateRuns(sideOf([['a', 'cold', 100], ['new', 'cold', 100]], { unmeasurableCells: [{ cell: 'gone', reason: 'threw' }] }), 'candidate')
+	const result = compareResults(baseline, candidate, { groupTotals: new Map([['cold', 3]]) })
+	assert.deepEqual(result.rows.map(row => row.scenario), ['a'])
+	assert.equal(result.cells.measured, 1)
+	assert.deepEqual(result.cells.added, ['new'])
+	assert.deepEqual(result.cells.removed, ['gone'])
+	assert.deepEqual(result.cells.baselineUnmeasurable, ['new'])
+	assert.deepEqual(result.cells.candidateUnmeasurable, ['gone'])
+	const markdown = renderMarkdown(result)
+	assert.match(markdown, /Cells: \*\*measured 1 \/ added 1 \/ removed 1\*\*/)
+	assert.match(markdown, /\*\*Added\.\*\* `new`/)
+	assert.match(markdown, /\*\*Removed\.\*\* `gone`/)
+})
+
+test('a catalog other than the one measured against is refused', () => {
+	// The denominators come from a file now. A stale artifact would misstate every group's
+	// coverage without changing a number, which is the one thing persisting the catalog
+	// could have made worse rather than better.
+	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
+	const options = { cellCatalogHash: 'abc123abc123abc1' }
+	const measured = () => compareResults(
+		aggregateRuns(sideOf(scenarios, options), 'baseline'),
+		aggregateRuns(sideOf(scenarios, options), 'candidate'),
+		{ groupTotals: new Map([['cold', 8]]), catalogHash: 'ffffffffffffffff' },
+	)
+	assert.throws(measured, /supplied to the comparison is ffffffffffffffff but the runs were measured against abc123abc123abc1/)
+	const matching = compareResults(
+		aggregateRuns(sideOf(scenarios, options), 'baseline'),
+		aggregateRuns(sideOf(scenarios, options), 'candidate'),
+		{ groupTotals: new Map([['cold', 8]]), catalogHash: 'abc123abc123abc1' },
+	)
+	assert.equal(matching.cells.catalogHash, 'abc123abc123abc1')
+	assert.equal(matching.measurement.cellCatalogHash, 'abc123abc123abc1')
+})
+
+test('repetitions of one side that disagree about what they measured are refused', () => {
+	// Which cells have numbers is decided by `verifyCell` against one build, so it cannot
+	// vary between the repetitions of one side. If it does, the rows would be built from the
+	// first repetition's cell set while a later one contributed different paired ratios.
+	const runs = sideOf([['a', 'cold', 100]])
+	runs[2].unmeasurableCells = [{ cell: 'b', reason: 'threw' }]
+	assert.throws(() => aggregateRuns(runs, 'candidate'), /candidate run 3 reports different unmeasurable cells/)
+
+	const extra = sideOf([['a', 'cold', 100]])
+	extra[3].libraries[0].results.push({ ...extra[3].libraries[0].results[0], scenario: 'b' })
+	assert.throws(() => aggregateRuns(extra, 'baseline'), /baseline run 4 measured 2 scenarios and baseline run 1 measured 1/)
 })
 
 test('two sides measured over different scenario sets are refused', () => {

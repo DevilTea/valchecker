@@ -47,13 +47,31 @@ function getValchecker(raw, label) {
 
 const comparedMetadata = ['category', 'group', 'resultKind', 'issuePolicy', 'comparisonScope', 'diagnosticIssueCount']
 
+/** The cells a run could not execute against the build it measured, by name. */
+function unmeasurableOf(raw) {
+	return [...new Set((raw.unmeasurableCells ?? []).map(entry => entry.cell))].sort()
+}
+
 export function aggregateRuns(raws, label) {
 	const mode = raws[0].mode
 	const identity = measurementIdentity(raws[0], `${label} run 1`)
 	const first = getValchecker(raws[0], label)
+	const unmeasurable = unmeasurableOf(raws[0])
 	const resultMaps = raws.map((raw, index) => {
 		assertComparable(identity, measurementIdentity(raw, `${label} run ${index + 1}`), `${label} run 1 and ${label} run ${index + 1}`)
-		return new Map(getValchecker(raw, `${label} run ${index + 1}`).results.map(result => [result.scenario, result]))
+		// The repetitions of one side measured one build with one apparatus, so which cells
+		// have numbers cannot legitimately vary between them: `verifyCell` decides it, and it
+		// decides it the same way every time. A difference means one repetition measured
+		// something else, and the rows below would be built from the first repetition's cell
+		// set while a later one contributed a different set of paired ratios.
+		if (unmeasurableOf(raw)
+			.join(',') !== unmeasurable.join(',')) {
+			throw new Error(`${label} run ${index + 1} reports different unmeasurable cells than ${label} run 1`)
+		}
+		const results = getValchecker(raw, `${label} run ${index + 1}`).results
+		if (results.length !== first.results.length)
+			throw new Error(`${label} run ${index + 1} measured ${results.length} scenarios and ${label} run 1 measured ${first.results.length}`)
+		return new Map(results.map(result => [result.scenario, result]))
 	})
 	const results = first.results.map((template) => {
 		const runResults = resultMaps.map((resultMap) => {
@@ -86,6 +104,8 @@ export function aggregateRuns(raws, label) {
 		identity,
 		runCount: raws.length,
 		commits: [...new Set(raws.map(raw => raw.environment?.commit ?? null))],
+		/** Cells this side declared but could not execute against its own build. */
+		unmeasurable,
 		results,
 	}
 }
@@ -240,19 +260,42 @@ function classifyRow(pairedRatios, ratio) {
 	return { low, high, decisive: false, classification: 'inconclusive' }
 }
 
-export function compareResults(baseline, candidate, { groupTotals }) {
-	// The single comparability guard, covering mode, profile, isolation, shard count, and
-	// the scenario selection. A difference in any of them means the gap between the two
-	// runs is not attributable to the change under test.
+export function compareResults(baseline, candidate, { groupTotals, catalogHash = null }) {
+	// The single comparability guard, covering mode, profile, isolation, shard count, the cell
+	// catalog, and the scenario selection. A difference in any of them means the gap between
+	// the two runs is not attributable to the change under test.
 	assertComparable(baseline.identity, candidate.identity, 'Baseline and candidate')
 	if (baseline.runCount !== candidate.runCount)
 		throw new Error('Aggregated run counts differ')
+	// And the catalog the denominators come from is the catalog the runs were measured
+	// against. It is a separate file now — persisted during measurement rather than
+	// re-derived here — so the one thing that could go wrong is reading a stale one, and a
+	// stale catalog would misstate every group's coverage without changing a single number.
+	if (catalogHash !== baseline.identity.cellCatalogHash) {
+		throw new Error(
+			`The cell catalog supplied to the comparison is ${String(catalogHash)} but the runs were measured against ${String(baseline.identity.cellCatalogHash)}. `
+			+ 'Group denominators and coverage would describe a different cell set than the one that was measured.',
+		)
+	}
 
 	const candidateByScenario = new Map(candidate.results.map(result => [result.scenario, result]))
-	const rows = baseline.results.map((base) => {
+	// The cells with a number on both sides. A cell present on one side only cannot produce a
+	// paired ratio, and it is not an error: a cell that executes against one build and not the
+	// other is how a step arrives or leaves, which is what the presence counts below report.
+	// It is never dropped in silence — every one of them is named.
+	const paired = baseline.results.filter(base => candidateByScenario.has(base.scenario))
+	const baselineIds = new Set(baseline.results.map(result => result.scenario))
+	const presence = {
+		measured: paired.length,
+		added: candidate.results.filter(result => !baselineIds.has(result.scenario))
+			.map(result => result.scenario)
+			.sort(),
+		removed: baseline.results.filter(result => !candidateByScenario.has(result.scenario))
+			.map(result => result.scenario)
+			.sort(),
+	}
+	const rows = paired.map((base) => {
 		const head = candidateByScenario.get(base.scenario)
-		if (!head)
-			throw new Error(`Candidate is missing scenario ${base.scenario}`)
 		for (const field of comparedMetadata) {
 			if (head[field] !== base[field])
 				throw new Error(`Metadata mismatch for ${base.scenario}.${field}`)
@@ -290,9 +333,6 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 			candidateRunMedians: head.runMedians,
 		}
 	})
-	if (candidateByScenario.size !== rows.length)
-		throw new Error('Candidate contains scenarios absent from baseline')
-
 	const groups = summarizeGroups(rows, groupTotals)
 
 	const severeScenarios = rows.filter(row => row.classification === 'severe')
@@ -336,11 +376,10 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 						: 'neutral'
 
 	return {
-		// 6 because `groups[].catalogScenarios`, `partiallyCoveredGroups`,
-		// `groupsWithoutTrigger`, and `measurement.selection` were added; a reader of a
-		// stored report must be able to tell whether the absence of a scope note means
-		// full coverage or an older tool that could not report it.
-		schemaVersion: 7,
+		// 8 because `cells` was added: a reader of a stored report must be able to tell
+		// whether the absence of the presence counts means nothing was added or removed, or
+		// an older tool that could not compute them.
+		schemaVersion: 8,
 		mode: baseline.mode,
 		// The measurement identity both sides had to share, recorded so the verdict
 		// carries the conditions it was reached under rather than only the numbers.
@@ -348,6 +387,36 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 			isolation: baseline.identity.isolation,
 			shardCount: baseline.identity.shardCount,
 			selection: baseline.identity.selection,
+			cellCatalogHash: baseline.identity.cellCatalogHash,
+		},
+		/**
+		 * `measured N / added M / removed K`, reported whether or not any of them is zero.
+		 *
+		 * It is computable now because the catalog is a persisted artifact rather than a
+		 * collection this stage performs: the comparison knows the whole cell set, which side
+		 * measured each cell, and which cells each side could not execute at all. A count that
+		 * only appeared when it was non-zero would leave a reader of a clean report unable to
+		 * tell a complete comparison from one whose cell set moved under it.
+		 *
+		 * What each number means, precisely. `measured` is the cells with a number on both
+		 * sides, which is the only kind that can produce a paired ratio. `added` executed
+		 * against the candidate build and not the baseline's — a new step's cells, most often.
+		 * `removed` executed against the baseline and not the candidate's, which is a cell
+		 * whose subject stopped working, so unlike `added` it is worth reading twice.
+		 *
+		 * One ceiling, stated rather than left to be discovered: the cell *definitions* come
+		 * from the checked-out ref only, because they are the apparatus. A cell deleted from
+		 * the candidate tree is therefore not in the catalog at all and appears in none of
+		 * these counts. What they see is a cell that exists and cannot run.
+		 */
+		cells: {
+			catalogHash,
+			catalogCells: groupTotals.size === 0 ? null : [...groupTotals.values()].reduce((sum, count) => sum + count, 0),
+			measured: presence.measured,
+			added: presence.added,
+			removed: presence.removed,
+			baselineUnmeasurable: baseline.unmeasurable,
+			candidateUnmeasurable: candidate.unmeasurable,
 		},
 		// How much of the tier ran. Without it a reader of a passing report cannot tell a
 		// complete comparison from a scoped one, and `2/2 decisive` in a group reads the
@@ -389,6 +458,43 @@ export function compareResults(baseline, candidate, { groupTotals }) {
 	}
 }
 
+function nameList(ids, format) {
+	return ids.slice(0, 12)
+		.map(format)
+		.join(', ') + (ids.length > 12 ? `, and ${ids.length - 12} more` : '')
+}
+
+/**
+ * The presence line, printed on every report.
+ *
+ * Unconditional is the point: a zero says the comparison covered the same cells on both
+ * sides, and only a printed zero says it.
+ */
+function presenceLines(result) {
+	const lines = [
+		`Cells: **measured ${result.cells.measured} / added ${result.cells.added.length} / removed ${result.cells.removed.length}**`
+		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}`
+		+ `${result.cells.catalogHash == null ? '' : ` (catalog \`${result.cells.catalogHash}\`)`}. `
+		+ 'Only a cell measured on both sides has a paired ratio; a cell that executes against one build and not the other is added or removed, and is named rather than counted away.',
+		'',
+	]
+	if (result.cells.added.length > 0) {
+		lines.push(
+			`> **Added.** ${nameList(result.cells.added, id => `\`${id}\``)}. These executed against the candidate build and not the baseline's, `
+			+ 'so they have no before number and cannot be part of any aggregate.',
+			'',
+		)
+	}
+	if (result.cells.removed.length > 0) {
+		lines.push(
+			`> **Removed.** ${nameList(result.cells.removed, id => `\`${id}\``)}. These executed against the baseline build and not the candidate's. `
+			+ 'A cell whose subject stopped working is a change to the library, not a gap in the measurement.',
+			'',
+		)
+	}
+	return lines
+}
+
 export function renderMarkdown(result) {
 	const lines = [
 		'# Valchecker benchmark impact',
@@ -398,6 +504,7 @@ export function renderMarkdown(result) {
 		`Scenarios measured: **${result.coverage.measuredScenarios} of ${result.coverage.tierScenarios}** in the \`${result.mode}\` tier`
 		+ `${result.measurement.selection == null ? ' (unscoped)' : ' (scoped to the diff)'}.`,
 		'',
+		...presenceLines(result),
 		`A row is judged by its **95% interval**, not by its point estimate: **cleared** when the whole interval is inside ±${meaningfulThreshold}%, `
 		+ `**regression** when the whole interval is at or below −${meaningfulThreshold}%, **severe** when it is a regression and the point estimate is at or below `
 		+ `−${Math.abs(severeScenarioRegression)}%, and **inconclusive** when the interval spans a threshold. An inconclusive row is **not a pass** — `
@@ -490,5 +597,11 @@ export function renderHtml(result) {
 		? ''
 		: `<p><strong>Partly covered groups:</strong> ${htmlEscape(result.partiallyCoveredGroups.map(row => `${row.group} ${row.measured}/${row.total}`)
 			.join(', '))}. A group's geometric mean is over the scenarios this run measured.</p>`
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p>${scope}<h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Scenarios measured</th><th>Decisive rows</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
+	// The same presence line the Markdown report prints, and printed on the same terms:
+	// always, so that a zero is visible.
+	const presence = `<p>Cells: <strong>measured ${result.cells.measured} / added ${result.cells.added.length} / removed ${result.cells.removed.length}</strong>`
+		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}.`
+		+ `${result.cells.added.length === 0 ? '' : ` Added: ${htmlEscape(result.cells.added.join(', '))}.`}`
+		+ `${result.cells.removed.length === 0 ? '' : ` Removed: ${htmlEscape(result.cells.removed.join(', '))}.`}</p>`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p>${presence}${scope}<h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Scenarios measured</th><th>Decisive rows</th><th>Change</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }

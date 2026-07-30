@@ -248,7 +248,7 @@ pnpm --dir benchmarks summary \
   --html results/summary.html
 ```
 
-Compare repeated Valchecker benchmark results by passing each paired run in matching order:
+Compare repeated Valchecker benchmark results by passing each paired run in matching order, plus the cell catalog the measuring run persisted:
 
 ```bash
 pnpm --dir benchmarks compare \
@@ -258,10 +258,15 @@ pnpm --dir benchmarks compare \
   --candidate results/head-1.json \
   --candidate results/head-2.json \
   --candidate results/head-3.json \
+  --cell-catalog results/cell-catalog.json \
   --markdown results/impact.md \
   --json results/impact.json \
   --html results/impact.html
 ```
+
+`--cell-catalog` is required, and it is the point rather than a parameter. Coverage denominators used to be built here by collecting the cells, which imports every `<name>.bench.ts` under a loader that resolves the library to a build under test — so the first sharded CI run measured all 245 cells across four shards and then failed in `compare` for want of `VALCHECKER_DIST_URL`. A stage that reports on two builds must not execute either, so `pnpm --dir benchmarks cells --catalog-output <path>` writes the catalog as data during measurement and this stage reads the file. The artifact carries a hash of the cell set; every shard records the hash it measured against, `merge` refuses shards that disagree, `comparability.mjs` carries it in the measurement identity, and `compare` refuses a catalog that is not the one the runs were measured against — so the one thing persisting a denominator could have made worse, reading a stale copy, fails loudly. Reading an archived cross-library comparison instead is `--catalog scenarios`, which takes no cell catalog and is the only case that loads the scenario registry at all.
+
+Every comparison prints `measured N / added M / removed K` whether or not any of them is zero. `measured` is the cells with a number on both sides, the only kind that can produce a paired ratio; `added` executed against the candidate build and not the baseline's, which is what a new step looks like; `removed` executed against the baseline and not the candidate's, which is a cell whose subject stopped working. Both lists are named, not just counted. One ceiling: cell *definitions* come from the checked-out ref only, because they are the apparatus, so a cell deleted from the candidate tree is not in the catalog at all and appears in none of the three counts.
 
 Profiles:
 

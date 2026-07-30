@@ -130,6 +130,30 @@ test('merging restores the run order and accounts for every scenario once', () =
 	assert.equal(valibot.totalScenarios, 4)
 })
 
+test('a merged cell run carries its catalog identity and every unmeasurable cell', () => {
+	// The two fields `compare` reads instead of collecting the cells itself: the hash it
+	// checks its catalog file against, and the cells that could not execute against this
+	// build, which are what the presence counts are computed from. Both have to survive the
+	// merge, and the unmeasurable ones have to come out in run order like everything else.
+	const [first, second] = twoShards()
+	first.cellCatalogHash = 'abc123abc123abc1'
+	second.cellCatalogHash = 'abc123abc123abc1'
+	first.unmeasurableCells = [{ cell: 'c', reason: 'threw' }]
+	second.unmeasurableCells = [{ cell: 'b', reason: 'threw' }]
+	const merged = mergeShardResults([first, second])
+	assert.equal(merged.cellCatalogHash, 'abc123abc123abc1')
+	assert.deepEqual(merged.unmeasurableCells.map(entry => entry.cell), ['b', 'c'])
+})
+
+test('a merged cross-library run gains no cell fields', () => {
+	// The positive control for the pair above: the scenario suite has no cell catalog and no
+	// unmeasurable cells, and a merged result of it must keep the exact shape an unsharded
+	// run writes rather than carrying two empty fields the report would have to explain.
+	const merged = mergeShardResults(twoShards())
+	assert.equal('cellCatalogHash' in merged, false)
+	assert.equal('unmeasurableCells' in merged, false)
+})
+
 test('merging accepts the shards in any argument order', () => {
 	const [first, second] = twoShards()
 	assert.deepEqual(mergeShardResults([second, first]).scenarioCatalog.map(scenario => scenario.id), ['a', 'b', 'c', 'd'])
@@ -178,6 +202,10 @@ test('shards of different runs are refused, naming the field that differs', () =
 		['order', raw => raw.order = ['valibot', 'valchecker']],
 		['scenarioFilter', raw => raw.scenarioFilter = ['primitive/valid']],
 		['schemaVersion', raw => raw.schemaVersion = 3],
+		// Four shards of one cell run are four quarters of one catalog. A shard that
+		// measured a different one assigned `p % 4` over a different list, so its rows
+		// belong to positions this merge would give to other cells.
+		['cellCatalogHash', raw => raw.cellCatalogHash = 'ffffffffffffffff'],
 	]) {
 		const shards = twoShards()
 		mutate(shards[1])

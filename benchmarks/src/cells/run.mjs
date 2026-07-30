@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url'
 import { versionOfModule } from '../adapters/installed-version.mjs'
 import { getProfile } from '../measure.mjs'
 import { assertShardSelector, selectShardScenarios } from '../sharding.mjs'
+import { buildCellCatalog } from './catalog-artifact.mjs'
 import { cellCatalog, collectStepBenches } from './collect.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('../..', import.meta.url))
@@ -34,6 +35,10 @@ function parseArguments(argv) {
 	const options = {
 		mode: 'standard',
 		output: resolve(benchmarkRoot, 'results/cells.json'),
+		// Where to persist the catalog this run measured against. Written by the measuring
+		// job so that `compare` reads a file instead of re-collecting cells through the
+		// loader that points at the build under test.
+		catalogOutput: null,
 		cells: [],
 		shardIndex: 0,
 		shardCount: 1,
@@ -48,6 +53,10 @@ function parseArguments(argv) {
 		}
 		else if (argument === '--output' && value) {
 			options.output = resolve(benchmarkRoot, value)
+			index++
+		}
+		else if (argument === '--catalog-output' && value) {
+			options.catalogOutput = resolve(benchmarkRoot, value)
 			index++
 		}
 		else if (argument === '--cells' && value) {
@@ -109,6 +118,12 @@ function runWorker(cellId, mode) {
 async function main() {
 	const options = parseArguments(process.argv.slice(2))
 	const catalog = cellCatalog(await collectStepBenches())
+	// The catalog this run measured against, as data. Its hash goes into the result so that
+	// merge, the identity guard, and compare can all check that they are talking about one
+	// cell set; the file it is written to is what compare reads instead of collecting cells
+	// itself. Both come from the same collection, so the hash cannot describe a different
+	// catalog than the file.
+	const artifact = buildCellCatalog(catalog)
 	const known = new Map(catalog.map(cell => [cell.id, cell]))
 
 	// A selection naming a cell this ref does not declare is a mistake worth failing on
@@ -155,7 +170,6 @@ async function main() {
 		runnerImageOS: process.env.ImageOS ?? null,
 		runnerImageVersion: process.env.ImageVersion ?? null,
 	}
-	const measuredCells = shardCells.filter(cell => !unmeasurable.some(entry => entry.cell === cell.id))
 	const result = {
 		schemaVersion: 4,
 		mode: options.mode,
@@ -165,20 +179,30 @@ async function main() {
 		scenarioFilter: options.cells.length > 0 ? options.cells : null,
 		// One process per cell, which is what the field has always meant.
 		isolation: 'cell',
+		// Which cell set this run measured against, so a result can be paired only with
+		// another measured from the same catalog. `comparability.mjs` carries it in the
+		// measurement identity and `merge` refuses shards that disagree.
+		cellCatalogHash: artifact.catalogHash,
 		startedAt,
 		completedAt,
 		profile: getProfile(options.mode),
 		environment,
+		// The cells this shard was **assigned**, measurable or not. The catalog is the run
+		// order — `interleaveShards` inverts `p % count` from it — so dropping a cell that
+		// could not execute against this build would renumber every cell after it and give
+		// `merge` shard sizes positional round-robin cannot produce. A cell with no number is
+		// recorded below the way the cross-library runner records an adapter it had to skip:
+		// present in the catalog, absent from the results, named with its reason.
 		shards: [{
 			index: options.shardIndex,
 			count: options.shardCount,
-			scenarios: measuredCells.map(cell => cell.id),
+			scenarios: shardCells.map(cell => cell.id),
 			startedAt,
 			completedAt,
 			environment,
 		}],
 		order: ['valchecker'],
-		scenarioCatalog: measuredCells.map(cell => ({ id: cell.id, group: cell.group, steps: cell.steps })),
+		scenarioCatalog: shardCells.map(cell => ({ id: cell.id, group: cell.group, steps: cell.steps })),
 		unmeasurableCells: unmeasurable,
 		libraries: [{
 			adapter: 'valchecker',
@@ -195,6 +219,12 @@ async function main() {
 	await mkdir(dirname(options.output), { recursive: true })
 	await writeFile(options.output, `${JSON.stringify(result, null, 2)}\n`)
 	console.error(`[cells] wrote ${options.output}: ${results.length} measured, ${unmeasurable.length} unmeasurable`)
+
+	if (options.catalogOutput != null) {
+		await mkdir(dirname(options.catalogOutput), { recursive: true })
+		await writeFile(options.catalogOutput, `${JSON.stringify(artifact, null, 2)}\n`)
+		console.error(`[cells] wrote ${options.catalogOutput}: ${artifact.cells.length} cells, catalog ${artifact.catalogHash}`)
+	}
 }
 
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load

@@ -64,6 +64,14 @@ test('a filter naming every scenario is not the same as no filter', () => {
 	assert.deepEqual(identityDifferences(left, right), ['selection'])
 })
 
+test('a run with no cell catalog is the same kind of measurement as another with none', () => {
+	// The cross-library scenario suite has no cell catalog, and comparing two of its runs
+	// must not become a refusal because the field is absent from both.
+	assert.deepEqual(identityDifferences(identityOf(), identityOf()), [])
+	assert.equal(identityOf().cellCatalogHash, null)
+	assert.equal(identityOf({ cellCatalogHash: 'abc123abc123abc1' }).cellCatalogHash, 'abc123abc123abc1')
+})
+
 test('a run carrying only some of its shards is not a run', () => {
 	// Four shards were declared and one file is present: the numbers describe a
 	// quarter of the scenarios and would otherwise be compared as if they were all.
@@ -88,6 +96,10 @@ test('each identity field is a refusal on its own, and is named', () => {
 		['profile', { profile: { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 12, targetRelativeMarginOfError: 0.75 } }],
 		['isolation', { isolation: 'adapter' }],
 		['shardCount', { shards: [{ index: 0, count: 4 }, { index: 1, count: 4 }, { index: 2, count: 4 }, { index: 3, count: 4 }] }],
+		// The cell catalog is the apparatus: it decides the run order and every group
+		// denominator, and it is recorded rather than re-derived, so a run measured against
+		// another catalog has to be refused here rather than compared cell by cell.
+		['cellCatalogHash', { cellCatalogHash: '0123456789abcdef' }],
 	]) {
 		const left = identityOf()
 		const right = identityOf(overrides)

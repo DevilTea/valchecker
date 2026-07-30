@@ -406,6 +406,11 @@ jobs:
           # they are pointed at. The apparatus is fixed and `before`/`after` are two
           # builds it measures; if each side read its own cells, editing a bench file
           # would be editing the measurement.
+          # `--catalog-output` persists the cell catalog this shard measured against, hash
+          # included. That file is what `compare` reads: the reporting stage must not collect
+          # cells itself, because collecting them means importing every bench file through a
+          # loader pointed at a build under test. Each repetition writes the same catalog from
+          # the same checked-out ref, so the last write is the same as the first.
           run_side() {
             local side="$1" dist="$2" repetition="$3" sha="$4"
             VALCHECKER_DIST_URL="$dist" \
@@ -416,6 +421,7 @@ jobs:
               --shard-index "$SHARD" \
               --shard-count 4 \
               --output "../artifacts/performance-impact/$side-$repetition-shard$SHARD.json" \
+              --catalog-output "../artifacts/performance-impact/cell-catalog.json" \
               "${cell_args[@]}"
           }
 
@@ -450,13 +456,16 @@ jobs:
         with:
           persist-credentials: false
 
-      # Built, because the coverage denominators come from the cell catalog and the
-      # catalog is read by executing each step's declaration against a build. This is the
-      # checked-out ref's build, which is the ref the cells come from.
+      # Not built, and that is the point of this job's shape rather than an economy. The
+      # coverage denominators come from the cell catalog the measuring shards persisted, so
+      # this stage reads JSON; it used to collect the cells itself, which imports every bench
+      # file through a loader that resolves the library to a build under test, and the first
+      # sharded run measured all 245 cells and then failed here for want of
+      # `VALCHECKER_DIST_URL`. A job with no build cannot regain that coupling quietly.
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
-          build: 'true'
+          build: 'false'
           benchmarks: 'true'
 
       - name: Download shard measurements
@@ -505,9 +514,17 @@ jobs:
 
           cp -f artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/selection.md artifacts/performance-impact/selection.md 2> /dev/null || true
 
+          # Any shard's catalog will do and shard 0's is the one taken: the four shards are
+          # four quarters of one catalog, `merge` refuses shards whose recorded catalog hash
+          # differs, and `compare` refuses a catalog file that is not the one the runs were
+          # measured against. So a stale or foreign artifact fails here rather than silently
+          # supplying the denominators.
+          cp -f "artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/cell-catalog.json" artifacts/performance-impact/cell-catalog.json
+
           pnpm --dir benchmarks compare \
             "${compare_args[@]}" \
             --catalog cells \
+            --cell-catalog ../artifacts/performance-impact/cell-catalog.json \
             --markdown ../artifacts/performance-impact/impact.md \
             --json ../artifacts/performance-impact/impact.json \
             --html ../artifacts/performance-impact/impact.html \

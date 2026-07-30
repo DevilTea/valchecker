@@ -629,7 +629,7 @@ describe('the repository this gate runs in', () => {
 			encoding: 'utf8',
 			maxBuffer: 32 * 1024 * 1024,
 			env: { ...process.env, VALCHECKER_DIST_URL: distUrl },
-		})) as CatalogEntry[]
+		})).cells as CatalogEntry[]
 		const selection = selectImpactScenarios({ changedFiles: [], attribution, catalog: standard })
 		expect(selection.full)
 			.toBe(false)

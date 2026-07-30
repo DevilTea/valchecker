@@ -133,7 +133,11 @@ export function mergeShardResults(raws) {
 			throw new TypeError(`Shard input ${position} is not a benchmark result`)
 	}
 
-	for (const field of ['schemaVersion', 'mode', 'seed', 'scenarioFilter', 'isolation', 'profile', 'order'])
+	// `cellCatalogHash` is in this list rather than beside the environment because it is the
+	// apparatus, not the machine: four shards of one run are four quarters of one catalog, and
+	// a shard that measured a different one assigned `p % 4` over a different list. It is
+	// absent from a cross-library scenario run, where `null` agrees with `null`.
+	for (const field of ['schemaVersion', 'mode', 'seed', 'scenarioFilter', 'isolation', 'profile', 'order', 'cellCatalogHash'])
 		assertSameAcrossShards(raws, raw => raw[field], field)
 	// The build and the runtime, which the machine is explicitly allowed to differ in and
 	// these are not. The workflow can rerun one failed shard, which is exactly how a merge
@@ -204,12 +208,25 @@ export function mergeShardResults(raws) {
 	const completedAt = ordered.map(({ raw }) => raw.completedAt)
 		.sort()
 		.at(-1)
+	// Carried forward only where the run has them, so a merged cross-library result keeps the
+	// exact shape an unsharded one writes rather than gaining two empty cell fields.
+	const cellFields = {
+		...(first.cellCatalogHash === undefined ? {} : { cellCatalogHash: first.cellCatalogHash }),
+		...(first.unmeasurableCells === undefined
+			? {}
+			: {
+					unmeasurableCells: ordered.flatMap(({ raw }) => raw.unmeasurableCells)
+						.sort((left, right) => catalogPosition.get(left.cell) - catalogPosition.get(right.cell)),
+				}),
+	}
+
 	return {
 		schemaVersion: first.schemaVersion,
 		mode: first.mode,
 		seed: first.seed,
 		scenarioFilter: first.scenarioFilter,
 		isolation: first.isolation,
+		...cellFields,
 		startedAt,
 		completedAt,
 		profile: first.profile,
