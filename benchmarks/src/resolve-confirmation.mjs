@@ -88,6 +88,20 @@ else {
 	}
 	console.error(`[confirm] verdict ${result.verdict} (screen ${result.screenVerdict}): `
 		+ `${result.reproduced.length} reproduced, ${result.notReproduced.length} not reproduced, ${result.unresolved.length} unresolved`)
+	// Why, not just what. A job whose log ends in a one-line summary and `ELIFECYCLE` sends its
+	// reader to an artifact to find out which cell failed the build, and the first real run of
+	// this stage was misread as a wiring fault for exactly that reason. The rows that decided
+	// are printed where the failure is.
+	for (const row of result.rows.filter(candidate => result.blocking.includes(candidate.scenario))) {
+		console.error(`[confirm] blocking: ${row.scenario} — screen ${row.screen} ${(row.screenDelta * 100).toFixed(2)}%, `
+			+ `confirm ${row.confirm ?? 'not measured'}${row.confirmDelta == null ? '' : ` ${(row.confirmDelta * 100).toFixed(2)}%`}`)
+	}
+	for (const row of result.rows.filter(candidate => result.unresolved.includes(candidate.scenario))) {
+		console.error(`[confirm] unresolved: ${row.scenario} — screen ${row.screen} ${(row.screenDelta * 100).toFixed(2)}%, `
+			+ `confirm ${row.confirm ?? 'not measured'}${row.confirmDelta == null ? '' : ` ${(row.confirmDelta * 100).toFixed(2)}%`}`)
+	}
+	if (result.severeGroups.length > 0)
+		console.error(`[confirm] severe group${result.severeGroups.length === 1 ? '' : 's'} from the screen, not confirmed here: ${result.severeGroups.join(', ')}`)
 	if (options.failOnRegression && result.verdict === 'regression')
 		process.exitCode = 1
 }

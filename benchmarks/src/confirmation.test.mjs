@@ -84,6 +84,49 @@ test('screen severe plus confirm inconclusive is unresolved, which is not a pass
 	assert.match(renderConfirmationMarkdown(result), /\*\*Unresolved\.\*\* `a`/)
 })
 
+test('one severe judgement against one non-judgement is unresolved in either direction', () => {
+	// The asymmetry the gate's first real run exposed, with that run's own numbers.
+	// `map/collect-all` screened severe at -14.67% and confirmed severe at -11.59%, so it
+	// blocks. `set/collect-all` screened inconclusive — interval -42.9% … +26.1%, a row this
+	// batch could not judge — and confirmed severe at -30.2%. The first version read only the
+	// confirmation batch, so it called that pair `reproduced` while calling the same pair in
+	// the other order `unresolved`. Same evidence, two answers.
+	const screen = screenOf([
+		['map/collect-all', 'severe', -0.1467, -0.182],
+		['set/collect-all', 'inconclusive', -0.1513, -0.429],
+	], { verdict: 'regression' })
+	const result = resolveConfirmation(screen, confirmOf([
+		['map/collect-all', 'severe', -0.1159],
+		['set/collect-all', 'severe', -0.302],
+	]))
+	assert.deepEqual(result.rows.map(row => [row.scenario, row.resolution]), [
+		['map/collect-all', 'reproduced'],
+		['set/collect-all', 'unresolved'],
+	])
+	assert.deepEqual(result.blocking, ['map/collect-all'])
+	assert.deepEqual(result.unresolved, ['set/collect-all'])
+	assert.equal(result.verdict, 'regression', 'the reproduced severe row still decides')
+
+	// And the mirror image: swap which stage judged, and the resolutions swap with it.
+	const mirrored = resolveConfirmation(
+		screenOf([['a', 'severe', -0.1467, -0.182]], { verdict: 'regression' }),
+		confirmOf([['a', 'inconclusive', -0.1513]]),
+	)
+	assert.deepEqual(mirrored.rows.map(row => row.resolution), ['unresolved'])
+	assert.deepEqual(mirrored.unresolved, ['a'])
+	assert.equal(mirrored.verdict, 'unresolved')
+})
+
+test('a plain regression reproduced is a review, not a failure', () => {
+	// Only a severe claim fails the build, which is the rule that failed it before this stage
+	// existed. Two batches agreeing on a 7% regression is worth a reader, not a red gate.
+	const screen = screenOf([['a', 'regression', -0.07, -0.09]], { verdict: 'review' })
+	const result = resolveConfirmation(screen, confirmOf([['a', 'regression', -0.08]]))
+	assert.deepEqual(result.rows.map(row => row.resolution), ['reproduced'])
+	assert.deepEqual(result.blocking, [])
+	assert.equal(result.verdict, 'review')
+})
+
 test('screen regression plus confirm cleared passes, with the noise named', () => {
 	const screen = screenOf([['a', 'regression', -0.07, -0.09]], { verdict: 'review' })
 	const result = resolveConfirmation(screen, confirmOf([['a', 'cleared', -0.01]]))

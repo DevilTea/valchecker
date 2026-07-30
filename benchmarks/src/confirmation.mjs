@@ -14,16 +14,26 @@
  * other, and this module combines the two verdicts. Nothing is pooled, nothing is
  * re-judged, and neither stage's sample size depends on what it found.
  *
- * The combination, which is the whole decision:
+ * The combination, which is the whole decision. It is **symmetric in the two stages**: what
+ * decides is how many of them judged the row and whether they agree, not which one did.
+ * The first version was not, and the gate's first real run showed what that costs —
+ * `set/collect-all` came back inconclusive in the screen and severe at −30.2% in the
+ * confirmation batch, and was resolved as `reproduced`, while the same pair in the other
+ * order (`severe` then `inconclusive`) was resolved as `unresolved`. One severe judgement
+ * and one non-judgement is the same evidence either way round.
  *
  * | screen | confirm | resolution | effect |
  * | --- | --- | --- | --- |
- * | severe | severe or regression | `reproduced` | fails the gate |
- * | severe | inconclusive | `unresolved` | review, and the gate does not pass |
- * | severe | cleared or improvement | `not-reproduced` | passes, with a noise diagnostic |
- * | regression | severe or regression | `reproduced` | review |
- * | regression | cleared or improvement | `not-reproduced` | passes, with a noise diagnostic |
- * | inconclusive | anything | reported, never blocking | — |
+ * | severe or regression | severe or regression | `reproduced` | fails the gate when either side is severe |
+ * | severe | inconclusive | `unresolved` | not a pass, and not a failure |
+ * | inconclusive | severe | `unresolved` | not a pass, and not a failure |
+ * | severe or regression | cleared or improvement | `not-reproduced` | passes, with a noise diagnostic |
+ * | inconclusive | inconclusive | `unresolved` | reported; the screen's own verdict already says the run is unsettled |
+ * | severe | no confirmation measured it | `unconfirmed` or `unmeasured` | still blocks |
+ *
+ * Only a **severe** claim fails the build, reproduced or unconfirmed, which is the one rule
+ * that failed it before this stage existed. A plain regression reproduced is a `review`, as
+ * it was.
  *
  * **Rows only.** A group verdict is not confirmed here, and that is a limit rather than an
  * omission. The confirm batch measures a set chosen by the screen's outcome, so a group
@@ -66,11 +76,22 @@ export function confirmationSelection(screen) {
 		.sort((left, right) => (left.scenario < right.scenario ? -1 : left.scenario > right.scenario ? 1 : 0))
 }
 
-function resolutionOf(confirmClassification) {
+const claimsRegression = classification => classification === 'severe' || classification === 'regression'
+
+/**
+ * One row's resolution, from both classifications rather than the confirmation's alone.
+ *
+ * Symmetric on purpose: `reproduced` means both stages judged it a regression, and
+ * `unresolved` means one of them could not judge — in either direction. Reading only the
+ * confirmation batch made the pair (severe, inconclusive) resolve two different ways
+ * depending on which stage was which, and the gate's first real run produced exactly that
+ * pair in both orders.
+ */
+function resolutionOf(screenClassification, confirmClassification) {
 	if (confirmClassification == null)
 		return 'unmeasured'
-	if (confirmClassification === 'severe' || confirmClassification === 'regression')
-		return 'reproduced'
+	if (claimsRegression(confirmClassification))
+		return claimsRegression(screenClassification) ? 'reproduced' : 'unresolved'
 	if (confirmClassification === 'inconclusive')
 		return 'unresolved'
 	return 'not-reproduced'
@@ -96,16 +117,19 @@ export function resolveConfirmation(screen, confirm) {
 			screenDelta: screenRow.delta,
 			confirm: confirmRow?.classification ?? null,
 			confirmDelta: confirmRow?.delta ?? null,
-			resolution: confirm == null ? 'unconfirmed' : resolutionOf(confirmRow?.classification),
+			resolution: confirm == null ? 'unconfirmed' : resolutionOf(screenRow.classification, confirmRow?.classification),
 		}
 	})
 
-	// A severe screen row is the only row that fails the gate on its own, so it is the only
-	// one whose resolution can. Reproduced fails; inconclusive or unmeasured leaves the
-	// question open, which is not a pass; cleared says the screen measured noise.
-	const severeRows = rows.filter(row => row.screen === 'severe')
-	const blocking = severeRows.filter(row => row.resolution === 'reproduced' || row.resolution === 'unconfirmed')
-	const unresolved = severeRows.filter(row => row.resolution === 'unresolved' || row.resolution === 'unmeasured')
+	// Only a **severe** claim can fail the build, which is the one rule that failed it before
+	// this stage existed; a reproduced plain regression is a review, as it was. A severe claim
+	// blocks when the other stage reproduced it or when no confirmation measured it, and it
+	// leaves the run unresolved when the other stage could not judge — whichever stage made
+	// the claim, since one severe judgement and one non-judgement is the same evidence either
+	// way round.
+	const severeClaims = rows.filter(row => row.screen === 'severe' || row.confirm === 'severe')
+	const blocking = severeClaims.filter(row => row.resolution === 'reproduced' || row.resolution === 'unconfirmed')
+	const unresolved = severeClaims.filter(row => row.resolution === 'unresolved' || row.resolution === 'unmeasured')
 	const notReproduced = rows.filter(row => row.resolution === 'not-reproduced')
 	const reproduced = rows.filter(row => row.resolution === 'reproduced')
 
@@ -186,13 +210,23 @@ export function renderConfirmationMarkdown(result) {
 		)
 	}
 
+	if (result.blocking.length > 0) {
+		lines.push(
+			'',
+			`> **Blocking.** ${result.blocking.map(scenario => `\`${scenario}\``)
+				.join(', ')}: a severe regression claimed by one batch and reproduced by a second, independent one — `
+				+ 'or claimed and never confirmed, which is not a clearing. This is what fails the gate.',
+		)
+	}
+
 	if (result.unresolved.length > 0) {
 		lines.push(
 			'',
 			`> **Unresolved.** ${result.unresolved.map(scenario => `\`${scenario}\``)
-				.join(', ')} screened severe and the confirmation batch could not judge ${result.unresolved.length === 1 ? 'it' : 'them'}. `
-				+ 'Not a pass and not a failure: two batches that disagree about whether a severe regression is there is a question for a reader, '
-				+ 'and re-running until one of them settles is the thing this stage is built to avoid.',
+				.join(', ')}: one batch calls ${result.unresolved.length === 1 ? 'it' : 'them'} a severe regression and the other cannot judge `
+				+ `${result.unresolved.length === 1 ? 'it' : 'them'}. Not a pass and not a failure, and the direction does not matter: `
+				+ 'one severe judgement against one non-judgement is the same evidence whichever stage produced which. '
+				+ 'Re-running until one of them settles is the thing this stage is built to avoid.',
 		)
 	}
 

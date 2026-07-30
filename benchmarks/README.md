@@ -212,12 +212,14 @@ A row is judged by **where its whole interval lies**, never by the point estimat
 
 | screen | confirm | resolution | effect |
 | --- | --- | --- | --- |
-| severe | severe or regression | `reproduced` | fails the gate |
-| severe | inconclusive or unmeasured | `unresolved` | not a pass, and not a failure either |
-| severe | cleared or improvement | `not-reproduced` | passes, with the screen's noise named |
-| regression | severe or regression | `reproduced` | review |
-| regression | cleared or improvement | `not-reproduced` | passes, with the screen's noise named |
+| severe or regression | severe or regression | `reproduced` | fails the gate when either side is severe |
+| severe | inconclusive | `unresolved` | not a pass, and not a failure |
+| inconclusive | severe | `unresolved` | not a pass, and not a failure |
+| severe or regression | cleared or improvement | `not-reproduced` | passes, with the screen's noise named |
+| inconclusive | inconclusive | `unresolved` | reported; the screen's verdict already says the run is unsettled |
 | severe | no confirmation batch ran | `unconfirmed` | still blocks |
+
+The table is **symmetric in the two stages**: what decides is how many of them judged the row and whether they agree, not which one did. The first version read only the confirmation batch, and the gate's first real run showed the cost — `set/collect-all` came back inconclusive in the screen and severe at −30.2% in the confirmation batch and resolved as `reproduced`, while the same pair in the other order resolved as `unresolved`. One severe judgement against one non-judgement is the same evidence either way round. Only a **severe** claim can fail the build, which is the one rule that failed it before this stage existed; a reproduced plain regression is a review, as it was.
 
 Nothing is pooled. Re-running an unsettled cell for k more repetitions and judging the combined sample is optional stopping however carefully the rule is pre-declared, because the set being extended is chosen by the first result; two batches of a fixed size have no such property. The `verdict` job carries the exit code and `compare` reports. A group verdict is **not** confirmed: the confirmation set is chosen by the screen's outcome, so a group aggregate over it would carry exactly the conditioning the group estimator removes, and confirming a group means re-measuring all of it — 124 cells for `warm/success`. The severe-group trigger therefore fires from the screen's estimate over every cell selected into the group.
 
