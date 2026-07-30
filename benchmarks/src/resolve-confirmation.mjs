@@ -14,12 +14,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { confirmationSelection, renderConfirmationMarkdown, resolveConfirmation } from './confirmation.mjs'
+import { acceptedGroupRegressions } from './accepted-regressions.mjs'
+import { confirmationPlan, renderConfirmationMarkdown, resolveConfirmation } from './confirmation.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 
 function parseArguments(argv) {
-	const options = { screen: null, confirm: null, select: false, markdown: null, json: null, failOnRegression: false }
+	const options = { screen: null, confirm: null, plan: false, markdown: null, json: null, failOnRegression: false }
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
 		const value = argv[index + 1]
@@ -39,8 +40,8 @@ function parseArguments(argv) {
 			options.json = resolve(benchmarkRoot, value)
 			index++
 		}
-		else if (argument === '--select') {
-			options.select = true
+		else if (argument === '--plan') {
+			options.plan = true
 		}
 		else if (argument === '--fail-on-regression') {
 			options.failOnRegression = true
@@ -51,8 +52,8 @@ function parseArguments(argv) {
 	}
 	if (options.screen == null)
 		throw new Error('--screen <impact.json> is required: it is the first stage\'s comparison')
-	if (options.select && options.confirm != null)
-		throw new Error('--select prints the cells to confirm; it does not take a confirmation comparison')
+	if (options.plan && options.confirm != null)
+		throw new Error('--plan prints the batch to measure; it does not take a confirmation comparison')
 	return options
 }
 
@@ -60,13 +61,27 @@ const options = parseArguments(process.argv.slice(2))
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
 const screen = JSON.parse(await readFile(options.screen, 'utf8'))
 
-if (options.select) {
-	// Stdout is the list and nothing else, so the caller can read it into a shell variable.
-	// The count goes to stderr, where the log wants it.
-	const selection = confirmationSelection(screen)
-	process.stdout.write(selection.map(entry => entry.scenario)
-		.join(','))
-	console.error(`[confirm] ${selection.length} cell${selection.length === 1 ? '' : 's'} need an independent second batch`)
+if (options.plan) {
+	// Stdout is the plan as JSON and nothing else, so the caller can read the cell list, the
+	// shard count, and which groups this batch can settle without parsing prose. The shard count
+	// is 1 whenever a group is at stake: a group aggregate mixed across runners is the defect
+	// being corrected, so confirming it on four machines would reproduce it.
+	const acknowledgedGroups = new Set(acceptedGroupRegressions.map(entry => entry.group))
+	const plan = confirmationPlan(screen, { acknowledgedGroups })
+	process.stdout.write(JSON.stringify({
+		cells: plan.cells,
+		shardCount: plan.shardCount,
+		groups: plan.groups,
+		unconfirmableGroups: plan.unconfirmableGroups,
+	}))
+	console.error(`[confirm] ${plan.cells.length} cell${plan.cells.length === 1 ? '' : 's'} over ${plan.shardCount} shard(s); `
+		+ `${plan.budget.totalSeconds.toFixed(0)}s of a ${plan.budget.budgetSeconds}s single-runner budget`)
+	for (const group of plan.groups)
+		console.error(`[confirm] group to confirm on one runner: ${group}`)
+	for (const group of plan.unconfirmableGroups) {
+		console.error(`[confirm] group cannot be confirmed on one runner (${plan.budget.cells} cells would need `
+			+ `${(plan.budget.totalSeconds / 60).toFixed(1)} min against a ${(plan.budget.budgetSeconds / 60).toFixed(0)} min budget): ${group} — it will be review, not blocking`)
+	}
 }
 else {
 	const confirm = options.confirm == null
@@ -104,6 +119,8 @@ else {
 		console.error(`[confirm] accepted regression: ${record.cell} — measured -${record.depthPercent.toFixed(2)}%, accepted to -${record.bound}%`)
 	for (const problem of result.acknowledgementProblems)
 		console.error(`[confirm] accepted-regression list: ${problem}`)
+	for (const verdict of result.groupVerdicts)
+		console.error(`[confirm] group ${verdict.group}: ${verdict.blocking ? 'BLOCKING' : 'review'} — ${verdict.why}`)
 	for (const record of result.acknowledgedGroups)
 		console.error(`[confirm] accepted group regression: ${record.group} — measured -${record.depthPercent.toFixed(2)}%, accepted to -${record.bound}%`)
 	if (result.unacknowledgedSevereGroups.length > 0) {

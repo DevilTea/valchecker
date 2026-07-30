@@ -52,6 +52,7 @@
 		"test:quality": "tsx ./scripts/run-quality-gates.ts",
 		"test:watch": "vitest --watch",
 		"bench": "vitest bench --run",
+		"bench:catalog-diff": "tsx ./scripts/bench-catalog-diff.ts",
 		"bench:cells": "tsx ./scripts/check-bench-cells.ts",
 		"bench:coverage": "tsx ./scripts/check-benchmark-coverage.ts",
 		"bench:impact-scope": "tsx ./scripts/select-impact-scenarios.ts",

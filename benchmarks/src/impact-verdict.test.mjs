@@ -235,12 +235,18 @@ test('the presence counts are reported whether or not anything moved', () => {
 		catalogHash: null,
 		catalogCells: 8,
 		measured: 2,
-		added: [],
-		removed: [],
+		candidateOnly: [],
+		baselineOnly: [],
 		baselineUnmeasurable: [],
 		candidateUnmeasurable: [],
+		catalogDiff: null,
 	})
-	assert.match(renderMarkdown(result), /Cells: \*\*measured 2 \/ added 0 \/ removed 0\*\* of the 8 the catalog declares/)
+	const markdown = renderMarkdown(result)
+	assert.match(markdown, /Cells: \*\*measured 2\*\* of the 8 the catalog declares/)
+	// `n/a`, not `0`: with no static diff supplied this run cannot see a deleted cell, and
+	// printing a zero would claim an audit it did not perform.
+	assert.match(markdown, /\*\*catalog added n\/a \/ removed n\/a\*\*/)
+	assert.match(markdown, /No catalog diff was supplied/)
 })
 
 test('a cell only one build can execute is named as added or removed, not thrown away', () => {
@@ -254,14 +260,44 @@ test('a cell only one build can execute is named as added or removed, not thrown
 	const result = compareResults(baseline, candidate, { groupTotals: new Map([['cold', 3]]) })
 	assert.deepEqual(result.rows.map(row => row.scenario), ['a'])
 	assert.equal(result.cells.measured, 1)
-	assert.deepEqual(result.cells.added, ['new'])
-	assert.deepEqual(result.cells.removed, ['gone'])
+	assert.deepEqual(result.cells.candidateOnly, ['new'])
+	assert.deepEqual(result.cells.baselineOnly, ['gone'])
 	assert.deepEqual(result.cells.baselineUnmeasurable, ['new'])
 	assert.deepEqual(result.cells.candidateUnmeasurable, ['gone'])
 	const markdown = renderMarkdown(result)
-	assert.match(markdown, /Cells: \*\*measured 1 \/ added 1 \/ removed 1\*\*/)
-	assert.match(markdown, /\*\*Added\.\*\* `new`/)
-	assert.match(markdown, /\*\*Removed\.\*\* `gone`/)
+	assert.match(markdown, /\*\*candidate-only 1 \/ baseline-only 1\*\*/)
+	assert.match(markdown, /\*\*Candidate-only at runtime\.\*\* `new`/)
+	assert.match(markdown, /\*\*Baseline-only at runtime\.\*\* `gone`/)
+})
+
+test('a catalog deletion is reported from the static diff, which the runtime cannot see', () => {
+	// The finding this exists for: the apparatus comes from the candidate ref, so a deleted cell
+	// is never collected, never measured, and can never appear in a baseline result. Every
+	// runtime count here is zero while a cell was in fact removed from the contract.
+	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
+	const catalogDiff = { added: ['c/new'], removed: ['map/collect-all'], baseCells: 3, headCells: 3, problems: [] }
+	const result = compareResults(
+		aggregateRuns(sideOf(scenarios), 'baseline'),
+		aggregateRuns(sideOf(scenarios), 'candidate'),
+		{ groupTotals: new Map([['cold', 8]]), catalogDiff },
+	)
+	assert.deepEqual([result.cells.candidateOnly, result.cells.baselineOnly], [[], []], 'the runtime sees nothing')
+	assert.deepEqual(result.cells.catalogDiff.removed, ['map/collect-all'])
+	const markdown = renderMarkdown(result)
+	assert.match(markdown, /\*\*catalog added 1 \/ removed 1\*\*/)
+	assert.match(markdown, /\*\*Removed from the catalog\.\*\* `map\/collect-all`/)
+	assert.match(markdown, /coverage loss no runtime comparison can report/)
+})
+
+test('an unreadable revision makes the catalog diff incomplete rather than clean', () => {
+	const scenarios = [['a', 'cold', 100]]
+	const catalogDiff = { added: [], removed: [], baseCells: 0, headCells: 1, problems: ['base: a.bench.ts: declares no `stepBench()` call'] }
+	const result = compareResults(
+		aggregateRuns(sideOf(scenarios), 'baseline'),
+		aggregateRuns(sideOf(scenarios), 'candidate'),
+		{ groupTotals: new Map([['cold', 8]]), catalogDiff },
+	)
+	assert.match(renderMarkdown(result), /The catalog diff is incomplete/)
 })
 
 test('a catalog other than the one measured against is refused', () => {

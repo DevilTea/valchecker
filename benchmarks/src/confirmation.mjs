@@ -35,13 +35,17 @@
  * that failed it before this stage existed. A plain regression reproduced is a `review`, as
  * it was.
  *
- * **Rows only.** A group verdict is not confirmed here, and that is a limit rather than an
- * omission. The confirm batch measures a set chosen by the screen's outcome, so a group
- * aggregate over it would be conditioned on exactly what `groupEstimate` was rebuilt to
- * avoid — the bias would be worse than the unconfirmed trigger. Confirming a group means
- * re-measuring the whole group, which is 124 cells for `warm/success`. So the severe-group
- * trigger still fires from the screen stage's estimate over every cell selected into the
- * group, and this module carries it through unchanged.
+ * **Groups are confirmed too, and on one runner.** A severe group verdict blocks, so it is
+ * held to the same standard as a severe cell: the whole triggered group is remeasured in a
+ * single-runner batch and blocks only if that batch agrees. The single runner is the point
+ * rather than an economy — a cell keeps its shard across every repetition, so a
+ * runner-dependent effect on its ratio is a fixed effect that shifts every `G_r` equally and
+ * contributes no variance, which is why the screen's group interval can be tight and
+ * displaced at once. Where the whole group does not fit one runner inside the job's budget,
+ * the trigger is reported as `review` rather than blocking, and the report shows the
+ * arithmetic. The confirmation's group aggregate for a group it did *not* measure in full is
+ * never read: that would be an aggregate over an outcome-selected subset, which is the bias
+ * `groupEstimate` was rebuilt to remove.
  */
 
 import {
@@ -50,7 +54,105 @@ import {
 	malformedAcceptedGroupRegressions,
 	malformedAcceptedRegressions,
 } from './accepted-regressions.mjs'
-import { markdownCell, meaningfulThreshold } from './impact-verdict.mjs'
+import { markdownCell, meaningfulThreshold, minimumScenariosPerGroup } from './impact-verdict.mjs'
+
+/**
+ * What one paired cell-measurement costs, and how much of a job may be spent on the
+ * confirmation batch. Both are measured rather than guessed, so the fallback below is forced
+ * by arithmetic instead of chosen for convenience.
+ *
+ * From run 30547023911: each screen shard measured 245/4 ≈ 61 cells × 5 repetitions × 2 sides
+ * = 613 cell-runs in an average of 1429 s, which is **2.33 s per cell-run**, so a confirmation
+ * batch of N cells costs 23.3·N seconds. The job's overhead — checkout, setup, installing and
+ * building both revisions — measured about 40 s in the same workflow, and 120 s here leaves
+ * room for a slow install.
+ *
+ * The budget is 45 of the job's 60 minutes. The remaining quarter is deliberate: a hosted
+ * runner that happens to be slower than the one these figures came from must not turn a
+ * blocking decision into a timeout, which reads as infrastructure failure rather than as a
+ * verdict.
+ */
+export const secondsPerCellRun = 2.33
+export const confirmationOverheadSeconds = 120
+export const confirmationBudgetSeconds = 45 * 60
+
+/** Whether a confirmation batch of this many cells fits one runner, and the arithmetic. */
+export function confirmationBudget(cellCount, repetitions = 5) {
+	const measurementSeconds = cellCount * repetitions * 2 * secondsPerCellRun
+	const totalSeconds = measurementSeconds + confirmationOverheadSeconds
+	return {
+		cells: cellCount,
+		measurementSeconds,
+		totalSeconds,
+		budgetSeconds: confirmationBudgetSeconds,
+		fitsOneRunner: totalSeconds <= confirmationBudgetSeconds,
+	}
+}
+
+/**
+ * The groups whose screen trigger needs an independent confirmation before it may block, and
+ * the cells that confirmation has to measure.
+ *
+ * **Why a group needs one at all, and why on a single runner.** A cell keeps its shard for all
+ * five repetitions, so a runner- or microarchitecture-dependent effect on that cell's
+ * candidate/base *ratio* is a fixed effect across `r`: it shifts every `G_r` by the same
+ * amount and contributes no variance. The Student-t interval across repetitions therefore
+ * cannot widen for it — the group estimate can be tight and still be displaced by which
+ * runners the shards drew. That is bias, not noise, and the earlier claim in this repository
+ * that the runner difference "cannot inflate the spread" was the reason to worry rather than a
+ * reassurance. It is not hypothetical: in run 30547023911 screen shard 2 ran on an AMD EPYC
+ * 9V74 while shards 0, 1 and 3 ran on AMD EPYC 7763.
+ *
+ * A severe *group* verdict blocks and, unlike a severe cell, was not independently confirmed.
+ * So a triggered group is remeasured in full on one runner, which makes its confirmation
+ * aggregate a single-machine estimate and gives the group the same standard a cell already
+ * has: two measurements, two independent runner draws, both saying severe.
+ */
+export function groupsNeedingConfirmation(screen, acknowledgedGroups = new Set()) {
+	return (screen.groups ?? [])
+		.filter(group => group.classification === 'regression'
+			&& group.scenarios >= minimumScenariosPerGroup
+			&& !acknowledgedGroups.has(group.group))
+		.map(group => group.group)
+}
+
+/**
+ * The confirmation batch as a plan: which cells, over how many shards, and for which groups
+ * the result can support a blocking verdict.
+ *
+ * The shard count is 1 whenever a group is being confirmed, because a group aggregate mixed
+ * across runners is the thing being corrected — confirming it on four machines would reproduce
+ * the defect. When the batch does not fit one runner, the plan says so and the groups fall back
+ * to `review`: a cross-shard hosted-runner group regression is then reported as evidence that
+ * cannot support blocking, rather than blocking on it anyway.
+ */
+export function confirmationPlan(screen, { acknowledgedGroups = new Set(), repetitions = 5 } = {}) {
+	const cellSelection = confirmationSelection(screen)
+	const groups = groupsNeedingConfirmation(screen, acknowledgedGroups)
+	const groupCells = (screen.rows ?? [])
+		.filter(row => groups.includes(row.group))
+		.map(row => ({ scenario: row.scenario, reason: 'group' }))
+	const merged = new Map()
+	for (const entry of [...cellSelection, ...groupCells]) {
+		if (!merged.has(entry.scenario))
+			merged.set(entry.scenario, entry)
+	}
+	const cells = [...merged.values()].sort((left, right) => (left.scenario < right.scenario ? -1 : left.scenario > right.scenario ? 1 : 0))
+	const budget = confirmationBudget(cells.length, repetitions)
+	const confirmsGroups = groups.length > 0 && budget.fitsOneRunner
+	return {
+		cells: cells.map(entry => entry.scenario),
+		reasons: cells,
+		/** The groups this batch can settle. Empty when the batch does not fit one runner. */
+		groups: confirmsGroups ? groups : [],
+		/** The groups that triggered but cannot be confirmed, so they are `review` rather than blocking. */
+		unconfirmableGroups: confirmsGroups ? [] : groups,
+		// One runner whenever a group is at stake, up to four otherwise: a cell's confirmation is
+		// a per-cell paired ratio, which sharding does not disturb.
+		shardCount: confirmsGroups ? 1 : Math.min(4, Math.max(1, cells.length)),
+		budget,
+	}
+}
 
 /**
  * Which cells the confirmation batch measures.
@@ -183,8 +285,52 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	// reported below with its true measured value; it is not removed from the group table, and
 	// the aggregate it was measured from still covers every cell.
 	const unacknowledgedSevereGroups = screen.severeGroups.filter(group => !acknowledgedGroups.has(group))
+	// And of those, the ones whose evidence can support blocking: a group aggregate is only
+	// blocking when an independent batch measured the whole group on **one** runner and agreed.
+	// A cell keeps its shard across every repetition, so a runner-dependent effect on its ratio
+	// is a fixed effect that shifts each `G_r` equally and leaves the interval untouched — the
+	// screen's group interval cannot see it. Everything this needs is read from the artifacts
+	// rather than passed in: if the confirmation ran sharded, the group cannot block, whatever
+	// the workflow intended.
+	const confirmGroups = new Map((confirm?.groups ?? []).map(group => [group.group, group]))
+	const confirmedCells = new Set((confirm?.rows ?? []).map(row => row.scenario))
+	const singleRunnerConfirmation = confirm?.measurement?.shardCount === 1
+	const groupVerdicts = unacknowledgedSevereGroups.map((group) => {
+		const members = screen.rows.filter(row => row.group === group)
+			.map(row => row.scenario)
+		const measuredWhole = members.length > 0 && members.every(cell => confirmedCells.has(cell))
+		const confirmRow = confirmGroups.get(group) ?? null
+		if (confirm == null || !singleRunnerConfirmation || !measuredWhole) {
+			return {
+				group,
+				confirmed: false,
+				confirmClassification: confirmRow?.classification ?? null,
+				blocking: false,
+				why: confirm == null
+					? 'no confirmation batch ran'
+					: confirm.measurement?.shardCount == null
+						? 'the confirmation comparison does not record how many shards measured it, so it cannot be read as single-runner evidence'
+						: !singleRunnerConfirmation
+								? `the confirmation batch ran over ${confirm.measurement.shardCount} shards, so its group aggregate mixes runners exactly as the screen's does`
+								: 'the confirmation batch did not measure every cell of the group',
+			}
+		}
+		return {
+			group,
+			confirmed: true,
+			confirmClassification: confirmRow?.classification ?? null,
+			blocking: confirmRow?.classification === 'regression',
+			why: confirmRow?.classification === 'regression'
+				? 'an independent single-runner batch measured the whole group and agreed'
+				: `an independent single-runner batch measured the whole group and reported it ${confirmRow?.classification ?? 'not at all'}`,
+		}
+	})
+	const blockingGroups = groupVerdicts.filter(verdict => verdict.blocking)
+		.map(verdict => verdict.group)
+	const reviewGroups = groupVerdicts.filter(verdict => !verdict.blocking)
+		.map(verdict => verdict.group)
 
-	const verdict = blocking.length > 0 || unacknowledgedSevereGroups.length > 0 || listProblems.length > 0
+	const verdict = blocking.length > 0 || blockingGroups.length > 0 || listProblems.length > 0
 		? 'regression'
 		: unresolved.length > 0
 			? 'unresolved'
@@ -209,8 +355,14 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		 * confirmed here, and an acknowledged group is still named in it.
 		 */
 		severeGroups: screen.severeGroups,
-		/** The ones that still fail the gate — the measured list minus the acknowledged groups. */
+		/** The measured list minus the acknowledged groups: triggers that still stand. */
 		unacknowledgedSevereGroups,
+		/** Of those, the ones an independent single-runner batch reproduced. Only these block. */
+		blockingGroups,
+		/** The rest: reported for review, because their evidence cannot support blocking. */
+		reviewGroups,
+		/** Why each standing trigger did or did not become blocking. */
+		groupVerdicts,
 		rows,
 		blocking: blocking.map(row => row.scenario),
 		unresolved: unresolved.map(row => row.scenario),
@@ -241,25 +393,28 @@ export function renderConfirmationMarkdown(result) {
 		'Two fixed batches, judged independently. The confirmation batch is a second measurement of the rows that could block — '
 		+ 'every candidate regression, and every inconclusive row whose interval reaches −5% — and it is **not** pooled with the first: '
 		+ 'adding samples to a set chosen by the first result until the interval settles is optional stopping, whatever the stopping rule is called. '
-		+ 'A group verdict is not confirmed here, because the confirmation set is chosen by the screen\'s outcome and a group aggregate over it '
-		+ 'would carry exactly the conditioning the group estimator exists to avoid.',
+		+ 'A triggered **group** is confirmed too, by remeasuring the whole group on a single runner — see the group table below — because a group '
+		+ 'aggregate mixed across runners carries a between-runner shift its interval cannot see.',
 		'',
 	]
 
-	if (result.rows.length === 0) {
-		lines.push('No row claimed a regression or came within the decision boundary, so there was nothing to confirm.', '')
-		return `${lines.join('\n')}\n`
-	}
+	// No early return here, whatever the row table holds. A run can have no cell to confirm and
+	// still have a group trigger to settle or an accepted regression to declare, and returning
+	// before those sections is how a report ends up silent about the thing that decided it.
+	if (result.rows.length === 0)
+		lines.push('No row claimed a regression or came within the decision boundary, so there was no cell to confirm.', '')
 
-	if (!result.confirmed) {
+	if (result.rows.length > 0 && !result.confirmed) {
 		lines.push(`> **Not confirmed.** ${result.rows.length} row${result.rows.length === 1 ? '' : 's'} needed a second batch and none ran, `
 			+ 'so every one of them is reported as `unconfirmed` and a severe row among them still blocks.', '')
 	}
 
-	lines.push(
-		'| Cell | Selected because | Screen | Confirm | Resolution |',
-		'| --- | --- | ---: | ---: | --- |',
-	)
+	if (result.rows.length > 0) {
+		lines.push(
+			'| Cell | Selected because | Screen | Confirm | Resolution |',
+			'| --- | --- | ---: | ---: | --- |',
+		)
+	}
 	for (const row of result.rows) {
 		lines.push(
 			`| \`${row.scenario}\` | ${row.reason} | ${row.screen} (${(row.screenDelta * 100).toFixed(1)}%) `
@@ -289,6 +444,22 @@ export function renderConfirmationMarkdown(result) {
 		)
 		for (const record of result.acknowledged)
 			lines.push(`| \`${record.cell}\` | −${record.depthPercent.toFixed(2)}% | −${record.bound}% | ${markdownCell(record.because)} |`)
+	}
+
+	if (result.groupVerdicts.length > 0) {
+		lines.push(
+			'',
+			`> **${result.groupVerdicts.length} group trigger${result.groupVerdicts.length === 1 ? '' : 's'} to settle.** A severe group verdict blocks, so it is held to the `
+			+ 'same standard as a severe cell: the whole group is remeasured in a **single-runner** batch and blocks only if that batch agrees. One runner, '
+			+ 'because a cell keeps its shard across every repetition — a runner-dependent effect on its ratio is a fixed effect that shifts every `G_r` '
+			+ 'equally and contributes no variance, so the screen\'s group interval can be tight and displaced at the same time. Where the group does not '
+			+ 'fit one runner inside the job\'s budget, the trigger is `review` rather than blocking.',
+			'',
+			'| Group | Blocking | Confirmation | Why |',
+			'| --- | --- | --- | --- |',
+		)
+		for (const verdict of result.groupVerdicts)
+			lines.push(`| \`${verdict.group}\` | ${verdict.blocking ? 'yes' : 'no'} | ${verdict.confirmClassification ?? 'not measured'} | ${markdownCell(verdict.why)} |`)
 	}
 
 	if (result.acknowledgedGroups.length > 0) {

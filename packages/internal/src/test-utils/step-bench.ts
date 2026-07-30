@@ -42,9 +42,10 @@
  *   removes that dilution, and it is free for the same reason. Size `batch` so one
  *   unit is roughly 1–10 µs of real work.
  * - **`group`** is deliberately coarse and shared across steps. The severe-group
- *   trigger needs at least two decisive cells in a group before it can fire, so
- *   per-step groups of two or three cells would routinely lose the one trigger that
- *   catches a broad moderate regression.
+ *   trigger needs at least two *measured* cells in a group before it can fire — and
+ *   the group is estimated over every one of them, not over the cells whose own
+ *   measurement happened to be decisive — so per-step groups of two or three cells
+ *   would routinely lose the one trigger that catches a broad moderate regression.
  */
 
 import { bench, describe } from 'vitest'

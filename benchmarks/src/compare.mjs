@@ -34,6 +34,11 @@ function parseArguments(argv) {
 		// The persisted cell catalog, written by the measuring job. Required with
 		// `--catalog cells`, because the alternative is collecting the cells here.
 		cellCatalog: null,
+		// The static base-versus-head catalog comparison, produced by
+		// `scripts/bench-catalog-diff.ts` without executing either build. Optional, because a
+		// local comparison of two result files has no refs to diff; absent, the report says so
+		// rather than printing zeros for an audit it did not perform.
+		catalogDiff: null,
 	}
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
@@ -66,6 +71,10 @@ function parseArguments(argv) {
 		}
 		else if (argument === '--cell-catalog' && value) {
 			options.cellCatalog = resolve(benchmarkRoot, value)
+			index++
+		}
+		else if (argument === '--catalog-diff' && value) {
+			options.catalogDiff = resolve(benchmarkRoot, value)
 			index++
 		}
 		else if (argument === '--fail-on-regression') {
@@ -114,7 +123,9 @@ const catalog = options.catalog === 'cells'
 	// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
 	: { catalogHash: null, cells: (await import('./scenarios/index.mjs')).getScenarioCatalog(baseline.mode) }
 const groupTotals = groupTotalsOf(catalog.cells)
-const result = compareResults(baseline, candidate, { groupTotals, catalogHash: catalog.catalogHash })
+// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
+const catalogDiff = options.catalogDiff == null ? null : JSON.parse(await readFile(options.catalogDiff, 'utf8'))
+const result = compareResults(baseline, candidate, { groupTotals, catalogHash: catalog.catalogHash, catalogDiff })
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await Promise.all([
 	mkdir(dirname(options.markdown), { recursive: true }),
@@ -128,7 +139,12 @@ await Promise.all([
 	writeFile(options.html, renderHtml(result)),
 ])
 console.error(`[benchmark] verdict ${result.verdict} over ${result.coverage.measuredScenarios} of ${result.coverage.tierScenarios} \`${result.mode}\` scenarios`)
-// Unconditional, so a clean report says outright that the cell set did not move under it.
-console.error(`[benchmark] cells measured ${result.cells.measured} / added ${result.cells.added.length} / removed ${result.cells.removed.length}`)
+// Unconditional, so a clean report says outright that the cell set did not move under it. The
+// catalog counts are `n/a` rather than `0` when no static diff was supplied, because a runtime
+// comparison cannot see a deleted cell and must not imply that it did.
+console.error(`[benchmark] cells measured ${result.cells.measured}, `
+	+ `catalog added ${result.cells.catalogDiff == null ? 'n/a' : result.cells.catalogDiff.added.length} / `
+	+ `removed ${result.cells.catalogDiff == null ? 'n/a' : result.cells.catalogDiff.removed.length}, `
+	+ `candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}`)
 if (options.failOnRegression && result.verdict === 'regression')
 	process.exitCode = 1

@@ -318,7 +318,7 @@ function classifyRow(estimate) {
 	return { low, high, decisive: false, classification: 'inconclusive' }
 }
 
-export function compareResults(baseline, candidate, { groupTotals, catalogHash = null }) {
+export function compareResults(baseline, candidate, { groupTotals, catalogHash = null, catalogDiff = null }) {
 	// The single comparability guard, covering mode, profile, isolation, shard count, the cell
 	// catalog, and the scenario selection. A difference in any of them means the gap between
 	// the two runs is not attributable to the change under test.
@@ -469,25 +469,32 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 		 * only appeared when it was non-zero would leave a reader of a clean report unable to
 		 * tell a complete comparison from one whose cell set moved under it.
 		 *
-		 * What each number means, precisely. `measured` is the cells with a number on both
-		 * sides, which is the only kind that can produce a paired ratio. `added` executed
-		 * against the candidate build and not the baseline's — a new step's cells, most often.
-		 * `removed` executed against the baseline and not the candidate's, which is a cell
-		 * whose subject stopped working, so unlike `added` it is worth reading twice.
+		 * **Two different questions, no longer sharing one word.** The counts below are
+		 * runtime* facts: `measured` is the cells with a number on both sides, the only kind
+		 * that can produce a paired ratio; `candidateOnly` executed against the candidate build
+		 * and not the baseline's — a new step's cells, most often; `baselineOnly` the other way
+		 * round, a cell whose subject stopped working. They used to be called `added` and
+		 * `removed`, which advertised an audit they structurally cannot perform: the cell
+		 * definitions come from the checked-out ref because they are the apparatus, so a cell
+		 * deleted* from the candidate tree is never collected, never assigned to a shard, and
+		 * can never appear in a baseline result. A pull request deleting a cell reported
+		 * `removed 0` — precisely the coverage loss the line existed to surface.
 		 *
-		 * One ceiling, stated rather than left to be discovered: the cell *definitions* come
-		 * from the checked-out ref only, because they are the apparatus. A cell deleted from
-		 * the candidate tree is therefore not in the catalog at all and appears in none of
-		 * these counts. What they see is a cell that exists and cannot run.
+		 * Catalog addition and removal are therefore read from `catalogDiff`, a static
+		 * base-versus-head comparison of what the two revisions *declare*, produced by
+		 * `scripts/bench-catalog-diff.ts` without executing either build. `null` when no such
+		 * diff was supplied, which the report states rather than printing zeros it cannot stand
+		 * behind.
 		 */
 		cells: {
 			catalogHash,
 			catalogCells: groupTotals.size === 0 ? null : [...groupTotals.values()].reduce((sum, count) => sum + count, 0),
 			measured: presence.measured,
-			added: presence.added,
-			removed: presence.removed,
+			candidateOnly: presence.added,
+			baselineOnly: presence.removed,
 			baselineUnmeasurable: baseline.unmeasurable,
 			candidateUnmeasurable: candidate.unmeasurable,
+			catalogDiff,
 		},
 		// How much of the tier ran. Without it a reader of a passing report cannot tell a
 		// complete comparison from a scoped one, and `2/2 decisive` in a group reads the
@@ -520,9 +527,10 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 		rows,
 		severeScenarios: severeScenarios.map(row => row.scenario),
 		severeGroups: severeGroups.map(row => row.group),
-		// The retry input. A second pass measures exactly these rows for k more paired
-		// repetitions, pools them with the first pass, and judges once — never taking the
-		// better of two results, and never re-judging a row that was already decisive.
+		// The confirmation stage's input. `confirmation.mjs` measures a second, **independent**
+		// fixed batch over these rows and judges the two batches against each other; nothing is
+		// pooled, because extending a sample chosen by the first result is optional stopping
+		// whatever the stopping rule is called.
 		inconclusiveScenarios,
 		groupsWithoutTrigger,
 		partiallyCoveredGroups,
@@ -542,24 +550,59 @@ function nameList(ids, format) {
  * sides, and only a printed zero says it.
  */
 function presenceLines(result) {
+	const diff = result.cells.catalogDiff
 	const lines = [
-		`Cells: **measured ${result.cells.measured} / added ${result.cells.added.length} / removed ${result.cells.removed.length}**`
+		`Cells: **measured ${result.cells.measured}**`
 		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}`
-		+ `${result.cells.catalogHash == null ? '' : ` (catalog \`${result.cells.catalogHash}\`)`}. `
-		+ 'Only a cell measured on both sides has a paired ratio; a cell that executes against one build and not the other is added or removed, and is named rather than counted away.',
+		+ `${result.cells.catalogHash == null ? '' : ` (catalog \`${result.cells.catalogHash}\`)`}, `
+		+ `**catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}**, `
+		+ `**candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}**.`,
+		'',
+		'Two different questions, deliberately not sharing a word. **Catalog** addition and removal come from a static comparison of what the two '
+		+ 'revisions *declare*, parsed without executing either build — the only instrument that can see a deleted cell, because the apparatus comes '
+		+ 'from the candidate ref and a deleted cell is never collected at all. **Candidate-only** and **baseline-only** are runtime facts: a cell that '
+		+ 'exists in the catalog and executes against one build but not the other.',
 		'',
 	]
-	if (result.cells.added.length > 0) {
+	if (diff == null) {
 		lines.push(
-			`> **Added.** ${nameList(result.cells.added, id => `\`${id}\``)}. These executed against the candidate build and not the baseline's, `
-			+ 'so they have no before number and cannot be part of any aggregate.',
+			'> **No catalog diff was supplied**, so this run cannot say whether a cell was added or deleted between the two revisions. '
+			+ 'That is a gap in the report rather than a statement that nothing moved, which is why it prints `n/a` instead of `0`.',
 			'',
 		)
 	}
-	if (result.cells.removed.length > 0) {
+	else if (diff.problems.length > 0) {
 		lines.push(
-			`> **Removed.** ${nameList(result.cells.removed, id => `\`${id}\``)}. These executed against the baseline build and not the candidate's. `
-			+ 'A cell whose subject stopped working is a change to the library, not a gap in the measurement.',
+			`> **The catalog diff is incomplete.** ${nameList(diff.problems, problem => problem)}. `
+			+ 'A revision whose declarations cannot be read statically cannot be diffed against, so the counts above are not a complete audit.',
+			'',
+		)
+	}
+	if (diff != null && diff.removed.length > 0) {
+		lines.push(
+			`> **Removed from the catalog.** ${nameList(diff.removed, id => `\`${id}\``)}. `
+			+ `The candidate revision no longer declares ${diff.removed.length === 1 ? 'this cell' : 'these cells'}, so the gate has stopped covering `
+			+ `${diff.removed.length === 1 ? 'it' : 'them'}. This is the coverage loss no runtime comparison can report.`,
+			'',
+		)
+	}
+	if (diff != null && diff.added.length > 0) {
+		lines.push(
+			`> **Added to the catalog.** ${nameList(diff.added, id => `\`${id}\``)}. Declared by the candidate revision and not the base.`,
+			'',
+		)
+	}
+	if (result.cells.candidateOnly.length > 0) {
+		lines.push(
+			`> **Candidate-only at runtime.** ${nameList(result.cells.candidateOnly, id => `\`${id}\``)}. These executed against the candidate build and `
+			+ 'not the baseline\'s, so they have no before number and cannot be part of any aggregate.',
+			'',
+		)
+	}
+	if (result.cells.baselineOnly.length > 0) {
+		lines.push(
+			`> **Baseline-only at runtime.** ${nameList(result.cells.baselineOnly, id => `\`${id}\``)}. These executed against the baseline build and not `
+			+ 'the candidate\'s. A cell whose subject stopped working is a change to the library, not a gap in the measurement.',
 			'',
 		)
 	}
@@ -681,9 +724,14 @@ export function renderHtml(result) {
 			.join(', '))}. A group's geometric mean is over the scenarios this run measured.</p>`
 	// The same presence line the Markdown report prints, and printed on the same terms:
 	// always, so that a zero is visible.
-	const presence = `<p>Cells: <strong>measured ${result.cells.measured} / added ${result.cells.added.length} / removed ${result.cells.removed.length}</strong>`
-		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}.`
-		+ `${result.cells.added.length === 0 ? '' : ` Added: ${htmlEscape(result.cells.added.join(', '))}.`}`
-		+ `${result.cells.removed.length === 0 ? '' : ` Removed: ${htmlEscape(result.cells.removed.join(', '))}.`}</p>`
+	const diff = result.cells.catalogDiff
+	const presence = `<p>Cells: <strong>measured ${result.cells.measured}</strong>`
+		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}, `
+		+ `<strong>catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}</strong>, `
+		+ `<strong>candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}</strong>.`
+		+ `${diff == null || diff.removed.length === 0 ? '' : ` Removed from the catalog: ${htmlEscape(diff.removed.join(', '))}.`}`
+		+ `${diff == null || diff.added.length === 0 ? '' : ` Added to the catalog: ${htmlEscape(diff.added.join(', '))}.`}`
+		+ `${result.cells.candidateOnly.length === 0 ? '' : ` Candidate-only: ${htmlEscape(result.cells.candidateOnly.join(', '))}.`}`
+		+ `${result.cells.baselineOnly.length === 0 ? '' : ` Baseline-only: ${htmlEscape(result.cells.baselineOnly.join(', '))}.`}</p>`
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p>${presence}${scope}<h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Scenarios measured</th><th>Decisive rows</th><th>Group change</th><th>95% interval</th><th>Verdict</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }

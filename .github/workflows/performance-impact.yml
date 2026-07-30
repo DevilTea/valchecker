@@ -57,15 +57,21 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 # of that comment's objections were checked and did not survive.
 #
 # The first was that the severe-GROUP trigger would become a cross-runner aggregate.
-# True as a description, and nothing breaks: every input to it is already a
-# dimensionless, machine-cancelled per-cell paired ratio, and `summarizeGroups`
-# computes a bare geometric mean with no confidence interval, so there is no
-# statistic for a between-machine term to enter. The one real effect is that a
-# noisier runner widens its own cells' intervals, so fewer of them are decisive and
-# a group's aggregate runs over a smaller subset — a sensitivity loss the gate
-# already reports by name as `groupsWithoutTrigger`, not an invalidity. The merge
-# happens before the verdict, so the group aggregate is computed once over the
-# complete cell set.
+# That objection was right, and the answer this comment used to give was wrong. It
+# said every input to the aggregate is a machine-cancelled paired ratio so no
+# between-machine term can enter the statistic. Pairing does cancel machine *speed*
+# per cell; it does not make that cell's candidate/base ratio invariant across
+# microarchitectures. And because a cell keeps its shard for all five repetitions, any
+# such effect is a FIXED effect across repetitions: it shifts every `G_r` by the same
+# amount and contributes no variance, so the group's Student-t interval cannot widen
+# for it. The interval can be tight and displaced at once — bias, not noise. Run
+# 30547023911 drew an AMD EPYC 9V74 for shard 2 and 7763s for the rest.
+#
+# So a group trigger no longer blocks on the sharded screen alone. `confirm-measure`
+# remeasures the whole triggered group on ONE runner and the group blocks only if that
+# batch agrees; where the group does not fit one runner inside the budget, the trigger
+# is reported as `review` rather than blocking. The merge still happens before the
+# verdict, so the screen's group aggregate is computed once over the complete cell set.
 #
 # The second was that the fixed cost does not shard, so the saving is well under
 # 1/N. Measured against run 30357171722's predecessor 30353267140: the compare job
@@ -360,6 +366,25 @@ jobs:
             echo "after_dist=$(dist_url ../valchecker-after/packages/valchecker/dist/index.mjs)"
           } >> "$GITHUB_OUTPUT"
 
+      # The catalog comparison the runtime cannot perform. The apparatus comes from the
+      # candidate ref, so a cell deleted there is never collected and can never appear in a
+      # baseline result — `removed 0` for exactly the coverage loss that matters. This reads
+      # what each revision *declares*, by parsing it: no build, no dist, no loader. It runs
+      # here because this is the job checked out with `fetch-depth: 0`, so both revisions are
+      # present; every shard writes the same file from the same two shas.
+      - name: Diff the declared cell catalogs
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
+          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact
+          pnpm bench:catalog-diff \
+            --base "$BEFORE_SHA" \
+            --head "$AFTER_SHA" \
+            --output artifacts/performance-impact/catalog-diff.json
+
       - name: Scope the run to the cells the diff can move
         id: scope
         if: ${{ github.event_name == 'pull_request' }}
@@ -538,11 +563,13 @@ jobs:
           # measured against. So a stale or foreign artifact fails here rather than silently
           # supplying the denominators.
           cp -f "artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/cell-catalog.json" artifacts/performance-impact/cell-catalog.json
+          cp -f "artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/catalog-diff.json" artifacts/performance-impact/catalog-diff.json
 
           pnpm --dir benchmarks compare \
             "${compare_args[@]}" \
             --catalog cells \
             --cell-catalog ../artifacts/performance-impact/cell-catalog.json \
+            --catalog-diff ../artifacts/performance-impact/catalog-diff.json \
             --markdown ../artifacts/performance-impact/impact.md \
             --json ../artifacts/performance-impact/impact.json \
             --html ../artifacts/performance-impact/impact.html
@@ -551,22 +578,23 @@ jobs:
       # inconclusive row whose interval reaches −5%. `confirmation.mjs` decides it and this
       # only shapes the answer into a matrix. The shard count is capped at the number of
       # cells, because a shard with no cells is an error rather than an empty run.
-      - name: Select the cells to confirm
+      # Which cells earn an independent second batch, over how many shards, and for which
+      # groups the batch can support a blocking verdict. `confirmation.mjs` decides all three
+      # and prints them as JSON; this only lifts them into job outputs. The shard count is 1
+      # whenever a group is at stake, because a group aggregate mixed across runners is the
+      # defect being corrected.
+      - name: Plan the confirmation batch
         id: confirm
         shell: bash
         run: |
           set -euo pipefail
-          cells="$(pnpm --silent --dir benchmarks confirm \
+          plan="$(pnpm --silent --dir benchmarks confirm \
             --screen ../artifacts/performance-impact/impact.json \
-            --select)"
-          count=0
-          if [[ -n "$cells" ]]; then
-            count="$(awk -F, '{ print NF }' <<< "$cells")"
-          fi
-          shard_count=4
-          if (( count < 4 )); then
-            shard_count="$count"
-          fi
+            --plan)"
+          read -r cells shard_count <<< "$(node -e '
+            const plan = JSON.parse(process.argv[1])
+            process.stdout.write(`${plan.cells.join(",")} ${plan.shardCount}`)
+          ' "$plan")"
           # Joined with `paste`, not `seq -s,`: BSD's `seq` writes the separator after the
           # last element, so `seq -s, 0 2` is `0,1,2,` there and `0,1,2` under GNU coreutils.
           # `fromJSON` would reject the first, and a matrix that depends on which `seq` the
@@ -580,7 +608,6 @@ jobs:
             echo "shard_count=$shard_count"
             echo "shards=$shards"
           } >> "$GITHUB_OUTPUT"
-          echo "[confirm] $count cell(s) over $shard_count shard(s)"
 
       - name: Publish comparison summary
         if: always()
