@@ -185,7 +185,14 @@ const mustNotTrigger = [
 	'type-performance/budget.json',
 ]
 
+// Line endings normalized at the read, because a checkout's are the platform's and the rules
+// below are about the file's content. This is the second time this check has been caught by
+// it: `readEventPaths` used to match `on:` positionally and failed on a CRLF checkout, and
+// the counterbalance rule below — which matches a shell block ending in `done` — failed the
+// same way on `windows-latest` while every other platform passed. One `replaceAll` at the
+// boundary is the fix for the class, not for either instance.
 const workflowText = fs.readFileSync(path.join(root, workflowPath), 'utf8')
+	.replaceAll('\r\n', '\n')
 const filters = [compileFilter(workflowText, 'pull_request'), compileFilter(workflowText, 'push')]
 const attribution: Attribution = buildAttribution(fileSystemTree(root))
 const errors: string[] = []
