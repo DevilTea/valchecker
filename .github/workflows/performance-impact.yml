@@ -252,6 +252,14 @@ jobs:
       fail-fast: false
       matrix:
         shard: [0, 1, 2, 3]
+    # Written by all four shards, which is safe only because every shard computes the same
+    # values from the same diff — the same property that lets no scope be passed between
+    # jobs. The confirmation stage reads them instead of resolving the parameters again.
+    outputs:
+      before_sha: ${{ steps.builds.outputs.before_sha }}
+      after_sha: ${{ steps.builds.outputs.after_sha }}
+      profile: ${{ steps.params.outputs.profile }}
+      runs: ${{ steps.params.outputs.runs }}
     steps:
       - name: Checkout comparison tooling
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -443,13 +451,23 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # The merge happens here, before the verdict, so every group aggregate is computed
-  # once over the complete cell set rather than four times over quarters of it.
+  # The **screen** stage: the merge happens here, before any verdict, so every group
+  # aggregate is computed once over the complete cell set rather than four times over
+  # quarters of it.
+  #
+  # It no longer carries the exit code. A row that could block is measured a second time by
+  # `confirm-measure`, and `verdict` combines the two — so this job reports and the last job
+  # decides. See the comment on `verdict` for why the second batch is independent rather
+  # than pooled with this one.
   compare:
     needs: measure
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      confirm_cells: ${{ steps.confirm.outputs.cells }}
+      confirm_shards: ${{ steps.confirm.outputs.shards }}
+      confirm_shard_count: ${{ steps.confirm.outputs.shard_count }}
     steps:
       - name: Checkout comparison tooling
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -527,8 +545,38 @@ jobs:
             --cell-catalog ../artifacts/performance-impact/cell-catalog.json \
             --markdown ../artifacts/performance-impact/impact.md \
             --json ../artifacts/performance-impact/impact.json \
-            --html ../artifacts/performance-impact/impact.html \
-            --fail-on-regression
+            --html ../artifacts/performance-impact/impact.html
+
+      # Which cells earn an independent second batch: every candidate regression, and every
+      # inconclusive row whose interval reaches −5%. `confirmation.mjs` decides it and this
+      # only shapes the answer into a matrix. The shard count is capped at the number of
+      # cells, because a shard with no cells is an error rather than an empty run.
+      - name: Select the cells to confirm
+        id: confirm
+        shell: bash
+        run: |
+          set -euo pipefail
+          cells="$(pnpm --silent --dir benchmarks confirm \
+            --screen ../artifacts/performance-impact/impact.json \
+            --select)"
+          count=0
+          if [[ -n "$cells" ]]; then
+            count="$(awk -F, '{ print NF }' <<< "$cells")"
+          fi
+          shard_count=4
+          if (( count < 4 )); then
+            shard_count="$count"
+          fi
+          shards='[0]'
+          if (( shard_count > 1 )); then
+            shards="[$(seq -s, 0 $((shard_count - 1)))]"
+          fi
+          {
+            echo "cells=$cells"
+            echo "shard_count=$shard_count"
+            echo "shards=$shards"
+          } >> "$GITHUB_OUTPUT"
+          echo "[confirm] $count cell(s) over $shard_count shard(s)"
 
       - name: Publish comparison summary
         if: always()
@@ -554,5 +602,241 @@ jobs:
         with:
           name: performance-impact-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
           path: artifacts/performance-impact
+          if-no-files-found: error
+          retention-days: 30
+
+  # The **confirm** stage: a second, independent fixed batch over the rows the screen says
+  # could block.
+  #
+  # Fixed and independent are both load-bearing. The plan this replaces re-ran every
+  # inconclusive cell for k more repetitions and pooled them with the first pass — which is
+  # optional stopping however carefully the rule is pre-declared, because the set being
+  # extended is chosen by the first result. Two fixed batches, each judged by the same rule
+  # with no knowledge of the other, have no such property: this batch is five paired
+  # repetitions whatever it finds, and `verdict` combines two verdicts rather than one
+  # lengthened sample. The seed differs from the screen's, so the two are separate samples.
+  #
+  # It measures the cells `confirmation.mjs` selected and no others, so it costs what is at
+  # stake rather than what the run measured: 6 of 170 cells in the quieter of the two hosted
+  # null runs, 47 in the noisier. The shard count is capped at the cell count, because a
+  # shard with no cells is an error rather than an empty run.
+  confirm-measure:
+    needs: [measure, compare]
+    if: needs.compare.outputs.confirm_cells != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.compare.outputs.confirm_shards) }}
+    steps:
+      - name: Checkout comparison tooling
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+          benchmarks: 'true'
+
+      # The same two revisions the screen measured, read from `measure`'s outputs rather than
+      # re-derived from the event: every shard of that job resolved the same pair, and
+      # resolving the parameters twice is how the two stages would come to measure two
+      # different commits.
+      - name: Build before and after revisions
+        id: builds
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ needs.measure.outputs.before_sha }}
+          AFTER_SHA: ${{ needs.measure.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --all --tags --quiet || true
+
+          git worktree add ../valchecker-before "$BEFORE_SHA"
+          pnpm --dir ../valchecker-before install --frozen-lockfile
+          pnpm --dir ../valchecker-before build
+
+          git worktree add ../valchecker-after "$AFTER_SHA"
+          pnpm --dir ../valchecker-after install --frozen-lockfile
+          pnpm --dir ../valchecker-after build
+
+          dist_url() { node -e "console.log(require('node:url').pathToFileURL(require('node:path').resolve(process.argv[1])).href)" "$1"; }
+          {
+            echo "before_dist=$(dist_url ../valchecker-before/packages/valchecker/dist/index.mjs)"
+            echo "after_dist=$(dist_url ../valchecker-after/packages/valchecker/dist/index.mjs)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run the confirmation batch
+        shell: bash
+        env:
+          PROFILE: ${{ needs.measure.outputs.profile }}
+          CELLS: ${{ needs.compare.outputs.confirm_cells }}
+          RUNS: ${{ needs.measure.outputs.runs }}
+          SHARD_COUNT: ${{ needs.compare.outputs.confirm_shard_count }}
+          BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
+          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
+          BEFORE_SHA: ${{ needs.measure.outputs.before_sha }}
+          AFTER_SHA: ${{ needs.measure.outputs.after_sha }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact-confirm
+          seed="confirm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          run_side() {
+            local side="$1" dist="$2" repetition="$3" sha="$4"
+            VALCHECKER_DIST_URL="$dist" \
+            BENCHMARK_COMMIT="$sha" \
+            pnpm --dir benchmarks cells \
+              --mode "$PROFILE" \
+              --seed "$seed-$repetition-$side" \
+              --shard-index "$SHARD" \
+              --shard-count "$SHARD_COUNT" \
+              --cells "$CELLS" \
+              --output "../artifacts/performance-impact-confirm/$side-$repetition-shard$SHARD.json" \
+              --catalog-output "../artifacts/performance-impact-confirm/cell-catalog.json"
+          }
+
+          # Counterbalanced by repetition parity, for the reason the screen batch is: pairing
+          # cancels machine speed and not a monotonic drift over the job.
+          for repetition in $(seq 1 "$RUNS"); do
+            if (( repetition % 2 == 0 )); then
+              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
+              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
+            else
+              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
+              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
+            fi
+          done
+
+      - name: Upload confirmation measurements
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-impact-confirm-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: artifacts/performance-impact-confirm
+          if-no-files-found: error
+          retention-days: 30
+
+  # The job that decides, and the only one carrying the exit code.
+  #
+  # `resolveConfirmation` combines the two stages: a severe screen row reproduced by the
+  # second batch fails, one the second batch could not judge is `unresolved` and not a pass,
+  # and one the second batch cleared passes with the screen's own noise named. A severe row
+  # with no second batch at all is `unconfirmed`, which still blocks — a missing confirmation
+  # must never read as a clearing one, which is why this job runs even when `confirm-measure`
+  # failed, and why it fails when the screen's severe rows arrive unconfirmed.
+  verdict:
+    needs: [measure, compare, confirm-measure]
+    if: always() && needs.compare.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout comparison tooling
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # No build here either: by the time a stage reaches this job it is an `impact.json`,
+      # and the catalog is the artifact the measurement wrote.
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+          benchmarks: 'true'
+
+      - name: Download the screen comparison
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: performance-impact-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/screen
+
+      - name: Download the confirmation measurements
+        if: needs.confirm-measure.result == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: performance-impact-confirm-shard-*-${{ github.run_attempt }}
+          path: artifacts/confirm-shards
+
+      - name: Resolve the two stages
+        shell: bash
+        env:
+          RUNS: ${{ needs.measure.outputs.runs }}
+          CONFIRM_RESULT: ${{ needs.confirm-measure.result }}
+          CONFIRM_SHARD_COUNT: ${{ needs.compare.outputs.confirm_shard_count }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact-verdict
+          runs="$RUNS"
+          if ! [[ "$runs" =~ ^[0-9]+$ ]] || [ "$runs" -lt 3 ]; then
+            runs=3
+          fi
+
+          confirm_args=()
+          if [[ "$CONFIRM_RESULT" == "success" && -d artifacts/confirm-shards ]]; then
+            for side in baseline candidate; do
+              for repetition in $(seq 1 "$runs"); do
+                inputs=()
+                for (( shard = 0; shard < CONFIRM_SHARD_COUNT; shard++ )); do
+                  inputs+=(--input "../artifacts/confirm-shards/performance-impact-confirm-shard-$shard-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard$shard.json")
+                done
+                pnpm --dir benchmarks merge \
+                  "${inputs[@]}" \
+                  --output "../artifacts/performance-impact-verdict/confirm-$side-$repetition.json"
+              done
+            done
+
+            compare_args=()
+            for repetition in $(seq 1 "$runs"); do
+              compare_args+=(--baseline "../artifacts/performance-impact-verdict/confirm-baseline-$repetition.json")
+            done
+            for repetition in $(seq 1 "$runs"); do
+              compare_args+=(--candidate "../artifacts/performance-impact-verdict/confirm-candidate-$repetition.json")
+            done
+
+            # Judged by the same rule as the screen, with the same catalog, over its own cells
+            # only. Its group aggregates are over an outcome-selected subset and are
+            # deliberately not read: `resolveConfirmation` uses its rows.
+            pnpm --dir benchmarks compare \
+              "${compare_args[@]}" \
+              --catalog cells \
+              --cell-catalog ../artifacts/screen/cell-catalog.json \
+              --markdown ../artifacts/performance-impact-verdict/confirm-impact.md \
+              --json ../artifacts/performance-impact-verdict/confirm-impact.json \
+              --html ../artifacts/performance-impact-verdict/confirm-impact.html
+            confirm_args=(--confirm ../artifacts/performance-impact-verdict/confirm-impact.json)
+          fi
+
+          pnpm --dir benchmarks confirm \
+            --screen ../artifacts/screen/impact.json \
+            "${confirm_args[@]}" \
+            --markdown ../artifacts/performance-impact-verdict/confirmation.md \
+            --json ../artifacts/performance-impact-verdict/confirmation.json \
+            --fail-on-regression
+
+      - name: Publish the verdict
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "# Performance impact verdict"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f artifacts/performance-impact-verdict/confirmation.md ]]; then
+            cat artifacts/performance-impact-verdict/confirmation.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "> The confirmation stage did not produce a report; see the job logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the verdict
+        if: always() && hashFiles('artifacts/performance-impact-verdict/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-impact-verdict-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/performance-impact-verdict
           if-no-files-found: error
           retention-days: 30

@@ -208,6 +208,19 @@ A row is judged by **where its whole interval lies**, never by the point estimat
 - an interval spanning a threshold: `inconclusive` — not a pass, named in the report, and the input to the confirmation stage
 - at least a 5% geometric-mean regression across a benchmark group, judged as its own interval: severe group regression
 
+**Two fixed stages, judged independently.** The *screen* is five paired repetitions over every selected cell. The *confirm* batch is a second five over the rows that could block — every candidate regression, and every inconclusive row whose interval reaches −5% — measured by the `confirm-measure` job with its own seed and judged by the same rule with no knowledge of the screen. `confirmation.mjs` then combines two verdicts rather than one lengthened sample:
+
+| screen | confirm | resolution | effect |
+| --- | --- | --- | --- |
+| severe | severe or regression | `reproduced` | fails the gate |
+| severe | inconclusive or unmeasured | `unresolved` | not a pass, and not a failure either |
+| severe | cleared or improvement | `not-reproduced` | passes, with the screen's noise named |
+| regression | severe or regression | `reproduced` | review |
+| regression | cleared or improvement | `not-reproduced` | passes, with the screen's noise named |
+| severe | no confirmation batch ran | `unconfirmed` | still blocks |
+
+Nothing is pooled. Re-running an unsettled cell for k more repetitions and judging the combined sample is optional stopping however carefully the rule is pre-declared, because the set being extended is chosen by the first result; two batches of a fixed size have no such property. The `verdict` job carries the exit code and `compare` reports. A group verdict is **not** confirmed: the confirmation set is chosen by the screen's outcome, so a group aggregate over it would carry exactly the conditioning the group estimator removes, and confirming a group means re-measuring all of it — 124 cells for `warm/success`. The severe-group trigger therefore fires from the screen's estimate over every cell selected into the group.
+
 Severe regressions fail the workflow when `fail_on_regression` is enabled (always on for pull requests). Mixed improvements and regressions remain a reviewer decision. A performance change is valuable only when the target workload and tradeoff are explicit:
 
 - construction or fresh-schema cost may increase only when warmed gains are larger and the amortization point is documented

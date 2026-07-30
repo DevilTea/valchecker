@@ -11,6 +11,7 @@
 		"cells": "node ./src/cells/run.mjs",
 		"cells:catalog": "node ./src/cells/catalog.mjs",
 		"compare": "node ./src/compare.mjs",
+		"confirm": "node ./src/resolve-confirmation.mjs",
 		"merge": "node ./src/merge.mjs",
 		"report": "node ./src/report-all.mjs",
 		"summary": "node ./src/summary.mjs",
