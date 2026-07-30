@@ -252,16 +252,33 @@ for (const entry of withoutSuccessCell) {
 // instead of half an hour into a CI measurement.
 if (driven != null) {
 	const acknowledgements = (await import(pathToFileURL(path.join(root, 'benchmarks/src/accepted-regressions.mjs')).href)) as {
-		acceptedRegressions: { cell: string }[]
 		malformedAcceptedRegressions: () => string[]
+		malformedAcceptedGroupRegressions: () => string[]
 		unknownAcceptedRegressions: (cells: { id: string }[]) => string[]
+		unknownAcceptedGroupRegressions: (cells: { group: string }[]) => string[]
+		groupsWithoutAcknowledgedCells: (cells: { id: string, group: string }[]) => string[]
 	}
-	for (const problem of acknowledgements.malformedAcceptedRegressions())
-		errors.push(`benchmarks/src/accepted-regressions.ts: ${problem}.`)
+	for (const problem of [...acknowledgements.malformedAcceptedRegressions(), ...acknowledgements.malformedAcceptedGroupRegressions()])
+		errors.push(`benchmarks/src/accepted-regressions.mjs: ${problem}.`)
 	for (const cell of acknowledgements.unknownAcceptedRegressions(gateCells)) {
 		errors.push(
 			`benchmarks/src/accepted-regressions.mjs: the accepted-regression entry for '${cell}' names no cell the catalog declares. `
 			+ 'Remove it, or correct the id. An entry for a cell that does not exist accepts nothing and hides that the regression it was written for is no longer watched.',
+		)
+	}
+	for (const group of acknowledgements.unknownAcceptedGroupRegressions(gateCells)) {
+		errors.push(
+			`benchmarks/src/accepted-regressions.mjs: the accepted-group-regression entry for '${group}' names no group any cell aggregates into. `
+			+ 'Remove it, or correct the name.',
+		)
+	}
+	// The rot check a cell entry does not need: a group is forgiven because the cells carrying its
+	// aggregate are forgiven, so once those entries go the group entry has no reason left and must
+	// not outlive them as a standing exemption for whatever lands in that group next.
+	for (const group of acknowledgements.groupsWithoutAcknowledgedCells(gateCells)) {
+		errors.push(
+			`benchmarks/src/accepted-regressions.mjs: the accepted-group-regression entry for '${group}' has no acknowledged member cell left. `
+			+ 'Its reason was that accepted per-cell costs carry the aggregate; with those entries gone it forgives whatever lands in the group next. Remove it.',
 		)
 	}
 }

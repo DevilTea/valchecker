@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+	acceptedGroupRegressions,
 	acceptedRegressions,
 	deepestRegressionPercent,
+	evaluateAcceptedGroupRegressions,
 	evaluateAcceptedRegressions,
+	groupsWithoutAcknowledgedCells,
+	malformedAcceptedGroupRegressions,
 	malformedAcceptedRegressions,
+	unknownAcceptedGroupRegressions,
 	unknownAcceptedRegressions,
 } from './accepted-regressions.mjs'
 
@@ -110,4 +115,64 @@ test('the depth read is the deepest either stage measured', () => {
 		.toFixed(2)), 30.20)
 	assert.equal(deepestRegressionPercent(row('a', 'cleared', 0.05, 'cleared', 0.02)), 0, 'an improvement has no depth')
 	assert.equal(deepestRegressionPercent(row('a', 'severe', -0.2)), 20)
+})
+
+const catalog = [
+	{ id: 'map/collect-all', group: 'warm/failure/all' },
+	{ id: 'set/collect-all', group: 'warm/failure/all' },
+	{ id: 'object/collect-all', group: 'warm/failure/all' },
+	{ id: 'string/valid', group: 'warm/success' },
+]
+
+function group(name, classification, delta) {
+	return { group: name, classification, delta }
+}
+
+test('the committed group list is well formed and names the cells that carry the aggregate', () => {
+	assert.deepEqual(malformedAcceptedGroupRegressions(), [])
+	assert.deepEqual(acceptedGroupRegressions.map(entry => entry.group), ['warm/failure/all'])
+	const [entry] = acceptedGroupRegressions
+	assert.equal(entry.maxRegressionPercent, 12)
+	// A reader checking a future breach has to be able to subtract the accepted contributions.
+	assert.match(entry.because, /set\/collect-all` alone accounts for −4\.25pp/)
+	assert.match(entry.because, /map\/collect-all` for −0\.88pp/)
+})
+
+test('a group aggregate inside its bound is acknowledged, and past it is not', () => {
+	// `warm/failure/all` as CI measured it: -6.40%, interval [-7.1%, -5.7%], against a 12% bound.
+	const within = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'regression', -0.064)])
+	assert.equal(within.acknowledged.length, 1)
+	assert.equal(within.acknowledged[0].bound, 12)
+	assert.equal(Number(within.acknowledged[0].depthPercent.toFixed(2)), 6.40)
+	assert.deepEqual(within.exceeded, [])
+
+	const past = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'regression', -0.2)])
+	assert.deepEqual(past.acknowledged, [])
+	assert.equal(Number(past.exceeded[0].depthPercent.toFixed(1)), 20, 'a group effect roughly tripled still fails')
+})
+
+test('a group entry the screen has cleared is stale, and one it could not judge is untouched', () => {
+	const stale = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'cleared', -0.004)])
+	assert.deepEqual(stale.stale.map(record => record.group), ['warm/failure/all'])
+	// The previous comparison put this same group at -3.93% and called it inconclusive. A group the
+	// run cannot judge is not evidence that the accepted cost is gone.
+	const undecided = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'inconclusive', -0.0393)])
+	assert.deepEqual([undecided.acknowledged, undecided.exceeded, undecided.stale], [[], [], []])
+})
+
+test('a group entry naming no group in the catalog is refused', () => {
+	assert.deepEqual(unknownAcceptedGroupRegressions(catalog), [])
+	assert.deepEqual(unknownAcceptedGroupRegressions([{ group: 'warm/success' }]), ['warm/failure/all'])
+})
+
+test('a group entry outliving its member cells is refused', () => {
+	// The check a cell entry does not need. If the buffered path is optimized and the two cell
+	// entries go, this entry must not survive them as a standing exemption for the group.
+	assert.deepEqual(groupsWithoutAcknowledgedCells(catalog), [])
+	assert.deepEqual(groupsWithoutAcknowledgedCells(catalog, acceptedGroupRegressions, []), ['warm/failure/all'])
+	assert.deepEqual(
+		groupsWithoutAcknowledgedCells(catalog, acceptedGroupRegressions, [{ cell: 'object/collect-all' }]),
+		[],
+		'any acknowledged member cell keeps the entry alive',
+	)
 })

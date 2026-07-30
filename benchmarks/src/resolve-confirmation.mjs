@@ -104,8 +104,12 @@ else {
 		console.error(`[confirm] accepted regression: ${record.cell} — measured -${record.depthPercent.toFixed(2)}%, accepted to -${record.bound}%`)
 	for (const problem of result.acknowledgementProblems)
 		console.error(`[confirm] accepted-regression list: ${problem}`)
-	if (result.severeGroups.length > 0)
-		console.error(`[confirm] severe group${result.severeGroups.length === 1 ? '' : 's'} from the screen, not confirmed here: ${result.severeGroups.join(', ')}`)
+	for (const record of result.acknowledgedGroups)
+		console.error(`[confirm] accepted group regression: ${record.group} — measured -${record.depthPercent.toFixed(2)}%, accepted to -${record.bound}%`)
+	if (result.unacknowledgedSevereGroups.length > 0) {
+		console.error(`[confirm] severe group${result.unacknowledgedSevereGroups.length === 1 ? '' : 's'} from the screen, not confirmed here: ${
+			result.unacknowledgedSevereGroups.join(', ')}`)
+	}
 	if (options.failOnRegression && result.verdict === 'regression')
 		process.exitCode = 1
 }

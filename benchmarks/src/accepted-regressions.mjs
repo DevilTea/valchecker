@@ -20,13 +20,10 @@
  *
  * Three further limits, so nobody has to discover them:
  *
- * - **Rows only.** An acknowledgement never suppresses a **group** verdict. The group
- *   estimator deliberately runs over every cell selected into a group, including these, so
- *   an accepted per-cell cost large enough to carry its group's aggregate past −5% still
- *   fails the gate. That is not an oversight to route around: "did this cell regress?" and
- *   "did this affected group broadly regress?" are different questions, and an accepted
- *   answer to the first is not an answer to the second. Acknowledging a group would be a
- *   separate, explicit entry naming the group — not these entries reaching further.
+ * - **A cell entry never reaches a group verdict.** "Did this cell regress?" and "did this
+ *   affected group broadly regress?" are different questions, and an accepted answer to the
+ *   first is not an answer to the second. A group is forgiven only by an entry that names the
+ *   group, below, and the two lists are checked against each other.
  * - **Staleness is decided from the screen, never from the confirmation batch.** The
  *   confirmation batch measures a set chosen by the screen's outcome, and one batch clearing
  *   a cell the screen called severe is this gate's noise diagnostic rather than evidence the
@@ -71,6 +68,44 @@ export const acceptedRegressions = [
 			+ 'single figure describes it. The bound sits above the deepest measurement so a genuine further slowdown, '
 			+ 'the kind a rewrite of the buffered path could introduce, still fails. Accepted on the same ground as '
 			+ '`map`: the wrong index is a wrong answer, and this is the failure-collection path only.',
+	},
+]
+
+/**
+ * Groups whose aggregate is accepted, which is a different claim from accepting their cells.
+ *
+ * Why this exists rather than the alternative. `warm/failure/all` measured −6.40% with an
+ * interval of [−7.1%, −5.7%], and that number is **true**: the group really is about 6.4%
+ * slower, because two of its nine cells carry a cost the repository accepted. It is not a
+ * false positive to suppress. The alternative — leaving acknowledged cells out of the
+ * aggregate — was rejected outright, and the reason is worth keeping: it would condition the
+ * aggregate on which cells someone previously forgave, which is the same disease
+ * `groupEstimate` was rebuilt to remove, and it would shrink the denominator so a *new*
+ * regression landing in the group would be diluted rather than caught. The reported group
+ * number therefore stays the true one over every cell, and what a bound does is say how much
+ * of it a person has agreed to.
+ *
+ * **What a group acknowledgement cannot decide:** whether the group's cost is still the
+ * accepted one. It checks a magnitude against a number a person set. A future breach could be
+ * the same cells drifting or something new arriving in the group, which is why the reason
+ * below records how much each acknowledged cell contributes — so a reader can subtract.
+ */
+/** @type {{ group: string, maxRegressionPercent: number, because: string }[]} */
+export const acceptedGroupRegressions = [
+	{
+		group: 'warm/failure/all',
+		maxRegressionPercent: 12,
+		because: 'The group-level measurement of the same accepted `firstIndex` correction. `warm/failure/all` holds one '
+			+ 'collect-all cell per structure — nine of them — so the two cells this repository accepts carry the aggregate: '
+			+ 'measured at −6.40% with an interval of [−7.1%, −5.7%], `set/collect-all` alone accounts for −4.25pp of it and '
+			+ '`map/collect-all` for −0.88pp, the two together for −5.10pp, and the remaining seven cells for −1.37pp spread '
+			+ 'across rows none of which is individually decisive. A reader checking a future breach should subtract those '
+			+ 'contributions first: if the acknowledged cells still account for about −5pp and the group has moved well past '
+			+ 'this bound, something else arrived in the group. The bound is 12% rather than 7% because this group sits '
+			+ 'astride the −5% trigger and seven of its nine rows are individually inconclusive, so it flips between runs — '
+			+ 'the previous comparison put the same group at −3.93% and called it inconclusive — while 12% still fails if the '
+			+ 'group effect roughly doubles. This entry is void the moment its member cells stop being acknowledged, which '
+			+ 'is checked rather than trusted.',
 	},
 ]
 
@@ -141,6 +176,86 @@ export function unknownAcceptedRegressions(catalogCells, entries = acceptedRegre
  * selected: a cell the screen cleared is never selected, so evaluating the selection alone
  * could never find a stale entry — which is the direction that matters most.
  */
+/** The same well-formedness rules, over the group list. */
+export function malformedAcceptedGroupRegressions(entries = acceptedGroupRegressions) {
+	const problems = []
+	const seen = new Set()
+	for (const entry of entries) {
+		if (typeof entry.group !== 'string' || entry.group.length === 0) {
+			problems.push('an accepted-group-regression entry names no group')
+			continue
+		}
+		if (seen.has(entry.group))
+			problems.push(`the accepted-group-regression list names '${entry.group}' twice, so one of the two bounds is being ignored`)
+		seen.add(entry.group)
+		if (!Number.isFinite(entry.maxRegressionPercent) || entry.maxRegressionPercent <= 0)
+			problems.push(`the accepted-group-regression entry for '${entry.group}' records no positive \`maxRegressionPercent\`, so it would accept a regression of any depth`)
+		if (typeof entry.because !== 'string' || entry.because.trim().length < minimumReasonLength)
+			problems.push(`the accepted-group-regression entry for '${entry.group}' needs a reason of at least ${minimumReasonLength} characters saying which cells carry the aggregate and what the cost bought`)
+	}
+	return problems
+}
+
+/** Group entries naming a group no cell in the catalog aggregates into. */
+export function unknownAcceptedGroupRegressions(catalogCells, entries = acceptedGroupRegressions) {
+	const known = new Set(catalogCells.map(cell => cell.group))
+	return entries.filter(entry => !known.has(entry.group))
+		.map(entry => entry.group)
+}
+
+/**
+ * Group entries none of whose member cells is acknowledged.
+ *
+ * The rot check a cell entry does not need. A group is forgiven because the cells carrying its
+ * aggregate are forgiven; once those entries go — because the buffered path was optimized, or
+ * because someone decided the cost was no longer acceptable — the group entry has no reason
+ * left and must not outlive them as a standing exemption for whatever lands in that group
+ * next. Decided from the catalog and the two lists, so it needs no measurement.
+ */
+export function groupsWithoutAcknowledgedCells(
+	catalogCells,
+	groupEntries = acceptedGroupRegressions,
+	cellEntries = acceptedRegressions,
+) {
+	const acknowledgedCells = new Set(cellEntries.map(entry => entry.cell))
+	return groupEntries
+		.filter(entry => !catalogCells.some(cell => cell.group === entry.group && acknowledgedCells.has(cell.id)))
+		.map(entry => entry.group)
+}
+
+/**
+ * How the group list stands against one comparison's group rows.
+ *
+ * The same three outcomes as the cell list, read from the group's own estimate: `acknowledged`
+ * when the measured aggregate is within the bound, `exceeded` when it is deeper, `stale` when
+ * the screen decisively reports the group is not down at all. A group the run could not judge
+ * leaves its entry untouched.
+ */
+export function evaluateAcceptedGroupRegressions(groups, entries = acceptedGroupRegressions) {
+	const byGroup = new Map(entries.map(entry => [entry.group, entry]))
+	const acknowledged = []
+	const exceeded = []
+	const stale = []
+	for (const group of groups) {
+		const entry = byGroup.get(group.group)
+		if (entry == null || group.delta == null)
+			continue
+		if (group.classification === 'cleared' || group.classification === 'improvement') {
+			stale.push({ group: entry.group, screen: group.classification, screenDelta: group.delta })
+			continue
+		}
+		if (group.classification !== 'regression')
+			continue
+		const depth = Math.max(0, -group.delta * 100)
+		const record = { group: entry.group, bound: entry.maxRegressionPercent, depthPercent: depth, because: entry.because }
+		if (depth > entry.maxRegressionPercent)
+			exceeded.push(record)
+		else
+			acknowledged.push(record)
+	}
+	return { acknowledged, exceeded, stale }
+}
+
 export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions) {
 	const byCell = new Map(entries.map(entry => [entry.cell, entry]))
 	const acknowledged = []

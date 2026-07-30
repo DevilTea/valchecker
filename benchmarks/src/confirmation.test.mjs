@@ -205,7 +205,42 @@ test('an acknowledged cell the screen has cleared fails as a stale entry', () =>
 	assert.match(result.acknowledgementProblems[0], /the accepted regression for a is stale — the screen now reports it cleared at -0\.20%/)
 })
 
-test('an acknowledgement does not reach a group verdict', () => {
+test('an acknowledged group stops failing the gate but keeps its true measured value', () => {
+	// `warm/failure/all` as CI measured it. The group table still says -6.40% over all nine cells,
+	// because a bound says how much of a true number a person agreed to; nothing is excluded from
+	// the aggregate.
+	const screen = screenOf([['a', 'severe', -0.3237, -0.35]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
+	screen.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064 }]
+	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.2983]]), {
+		acceptedRegressions: [{ cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+	})
+	assert.deepEqual(result.severeGroups, ['warm/failure/all'], 'the measured trigger is still reported')
+	assert.deepEqual(result.unacknowledgedSevereGroups, [], 'and it no longer fails the gate')
+	assert.deepEqual(result.acknowledgedGroups.map(record => [record.group, record.bound, Number(record.depthPercent.toFixed(2))]), [['warm/failure/all', 12, 6.40]])
+	assert.notEqual(result.verdict, 'regression')
+	assert.match(renderConfirmationMarkdown(result), /accepted group regression/)
+	assert.match(renderConfirmationMarkdown(result), /\| `warm\/failure\/all` \| −6\.40% \| −12% \|/)
+})
+
+test('a group past its bound fails, and an unacknowledged group still fails', () => {
+	const screen = screenOf([['a', 'cleared', 0]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
+	screen.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.2 }]
+	const past = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+	})
+	assert.equal(past.verdict, 'regression')
+	assert.match(past.acknowledgementProblems[0], /the group warm\/failure\/all regressed 20\.00%, past the 12%/)
+
+	const other = screenOf([['a', 'cleared', 0]], { verdict: 'regression', severeGroups: ['warm/success'] })
+	other.groups = [{ group: 'warm/success', classification: 'regression', delta: -0.08 }]
+	const unacknowledged = resolveConfirmation(other, null, { acceptedRegressions: [], acceptedGroupRegressions: [] })
+	assert.deepEqual(unacknowledged.unacknowledgedSevereGroups, ['warm/success'])
+	assert.equal(unacknowledged.verdict, 'regression')
+})
+
+test('a cell acknowledgement does not reach a group verdict', () => {
 	// Stated as a limit rather than left to be discovered: "did this cell regress?" and "did this
 	// affected group broadly regress?" are different questions, and an accepted answer to the
 	// first is not an answer to the second.

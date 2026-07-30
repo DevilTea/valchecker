@@ -44,7 +44,12 @@
  * group, and this module carries it through unchanged.
  */
 
-import { evaluateAcceptedRegressions, malformedAcceptedRegressions } from './accepted-regressions.mjs'
+import {
+	evaluateAcceptedGroupRegressions,
+	evaluateAcceptedRegressions,
+	malformedAcceptedGroupRegressions,
+	malformedAcceptedRegressions,
+} from './accepted-regressions.mjs'
 import { markdownCell, meaningfulThreshold } from './impact-verdict.mjs'
 
 /**
@@ -105,7 +110,7 @@ function resolutionOf(screenClassification, confirmClassification) {
  * pull request and is not the same as a confirmation that found nothing — the report says
  * which.
  */
-export function resolveConfirmation(screen, confirm, { acceptedRegressions: entries } = {}) {
+export function resolveConfirmation(screen, confirm, { acceptedRegressions: entries, acceptedGroupRegressions: groupEntries } = {}) {
 	const selection = confirmationSelection(screen)
 	const confirmByScenario = new Map((confirm?.rows ?? []).map(row => [row.scenario, row]))
 	// Over every measured cell, because a stale entry is one whose cell the screen *cleared*,
@@ -120,6 +125,15 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	const malformed = entries === undefined ? malformedAcceptedRegressions() : malformedAcceptedRegressions(entries)
 	const accepted = entries === undefined ? evaluateAcceptedRegressions(measured) : evaluateAcceptedRegressions(measured, entries)
 	const acknowledgedCells = new Set(accepted.acknowledged.map(record => record.cell))
+	// The group list, read from the screen's own group estimates. The reported group numbers are
+	// untouched: a bound says how much of a true number a person has agreed to, and leaving
+	// acknowledged cells out of the aggregate instead would condition it on what was previously
+	// forgiven and dilute whatever lands in the group next.
+	const groupMalformed = groupEntries === undefined ? malformedAcceptedGroupRegressions() : malformedAcceptedGroupRegressions(groupEntries)
+	const acceptedGroups = groupEntries === undefined
+		? evaluateAcceptedGroupRegressions(screen.groups ?? [])
+		: evaluateAcceptedGroupRegressions(screen.groups ?? [], groupEntries)
+	const acknowledgedGroups = new Set(acceptedGroups.acknowledged.map(record => record.group))
 	const rows = selection.map(({ scenario, reason }) => {
 		const screenRow = screen.rows.find(row => row.scenario === scenario)
 		const confirmRow = confirmByScenario.get(scenario) ?? null
@@ -158,11 +172,19 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	// list stops being read at all. A malformed entry fails for the same reason.
 	const listProblems = [
 		...malformed,
+		...groupMalformed,
 		...accepted.exceeded.map(record => `${record.cell} regressed ${record.depthPercent.toFixed(2)}%, past the ${record.bound}% this repository accepts for it`),
 		...accepted.stale.map(record => `the accepted regression for ${record.cell} is stale — the screen now reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
+		...acceptedGroups.exceeded.map(record => `the group ${record.group} regressed ${record.depthPercent.toFixed(2)}%, past the ${record.bound}% this repository accepts for it`),
+		...acceptedGroups.stale.map(record => `the accepted group regression for ${record.group} is stale — the screen now reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
 	]
 
-	const verdict = blocking.length > 0 || screen.severeGroups.length > 0 || listProblems.length > 0
+	// The groups whose trigger still stands. An acknowledged group leaves this list and is
+	// reported below with its true measured value; it is not removed from the group table, and
+	// the aggregate it was measured from still covers every cell.
+	const unacknowledgedSevereGroups = screen.severeGroups.filter(group => !acknowledgedGroups.has(group))
+
+	const verdict = blocking.length > 0 || unacknowledgedSevereGroups.length > 0 || listProblems.length > 0
 		? 'regression'
 		: unresolved.length > 0
 			? 'unresolved'
@@ -182,8 +204,13 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		// would be a second copy of the number, and a report is worth more when it says what
 		// was measured than when it repeats what was intended.
 		repetitions: { screen: screen.runCounts?.baseline ?? null, confirm: confirm?.runCounts?.baseline ?? null },
-		/** The screen stage's group trigger, carried through: it is not confirmed here. */
+		/**
+		 * The screen stage's group trigger as measured, carried through unchanged: it is not
+		 * confirmed here, and an acknowledged group is still named in it.
+		 */
 		severeGroups: screen.severeGroups,
+		/** The ones that still fail the gate — the measured list minus the acknowledged groups. */
+		unacknowledgedSevereGroups,
 		rows,
 		blocking: blocking.map(row => row.scenario),
 		unresolved: unresolved.map(row => row.scenario),
@@ -196,7 +223,9 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		 * silent pass.
 		 */
 		acknowledged: accepted.acknowledged,
-		/** Ways the acknowledgement list itself is wrong. Each one fails the gate. */
+		/** The same, at group level: the true measured aggregate and the bound it is within. */
+		acknowledgedGroups: acceptedGroups.acknowledged,
+		/** Ways either acknowledgement list is wrong. Each one fails the gate. */
 		acknowledgementProblems: listProblems,
 	}
 }
@@ -260,6 +289,21 @@ export function renderConfirmationMarkdown(result) {
 		)
 		for (const record of result.acknowledged)
 			lines.push(`| \`${record.cell}\` | −${record.depthPercent.toFixed(2)}% | −${record.bound}% | ${markdownCell(record.because)} |`)
+	}
+
+	if (result.acknowledgedGroups.length > 0) {
+		lines.push(
+			'',
+			`> **${result.acknowledgedGroups.length} accepted group regression${result.acknowledgedGroups.length === 1 ? '' : 's'}.** `
+			+ 'A group aggregate is accepted by an entry naming the group, never by a cell acknowledgement reaching further, and never by '
+			+ 'leaving acknowledged cells out of the aggregate — that would condition the estimate on what was previously forgiven and dilute '
+			+ 'whatever lands in the group next. The value below is the true one, over every cell in the group.',
+			'',
+			'| Group | Measured | Accepted to | Because |',
+			'| --- | ---: | ---: | --- |',
+		)
+		for (const record of result.acknowledgedGroups)
+			lines.push(`| \`${record.group}\` | −${record.depthPercent.toFixed(2)}% | −${record.bound}% | ${markdownCell(record.because)} |`)
 	}
 
 	if (result.acknowledgementProblems.length > 0) {
