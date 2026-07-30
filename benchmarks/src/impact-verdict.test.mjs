@@ -75,10 +75,13 @@ test('a group aggregate reports how much of the group it covers', () => {
 		inconclusiveScenarios: 0,
 		ratio: 1,
 		delta: 0,
+		intervalLow: 0,
+		intervalHigh: 0,
+		classification: 'cleared',
 	}])
 	assert.deepEqual(result.coverage, { measuredScenarios: 5, tierScenarios: 121 })
 	assert.deepEqual(result.partiallyCoveredGroups, [{ group: 'warm/success', measured: 5, total: 113 }])
-	assert.match(renderMarkdown(result), /\| warm\/success \| 5\/113 \(4%\) \| 5\/5 \| \+0\.0% \|/)
+	assert.match(renderMarkdown(result), /\| warm\/success \| 5\/113 \(4%\) \| 5\/5 \| \+0\.0% \| \+0\.0% … \+0\.0% \| cleared \|/)
 	assert.match(renderMarkdown(result), /Scenarios measured: \*\*5 of 121\*\*/)
 	assert.match(renderMarkdown(result), /Partly covered groups.*`warm\/success` 5\/113/)
 })
@@ -93,7 +96,7 @@ test('a complete comparison says nothing about partial coverage', () => {
 	assert.deepEqual(result.coverage, { measuredScenarios: 2, tierScenarios: 2 })
 	const markdown = renderMarkdown(result)
 	assert.doesNotMatch(markdown, /Partly covered groups/)
-	assert.match(markdown, /\| cold \| 2\/2 \(100%\) \| 2\/2 \| \+0\.0% \|/)
+	assert.match(markdown, /\| cold \| 2\/2 \(100%\) \| 2\/2 \| \+0\.0% \| \+0\.0% … \+0\.0% \| cleared \|/)
 })
 
 test('a group with one measured scenario has no severe-group trigger, and says so', () => {
@@ -117,34 +120,79 @@ test('a group with two measured scenarios does have one', () => {
 	assert.doesNotMatch(renderMarkdown(result), /No severe-group trigger.*`warm\/async\/success`/)
 })
 
-test('a row whose interval spans a threshold does not count toward its group trigger', () => {
-	// `b` measures a different number in one repetition, which widens its paired-ratio
-	// interval until it spans both thresholds. Two measured rows then leave one decisive
-	// one, and the trigger is reported as absent rather than as cleared.
+test('a row whose own interval spans a threshold is still in its group estimate', () => {
+	// The reversal. The aggregate used to be a geometric mean over the group's *decisive*
+	// rows, which conditions the estimate on the measurement outcome: a row survives that
+	// filter when its own interval is narrow or its own effect is large, so the mean runs
+	// over exactly the rows most likely to trigger it.
+	//
+	// `b` measures a different number in one repetition, so its own row is inconclusive.
+	// Its cell is nevertheless in every one of the group's five repetition values, and the
+	// noise it carries widens the group's interval instead of leaving it out — which is what
+	// a group estimate over a noisy cell should look like.
 	const baseline = aggregateRuns(sideOf([['a', 'cold', 100], ['b', 'cold', 100]]), 'baseline')
 	const candidateRuns = sideOf([['a', 'cold', 100], ['b', 'cold', 100]])
 	candidateRuns[0].libraries[0].results[1].medianOpsPerSecond = 300
 	const result = compareResults(baseline, aggregateRuns(candidateRuns, 'candidate'), { groupTotals: new Map([['cold', 2]]) })
-	assert.equal(result.groups[0].scenarios, 2)
-	assert.equal(result.groups[0].decisiveScenarios, 1)
-	assert.equal(result.groups[0].inconclusiveScenarios, 1)
-	assert.deepEqual(result.groupsWithoutTrigger, ['cold'])
+	const [group] = result.groups
+	assert.equal(group.scenarios, 2)
+	assert.equal(group.decisiveScenarios, 1, 'the counts stay as diagnostics')
+	assert.equal(group.inconclusiveScenarios, 1)
+	// exp of the mean of every log ratio in the group: `b`'s single 3× repetition raises it.
+	assert.ok(group.delta > 0.1, 'the inconclusive row must be inside the estimate, not filtered out')
+	assert.equal(group.classification, 'inconclusive', 'and its noise must widen the interval rather than sharpen it')
+	assert.ok(group.intervalLow < 0 && group.intervalHigh > 0)
+	// Two measured rows, so the trigger applies; it simply did not fire.
+	assert.deepEqual(result.groupsWithoutTrigger, [])
+	assert.deepEqual(result.severeGroups, [])
 })
 
-test('one decisive row cannot make its group severe on its own', () => {
-	// `b` is unstable, so `cold`'s geometric mean rests on `a` alone at -6%: past the
-	// group threshold, short of the per-scenario one. Calling that a severe *group*
-	// regression would be one measurement wearing the authority of an aggregate, so the
-	// verdict stays clear and the group is reported as having no trigger instead.
-	const baseline = aggregateRuns(sideOf([['a', 'cold', 100], ['b', 'cold', 100]]), 'baseline')
-	const candidateRuns = sideOf([['a', 'cold', 94], ['b', 'cold', 100]])
-	candidateRuns[0].libraries[0].results[1].medianOpsPerSecond = 300
-	const result = compareResults(baseline, aggregateRuns(candidateRuns, 'candidate'), { groupTotals: new Map([['cold', 2]]) })
-	assert.equal(result.groups[0].decisiveScenarios, 1)
-	assert.ok(result.groups[0].delta <= -0.05, 'the fixture must put the group mean past the severe threshold')
+test('a group whose interval spans the group threshold is not severe', () => {
+	// The group is judged by its interval for the same reason a row is. Two cells at −6%
+	// with a 3% half-width put the group's point estimate past −5% and its interval across
+	// it, so the honest answer is that this run cannot tell a 5% group regression from
+	// noise. The rule this replaces compared the group's point estimate against the
+	// threshold, which is what returned `review` on a commit compared against itself.
+	const result = comparePaired([
+		['a', 'cold', ratiosWith(-6, 3)],
+		['b', 'cold', ratiosWith(-6, 3)],
+	], [['cold', 2]])
+	const [group] = result.groups
+	assert.ok(group.delta <= -0.05, 'the fixture must put the group estimate past the group threshold')
+	assert.ok(group.intervalHigh > -0.05, 'and its interval must not clear that threshold')
+	assert.equal(group.classification, 'inconclusive')
 	assert.deepEqual(result.severeGroups, [])
-	assert.deepEqual(result.groupsWithoutTrigger, ['cold'])
 	assert.notEqual(result.verdict, 'regression')
+})
+
+test('a group verdict does not need any of its rows to be decisive', () => {
+	// The other half of the reversal, and the case the old rule could not reach: five cells
+	// each 8% down and each too noisy for its own row to decide, with the noise landing on a
+	// different repetition in each. Averaging within a repetition before taking the spread
+	// across repetitions cancels what is not common to the cells, so the group is decisive
+	// where none of its rows is — which is what asking "did this affected group broadly
+	// regress?" independently means. Under the decisive-rows rule this group had no aggregate
+	// at all and passed in silence.
+	//
+	// The noise pattern sums to zero and the five cells carry its five cyclic shifts, so every
+	// repetition's group value is exactly `ln(0.92)` while every row's own spread is identical
+	// and wide enough to straddle −5%.
+	const pattern = [-1, 1, 0, 1, -1]
+	const drift = shift => Array.from(
+		{ length: 5 },
+		(unused, repetition) => Math.exp(Math.log(0.92) * (1 + 0.4 * pattern[(repetition + shift) % 5])),
+	)
+	const result = comparePaired(
+		['a', 'b', 'c', 'd', 'e'].map((cell, shift) => [cell, 'warm/success', drift(shift)]),
+		[['warm/success', 5]],
+	)
+	assert.deepEqual(result.rows.map(row => row.classification), Array.from({ length: 5 })
+		.fill('inconclusive'))
+	assert.equal(result.groups[0].decisiveScenarios, 0)
+	assert.equal(Number(result.groups[0].delta.toFixed(6)), -0.08)
+	assert.equal(result.groups[0].classification, 'regression')
+	assert.deepEqual(result.severeGroups, ['warm/success'])
+	assert.equal(result.verdict, 'regression')
 })
 
 test('a broad moderate regression across a group is severe even though no scenario is', () => {
@@ -172,7 +220,7 @@ test('one scenario past the per-scenario threshold is severe on its own', () => 
 test('the report carries the conditions the verdict was reached under', () => {
 	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
 	const result = compare(scenarios, scenarios, [['cold', 8]], { scenarioFilter: ['b', 'a'] })
-	assert.equal(result.schemaVersion, 8)
+	assert.equal(result.schemaVersion, 9)
 	assert.deepEqual(result.measurement, { isolation: 'cell', shardCount: 1, selection: ['a', 'b'], cellCatalogHash: null })
 	assert.match(renderMarkdown(result), /scoped to the diff/)
 })
