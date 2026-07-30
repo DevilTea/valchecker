@@ -570,6 +570,7 @@ jobs:
             --catalog cells \
             --cell-catalog ../artifacts/performance-impact/cell-catalog.json \
             --catalog-diff ../artifacts/performance-impact/catalog-diff.json \
+            --require-catalog-diff \
             --markdown ../artifacts/performance-impact/impact.md \
             --json ../artifacts/performance-impact/impact.json \
             --html ../artifacts/performance-impact/impact.html

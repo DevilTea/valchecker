@@ -14,7 +14,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { acceptedGroupRegressions } from './accepted-regressions.mjs'
+import { acceptedGroupRegressions, acceptedRegressions } from './accepted-regressions.mjs'
 import { confirmationPlan, renderConfirmationMarkdown, resolveConfirmation } from './confirmation.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -67,7 +67,8 @@ if (options.plan) {
 	// is 1 whenever a group is at stake: a group aggregate mixed across runners is the defect
 	// being corrected, so confirming it on four machines would reproduce it.
 	const acknowledgedGroups = new Set(acceptedGroupRegressions.map(entry => entry.group))
-	const plan = confirmationPlan(screen, { acknowledgedGroups })
+	const acknowledgedCells = new Set(acceptedRegressions.map(entry => entry.cell))
+	const plan = confirmationPlan(screen, { acknowledgedGroups, acknowledgedCells })
 	process.stdout.write(JSON.stringify({
 		cells: plan.cells,
 		shardCount: plan.shardCount,
@@ -119,6 +120,8 @@ else {
 		console.error(`[confirm] accepted regression: ${record.cell} — measured -${record.depthPercent.toFixed(2)}%, accepted to -${record.bound}%`)
 	for (const problem of result.acknowledgementProblems)
 		console.error(`[confirm] accepted-regression list: ${problem}`)
+	for (const problem of result.unassessedAcknowledgements)
+		console.error(`[confirm] rot check not assessed: ${problem}`)
 	for (const verdict of result.groupVerdicts)
 		console.error(`[confirm] group ${verdict.group}: ${verdict.blocking ? 'BLOCKING' : 'review'} — ${verdict.why}`)
 	for (const record of result.acknowledgedGroups)

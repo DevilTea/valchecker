@@ -39,6 +39,12 @@ function parseArguments(argv) {
 		// local comparison of two result files has no refs to diff; absent, the report says so
 		// rather than printing zeros for an audit it did not perform.
 		catalogDiff: null,
+		// Whether a missing catalog diff is a defect. The screen comparison of a pull request
+		// audits the contract, so an absent diff there is a wiring failure, not a gap to note in
+		// prose: `n/a` is honest but it is not *visible*, and the whole point of the audit is that
+		// a deletion cannot reach a merge unseen. A confirmation comparison measures a subset and
+		// audits nothing, so it never requires one.
+		requireCatalogDiff: false,
 	}
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
@@ -77,6 +83,9 @@ function parseArguments(argv) {
 			options.catalogDiff = resolve(benchmarkRoot, value)
 			index++
 		}
+		else if (argument === '--require-catalog-diff') {
+			options.requireCatalogDiff = true
+		}
 		else if (argument === '--fail-on-regression') {
 			options.failOnRegression = true
 		}
@@ -96,6 +105,13 @@ function parseArguments(argv) {
 	}
 	if (options.catalog === 'scenarios' && options.cellCatalog != null)
 		throw new Error('--cell-catalog belongs to `--catalog cells`; a scenario comparison has no cell catalog')
+	if (options.requireCatalogDiff && options.catalogDiff == null) {
+		throw new Error(
+			'--require-catalog-diff was given without --catalog-diff. This comparison is supposed to audit the benchmark contract, and without the '
+			+ 'static base-versus-head diff it cannot see a deleted or renamed cell at all — the runtime comparison never can, because the apparatus '
+			+ 'comes from the candidate ref. Run `pnpm bench:catalog-diff --base <ref> --head <ref> --output <path>` and pass the result.',
+		)
+	}
 	return options
 }
 
@@ -143,8 +159,12 @@ console.error(`[benchmark] verdict ${result.verdict} over ${result.coverage.meas
 // catalog counts are `n/a` rather than `0` when no static diff was supplied, because a runtime
 // comparison cannot see a deleted cell and must not imply that it did.
 console.error(`[benchmark] cells measured ${result.cells.measured}, `
-	+ `catalog added ${result.cells.catalogDiff == null ? 'n/a' : result.cells.catalogDiff.added.length} / `
-	+ `removed ${result.cells.catalogDiff == null ? 'n/a' : result.cells.catalogDiff.removed.length}, `
-	+ `candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}`)
+	+ `candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}`
+	// Only a comparison that was given a diff reports catalog movement. Printing `catalog added
+	// n/a` from a confirmation comparison — which measures a subset and audits nothing — read as
+	// "the audit did not happen" for a run where it had happened in the compare job.
+	+ `${result.cells.catalogDiff == null
+		? ''
+		: `, catalog added ${result.cells.catalogDiff.added.length} / removed ${result.cells.catalogDiff.removed.length}`}`)
 if (options.failOnRegression && result.verdict === 'regression')
 	process.exitCode = 1

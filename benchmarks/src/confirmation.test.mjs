@@ -202,15 +202,23 @@ test('an acknowledged cell past its bound blocks, and the list is reported as wr
 	assert.match(renderConfirmationMarkdown(result), /The accepted-regression list is wrong/)
 })
 
-test('an acknowledged cell the screen has cleared fails as a stale entry', () => {
-	// The cell is cleared, so nothing is selected for confirmation and the row table is empty —
-	// which is exactly why staleness is evaluated over every measured row rather than over the
-	// selection.
+test('an acknowledged cell both batches clear fails as a stale entry', () => {
+	// Staleness is still evaluated over every measured row rather than over the confirmation
+	// selection — a cleared cell is not selected by the row rule — but it now needs the
+	// confirmation batch to agree, which is why an acknowledged cell is always queued for it.
+	const screen = screenOf([['a', 'cleared', -0.002]], { verdict: 'neutral' })
+	const result = resolveConfirmation(screen, confirmOf([['a', 'cleared', -0.001]]), { acceptedRegressions: accepted })
+	assert.equal(result.verdict, 'regression', 'a list that outlived its reason fails rather than passing quietly')
+	assert.match(result.acknowledgementProblems[0], /the accepted regression for a is stale/)
+})
+
+test('an acknowledged cell only the screen cleared is unassessed, not stale', () => {
 	const screen = screenOf([['a', 'cleared', -0.002]], { verdict: 'neutral' })
 	const result = resolveConfirmation(screen, null, { acceptedRegressions: accepted })
-	assert.deepEqual(result.rows, [])
-	assert.equal(result.verdict, 'regression', 'a list that outlived its reason fails rather than passing quietly')
-	assert.match(result.acknowledgementProblems[0], /the accepted regression for a is stale — the screen now reports it cleared at -0\.20%/)
+	assert.deepEqual(result.acknowledgementProblems, [])
+	assert.match(result.unassessedAcknowledgements[0], /no confirmation batch measured it/)
+	assert.notEqual(result.verdict, 'regression')
+	assert.match(renderConfirmationMarkdown(result), /rot check this run could not perform/)
 })
 
 test('an acknowledged group stops failing the gate but keeps its true measured value', () => {
@@ -219,7 +227,11 @@ test('an acknowledged group stops failing the gate but keeps its true measured v
 	// the aggregate.
 	const screen = screenOf([['a', 'severe', -0.3237, -0.35]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
 	screen.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064 }]
-	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.2983]]), {
+	screen.rows[0].group = 'warm/failure/all'
+	const confirm = confirmOf([['a', 'severe', -0.2983]])
+	confirm.measurement = { shardCount: 1 }
+	confirm.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 1 }]
+	const result = resolveConfirmation(screen, confirm, {
 		acceptedRegressions: [{ cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
 		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
 	})
@@ -234,7 +246,13 @@ test('an acknowledged group stops failing the gate but keeps its true measured v
 test('a group past its bound fails, and an unacknowledged group still fails', () => {
 	const screen = screenOf([['a', 'cleared', 0]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
 	screen.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.2 }]
-	const past = resolveConfirmation(screen, null, {
+	screen.rows[0].group = 'warm/failure/all'
+	// Past its bound only on single-runner evidence: failing on a cross-shard aggregate would be
+	// the same overconfidence in the other direction.
+	const confirm = confirmOf([['a', 'severe', -0.2]])
+	confirm.measurement = { shardCount: 1 }
+	confirm.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.2, scenarios: 1 }]
+	const past = resolveConfirmation(screen, confirm, {
 		acceptedRegressions: [],
 		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
 	})
@@ -399,10 +417,23 @@ test('a group too large for one runner is review, and the arithmetic says why', 
 	assert.equal(plan.shardCount, 4, 'the cell confirmation still shards; only the group falls back')
 })
 
-test('an acknowledged group is never queued for confirmation', () => {
+test('an acknowledged group is queued for confirmation, so its entry stays falsifiable', () => {
+	// It is not queued to decide whether it blocks — it cannot block — but to decide whether the
+	// entry should still exist. An acknowledgement nobody ever remeasures cannot be retired.
 	const screen = screenWithGroup([['a', 'cleared', 0]], [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 2 }], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
 	const plan = confirmationPlan(screen, { acknowledgedGroups: new Set(['warm/failure/all']) })
-	assert.deepEqual([plan.groups, plan.unconfirmableGroups, plan.cells], [[], [], []])
+	assert.deepEqual(plan.groups, ['warm/failure/all'])
+	assert.deepEqual(plan.cells, ['a'], 'every cell of the group, so the confirmation can aggregate it')
+	assert.equal(plan.shardCount, 1, 'and on one runner, which is the only evidence that counts for a group')
+})
+
+test('an acknowledged cell is queued even when the row rule would skip it', () => {
+	// A cleared cell is exactly the case that decides whether its entry should still exist, and
+	// exactly the case the row selection ignores.
+	const screen = screenOf([['a', 'cleared', -0.002], ['b', 'cleared', 0]], { verdict: 'neutral' })
+	const plan = confirmationPlan(screen, { acknowledgedCells: new Set(['a']) })
+	assert.deepEqual(plan.cells, ['a'])
+	assert.deepEqual(plan.reasons.map(entry => entry.reason), ['acknowledged'])
 })
 
 test('the budget constants are the measured ones', () => {

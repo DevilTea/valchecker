@@ -84,14 +84,31 @@ test('a regression deeper than its bound still fails', () => {
 	assert.equal(Number(exceeded[0].depthPercent.toFixed(1)), 60)
 })
 
-test('an entry whose cell the screen has cleared is stale', () => {
-	// So the list shrinks as the code improves. Somebody optimizing the buffered path finds the
-	// gate red until they delete the entry, which is the only reliable way a list like this ever
-	// gets shorter.
-	const { stale, acknowledged } = evaluateAcceptedRegressions([row('map/collect-all', 'cleared', -0.004)])
+test('an entry is stale only when both measurements agree the cost is gone', () => {
+	// So the list shrinks as the code improves: somebody optimizing the buffered path finds the
+	// gate red until they delete the entry. Both measurements, because one is not enough in
+	// either direction — a cell keeps its shard across every repetition, so a runner-dependent
+	// shift in its ratio moves the estimate without widening the interval, which is why an
+	// acknowledged cell is always queued for the confirmation batch.
+	const { stale, acknowledged } = evaluateAcceptedRegressions([row('map/collect-all', 'cleared', -0.004, 'cleared', -0.002)])
 	assert.deepEqual(acknowledged, [])
-	assert.deepEqual(stale.map(record => [record.cell, record.screen]), [['map/collect-all', 'cleared']])
-	assert.deepEqual(evaluateAcceptedRegressions([row('set/collect-all', 'improvement', 0.2)]).stale.map(record => record.cell), ['set/collect-all'])
+	assert.deepEqual(stale.map(record => [record.cell, record.screen, record.confirm]), [['map/collect-all', 'cleared', 'cleared']])
+	assert.deepEqual(
+		evaluateAcceptedRegressions([row('set/collect-all', 'improvement', 0.2, 'improvement', 0.18)]).stale.map(record => record.cell),
+		['set/collect-all'],
+	)
+})
+
+test('one clear reading against a disagreeing or missing second is unassessed, not stale', () => {
+	// The asymmetry this removes: blocking already needed two readings, so retiring an entry
+	// cannot need one. An unassessed check is reported and neither passes nor fails.
+	const disagreeing = evaluateAcceptedRegressions([row('map/collect-all', 'cleared', -0.004, 'severe', -0.12)])
+	assert.deepEqual([disagreeing.stale, disagreeing.acknowledged], [[], []])
+	assert.match(disagreeing.unassessed[0].why, /the two do not agree that the cost is gone/)
+
+	const unmeasured = evaluateAcceptedRegressions([row('map/collect-all', 'cleared', -0.004)])
+	assert.deepEqual(unmeasured.stale, [])
+	assert.match(unmeasured.unassessed[0].why, /no confirmation batch measured it/)
 })
 
 test('a run that could not judge the cell leaves its entry alone', () => {
@@ -106,7 +123,7 @@ test('a run that could not judge the cell leaves its entry alone', () => {
 })
 
 test('a cell nobody measured is not evidence either way', () => {
-	assert.deepEqual(evaluateAcceptedRegressions([]), { acknowledged: [], exceeded: [], stale: [] })
+	assert.deepEqual(evaluateAcceptedRegressions([]), { acknowledged: [], exceeded: [], stale: [], unassessed: [] })
 	assert.deepEqual(evaluateAcceptedRegressions([row('string/valid', 'severe', -0.3)]).acknowledged, [], 'an unlisted cell is never acknowledged')
 })
 
@@ -138,26 +155,51 @@ test('the committed group list is well formed and names the cells that carry the
 	assert.match(entry.because, /map\/collect-all` for −0\.88pp/)
 })
 
-test('a group aggregate inside its bound is acknowledged, and past it is not', () => {
+/** A single-runner confirmation that measured the whole group, reporting the given aggregate. */
+function confirmedGroup(name, classification, delta) {
+	return { groups: [group(name, classification, delta)], singleRunner: true, measuredWhole: () => true }
+}
+
+test('a group aggregate is judged from the single-runner confirmation, inside its bound and past it', () => {
 	// `warm/failure/all` as CI measured it: -6.40%, interval [-7.1%, -5.7%], against a 12% bound.
-	const within = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'regression', -0.064)])
+	const screen = [group('warm/failure/all', 'regression', -0.064)]
+	const within = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.064))
 	assert.equal(within.acknowledged.length, 1)
 	assert.equal(within.acknowledged[0].bound, 12)
 	assert.equal(Number(within.acknowledged[0].depthPercent.toFixed(2)), 6.40)
-	assert.deepEqual(within.exceeded, [])
+	assert.deepEqual([within.exceeded, within.unassessed], [[], []])
 
-	const past = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'regression', -0.2)])
+	const past = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.2))
 	assert.deepEqual(past.acknowledged, [])
 	assert.equal(Number(past.exceeded[0].depthPercent.toFixed(1)), 20, 'a group effect roughly tripled still fails')
 })
 
-test('a group entry the screen has cleared is stale, and one it could not judge is untouched', () => {
-	const stale = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'cleared', -0.004)])
+test('a cross-shard screen decides nothing about an acknowledged group', () => {
+	// The correction, and the case that produced it. The same group was reported -3.93%
+	// inconclusive, then -6.40% regression with an interval of [-7.1%, -5.7%], then -3.44%
+	// cleared. `cleared` and `regression` cannot both describe one quantity, so the between-run
+	// variation exceeds the within-run interval — the between-runner fixed effect, demonstrated
+	// by this list's own rot check. If that instrument cannot block a group, it cannot retire one.
+	const screen = [group('warm/failure/all', 'cleared', -0.0344)]
+	const result = evaluateAcceptedGroupRegressions(screen, { groups: [], singleRunner: false, measuredWhole: () => false })
+	assert.deepEqual([result.stale, result.exceeded, result.acknowledged], [[], [], []])
+	assert.match(result.unassessed[0].why, /no single-runner confirmation measured this group/)
+})
+
+test('a group entry is stale when a single-runner batch clears it, and unassessed when it cannot judge', () => {
+	const screen = [group('warm/failure/all', 'regression', -0.064)]
+	const stale = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'cleared', -0.004))
 	assert.deepEqual(stale.stale.map(record => record.group), ['warm/failure/all'])
-	// The previous comparison put this same group at -3.93% and called it inconclusive. A group the
-	// run cannot judge is not evidence that the accepted cost is gone.
-	const undecided = evaluateAcceptedGroupRegressions([group('warm/failure/all', 'inconclusive', -0.0393)])
+
+	// An inconclusive confirmation neither confirms the accepted cost nor shows it gone.
+	const undecided = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'inconclusive', -0.0393))
 	assert.deepEqual([undecided.acknowledged, undecided.exceeded, undecided.stale], [[], [], []])
+	assert.match(undecided.unassessed[0].why, /reports it inconclusive/)
+
+	// A confirmation that measured only part of the group cannot speak for the group.
+	const partial = evaluateAcceptedGroupRegressions(screen, { groups: [group('warm/failure/all', 'cleared', -0.004)], singleRunner: true, measuredWhole: () => false })
+	assert.deepEqual(partial.stale, [])
+	assert.match(partial.unassessed[0].why, /did not measure every cell of the group/)
 })
 
 test('a group entry naming no group in the catalog is refused', () => {

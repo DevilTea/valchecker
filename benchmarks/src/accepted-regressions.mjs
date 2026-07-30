@@ -24,12 +24,27 @@
  *   affected group broadly regress?" are different questions, and an accepted answer to the
  *   first is not an answer to the second. A group is forgiven only by an entry that names the
  *   group, below, and the two lists are checked against each other.
- * - **Staleness is decided from the screen, never from the confirmation batch.** The
- *   confirmation batch measures a set chosen by the screen's outcome, and one batch clearing
- *   a cell the screen called severe is this gate's noise diagnostic rather than evidence the
- *   cost is gone — `json/invalid-json` did exactly that at −21.9% against +0.4%. A screen
- *   `cleared` is a statement about the whole run: the interval over every repetition sits
- *   inside ±5%, so the accepted cost is no longer measurable.
+ * - **Un-acknowledging needs the same evidence as blocking.** An entry is stale only when
+ *   both* measurements of it agree that the cost is gone: the screen and an independent
+ *   confirmation batch. A single measurement is not enough in either direction, and the
+ *   reason is empirical rather than tidy. The same group has now been reported by three
+ *   consecutive hosted runs as **−3.93% inconclusive**, **−6.40% regression with an interval
+ *   of [−7.1%, −5.7%]**, and **−3.44% cleared**. Under the interval rule `cleared` means the
+ *   whole interval sits inside ±5% and `regression` means it sits at or below −5%: those two
+ *   cannot both be true of one quantity, so the between-run variation exceeds what the
+ *   within-run interval captures. That is the between-runner fixed effect this repository
+ *   argued about, demonstrated by this list's own rot check rather than reasoned about — a
+ *   cell keeps its shard for every repetition, so a runner-dependent shift in its ratio moves
+ *   the estimate without widening the interval.
+ *
+ *   The consequence is a rule, not a caveat: if a cross-shard screen cannot support blocking
+ *   a group, it cannot support un-acknowledging one either. Otherwise the entry can neither
+ *   exist nor not exist without failing on some runs, which is a gate no author can satisfy —
+ *   and that is exactly what happened on `e4ed510`.
+ *
+ *   Where the evidence is missing the check is **unassessed** and says so. An unassessed rot
+ *   check that reads as "checked and fine" is the failure mode this mechanism exists to
+ *   avoid, so it is reported by name and never silently treated as a pass.
  * - **A cell nobody measured is not evidence either way.** A scoped run that never selected
  *   an acknowledged cell leaves its entry untouched rather than stale.
  */
@@ -110,6 +125,9 @@ export const acceptedGroupRegressions = [
 ]
 
 const minimumReasonLength = 200
+
+/** A classification that says the cost is not there: the only kind that can retire an entry. */
+const saysCostIsGone = classification => classification === 'cleared' || classification === 'improvement'
 
 /** Rows whose measurement claims a regression, which is what an acknowledgement can cover. */
 function claimsRegression(row) {
@@ -231,29 +249,67 @@ export function groupsWithoutAcknowledgedCells(
  * the screen decisively reports the group is not down at all. A group the run could not judge
  * leaves its entry untouched.
  */
-export function evaluateAcceptedGroupRegressions(groups, entries = acceptedGroupRegressions) {
-	const byGroup = new Map(entries.map(entry => [entry.group, entry]))
+/**
+ * How the group list stands, judged **only** on single-runner confirmation evidence.
+ *
+ * Nothing about an acknowledged group is decided from the cross-shard screen — not that it is
+ * still regressing, not that it has stopped, and not that it has breached its bound. The screen
+ * mixes runners, and a cell keeps its shard across every repetition, so its group aggregate can
+ * be tight and displaced at the same time; the three readings of `warm/failure/all` in the
+ * module header are what that looks like in practice. Blocking already required a single-runner
+ * batch, and the same evidence is required to retire an entry or to fail on its bound.
+ *
+ * `confirmation` carries the confirmation comparison's group rows, whether it ran on one
+ * runner, and whether it measured the whole group. Anything short of all three leaves the entry
+ * **unassessed**, reported by name.
+ */
+export function evaluateAcceptedGroupRegressions(screenGroups, confirmation, entries = acceptedGroupRegressions) {
+	const { groups: confirmGroups = [], singleRunner = false, measuredWhole = () => false } = confirmation ?? {}
+	const byName = new Map(confirmGroups.map(group => [group.group, group]))
+	const screenByName = new Map(screenGroups.map(group => [group.group, group]))
 	const acknowledged = []
 	const exceeded = []
 	const stale = []
-	for (const group of groups) {
-		const entry = byGroup.get(group.group)
-		if (entry == null || group.delta == null)
+	const unassessed = []
+	for (const entry of entries) {
+		const screen = screenByName.get(entry.group) ?? null
+		if (screen == null)
 			continue
-		if (group.classification === 'cleared' || group.classification === 'improvement') {
-			stale.push({ group: entry.group, screen: group.classification, screenDelta: group.delta })
+		const confirmed = byName.get(entry.group) ?? null
+		if (!singleRunner || !measuredWhole(entry.group) || confirmed == null || confirmed.delta == null) {
+			unassessed.push({
+				group: entry.group,
+				screen: screen.classification,
+				screenDelta: screen.delta,
+				why: !singleRunner
+					? 'no single-runner confirmation measured this group, and a cross-shard screen cannot retire an entry it could not use to block one'
+					: !measuredWhole(entry.group)
+							? 'the confirmation batch did not measure every cell of the group, so its aggregate would be over an outcome-selected subset'
+							: 'the confirmation batch produced no aggregate for this group',
+			})
 			continue
 		}
-		if (group.classification !== 'regression')
+		if (saysCostIsGone(confirmed.classification)) {
+			stale.push({ group: entry.group, screen: confirmed.classification, screenDelta: confirmed.delta })
 			continue
-		const depth = Math.max(0, -group.delta * 100)
+		}
+		if (confirmed.classification !== 'regression') {
+			unassessed.push({
+				group: entry.group,
+				screen: confirmed.classification,
+				screenDelta: confirmed.delta,
+				why: `the single-runner confirmation reports it ${confirmed.classification}, which neither confirms the accepted cost nor shows it gone`,
+			})
+			continue
+		}
+		const depth = Math.max(0, -confirmed.delta * 100)
 		const record = { group: entry.group, bound: entry.maxRegressionPercent, depthPercent: depth, because: entry.because }
 		if (depth > entry.maxRegressionPercent)
 			exceeded.push(record)
 		else
 			acknowledged.push(record)
 	}
-	return { acknowledged, exceeded, stale }
+	return { acknowledged, exceeded, stale, unassessed }
 }
 
 export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions) {
@@ -261,12 +317,23 @@ export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions)
 	const acknowledged = []
 	const exceeded = []
 	const stale = []
+	const unassessed = []
 	for (const row of rows) {
 		const entry = byCell.get(row.scenario)
 		if (entry == null)
 			continue
-		if (row.screen === 'cleared' || row.screen === 'improvement') {
-			stale.push({ cell: entry.cell, screen: row.screen, screenDelta: row.screenDelta })
+		if (saysCostIsGone(row.screen)) {
+			// Both measurements, or neither. A cleared screen is one measurement on one shard, and
+			// a cell keeps that shard across every repetition, so its interval cannot see a
+			// runner-dependent shift in its own ratio — the same defect that makes a cross-shard
+			// group interval overconfident. An acknowledged cell is therefore always queued for the
+			// confirmation batch, so this normally has two readings to compare rather than one.
+			if (row.confirm == null)
+				unassessed.push({ cell: entry.cell, why: `the screen reports it ${row.screen} at ${(row.screenDelta * 100).toFixed(2)}%, but no confirmation batch measured it, so one reading cannot retire the entry` })
+			else if (saysCostIsGone(row.confirm))
+				stale.push({ cell: entry.cell, screen: row.screen, screenDelta: row.screenDelta, confirm: row.confirm, confirmDelta: row.confirmDelta })
+			else
+				unassessed.push({ cell: entry.cell, why: `the screen reports it ${row.screen} at ${(row.screenDelta * 100).toFixed(2)}% while the confirmation batch reports it ${row.confirm}, so the two do not agree that the cost is gone` })
 			continue
 		}
 		if (!claimsRegression(row))
@@ -278,5 +345,5 @@ export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions)
 		else
 			acknowledged.push(record)
 	}
-	return { acknowledged, exceeded, stale }
+	return { acknowledged, exceeded, stale, unassessed }
 }

@@ -126,14 +126,26 @@ export function groupsNeedingConfirmation(screen, acknowledgedGroups = new Set()
  * to `review`: a cross-shard hosted-runner group regression is then reported as evidence that
  * cannot support blocking, rather than blocking on it anyway.
  */
-export function confirmationPlan(screen, { acknowledgedGroups = new Set(), repetitions = 5 } = {}) {
+export function confirmationPlan(screen, { acknowledgedGroups = new Set(), acknowledgedCells = new Set(), repetitions = 5 } = {}) {
 	const cellSelection = confirmationSelection(screen)
-	const groups = groupsNeedingConfirmation(screen, acknowledgedGroups)
+	// A triggered group needs confirming before it can block. An **acknowledged** group needs
+	// confirming for the mirror reason: its entry can only be retired on single-runner evidence,
+	// so a group nobody remeasures has an unfalsifiable acknowledgement. Same for an acknowledged
+	// cell, which the row selection would otherwise skip whenever it lands cleared — exactly the
+	// case that decides whether the entry should still exist.
+	const groups = [...new Set([
+		...groupsNeedingConfirmation(screen, acknowledgedGroups),
+		...(screen.groups ?? []).filter(group => acknowledgedGroups.has(group.group))
+			.map(group => group.group),
+	])]
 	const groupCells = (screen.rows ?? [])
 		.filter(row => groups.includes(row.group))
 		.map(row => ({ scenario: row.scenario, reason: 'group' }))
+	const acknowledgedRows = (screen.rows ?? [])
+		.filter(row => acknowledgedCells.has(row.scenario))
+		.map(row => ({ scenario: row.scenario, reason: 'acknowledged' }))
 	const merged = new Map()
-	for (const entry of [...cellSelection, ...groupCells]) {
+	for (const entry of [...cellSelection, ...groupCells, ...acknowledgedRows]) {
 		if (!merged.has(entry.scenario))
 			merged.set(entry.scenario, entry)
 	}
@@ -143,9 +155,14 @@ export function confirmationPlan(screen, { acknowledgedGroups = new Set(), repet
 	return {
 		cells: cells.map(entry => entry.scenario),
 		reasons: cells,
-		/** The groups this batch can settle. Empty when the batch does not fit one runner. */
+		/** The groups this batch can settle — triggered or acknowledged. Empty when it does not fit one runner. */
 		groups: confirmsGroups ? groups : [],
-		/** The groups that triggered but cannot be confirmed, so they are `review` rather than blocking. */
+		/**
+		 * The groups this batch cannot settle. A triggered one becomes `review` instead of
+		 * blocking; an acknowledged one has its rot check reported as unassessed. Either way the
+		 * report says which, because a group too large to confirm on one runner is a group whose
+		 * bounded acknowledgement cannot be checked on this hardware at all.
+		 */
 		unconfirmableGroups: confirmsGroups ? [] : groups,
 		// One runner whenever a group is at stake, up to four otherwise: a cell's confirmation is
 		// a per-cell paired ratio, which sharding does not disturb.
@@ -232,9 +249,22 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	// acknowledged cells out of the aggregate instead would condition it on what was previously
 	// forgiven and dilute whatever lands in the group next.
 	const groupMalformed = groupEntries === undefined ? malformedAcceptedGroupRegressions() : malformedAcceptedGroupRegressions(groupEntries)
+	// Every judgement about an acknowledged group reads the single-runner confirmation, never the
+	// cross-shard screen: retiring an entry is as consequential as blocking on one, and the screen
+	// is the instrument that reported this group `regression` and `cleared` two runs apart.
+	const confirmationContext = {
+		groups: confirm?.groups ?? [],
+		singleRunner: confirm?.measurement?.shardCount === 1,
+		measuredWhole: (group) => {
+			const members = (screen.rows ?? []).filter(row => row.group === group)
+				.map(row => row.scenario)
+			const measured = new Set((confirm?.rows ?? []).map(row => row.scenario))
+			return members.length > 0 && members.every(cell => measured.has(cell))
+		},
+	}
 	const acceptedGroups = groupEntries === undefined
-		? evaluateAcceptedGroupRegressions(screen.groups ?? [])
-		: evaluateAcceptedGroupRegressions(screen.groups ?? [], groupEntries)
+		? evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext)
+		: evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext, groupEntries)
 	const acknowledgedGroups = new Set(acceptedGroups.acknowledged.map(record => record.group))
 	const rows = selection.map(({ scenario, reason }) => {
 		const screenRow = screen.rows.find(row => row.scenario === scenario)
@@ -278,7 +308,14 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		...accepted.exceeded.map(record => `${record.cell} regressed ${record.depthPercent.toFixed(2)}%, past the ${record.bound}% this repository accepts for it`),
 		...accepted.stale.map(record => `the accepted regression for ${record.cell} is stale — the screen now reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
 		...acceptedGroups.exceeded.map(record => `the group ${record.group} regressed ${record.depthPercent.toFixed(2)}%, past the ${record.bound}% this repository accepts for it`),
-		...acceptedGroups.stale.map(record => `the accepted group regression for ${record.group} is stale — the screen now reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
+		...acceptedGroups.stale.map(record => `the accepted group regression for ${record.group} is stale — an independent single-runner batch reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
+	]
+	// Reported, and deliberately not a failure. A rot check with no evidence behind it must not
+	// fail the gate — that is the unsatisfiable gate this rule exists to remove — and must not
+	// read as a pass either, which is why it is named in the report.
+	const unassessedAcknowledgements = [
+		...accepted.unassessed.map(record => `${record.cell}: ${record.why}`),
+		...acceptedGroups.unassessed.map(record => `${record.group}: ${record.why}`),
 	]
 
 	// The groups whose trigger still stands. An acknowledged group leaves this list and is
@@ -379,6 +416,8 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		acknowledgedGroups: acceptedGroups.acknowledged,
 		/** Ways either acknowledgement list is wrong. Each one fails the gate. */
 		acknowledgementProblems: listProblems,
+		/** Rot checks this run had no evidence to perform. Reported, never a pass, never a failure. */
+		unassessedAcknowledgements,
 	}
 }
 
@@ -475,6 +514,17 @@ export function renderConfirmationMarkdown(result) {
 		)
 		for (const record of result.acknowledgedGroups)
 			lines.push(`| \`${record.group}\` | −${record.depthPercent.toFixed(2)}% | −${record.bound}% | ${markdownCell(record.because)} |`)
+	}
+
+	if (result.unassessedAcknowledgements.length > 0) {
+		lines.push(
+			'',
+			`> **${result.unassessedAcknowledgements.length} rot check${result.unassessedAcknowledgements.length === 1 ? '' : 's'} this run could not perform.** `
+			+ `${result.unassessedAcknowledgements.map(problem => `\`${problem}\``)
+				.join(' ')} Retiring an acknowledgement is as consequential as blocking on one, so it needs the same evidence: `
+				+ 'both measurements agreeing for a cell, and a single-runner batch for a group. Neither a pass nor a failure — an unassessed check that '
+				+ 'read as "checked and fine" is the failure mode this list exists to avoid.',
+		)
 	}
 
 	if (result.acknowledgementProblems.length > 0) {

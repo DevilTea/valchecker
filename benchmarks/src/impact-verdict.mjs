@@ -566,8 +566,10 @@ function presenceLines(result) {
 	]
 	if (diff == null) {
 		lines.push(
-			'> **No catalog diff was supplied**, so this run cannot say whether a cell was added or deleted between the two revisions. '
-			+ 'That is a gap in the report rather than a statement that nothing moved, which is why it prints `n/a` instead of `0`.',
+			'> **No catalog diff was supplied**, so this comparison cannot say whether a cell was added or deleted between the two revisions — the '
+			+ 'runtime counts above never can, because the apparatus comes from the candidate ref. That is a gap rather than a statement that nothing '
+			+ 'moved, which is why the line prints `n/a` instead of `0`. The screen comparison of a pull request passes `--require-catalog-diff` and '
+			+ 'fails outright rather than reaching this note; a confirmation comparison measures a subset and audits nothing, so it reaches it by design.',
 			'',
 		)
 	}
