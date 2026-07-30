@@ -82,9 +82,26 @@ export function median(values) {
 }
 
 /**
- * Half-width of the 95% confidence interval of the mean, as a percentage of the
- * mean. A single sample has no spread to estimate, so it is reported as
+ * Half-width of the 95% confidence interval of the mean, in the units of the
+ * values. A single sample has no spread to estimate, so it is reported as
  * infinitely uncertain rather than as perfectly certain.
+ *
+ * This is the primitive; the relative form below divides it by the mean. Keeping
+ * them apart matters because the paired estimator works in log space, where the
+ * mean is near zero for a change of nothing and a *relative* half-width would be
+ * unbounded on exactly the measurements that are most certain.
+ */
+export function confidenceHalfWidth(values) {
+	if (values.length < 2)
+		return Number.POSITIVE_INFINITY
+	const average = mean(values)
+	const variance = values.reduce((total, value) => total + (value - average) ** 2, 0) / (values.length - 1)
+	return criticalValue(values.length) * Math.sqrt(variance) / Math.sqrt(values.length)
+}
+
+/**
+ * Half-width of the 95% confidence interval of the mean, as a percentage of the
+ * mean.
  */
 export function relativeMarginOfError(values) {
 	if (values.length < 2)
@@ -92,6 +109,42 @@ export function relativeMarginOfError(values) {
 	const average = mean(values)
 	if (average === 0)
 		return 0
-	const variance = values.reduce((total, value) => total + (value - average) ** 2, 0) / (values.length - 1)
-	return criticalValue(values.length) * Math.sqrt(variance) / Math.sqrt(values.length) / Math.abs(average) * 100
+	return confidenceHalfWidth(values) / Math.abs(average) * 100
+}
+
+/**
+ * The one paired estimator: the mean of per-repetition **log ratios**, its
+ * Student-t interval, and both converted back to ratios.
+ *
+ * The comparison used to carry two estimands at once — an interval centred on the
+ * mean of the paired ratios, and a point estimate that was their median — so the
+ * number a reader saw was not the number the interval was about, and a row could
+ * in principle be classified against one while being reported as the other. One
+ * decision needs one estimator.
+ *
+ * Why the log ratio is the one to keep. A ratio is not symmetric in the thing being
+ * measured: a candidate twice as fast is 2.0 and a candidate half as fast is 0.5,
+ * so an arithmetic mean of ratios and an interval built from their spread both
+ * lean toward improvements. In logs the two are +ln 2 and −ln 2, the mean of logs
+ * is the log of the geometric mean, and `exp` of it is the ratio to report. It also
+ * composes: the group aggregate is a mean of these same numbers, which is why the
+ * group can be an estimator of its own rather than a summary of decided rows.
+ *
+ * Student's t stays, for the reason this module exists: five repetitions estimate
+ * their own spread, and the normal quantile understates a five-sample interval by
+ * 42%. The correction here is coherence, not another threshold.
+ */
+export function pairedLogRatioEstimate(ratios) {
+	const logRatios = ratios.map(Math.log)
+	const logMean = mean(logRatios)
+	const halfWidth = confidenceHalfWidth(logRatios)
+	return {
+		logRatios,
+		logMean,
+		/** Half-width of the log interval, which is a relative half-width already. */
+		halfWidth,
+		ratio: Math.exp(logMean),
+		ratioLow: Math.exp(logMean - halfWidth),
+		ratioHigh: Math.exp(logMean + halfWidth),
+	}
 }

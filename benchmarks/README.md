@@ -194,15 +194,17 @@ pnpm bench:impact-scope --base main --head HEAD
 
 Isolation still applies: the gate measures each scenario in its own process like every other run, which at 143 ms per cell costs about 4 minutes across the 1,690 cells of an unscoped run's ten side-runs, and proportionally less for a scoped one. A scenario therefore costs about 19.7 s of the job — 1.83 s of sampling plus 0.14 s of process isolation, ten times over — which is the number to multiply when reading a **Scenario scope** count: the 30-scenario canary floor is about ten minutes, and the full 170 about 55.
 
-Valchecker before/after uses paired independent process runs. Each candidate result is divided by the adjacent base result from the same repetition, and base/candidate order alternates to reduce thermal, scheduler, and runner drift. The reported change is the median of the paired ratios. Paired RME uses a 95% Student’s t interval, which is intentionally conservative for the small sample; separate base/candidate medians, cross-run variation, and within-process sample RME remain in the JSON evidence.
+Valchecker before/after uses paired independent process runs. Each candidate result is divided by the adjacent base result from the same repetition, and base/candidate order alternates by repetition parity to reduce thermal, scheduler, and runner drift.
 
-The impact report classifies a scenario only when its paired-ratio RME is at or below 5%:
+**One estimator, in log space.** Each repetition contributes `d_r = ln(candidate_r / baseline_r)`; the estimate is `mean(d)` with a 95% Student’s t interval, and both are converted back with `exp`. So the reported change is `exp(mean(d)) − 1` and the interval is the same statistic's bounds — not, as before, an interval centred on the mean of the paired ratios beside a point estimate that was their median. Two estimands could disagree about a row, and the one that decided was not the one on display. The log form also makes improvement and regression multiplicatively symmetric (a doubling and a halving are `±ln 2`, not `+1.0` and `−0.5`) and composes with the geometric aggregate the group verdict uses. Student’s t stays: five repetitions estimate their own spread, and the normal quantile understates a five-sample interval by 42%. `pairedRme` is that half-width in percent, reported as a diagnostic; separate base/candidate medians, cross-run variation, and within-process sample RME remain in the JSON evidence.
 
-- less than 3%: normally noise
-- 3–5%: requires corroboration from adjacent scenarios or independent workflow runs
-- at least 5%: meaningful scenario-level change
-- at least 10% regression: severe scenario regression
-- at least 5% geometric-mean regression across two or more stable scenarios in a benchmark group: severe group regression
+A row is judged by **where its whole interval lies**, never by the point estimate alone:
+
+- the whole interval inside ±5%: `cleared`, however imprecise
+- the whole interval at or below −5%: `regression`
+- a regression whose point estimate is also at or below −10%: `severe`, which fails the gate
+- an interval spanning a threshold: `inconclusive` — not a pass, named in the report, and the input to the confirmation stage
+- at least a 5% geometric-mean regression across a benchmark group, judged as its own interval: severe group regression
 
 Severe regressions fail the workflow when `fail_on_regression` is enabled (always on for pull requests). Mixed improvements and regressions remain a reviewer decision. A performance change is valuable only when the target workload and tradeoff are explicit:
 

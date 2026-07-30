@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { aggregateRuns, compareResults, groupTotalsOf, renderMarkdown } from './impact-verdict.mjs'
-import { criticalValue } from './statistics.mjs'
+import { criticalValue, mean } from './statistics.mjs'
 
 /**
  * What a reader of a passing gate is entitled to know: which scenarios were compared,
@@ -286,19 +286,20 @@ test('group totals are counted from a catalog', () => {
  * The interval rule, driven by the two hosted-runner null runs (`before == after`, so
  * every non-neutral result in them is false by construction).
  *
- * Five paired ratios with a chosen median and a chosen paired RME. The construction is
- * symmetric — `[m-a, m-b, m, m+b, m+a]` — so the median and the mean are both `m`, and
- * `(a² + b²)/2 = sd²` with `b = sd/2` fixes the spread. That makes a row's reported delta
- * and its interval both exactly what the test asks for, which is what lets these
- * expectations be read against the numbers the null runs actually produced.
+ * Five paired ratios with a chosen reported delta and a chosen paired RME. The estimator
+ * is the mean of the log ratios and its t interval, so the construction is symmetric **in
+ * logs** — `[m-a, m-b, m, m+b, m+a]` around `m = ln(1 + delta)`, with `(a² + b²)/2 = sd²`
+ * and `b = sd/2`. Then `exp(mean)` is exactly `1 + delta` and the half-width is exactly
+ * the requested percentage, which is what lets these expectations be read directly against
+ * the numbers the null runs produced.
  */
 function ratiosWith(deltaPercent, rmePercent) {
-	const centre = 1 + deltaPercent / 100
+	const centre = Math.log(1 + deltaPercent / 100)
 	const halfWidthPerSd = criticalValue(5) / Math.sqrt(5)
-	const sd = rmePercent / 100 * Math.abs(centre) / halfWidthPerSd
+	const sd = rmePercent / 100 / halfWidthPerSd
 	const b = sd / 2
 	const a = Math.sqrt(1.75) * sd
-	return [centre - a, centre - b, centre, centre + b, centre + a]
+	return [centre - a, centre - b, centre, centre + b, centre + a].map(Math.exp)
 }
 
 /** One row per entry, with the candidate side moving by the given ratio each repetition. */
@@ -311,6 +312,40 @@ function comparePaired(entries, groupTotals) {
 		{ groupTotals: new Map(groupTotals) },
 	)
 }
+
+test('the point estimate and the interval are one statistic', () => {
+	// The inconsistency this replaces: the interval was centred on the mean of the paired
+	// ratios while the reported and severe-triggering point estimate was their median, so
+	// the number a reader saw was not the number the interval was about. Here the reported
+	// ratio is `exp` of the mean of the log ratios and the interval is `exp` of that mean
+	// plus and minus its half-width, which is what makes the interval symmetric around the
+	// point estimate multiplicatively — the ratio of each bound to the estimate is the same.
+	const ratios = ratiosWith(-8, 4)
+	const result = comparePaired([['a', 'warm/success', ratios]], [['warm/success', 8]])
+	const [row] = result.rows
+	assert.equal(Number(row.delta.toFixed(6)), -0.08)
+	assert.deepEqual(row.logRatios.map(value => Number(value.toFixed(12))), ratios.map(ratio => Number(Math.log(ratio)
+		.toFixed(12))))
+	assert.ok(Math.abs(mean(row.logRatios) - Math.log(1 + row.delta)) < 1e-12, 'the reported ratio must be exp of the mean log ratio')
+	const toLow = (1 + row.intervalLow) / (1 + row.delta)
+	const toHigh = (1 + row.intervalHigh) / (1 + row.delta)
+	assert.equal(Number((toLow * toHigh).toFixed(12)), 1, 'the two bounds must be reciprocal multiples of the estimate')
+	assert.equal(Number((Math.log(toHigh) * 100).toFixed(6)), Number(row.pairedRme.toFixed(6)))
+})
+
+test('an improvement and the regression that undoes it are mirror images', () => {
+	// Multiplicative symmetry, which is the property the log form buys. A candidate 25%
+	// faster and a candidate whose ratio is the reciprocal produce deltas of +25% and -20%,
+	// and log-mean estimates that are exact negatives — so neither direction is favoured by
+	// the estimator, which is what lets a group mean of these numbers mean anything.
+	const faster = comparePaired([['a', 'warm/success', ratiosWith(25, 2)]], [['warm/success', 8]]).rows[0]
+	const slower = comparePaired([['a', 'warm/success', ratiosWith(25, 2)
+		.map(ratio => 1 / ratio)]], [['warm/success', 8]]).rows[0]
+	assert.ok(Math.abs(Math.log(1 + faster.delta) + Math.log(1 + slower.delta)) < 1e-12, 'the two log-mean estimates must be exact negatives')
+	assert.equal(Number(slower.delta.toFixed(6)), -0.2)
+	assert.equal(Number(faster.pairedRme.toFixed(9)), Number(slower.pairedRme.toFixed(9)))
+	assert.deepEqual([faster.classification, slower.classification], ['improvement', 'severe'])
+})
 
 test('a precise false positive is not called a regression', () => {
 	// `construct/tuple` in null run A: delta -5.32% with a paired RME of 3.12%, precise by

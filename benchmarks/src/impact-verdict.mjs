@@ -8,7 +8,7 @@
  * `separation.mjs` and `comparability.mjs` were split out.
  */
 import { assertComparable, measurementIdentity } from './comparability.mjs'
-import { mean, median, relativeMarginOfError } from './statistics.mjs'
+import { median, pairedLogRatioEstimate, relativeMarginOfError } from './statistics.mjs'
 
 /**
  * A **reported diagnostic**, not the gate's decision input.
@@ -227,23 +227,22 @@ export function groupTotalsOf(catalog) {
  * 15.72, −6.07% at 6.15, −5.64% at 11.09) all have intervals spanning everything, so all
  * four land `inconclusive` here — which is what a run that cannot judge them should say.
  *
- * The interval is centred on the mean of the paired ratios, because that is what
- * `relativeMarginOfError` is the half-width *of* — a t interval for the mean. The
- * reported `delta` stays the median, which is the robust point estimate the report has
- * always shown; where the two disagree the classification is the conservative one,
- * because every rule below requires the whole interval to be on one side of a threshold.
+ * **One estimator, in log space.** The point estimate and the interval are now the same
+ * statistic: `exp` of the mean of the per-repetition log ratios, and `exp` of that mean
+ * plus and minus its Student-t half-width. It used to be two — an interval centred on the
+ * mean of the paired ratios while the reported and severe-triggering point estimate was
+ * their median — so the number a reader saw was not the number the interval was about.
+ * `pairedLogRatioEstimate` in `statistics.mjs` holds the definition and the reasons.
  *
  * `severe` additionally requires the point estimate past −10%, so the one rule that fails
  * the build keeps its stated meaning. It is still strictly more sensitive than the rule it
  * replaces, which demanded precision on top.
  */
-function classifyRow(pairedRatios, ratio) {
-	const centre = mean(pairedRatios)
-	const halfWidth = relativeMarginOfError(pairedRatios) / 100 * Math.abs(centre)
-	const low = centre - halfWidth - 1
-	const high = centre + halfWidth - 1
+function classifyRow(estimate) {
+	const low = estimate.ratioLow - 1
+	const high = estimate.ratioHigh - 1
 	const meaningful = meaningfulThreshold / 100
-	const delta = ratio - 1
+	const delta = estimate.ratio - 1
 
 	if (high <= -meaningful) {
 		return {
@@ -301,10 +300,15 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 				throw new Error(`Metadata mismatch for ${base.scenario}.${field}`)
 		}
 		const pairedRatios = head.runMedians.map((value, index) => value / base.runMedians[index])
-		const ratio = median(pairedRatios)
+		const estimate = pairedLogRatioEstimate(pairedRatios)
+		const ratio = estimate.ratio
 		const delta = ratio - 1
-		const pairedRme = relativeMarginOfError(pairedRatios)
-		const classified = classifyRow(pairedRatios, ratio)
+		// The same half-width the interval is built from, in percent. It coincides with the
+		// relative margin of error of the ratios to first order — the null run's 3.12% cell
+		// reads 3.12% here — and it is now the spread of the estimator that decides rather
+		// than a second one computed beside it. Still a diagnostic; it decides nothing.
+		const pairedRme = estimate.halfWidth * 100
+		const classified = classifyRow(estimate)
 		return {
 			scenario: base.scenario,
 			category: base.category,
@@ -319,6 +323,8 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 			candidateCrossRunRme: head.crossRunRme,
 			pairedRme,
 			pairedRatios,
+			/** The estimator's own sample: one log ratio per repetition, in repetition order. */
+			logRatios: estimate.logRatios,
 			ratio,
 			delta,
 			/** The 95% interval the same repetitions establish, as a change like `delta`. */
@@ -508,7 +514,9 @@ export function renderMarkdown(result) {
 		`A row is judged by its **95% interval**, not by its point estimate: **cleared** when the whole interval is inside ±${meaningfulThreshold}%, `
 		+ `**regression** when the whole interval is at or below −${meaningfulThreshold}%, **severe** when it is a regression and the point estimate is at or below `
 		+ `−${Math.abs(severeScenarioRegression)}%, and **inconclusive** when the interval spans a threshold. An inconclusive row is **not a pass** — `
-		+ `it is a row this run could not judge. Paired RME is reported as a diagnostic and decides nothing.`,
+		+ `it is a row this run could not judge. The point estimate and the interval are one statistic: \`exp\` of the mean of the per-repetition `
+		+ `log ratios \`ln(candidate/baseline)\`, and \`exp\` of that mean plus and minus its Student-t half-width. Paired RME is that half-width, `
+		+ `reported as a diagnostic; it decides nothing.`,
 		'',
 		'## Benchmark-group tradeoffs',
 		'',
@@ -572,8 +580,8 @@ export function renderMarkdown(result) {
 		'',
 		'## Decision rubric',
 		'',
-		'- Each observation is a candidate/base ratio from adjacent independent processes; the reported change is the median paired ratio.',
-		'- The interval is a 95% Student’s t interval over those paired ratios, which is intentionally conservative at five process pairs.',
+		'- Each observation is a candidate/base ratio from adjacent independent processes, one per repetition, with the sides counterbalanced by repetition parity so a monotonic drift does not land on one side.',
+		'- The estimator is the mean of `ln(candidate/baseline)` over those repetitions. The reported change is `exp` of it, and the interval is `exp` of it plus and minus a 95% Student’s t half-width — one statistic, so improvement and regression are multiplicatively symmetric and a group aggregate is a mean of the same numbers.',
 		'- A row is decided by whether its whole interval is on one side of a threshold, never by the point estimate alone. A point estimate past a threshold with an interval straddling it is `inconclusive`, which is what a run that cannot judge a row should say.',
 		'- Group-level gates keep success, library-default failure, first-issue failure, and all-issues failure tradeoffs separate.',
 		'- A group aggregate covers the scenarios that ran; read it with the coverage column beside it.',
