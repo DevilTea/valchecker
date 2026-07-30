@@ -130,7 +130,8 @@ export function formatInterval(row) {
 		: 'unbounded'
 }
 
-function markdownCell(value) {
+/** One table cell's text, with the two characters a Markdown table cannot hold escaped. */
+export function markdownCell(value) {
 	return String(value)
 		.replaceAll('|', '\\|')
 		.replaceAll('\n', ' ')

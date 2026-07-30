@@ -100,6 +100,10 @@ else {
 		console.error(`[confirm] unresolved: ${row.scenario} — screen ${row.screen} ${(row.screenDelta * 100).toFixed(2)}%, `
 			+ `confirm ${row.confirm ?? 'not measured'}${row.confirmDelta == null ? '' : ` ${(row.confirmDelta * 100).toFixed(2)}%`}`)
 	}
+	for (const record of result.acknowledged)
+		console.error(`[confirm] accepted regression: ${record.cell} — measured -${record.depthPercent.toFixed(2)}%, accepted to -${record.bound}%`)
+	for (const problem of result.acknowledgementProblems)
+		console.error(`[confirm] accepted-regression list: ${problem}`)
 	if (result.severeGroups.length > 0)
 		console.error(`[confirm] severe group${result.severeGroups.length === 1 ? '' : 's'} from the screen, not confirmed here: ${result.severeGroups.join(', ')}`)
 	if (options.failOnRegression && result.verdict === 'regression')

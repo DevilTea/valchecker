@@ -244,6 +244,28 @@ for (const entry of withoutSuccessCell) {
 		errors.push(`scripts/check-bench-cells.ts: the entry for '${entry.step}' names no built-in step. Remove it, or correct the name.`)
 }
 
+// The half of the accepted-regression list's rot check that needs no measurement. An entry
+// naming a cell the catalog no longer declares — renamed, retired, or misspelled from the
+// start — is an acknowledgement of nothing, and it would sit there accepting a regression on a
+// cell that does not exist while the real one goes unwatched. Decided here rather than in the
+// comparison because the catalog alone settles it, so it fails in `pnpm verify` in seconds
+// instead of half an hour into a CI measurement.
+if (driven != null) {
+	const acknowledgements = (await import(pathToFileURL(path.join(root, 'benchmarks/src/accepted-regressions.mjs')).href)) as {
+		acceptedRegressions: { cell: string }[]
+		malformedAcceptedRegressions: () => string[]
+		unknownAcceptedRegressions: (cells: { id: string }[]) => string[]
+	}
+	for (const problem of acknowledgements.malformedAcceptedRegressions())
+		errors.push(`benchmarks/src/accepted-regressions.ts: ${problem}.`)
+	for (const cell of acknowledgements.unknownAcceptedRegressions(gateCells)) {
+		errors.push(
+			`benchmarks/src/accepted-regressions.mjs: the accepted-regression entry for '${cell}' names no cell the catalog declares. `
+			+ 'Remove it, or correct the id. An entry for a cell that does not exist accepts nothing and hides that the regression it was written for is no longer watched.',
+		)
+	}
+}
+
 if (driven != null) {
 	for (const cell of driven.cells) {
 		if (cell.verification != null) {

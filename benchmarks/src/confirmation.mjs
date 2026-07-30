@@ -44,7 +44,8 @@
  * group, and this module carries it through unchanged.
  */
 
-import { meaningfulThreshold } from './impact-verdict.mjs'
+import { evaluateAcceptedRegressions, malformedAcceptedRegressions } from './accepted-regressions.mjs'
+import { markdownCell, meaningfulThreshold } from './impact-verdict.mjs'
 
 /**
  * Which cells the confirmation batch measures.
@@ -104,9 +105,21 @@ function resolutionOf(screenClassification, confirmClassification) {
  * pull request and is not the same as a confirmation that found nothing — the report says
  * which.
  */
-export function resolveConfirmation(screen, confirm) {
+export function resolveConfirmation(screen, confirm, { acceptedRegressions: entries } = {}) {
 	const selection = confirmationSelection(screen)
 	const confirmByScenario = new Map((confirm?.rows ?? []).map(row => [row.scenario, row]))
+	// Over every measured cell, because a stale entry is one whose cell the screen *cleared*,
+	// and a cleared cell is never in the confirmation selection.
+	const measured = screen.rows.map(row => ({
+		scenario: row.scenario,
+		screen: row.classification,
+		screenDelta: row.delta,
+		confirm: confirmByScenario.get(row.scenario)?.classification ?? null,
+		confirmDelta: confirmByScenario.get(row.scenario)?.delta ?? null,
+	}))
+	const malformed = entries === undefined ? malformedAcceptedRegressions() : malformedAcceptedRegressions(entries)
+	const accepted = entries === undefined ? evaluateAcceptedRegressions(measured) : evaluateAcceptedRegressions(measured, entries)
+	const acknowledgedCells = new Set(accepted.acknowledged.map(record => record.cell))
 	const rows = selection.map(({ scenario, reason }) => {
 		const screenRow = screen.rows.find(row => row.scenario === scenario)
 		const confirmRow = confirmByScenario.get(scenario) ?? null
@@ -117,7 +130,13 @@ export function resolveConfirmation(screen, confirm) {
 			screenDelta: screenRow.delta,
 			confirm: confirmRow?.classification ?? null,
 			confirmDelta: confirmRow?.delta ?? null,
-			resolution: confirm == null ? 'unconfirmed' : resolutionOf(screenRow.classification, confirmRow?.classification),
+			resolution: acknowledgedCells.has(scenario)
+				// An acknowledged row keeps its two classifications and stops being a verdict input.
+				// It is never dropped from the report: the row, its bound, and its reason are printed
+				// where a reader of a passing gate will see them, because a gate that hides what it
+				// forgave is the failure this mechanism is most likely to become.
+				? 'acknowledged'
+				: confirm == null ? 'unconfirmed' : resolutionOf(screenRow.classification, confirmRow?.classification),
 		}
 	})
 
@@ -133,7 +152,17 @@ export function resolveConfirmation(screen, confirm) {
 	const notReproduced = rows.filter(row => row.resolution === 'not-reproduced')
 	const reproduced = rows.filter(row => row.resolution === 'reproduced')
 
-	const verdict = blocking.length > 0 || screen.severeGroups.length > 0
+	// A rotted acknowledgement list fails the build, in both directions. An entry deeper than
+	// its bound is an unaccepted regression wearing an acceptance; an entry the screen has
+	// cleared is a claim the code has outlived, and leaving it to be noticed later is how the
+	// list stops being read at all. A malformed entry fails for the same reason.
+	const listProblems = [
+		...malformed,
+		...accepted.exceeded.map(record => `${record.cell} regressed ${record.depthPercent.toFixed(2)}%, past the ${record.bound}% this repository accepts for it`),
+		...accepted.stale.map(record => `the accepted regression for ${record.cell} is stale — the screen now reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
+	]
+
+	const verdict = blocking.length > 0 || screen.severeGroups.length > 0 || listProblems.length > 0
 		? 'regression'
 		: unresolved.length > 0
 			? 'unresolved'
@@ -161,6 +190,14 @@ export function resolveConfirmation(screen, confirm) {
 		reproduced: reproduced.map(row => row.scenario),
 		/** Rows the second batch did not reproduce: the screen's own noise, measured. */
 		notReproduced: notReproduced.map(row => row.scenario),
+		/**
+		 * The regressions this repository has decided to accept, as measured in this run, with
+		 * the bound each is accepted within and the reason it was. Always reported, never a
+		 * silent pass.
+		 */
+		acknowledged: accepted.acknowledged,
+		/** Ways the acknowledgement list itself is wrong. Each one fails the gate. */
+		acknowledgementProblems: listProblems,
 	}
 }
 
@@ -207,6 +244,30 @@ export function renderConfirmationMarkdown(result) {
 			`> **Noise diagnostic.** ${result.notReproduced.map(scenario => `\`${scenario}\``)
 				.join(', ')} claimed a regression in the screen and came back clear in an independent batch. `
 				+ 'That is the screen\'s own false-positive rate being measured rather than argued, and it is worth tracking across runs.',
+		)
+	}
+
+	if (result.acknowledged.length > 0) {
+		lines.push(
+			'',
+			`> **${result.acknowledged.length} accepted regression${result.acknowledged.length === 1 ? '' : 's'}**, listed rather than forgiven in silence. `
+			+ 'Each is an entry in `benchmarks/src/accepted-regressions.mjs` naming the cell, the depth accepted, and what the cost bought; '
+			+ 'a measurement past the bound fails, and an entry the screen has cleared fails too, so the list shrinks as the code improves. '
+			+ 'It cannot tell an accepted cost from a regression someone got tired of — the reason is the argument, and review reads it.',
+			'',
+			'| Cell | Measured | Accepted to | Because |',
+			'| --- | ---: | ---: | --- |',
+		)
+		for (const record of result.acknowledged)
+			lines.push(`| \`${record.cell}\` | −${record.depthPercent.toFixed(2)}% | −${record.bound}% | ${markdownCell(record.because)} |`)
+	}
+
+	if (result.acknowledgementProblems.length > 0) {
+		lines.push(
+			'',
+			'> **The accepted-regression list is wrong.** '
+			+ `${result.acknowledgementProblems.map(problem => `${problem}.`)
+				.join(' ')} Each of these fails the gate: an acknowledgement is a claim, and a claim the measurements contradict is worse than no claim.`,
 		)
 	}
 

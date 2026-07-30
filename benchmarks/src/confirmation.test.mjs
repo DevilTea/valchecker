@@ -95,10 +95,12 @@ test('one severe judgement against one non-judgement is unresolved in either dir
 		['map/collect-all', 'severe', -0.1467, -0.182],
 		['set/collect-all', 'inconclusive', -0.1513, -0.429],
 	], { verdict: 'regression' })
+	// Against an empty acknowledgement list, because both of these cells are on the committed one
+	// and this case is about the resolution rule rather than about what the repository accepts.
 	const result = resolveConfirmation(screen, confirmOf([
 		['map/collect-all', 'severe', -0.1159],
 		['set/collect-all', 'severe', -0.302],
-	]))
+	]), { acceptedRegressions: [] })
 	assert.deepEqual(result.rows.map(row => [row.scenario, row.resolution]), [
 		['map/collect-all', 'reproduced'],
 		['set/collect-all', 'unresolved'],
@@ -165,6 +167,54 @@ test('a severe row with no confirmation stage at all still blocks', () => {
 	assert.deepEqual(result.blocking, ['a'])
 	assert.equal(result.verdict, 'regression')
 	assert.match(renderConfirmationMarkdown(result), /\*\*Not confirmed\.\*\*/)
+})
+
+const accepted = [{ cell: 'a', maxRegressionPercent: 25, because: 'x'.repeat(200) }]
+
+test('an acknowledged regression is reported with its bound instead of blocking', () => {
+	// Visible, never absent: a gate whose passing output hides what it forgave is the failure
+	// mode this mechanism is most likely to become.
+	const screen = screenOf([['a', 'severe', -0.1467, -0.182]], { verdict: 'regression' })
+	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.1159]]), { acceptedRegressions: accepted })
+	assert.deepEqual(result.rows.map(row => row.resolution), ['acknowledged'])
+	assert.deepEqual(result.blocking, [])
+	assert.deepEqual(result.acknowledged.map(record => [record.cell, record.bound]), [['a', 25]])
+	assert.notEqual(result.verdict, 'regression')
+	const markdown = renderConfirmationMarkdown(result)
+	assert.match(markdown, /accepted regression\*\*, listed rather than forgiven in silence/)
+	assert.match(markdown, /\| `a` \| −14\.67% \| −25% \|/)
+})
+
+test('an acknowledged cell past its bound blocks, and the list is reported as wrong', () => {
+	const screen = screenOf([['a', 'severe', -0.6, -0.65]], { verdict: 'regression' })
+	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.58]]), { acceptedRegressions: accepted })
+	assert.deepEqual(result.acknowledged, [])
+	assert.equal(result.verdict, 'regression')
+	assert.match(result.acknowledgementProblems[0], /a regressed 60\.00%, past the 25% this repository accepts for it/)
+	assert.match(renderConfirmationMarkdown(result), /The accepted-regression list is wrong/)
+})
+
+test('an acknowledged cell the screen has cleared fails as a stale entry', () => {
+	// The cell is cleared, so nothing is selected for confirmation and the row table is empty —
+	// which is exactly why staleness is evaluated over every measured row rather than over the
+	// selection.
+	const screen = screenOf([['a', 'cleared', -0.002]], { verdict: 'neutral' })
+	const result = resolveConfirmation(screen, null, { acceptedRegressions: accepted })
+	assert.deepEqual(result.rows, [])
+	assert.equal(result.verdict, 'regression', 'a list that outlived its reason fails rather than passing quietly')
+	assert.match(result.acknowledgementProblems[0], /the accepted regression for a is stale — the screen now reports it cleared at -0\.20%/)
+})
+
+test('an acknowledgement does not reach a group verdict', () => {
+	// Stated as a limit rather than left to be discovered: "did this cell regress?" and "did this
+	// affected group broadly regress?" are different questions, and an accepted answer to the
+	// first is not an answer to the second.
+	const screen = screenOf([['a', 'severe', -0.1467, -0.182]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
+	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.1159]]), { acceptedRegressions: accepted })
+	assert.deepEqual(result.rows.map(row => row.resolution), ['acknowledged'])
+	assert.deepEqual(result.blocking, [])
+	assert.deepEqual(result.severeGroups, ['warm/failure/all'])
+	assert.equal(result.verdict, 'regression', 'the group trigger stands on its own')
 })
 
 test('a severe group fails without confirmation, and says so', () => {
