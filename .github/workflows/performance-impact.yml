@@ -567,9 +567,13 @@ jobs:
           if (( count < 4 )); then
             shard_count="$count"
           fi
+          # Joined with `paste`, not `seq -s,`: BSD's `seq` writes the separator after the
+          # last element, so `seq -s, 0 2` is `0,1,2,` there and `0,1,2` under GNU coreutils.
+          # `fromJSON` would reject the first, and a matrix that depends on which `seq` the
+          # runner ships is not a matrix anybody can reason about.
           shards='[0]'
           if (( shard_count > 1 )); then
-            shards="[$(seq -s, 0 $((shard_count - 1)))]"
+            shards="[$(seq 0 $((shard_count - 1)) | paste -sd, -)]"
           fi
           {
             echo "cells=$cells"
