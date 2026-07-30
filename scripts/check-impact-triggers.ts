@@ -238,6 +238,40 @@ if (!triggers(pullRequest, 'benchmarks/src/compare.mjs'))
 if (triggers(push, 'benchmarks/src/compare.mjs'))
 	errors.push(`benchmarks/src/compare.mjs: must not start the post-merge run, which compares two revisions that build the same library and so has nothing to find`)
 
+// Counterbalancing, checked here because this file already reads the workflow and because
+// the property is the same kind as the ones above: something the gate's correctness rests on
+// that lives in shell rather than in a module a test can reach.
+//
+// Pairing cancels machine speed, which is what makes a paired ratio comparable across
+// runners. It does not cancel monotonic drift — temperature, allocator and GC state,
+// background load — and a run that always measured the baseline first would put every
+// repetition's drift on the candidate. The measurement loop therefore alternates the two
+// sides by repetition parity, and the four shards share the parity so a repetition is one
+// ordering everywhere. It survived the rewrite into four shard jobs; a rule is cheaper than
+// noticing that it did not survive the next one.
+const loop = /for repetition in[^\n]*\n([\s\S]*?)\n[ \t]*done\n/.exec(workflowText)?.[1]
+if (loop == null) {
+	errors.push(`${workflowPath}: no \`for repetition in …\` measurement loop, so this check cannot see whether the two sides are counterbalanced`)
+}
+else {
+	const branches = loop.split(/\n[ \t]*else[ \t]*\n/)
+	const sideOrder = (text: string): string[] => ['baseline', 'candidate']
+		.filter(side => text.includes(`run_side ${side}`))
+		.sort((left, right) => text.indexOf(`run_side ${left}`) - text.indexOf(`run_side ${right}`))
+	if (!/if \(\(\s*repetition % 2/.test(loop)) {
+		errors.push(`${workflowPath}: the measurement loop does not branch on \`repetition % 2\`, so the two sides always run in one order and a monotonic drift over the job lands entirely on one of them`)
+	}
+	else if (branches.length !== 2) {
+		errors.push(`${workflowPath}: the measurement loop's parity branch has no \`else\`, so one parity measures nothing`)
+	}
+	else if (sideOrder(branches[0]!)
+		.join(',') === sideOrder(branches[1]!)
+		.join(',')) {
+		errors.push(`${workflowPath}: both parity branches measure the sides in the same order (${sideOrder(branches[0]!)
+			.join(' then ')}), which is not counterbalancing`)
+	}
+}
+
 if (errors.length > 0) {
 	console.error(`Performance Impact triggers disagree with scripts/impact-selection.ts (${errors.length} problem${errors.length === 1 ? '' : 's'}):`)
 	for (const error of errors)
@@ -245,5 +279,5 @@ if (errors.length > 0) {
 	process.exitCode = 1
 }
 else {
-	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run and ${measurementPaths} select their own step's cells, and every one of them starts both the pull-request and post-merge jobs`)
+	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run and ${measurementPaths} select their own step's cells, and every one of them starts both the pull-request and post-merge jobs; the measurement loop counterbalances the two sides by repetition parity`)
 }
