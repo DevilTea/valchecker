@@ -36,10 +36,6 @@
 
 import { meaningfulThreshold } from './impact-verdict.mjs'
 
-/** Fixed paired repetitions per stage. Both stages are the same size on purpose. */
-export const screenRepetitions = 5
-export const confirmRepetitions = 5
-
 /**
  * Which cells the confirmation batch measures.
  *
@@ -128,7 +124,11 @@ export function resolveConfirmation(screen, confirm) {
 		verdict,
 		screenVerdict: screen.verdict,
 		confirmed: confirm != null,
-		repetitions: { screen: screenRepetitions, confirm: confirmRepetitions },
+		// Read from the comparisons rather than declared here. Both stages are meant to be
+		// five paired repetitions and the workflow is what sets that; a constant in this file
+		// would be a second copy of the number, and a report is worth more when it says what
+		// was measured than when it repeats what was intended.
+		repetitions: { screen: screen.runCounts?.baseline ?? null, confirm: confirm?.runCounts?.baseline ?? null },
 		/** The screen stage's group trigger, carried through: it is not confirmed here. */
 		severeGroups: screen.severeGroups,
 		rows,
@@ -145,7 +145,8 @@ export function renderConfirmationMarkdown(result) {
 		'## Confirmation stage',
 		'',
 		`Verdict: **${result.verdict}** · screen verdict: **${result.screenVerdict}** · `
-		+ `${result.repetitions.screen} screened + ${result.repetitions.confirm} confirming paired repetitions.`,
+		+ `${result.repetitions.screen ?? '?'} screening `
+		+ `${result.repetitions.confirm == null ? 'and no confirming' : `+ ${result.repetitions.confirm} confirming`} paired repetitions.`,
 		'',
 		'Two fixed batches, judged independently. The confirmation batch is a second measurement of the rows that could block — '
 		+ 'every candidate regression, and every inconclusive row whose interval reaches −5% — and it is **not** pooled with the first: '

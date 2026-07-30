@@ -16,6 +16,7 @@ function screenOf(rows, { verdict = 'review', severeGroups = [] } = {}) {
 	return {
 		verdict,
 		severeGroups,
+		runCounts: { baseline: 5, candidate: 5 },
 		rows: rows.map(([scenario, classification, delta, intervalLow = delta]) => ({
 			scenario,
 			classification,
@@ -26,8 +27,25 @@ function screenOf(rows, { verdict = 'review', severeGroups = [] } = {}) {
 }
 
 function confirmOf(rows) {
-	return { rows: rows.map(([scenario, classification, delta]) => ({ scenario, classification, delta })) }
+	return {
+		runCounts: { baseline: 5, candidate: 5 },
+		rows: rows.map(([scenario, classification, delta]) => ({ scenario, classification, delta })),
+	}
 }
+
+test('the report states the repetitions each stage measured, not the ones it intended', () => {
+	// Read from the two comparisons. A constant here would be a second copy of a number the
+	// workflow sets, and it would keep printing 5 on a dispatched run that asked for 7.
+	const screen = screenOf([['a', 'severe', -0.14, -0.2]], { verdict: 'regression' })
+	screen.runCounts = { baseline: 7, candidate: 7 }
+	const confirmed = resolveConfirmation(screen, confirmOf([['a', 'cleared', 0]]))
+	assert.deepEqual(confirmed.repetitions, { screen: 7, confirm: 5 })
+	assert.match(renderConfirmationMarkdown(confirmed), /7 screening \+ 5 confirming paired repetitions/)
+
+	const unconfirmed = resolveConfirmation(screen, null)
+	assert.deepEqual(unconfirmed.repetitions, { screen: 7, confirm: null })
+	assert.match(renderConfirmationMarkdown(unconfirmed), /7 screening and no confirming paired repetitions/)
+})
 
 test('the confirmation batch measures the rows that could block, and nothing else', () => {
 	const screen = screenOf([
