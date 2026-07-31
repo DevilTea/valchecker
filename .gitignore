@@ -26,6 +26,11 @@ coverage
 # Generated diagnostic artifacts
 artifacts
 
+# Mutation run output. The classified survivors live in the tracked
+# `mutation-survivors.json`; these are the raw report and Stryker's incremental cache.
+reports/mutation
+.stryker-tmp
+
 # nyc test coverage
 .nyc_output
 

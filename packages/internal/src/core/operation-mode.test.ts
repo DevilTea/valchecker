@@ -1,3 +1,4 @@
+import type { ExecutionResult, StepPluginImpl, TStepPluginDef } from './types'
 import { describe, expect, it } from 'vitest'
 import {
 	array,
@@ -22,7 +23,7 @@ import {
 	use,
 	variant,
 } from '../steps'
-import { createValchecker } from './core'
+import { createValchecker, implStepPlugin } from './core'
 
 const v = createValchecker({
 	steps: [
@@ -155,5 +156,68 @@ describe('runtime operation-mode metadata', () => {
 			.toBe('maybe-async')
 		expect(genericSchema.generic(legacySchema)['~core'].operationMode)
 			.toBe('maybe-async')
+	})
+
+	// `addStep`, `addSuccessStep` and `addFailureStep` each take the plugin's declared
+	// default when the call omits a mode, and the call's own mode when it does not. Every
+	// built-in either passes a mode or is declared `maybe-async`, so the two sources agree
+	// throughout the library and nothing else here can tell them apart — which is why this
+	// declares a `sync` plugin and then contradicts it per registrar.
+	it('takes the step plugin\'s declared default operation mode, and lets a call override it', () => {
+		const declaredSync = implStepPlugin({
+			pluginDefault: ({ utils }: any) => {
+				utils.addStep((result: ExecutionResult) => result)
+			},
+			pluginDefaultSuccess: ({ utils }: any) => {
+				utils.addSuccessStep((value: unknown) => ({ value }))
+			},
+			pluginDefaultFailure: ({ utils }: any) => {
+				utils.addFailureStep((issues: unknown) => ({ issues }))
+			},
+			explicitAsync: ({ utils }: any) => {
+				utils.addStep((result: ExecutionResult) => result, 'async')
+			},
+			explicitAsyncSuccess: ({ utils }: any) => {
+				utils.addSuccessStep((value: unknown) => ({ value }), 'async')
+			},
+			explicitAsyncFailure: ({ utils }: any) => {
+				utils.addFailureStep((issues: unknown) => ({ issues }), 'async')
+			},
+		} as any, 'sync') as StepPluginImpl<TStepPluginDef>
+		const declared = createValchecker({ steps: [declaredSync] }) as any
+
+		for (const method of ['pluginDefault', 'pluginDefaultSuccess', 'pluginDefaultFailure']) {
+			expect(declared[method]()['~core'].operationMode, method)
+				.toBe('sync')
+		}
+		for (const method of ['explicitAsync', 'explicitAsyncSuccess', 'explicitAsyncFailure']) {
+			expect(declared[method]()['~core'].operationMode, method)
+				.toBe('async')
+		}
+
+		// A schema's mode only ever climbs. Adding a synchronous step after an asynchronous
+		// one must not report the chain as synchronous again, and only a chain in that order
+		// can tell the raising guard from an unconditional assignment — every case above
+		// registers its step against a lower current mode, where the two agree.
+		const alreadyAsync = declared.explicitAsync()
+		for (const method of ['pluginDefault', 'pluginDefaultSuccess', 'pluginDefaultFailure']) {
+			expect(alreadyAsync[method]()['~core'].operationMode, method)
+				.toBe('async')
+		}
+	})
+
+	// `async` specifically, because the runtime modes are ordered numbers and every other
+	// declared default coincides with a value that survives being folded together with the
+	// fallback: sync is 0 and maybe-async is the fallback itself. Only a plugin declared
+	// `async` distinguishes reading the declaration from defaulting.
+	it('honours a step plugin declared async, not just sync or the maybe-async fallback', () => {
+		const declaredAsync = implStepPlugin({
+			step: ({ utils }: any) => {
+				utils.addStep((result: ExecutionResult) => result)
+			},
+		} as any, 'async') as StepPluginImpl<TStepPluginDef>
+
+		expect((createValchecker({ steps: [declaredAsync] }) as any).step()['~core'].operationMode)
+			.toBe('async')
 	})
 })

@@ -235,8 +235,11 @@ entry, and later entries are still checked. An internal key issue stops before t
 schema, and any internal child issue stops later entries.
 
 Entries are consumed lazily from the native Map iterator, so a first-issue short-circuit never scans
-the remaining entries and a child step that mutates the input Map during validation observes the same
-live iteration as the underlying Map iterator. Iteration goes through `Map.prototype.entries` rather
+the remaining entries. Mutating the input Map from a child step while it is being validated is
+**not supported**: the traversal is live, so an entry added during validation may or may not be
+reached, and a key deleted and re-added is re-yielded by the native iterator and then handled
+differently depending on whether the key schema transforms its keys. Validate a copy if the input
+can change under you. Iteration goes through `Map.prototype.entries` rather
 than through the instance, so an overridden `entries`, `forEach`, or `size` cannot redirect
 validation away from the Map's actual entries. Fully synchronous key and value schemas keep the Map
 schema synchronous; reached thenables continue sequentially.
@@ -341,8 +344,11 @@ tags.execute(new Set([' TS ', 'Vue']))
 ```
 
 Items are consumed lazily from the native Set iterator, so a first-issue short-circuit never scans
-the remaining items and a child step that mutates the input Set during validation observes the same
-live iteration as the underlying Set iterator. Iteration goes through `Set.prototype.values` rather
+the remaining items. Mutating the input Set from a child step while it is being validated is
+**not supported**: the traversal is live, so an item added during validation may or may not be
+reached, and an item deleted and re-added is re-yielded by the native iterator and then handled
+differently depending on whether the child transforms its items. Validate a copy if the input can
+change under you. Iteration goes through `Set.prototype.values` rather
 than through the instance, so an overridden `values` cannot redirect validation away from the Set's
 actual items. Fully synchronous child schemas keep the Set schema synchronous; after a reached
 thenable, remaining items continue sequentially in insertion order.

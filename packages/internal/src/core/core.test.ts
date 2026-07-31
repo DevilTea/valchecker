@@ -42,6 +42,21 @@ const flowPlugin = implStepPlugin({
 			defaultMessage: 'Test failure.',
 		})), 'sync')
 	},
+	issueWithoutContext: ({ utils }: any) => {
+		utils.addSuccessStep((value: unknown) => utils.failure(utils.createIssue({
+			code: 'test:no_context',
+			payload: { value },
+			defaultMessage: 'No context.',
+		})), 'sync')
+	},
+	issueWithContext: ({ utils }: any) => {
+		utils.addSuccessStep((value: unknown) => utils.failure(utils.createIssue({
+			code: 'test:with_context',
+			payload: { value },
+			context: [{ type: 'fixture' }],
+			defaultMessage: 'With context.',
+		})), 'sync')
+	},
 	recover: ({ utils }: any) => {
 		utils.addFailureStep((issues: ExecutionIssue[]) => utils.success(`recovered:${issues[0]!.code}`), 'sync')
 	},
@@ -178,6 +193,25 @@ describe('core issue contracts', () => {
 			.toEqual([{ type: 'existing' }])
 	})
 
+	// `context` is documented as optional, which means absent rather than present-and-
+	// undefined. Every other assertion here uses `toEqual` or `toMatchObject`, and both treat
+	// an `undefined` property as equal to a missing one, so a `createIssue` that always
+	// assigned the key would have looked correct everywhere.
+	it('omits the context key entirely when a step declares none', () => {
+		const v = createValchecker({ steps: [flowPlugin] }) as any
+		const withoutContext = v.issueWithoutContext()
+			.execute('value')
+		const withContext = v.issueWithContext()
+			.execute('value')
+
+		expect(Object.hasOwn(withoutContext.issues[0], 'context'))
+			.toBe(false)
+		expect(Object.hasOwn(withContext.issues[0], 'context'))
+			.toBe(true)
+		expect(withContext.issues[0].context)
+			.toEqual([{ type: 'fixture' }])
+	})
+
 	it('replaces the issue path unconditionally without mutating the source', () => {
 		const issue = validationIssue('test:path', ['old', 0])
 		const result = replaceIssuePath(issue, ['new'])
@@ -296,6 +330,33 @@ describe('valchecker instance contracts', () => {
 				vendor: 'valchecker',
 				validate: v.execute,
 			})
+	})
+
+	// The shared-prototype layout is an architectural contract, not an accident: registered
+	// methods are non-enumerable prototype properties and the fixed schema fields are own
+	// enumerable ones, which is what makes `Object.keys` and `for...in` over a schema return
+	// its data rather than the whole registered API. Nothing asserted the descriptors, so a
+	// change to any of the three flags was invisible. They are pinned together because the
+	// three arguments are one decision about how a schema presents itself.
+	it('registers step methods as non-enumerable, writable, configurable prototype properties', () => {
+		const v = createValchecker({ steps: [flowPlugin] }) as any
+		const schema = v.increment(1)
+		const prototype = Object.getPrototypeOf(schema)
+
+		expect(Object.hasOwn(schema, 'increment'))
+			.toBe(false)
+		expect(Object.getOwnPropertyDescriptor(prototype, 'increment'))
+			.toMatchObject({ enumerable: false, writable: true, configurable: true })
+
+		// The observable consequence, stated separately from the descriptor that causes it.
+		const fixedFields = ['~standard', '~core', '~execute', 'execute', 'isSuccess', 'isFailure']
+		expect(Object.keys(schema))
+			.toEqual(fixedFields)
+		const enumerated: string[] = []
+		for (const key in schema)
+			enumerated.push(key)
+		expect(enumerated)
+			.toEqual(fixedFields)
 	})
 
 	it('creates immutable chains and passes method parameters', () => {

@@ -4,10 +4,12 @@ import {
 	array,
 	createValchecker,
 	intersection,
+	isOneOf,
 	looseObject,
 	map,
 	number,
 	object,
+	record,
 	set,
 	strictObject,
 	string,
@@ -19,10 +21,12 @@ const v = createValchecker({
 	steps: [
 		array,
 		intersection,
+		isOneOf,
 		looseObject,
 		map,
 		number,
 		object,
+		record,
 		set,
 		strictObject,
 		string,
@@ -186,6 +190,75 @@ describe('structural collectAllIssues contract', () => {
 			.toEqual(['bad', 'later'])
 		expect(valueRuns)
 			.toEqual([1, 2])
+	})
+
+	it('record stops before the value and later entries after a key failure by default', () => {
+		const keyRuns: unknown[] = []
+		const valueRuns: unknown[] = []
+		const result = v.record({
+			key: v.string()
+				.transform((value) => {
+					keyRuns.push(value)
+					if (value === 'bad')
+						throw new Error('bad')
+					return value
+				}),
+			value: v.unknown()
+				.transform((value) => {
+					valueRuns.push(value)
+					return value
+				}),
+		})
+			.execute({ bad: 1, later: 2 })
+		expect(issueCodes(result))
+			.toEqual(['transform:callback_failed'])
+		expect(keyRuns)
+			.toEqual(['bad'])
+		expect(valueRuns)
+			.toEqual([])
+	})
+
+	it('record validates values and later entries when collection is enabled', () => {
+		const keyRuns: unknown[] = []
+		const valueRuns: unknown[] = []
+		const result = v.record({
+			key: v.string()
+				.transform((value) => {
+					keyRuns.push(value)
+					if (value === 'bad')
+						throw new Error('bad')
+					return value
+				}),
+			value: v.unknown()
+				.transform((value) => {
+					valueRuns.push(value)
+					return value
+				}),
+			collectAllIssues: true,
+		})
+			.execute({ bad: 1, later: 2 })
+		expect(issueCodes(result))
+			.toEqual(['transform:callback_failed'])
+		expect(keyRuns)
+			.toEqual(['bad', 'later'])
+		expect(valueRuns)
+			.toEqual([1, 2])
+	})
+
+	it('record with a finite key domain stops at the first member issue by default', () => {
+		// The finite path is a second traversal that never runs the key schema, so its
+		// short-circuit is a separate contract from the open path above.
+		const struct = {
+			key: v.string()
+				.isOneOf(['first', 'second']),
+			value: v.number(),
+		}
+		expect(issueCodes(v.record(struct)
+			.execute({ first: 'bad', second: 'also bad' })))
+			.toEqual(['number:expected_number'])
+		expect(issueCodes(v.record({ ...struct, collectAllIssues: true })
+			.execute({ first: 'bad', second: 'also bad' })))
+			.toEqual(['number:expected_number', 'number:expected_number'])
 	})
 
 	it('intersection stops later synchronous branches by default', () => {

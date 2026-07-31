@@ -264,6 +264,11 @@ jobs:
     outputs:
       before_sha: ${{ steps.builds.outputs.before_sha }}
       after_sha: ${{ steps.builds.outputs.after_sha }}
+      # The refs as written, alongside the shas they resolved to. `compare` publishes the
+      # summary and never resolves parameters itself, so without these it can only report
+      # what it measured and not what it measured it against.
+      before_ref: ${{ steps.params.outputs.before }}
+      after_ref: ${{ steps.params.outputs.after }}
       profile: ${{ steps.params.outputs.profile }}
       runs: ${{ steps.params.outputs.runs }}
     steps:
@@ -612,13 +617,31 @@ jobs:
             echo "any=$any"
           } >> "$GITHUB_OUTPUT"
 
+      # The identity table. A reader of this summary otherwise has to open the measure job
+      # to learn which two builds produced the numbers below it — the table was lost when
+      # measurement and comparison were split into separate jobs, and the shas now travel
+      # as job outputs so it can be written here.
       - name: Publish comparison summary
         if: always()
         shell: bash
+        env:
+          BEFORE_REF: ${{ needs.measure.outputs.before_ref }}
+          AFTER_REF: ${{ needs.measure.outputs.after_ref }}
+          BEFORE_SHA: ${{ needs.measure.outputs.before_sha }}
+          AFTER_SHA: ${{ needs.measure.outputs.after_sha }}
+          PROFILE: ${{ needs.measure.outputs.profile }}
+          RUNS: ${{ needs.measure.outputs.runs }}
         run: |
           set -euo pipefail
           {
             echo "# Performance impact"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Before | \`${BEFORE_REF:-unresolved}\` (${BEFORE_SHA:-unresolved}) |"
+            echo "| After | \`${AFTER_REF:-unresolved}\` (${AFTER_SHA:-unresolved}) |"
+            echo "| Profile | ${PROFILE:-unresolved} |"
+            echo "| Paired repetitions (screen) | ${RUNS:-unresolved} |"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
           if [[ -f artifacts/performance-impact/selection.md ]]; then

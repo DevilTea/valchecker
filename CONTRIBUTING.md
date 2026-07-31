@@ -49,6 +49,7 @@ for `pnpm verify`; it is the cheap part of it, run early. Do not skip either wit
 | `pnpm-lock.yaml` | let pnpm write it; never edit by hand |
 | `type-performance/budget.json` | only with benchmark evidence, in its own commit, explained in the PR |
 | `scripts/coverage-policy.ts` thresholds | same — never lower a threshold to make CI pass |
+| `mutation-survivors.json` | `pnpm mutation:survivors:update` writes the entries; you write each classification and reason by hand, because the gate rejects an unclassified one |
 
 If a gate fails, fix the code. Changing the gate is a separate, argued decision.
 
@@ -85,6 +86,32 @@ Tests live next to the code they cover (`isAtLeast.ts` → `isAtLeast.test.ts`).
 if the behaviour it describes breaks — coverage numbers are a guardrail, not the goal. Repository
 checks reject `.only`, `.skip`, raw `setTimeout`/`setInterval` in tests, and test titles named
 after implementation details rather than behaviour.
+
+A test that passes whether the code is right or plausibly broken is worse than a missing one, and
+coverage cannot see the difference — so the repository measures it directly. The **Mutation**
+workflow changes production code in small plausible ways and checks whether the suite notices. On a
+pull request it does that for the files your diff touches; weekly it does the whole tree. Run the
+same thing locally with `pnpm mutation:changed`, then `pnpm mutation:survivors`.
+
+There is deliberately **no mutation-score target**. A percentage rewards killing mutants that make
+no observable difference, and the only way to kill one of those is to assert an implementation
+detail. The rule is that new and unclassified survivors are zero: each one is either killed by a
+test, or written down with a classification (`EQUIVALENT`, `UNREACHABLE`, `PRODUCT_DECISION`,
+`TOOL_ARTIFACT`), the invariant that makes it hold, and how you checked.
+
+Three things the gate will hold you to:
+
+- **Triage one at a time, and assume it is a real gap.** In the audit that motivated this, about
+  four fifths were. Classifying a survivor because the ones around it were classified is how a
+  real gap gets filed as harmless, and nothing downstream can catch that.
+- **Prove every test you add for one**: watch it fail with the mutation applied and pass without it.
+- **Give the invariant, not the label.** "`then(undefined)` passes the value through, so the extra
+  iteration is a no-op" is a reason; "equivalent" is rejected.
+
+Several mutants that are all equivalent for one structural reason — the arity specializations of a
+single algorithm, say — belong beside the code as `// Stryker disable <mutators>: <why>` rather
+than in the ledger. That directive is checked for rot too: one that no longer silences anything
+fails, so an exemption cannot outlive the code it argued about.
 
 Coverage is an unreliable way to notice that a step lost its own tests, because other steps' tests
 execute it. Deleting the tests of nine steps at once, the per-file policy caught five and let four

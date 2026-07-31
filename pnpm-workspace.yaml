@@ -7,6 +7,13 @@ blockExoticSubdeps: true
 strictDepBuilds: true
 shellEmulator: true
 trustPolicy: no-downgrade
+# `semver@6.3.1` is the maintenance release of a legacy major line, reached only through
+# `@babel/core`, which the Stryker instrumenter pulls in. pnpm compares trust evidence by
+# publish date across the whole package, so a 6.x patch published after a provenance-signed
+# 7.x release reads as a downgrade. The 6.x line simply predates npm provenance; nothing was
+# withdrawn. Excluded at the exact version so a genuinely new untrusted release still fails.
+trustPolicyExclude:
+  - semver@6.3.1
 packages:
   - docs
   - packages/*
@@ -17,6 +24,8 @@ catalog:
   '@deviltea/tsconfig': 0.0.10
   '@shikijs/vitepress-twoslash': ^3.23.0
   '@standard-schema/spec': ^1.1.0
+  '@stryker-mutator/core': ^9.6.1
+  '@stryker-mutator/vitest-runner': ^9.6.1
   '@types/node': ^24.13.2
   '@vitest/coverage-v8': ^4.1.9
   bumpp: ^10.4.1

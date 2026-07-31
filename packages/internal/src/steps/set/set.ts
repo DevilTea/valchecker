@@ -219,6 +219,18 @@ export const set = implStepPlugin<PluginDef>({
 				// time a transform differs, seeded from the buffer so duplicate
 				// detection sees earlier items. A first-issue short-circuit
 				// therefore buffers only up to the failing item.
+				//
+				// limit: the two representations disagree about one input, and the
+				// disagreement is documented as unsupported rather than removed. If a
+				// child deletes and re-adds an item mid-traversal the native iterator
+				// yields it again; the buffer absorbs the repeat into the final
+				// `new Set(buffer)`, while the materialized path reports
+				// `set:duplicate_transformed_item`. Agreeing would mean either
+				// buffering into a Set on the success path — the allocation this exists
+				// to avoid — or snapshotting the input up front, which costs a full copy
+				// per execution. Mutating the input during validation is documented as
+				// unsupported in `set.doc.md` instead. The upgrade path, if it ever
+				// becomes a real contract, is the snapshot.
 				let buffer: unknown[] | undefined
 				let bufferCount = 0
 				let output: Set<unknown> | undefined

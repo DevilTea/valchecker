@@ -62,6 +62,10 @@ pnpm verify                      # build, api:surface, publint, test:package, li
 
 Run these separately when the change can affect them: `pnpm typeperf` for the type-complexity budget, focused step benchmarks, cross-library benchmarks, and the bundle-size and performance-impact workflows. See [benchmarking](.claude/skills/valchecker-dev/references/benchmarking.md).
 
+A change to production source also answers to mutation: `pnpm mutation:changed` mutates the files the diff touches and `pnpm mutation:survivors` enforces the contract. It is out of `pnpm verify` because a full sweep takes about an hour; the `Mutation` workflow runs the scoped version on every pull request and the whole tree weekly.
+
+The contract is deliberately **not** a mutation score. It is that new and unclassified survivors are zero: each one is killed by a test, or recorded with its classification, the invariant behind it, and how that was checked. Triage every survivor individually and assume it is a real gap until shown otherwise — never classify one because its neighbours were. A structural pattern whose equivalence follows from one invariant is suppressed in place with `// Stryker disable … : <why>`; anything isolated goes in `mutation-survivors.json`. Both rot in both directions: a killed entry and a directive that ignores nothing each fail. See [mutation testing](.claude/skills/valchecker-dev/references/mutation.md).
+
 Every CI pipeline must preserve the failing command's exit code; commands piped into `tee` or another process run under `set -o pipefail`. Enforced by `scripts/check-workflow-pipefail.ts`.
 
 ## Code and runtime boundaries
@@ -107,7 +111,7 @@ Validation and operation failures are recoverable only where documented. Interna
 
 ## Tests and public API
 
-Tests protect observable runtime, type-state, interoperability, or regression contracts; coverage is a guardrail, not the test plan. For modified steps, cover distinct success/failure semantics, exact boundaries, relevant JavaScript edge cases, every owned issue shape, custom messages, output/issue inference, operation mode, and fluent availability. Add async, ordering, short-circuit, or collect-all cases only when the public contract requires them. Avoid arbitrary timers, tautologies, duplicate complete snapshots, coverage-only fixtures, and implementation-branch names. See [the testing strategy](.claude/skills/valchecker-dev/references/testing.md).
+Tests protect observable runtime, type-state, interoperability, or regression contracts; coverage is a guardrail, not the test plan. For modified steps, cover distinct success/failure semantics, exact boundaries, relevant JavaScript edge cases, every owned issue shape, custom messages, output/issue inference, operation mode, and fluent availability. Add async, ordering, short-circuit, or collect-all cases only when the public contract requires them. Avoid arbitrary timers, tautologies, duplicate complete snapshots, coverage-only fixtures, and implementation-branch names. A test that passes against both the intended behaviour and a plausible broken one is a worse problem than an uncovered line, and it is what [mutation testing](.claude/skills/valchecker-dev/references/mutation.md) exists to find. See [the testing strategy](.claude/skills/valchecker-dev/references/testing.md).
 
 Intentional additions, removals, renames, issue/payload changes, or semantic changes must update every affected surface:
 

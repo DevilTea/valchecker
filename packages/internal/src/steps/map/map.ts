@@ -253,6 +253,13 @@ export const map = implStepPlugin<PluginDef>({
 				// materialized the first time a transform differs, seeded from the
 				// buffer so duplicate detection sees earlier keys. A first-issue
 				// short-circuit therefore buffers only up to the failing entry.
+				//
+				// limit: the same unsupported input `set.ts` documents. A key deleted
+				// and re-added mid-traversal is re-yielded by the native iterator; the
+				// buffer absorbs the repeat, while the materialized path reports
+				// `map:duplicate_transformed_key`. Mutating the input during validation
+				// is documented as unsupported in `map.doc.md` rather than paid for with
+				// an up-front snapshot on every execution.
 				let bufferKeys: unknown[] | undefined
 				let bufferValues: unknown[] | undefined
 				let bufferCount = 0

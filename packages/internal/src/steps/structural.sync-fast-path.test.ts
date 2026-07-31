@@ -1,11 +1,20 @@
 import type { ExecutionResult, Use, Valchecker } from '../core'
 import { describe, expect, it } from 'vitest'
-import { array, intersection, looseObject, map, object, set, strictObject, union, variant } from '.'
+import { array, intersection, looseObject, map, object, record, set, strictObject, union, variant } from '.'
 import { createValchecker } from '../core'
 
 const v = createValchecker({
-	steps: [array, object, looseObject, strictObject, map, set, variant, union, intersection],
+	steps: [array, object, looseObject, strictObject, map, record, set, variant, union, intersection],
 })
+
+/** The fixture as `record` needs to see it: a synchronous schema declaring a `string` output. */
+type StringKeyed = Use<Valchecker<{
+	initial: false
+	operationMode: 'sync'
+	input: unknown
+	output: string
+	issue: never
+}>>
 
 function createSynchronousFixture(
 	transform: (value: unknown) => unknown = value => value,
@@ -42,6 +51,15 @@ describe('synchronous structural child result handling', () => {
 		expect(v.map({ key: identity, value: doubled })
 			.execute(new Map([['a', 1]])))
 			.toEqual({ value: new Map([['a', 2]]) })
+		// A synchronous non-literal key schema keeps the key domain open, so this exercises
+		// the entry loop that runs both child schemas rather than the finite-key path.
+		// `record` rejects a key schema whose declared output is not a `PropertyKey`, and the
+		// generic fixture type says `unknown`; declaring the string output states what the
+		// identity fixture already does at runtime rather than widening the step's contract.
+		const key = createSynchronousFixture() as unknown as StringKeyed
+		expect(v.record({ key, value: doubled })
+			.execute({ a: 1 }))
+			.toEqual({ value: { a: 2 } })
 	})
 
 	it('skips thenable inspection for object children', () => {

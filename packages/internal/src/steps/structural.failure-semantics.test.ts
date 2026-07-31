@@ -460,11 +460,17 @@ describe('structural requiredness contract', () => {
 	})
 
 	it('identifies the actual earlier branch that contributed a later conflict', () => {
+		// The contributing branch is deliberately not `rightBranch - 1`: two branches that
+		// do not carry the conflicting path sit between them. An implementation that simply
+		// blamed the preceding branch would answer 2 here, so the expected 0 is what makes
+		// this case discriminate attribution from adjacency.
 		const result = v.intersection([
+			v.unknown()
+				.transform(() => ({ nested: { value: 'left' } })),
 			v.unknown()
 				.transform(() => ({ leftOnly: true })),
 			v.unknown()
-				.transform(() => ({ nested: { value: 'left' } })),
+				.transform(() => ({ alsoLeftOnly: 1 })),
 			v.unknown()
 				.transform(() => ({ nested: { value: 'right' } })),
 		])
@@ -476,8 +482,8 @@ describe('structural requiredness contract', () => {
 					code: 'intersection:conflicting_outputs',
 					payload: {
 						path: ['nested', 'value'],
-						leftBranch: 1,
-						rightBranch: 2,
+						leftBranch: 0,
+						rightBranch: 3,
 					},
 				}],
 			})

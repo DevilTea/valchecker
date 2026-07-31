@@ -1,0 +1,70 @@
+{
+	"entries": [
+		{
+			"file": "packages/internal/src/core/core.ts",
+			"line": 176,
+			"mutator": "ConditionalExpression",
+			"original": "existingPath == null || existingPath.length === 0",
+			"replacement": "false",
+			"count": 1,
+			"classification": "EQUIVALENT",
+			"reason": "A spread-elision fast path. Taking the general arm instead builds `[...path, ...existingPath]`, and `existingPath` is empty exactly when this condition holds, so both arms produce the same array. The nullish half never fires either: `createIssue` defaults `path` to `[]` and every issue that reaches here carries one.",
+			"evidence": "Applied by hand and compared executed output across thirteen end-to-end shapes (root, one to three levels of nesting, array child, scoped and doubly-scoped structures, a global handler, tuple rest and fixed regions, collect-all, an async child): byte-identical. Recorded here rather than suppressed in place because `// Stryker disable next-line` does not attach to a comment inside a ternary — the run reports the mutant as Survived with the directive present."
+		},
+		{
+			"file": "packages/internal/src/core/core.ts",
+			"line": 176,
+			"mutator": "ConditionalExpression",
+			"original": "existingPath == null",
+			"replacement": "false",
+			"count": 1,
+			"classification": "EQUIVALENT",
+			"reason": "The nullish guard is invariantly false: `createIssue` defaults `path` to `[]`, and the one external-issue shape the suite carries declares `path: []` too, so no issue reaching `prependIssuePath` has a missing path.",
+			"evidence": "Same thirteen-shape output comparison as the entry above, plus an audit of the thirteen `prependIssuePath` and `replaceIssuePath` call sites: every one passes an array literal or an array-valued binding."
+		},
+		{
+			"file": "packages/internal/src/core/core.ts",
+			"line": 176,
+			"mutator": "ConditionalExpression",
+			"original": "existingPath.length === 0",
+			"replacement": "false",
+			"count": 1,
+			"classification": "EQUIVALENT",
+			"reason": "Spreading an empty array adds nothing, so `[...path, ...existingPath]` and `[...path]` are the same array whenever this test would have been true. The branch buys one skipped spread, not a different result.",
+			"evidence": "Same thirteen-shape output comparison as the entries above."
+		},
+		{
+			"file": "packages/internal/src/core/core.ts",
+			"line": 176,
+			"mutator": "LogicalOperator",
+			"original": "existingPath == null || existingPath.length === 0",
+			"replacement": "existingPath == null && existingPath.length === 0",
+			"count": 1,
+			"classification": "EQUIVALENT",
+			"reason": "With `existingPath` never nullish the conjunction is always false, which selects the general arm — and that arm builds the same array for an empty `existingPath`. Both of the mutated operator's outcomes therefore coincide with the original.",
+			"evidence": "Same thirteen-shape output comparison as the entries above."
+		},
+		{
+			"file": "packages/internal/src/core/core.ts",
+			"line": 189,
+			"mutator": "ConditionalExpression",
+			"original": "hasMessageScope",
+			"replacement": "true",
+			"count": 1,
+			"classification": "EQUIVALENT",
+			"reason": "Entering with no scope attaches draft metadata whose only context handler is `undefined` and whose default is the issue's own message. Resolution passes over an entry that is not a handler and falls to that default, reproducing the message the issue already had.",
+			"evidence": "Applied by hand and compared executed output across the same thirteen end-to-end shapes: byte-identical. Recorded here rather than suppressed in place because `// Stryker disable next-line` does not attach before an `else` clause — Babel treats the comment as trailing the preceding block, and the run reports the mutant as Survived with the directive present."
+		},
+		{
+			"file": "packages/internal/src/core/core.ts",
+			"line": 234,
+			"mutator": "ConditionalExpression",
+			"original": "hasMessageScope",
+			"replacement": "true",
+			"count": 1,
+			"classification": "EQUIVALENT",
+			"reason": "`replaceIssuePath`'s copy of the branch above, with the same argument: metadata built from an absent scope resolves back to the issue's own message.",
+			"evidence": "Applied by hand and compared executed output across the same thirteen end-to-end shapes, which include `tuple`'s rest region — the only production caller of `replaceIssuePath`: byte-identical. Recorded here for the same `else`-clause attachment reason as the entry above."
+		}
+	]
+}
