@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionResult, Next, TStepPluginDef } from './types'
-import { describe, expect, it } from 'vitest'
-import { createValchecker, implStepPlugin } from './core'
+import { describe, expect, it, vi } from 'vitest'
+import { createValchecker, executeRuntimeSteps, implStepPlugin } from './core'
 
 type PipelineMeta = DefineStepMethodMeta<{
 	Name: 'pipeline'
@@ -26,6 +26,12 @@ interface PipelineDef extends TStepPluginDef {
 			? () => Next<undefined, This>
 			: never
 	>
+	countRuns: DefineStepMethod<
+		PipelineMeta,
+		this['CurrentValchecker'] extends infer This extends PipelineMeta['ExpectedCurrentValchecker']
+			? (onRun: () => void) => Next<undefined, This>
+			: never
+	>
 }
 
 const pipelinePlugin = implStepPlugin<PipelineDef>({
@@ -37,6 +43,12 @@ const pipelinePlugin = implStepPlugin<PipelineDef>({
 	},
 	inspect: ({ utils }: any) => {
 		utils.addStep((result: ExecutionResult) => result)
+	},
+	countRuns: ({ utils, params: [onRun] }: any) => {
+		utils.addStep((result: ExecutionResult) => {
+			onRun()
+			return result
+		}, 'sync')
 	},
 })
 
@@ -51,5 +63,39 @@ describe('finalized pipeline contracts', () => {
 		expect(result)
 			.toBeInstanceOf(Promise)
 		await expect(result).resolves.toEqual({ value: 10 })
+	})
+
+	// Both loops hand the remaining steps to a promise chain once a step turns
+	// asynchronous, and both start that chain at the step *after* the one that did.
+	// Starting it anywhere earlier re-runs work that already ran, which the value alone
+	// cannot show for an idempotent step — hence the run counter.
+	it('does not re-run the steps before the one that turned asynchronous', async () => {
+		const before = vi.fn()
+		const v = createValchecker({ steps: [pipelinePlugin] }) as any
+		const schema = v.countRuns(before)
+			.asyncIncrement(1)
+			.multiply(2)
+
+		await expect(schema.execute(4)).resolves.toEqual({ value: 10 })
+		expect(before)
+			.toHaveBeenCalledTimes(1)
+	})
+
+	it('does not re-run earlier steps when a lazily-resolved sub-pipeline turns asynchronous', async () => {
+		const before = vi.fn()
+		const steps = [
+			(result: ExecutionResult) => {
+				before()
+				return result
+			},
+			async (result: ExecutionResult) => result,
+			(result: ExecutionResult) => ({ value: (result as { value: number }).value * 2 }),
+		]
+
+		// `generic` reaches this loop directly rather than through a finalized pipeline,
+		// so the same contract needs asserting against the exported function.
+		await expect(executeRuntimeSteps(steps, { value: 5 })).resolves.toEqual({ value: 10 })
+		expect(before)
+			.toHaveBeenCalledTimes(1)
 	})
 })

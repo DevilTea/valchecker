@@ -1,3 +1,4 @@
+import type { ExecutionResult, StepPluginImpl, TStepPluginDef } from './types'
 import { describe, expect, it } from 'vitest'
 import {
 	array,
@@ -22,7 +23,7 @@ import {
 	use,
 	variant,
 } from '../steps'
-import { createValchecker } from './core'
+import { createValchecker, implStepPlugin } from './core'
 
 const v = createValchecker({
 	steps: [
@@ -155,5 +156,43 @@ describe('runtime operation-mode metadata', () => {
 			.toBe('maybe-async')
 		expect(genericSchema.generic(legacySchema)['~core'].operationMode)
 			.toBe('maybe-async')
+	})
+
+	// `addStep`, `addSuccessStep` and `addFailureStep` each take the plugin's declared
+	// default when the call omits a mode, and the call's own mode when it does not. Every
+	// built-in either passes a mode or is declared `maybe-async`, so the two sources agree
+	// throughout the library and nothing else here can tell them apart — which is why this
+	// declares a `sync` plugin and then contradicts it per registrar.
+	it('takes the step plugin\'s declared default operation mode, and lets a call override it', () => {
+		const declaredSync = implStepPlugin({
+			pluginDefault: ({ utils }: any) => {
+				utils.addStep((result: ExecutionResult) => result)
+			},
+			pluginDefaultSuccess: ({ utils }: any) => {
+				utils.addSuccessStep((value: unknown) => ({ value }))
+			},
+			pluginDefaultFailure: ({ utils }: any) => {
+				utils.addFailureStep((issues: unknown) => ({ issues }))
+			},
+			explicitAsync: ({ utils }: any) => {
+				utils.addStep((result: ExecutionResult) => result, 'async')
+			},
+			explicitAsyncSuccess: ({ utils }: any) => {
+				utils.addSuccessStep((value: unknown) => ({ value }), 'async')
+			},
+			explicitAsyncFailure: ({ utils }: any) => {
+				utils.addFailureStep((issues: unknown) => ({ issues }), 'async')
+			},
+		} as any, 'sync') as StepPluginImpl<TStepPluginDef>
+		const declared = createValchecker({ steps: [declaredSync] }) as any
+
+		for (const method of ['pluginDefault', 'pluginDefaultSuccess', 'pluginDefaultFailure']) {
+			expect(declared[method]()['~core'].operationMode, method)
+				.toBe('sync')
+		}
+		for (const method of ['explicitAsync', 'explicitAsyncSuccess', 'explicitAsyncFailure']) {
+			expect(declared[method]()['~core'].operationMode, method)
+				.toBe('async')
+		}
 	})
 })

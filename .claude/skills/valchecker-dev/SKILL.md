@@ -28,6 +28,7 @@ These need no manual audit — `pnpm verify` fails on them:
 | Every built-in step holds only the files [the step unit](./references/step-unit.md) names, a one-line `index.ts`, and a `<name>.ts` declaring `Meta` then `PluginDef` above all non-erased syntax and ending in its single plugin export; the steps root holds only the barrel, kebab-case shared modules, and cross-step tests whose family is not a step | `scripts/check-step-completeness.ts` |
 | Every built-in step has a colocated test with a module-scope Vitest case call, a bench calling imported `stepBench`, a public export, and a `<name>.doc.md` whose opening `### ` heading names it in call form in a code span, describes it, holds a non-empty `ts` example, and lists every issue code it owns as a complete token — each code also appearing as a complete token in a string in its own tests | `scripts/check-step-completeness.ts` |
 | `docs/api/*` and the API sidebar match what the steps' `<name>.doc.md` entries and the page templates compose, and every step can be placed on a page | `scripts/check-docs-api.ts` (`pnpm docs:api` / `pnpm docs:api:update`) |
+| Every surviving mutant is killed or carries a written classification | `scripts/check-mutation-survivors.ts` (`pnpm mutation:survivors`), on the `Mutation` workflow rather than in `pnpm verify` |
 | Piped CI commands run under `pipefail` | `scripts/check-workflow-pipefail.ts` |
 | A source change carries a `CHANGELOG.md` entry | `Changelog` job in `ci.yml` (`skip-changelog` label opts out) |
 | `main` takes no direct push, force-push, or non-squash merge | repository ruleset, with every CI check required |
@@ -49,6 +50,7 @@ What is **not** machine-checked, and therefore needs deliberate attention: wheth
 - [The step unit](./references/step-unit.md) — the file set, auxiliary and helper naming, the in-file section order, and which half of it the gate decides
 - [Conventions](./references/conventions.md) — payload key vocabulary, categories, canonical JSDoc
 - [Testing](./references/testing.md) — test ownership by layer, case design, async and structural coverage
+- [Mutation testing](./references/mutation.md) — the commands, why the contract is not a score, and how to triage a surviving mutant
 - [Benchmarking](./references/benchmarking.md) — focused benches, cross-library suite, impact and tree-shaking workflows
 - [Runtime boundaries](./references/runtime-boundaries.md) — the TypeScript-only conditions, ownership taxonomy, review requirements
 - [Step implementation utilities](./references/utils-api.md) — the `utils` API surface

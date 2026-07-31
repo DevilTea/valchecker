@@ -286,6 +286,7 @@ export function executeRuntimeSteps(
 		result = runtimeSteps[i]!(result as ExecutionResult)
 		if (isPromiseLike(result)) {
 			let chain = Promise.resolve(result)
+			// Stryker disable next-line EqualityOperator: one extra iteration reads `runtimeSteps[len]`, which is `undefined`, and `then(undefined)` is a pass-through rather than a throw — so `j <= len` is observably this program and no test can tell them apart.
 			for (let j = i + 1; j < len; j++)
 				chain = chain.then(runtimeSteps[j]!)
 			return chain
@@ -303,6 +304,16 @@ function createFinalizedPipeExecutor(
 		return value => ({ value })
 
 	const first = runtimeSteps[0]!
+	// Everything from here to the `restore` below is one shape written four ways for speed:
+	// a sync-only walk, and unrolled one- and two-step forms of each mode. Every branch
+	// computes what the general loop at the bottom computes, which is what makes deleting a
+	// branch — `len === 1` to `false`, a specialized block to `{}`, the mode test to
+	// `false` — fall through to a path that returns the identical result. Those mutants are
+	// therefore equivalent programs, and the only way to kill one would be to assert which
+	// closure got built, which is the implementation detail these exist to be free to change.
+	// What is NOT covered: the loops themselves. Their bounds and continuation indices are
+	// left mutable, and `finalized-pipeline.test.ts` kills the ones that are observable.
+	// Stryker disable ConditionalExpression,BlockStatement,EqualityOperator: arity and mode specializations of one algorithm; deleting any of them falls through to the general loop below, which returns the same result.
 	if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
 		if (len === 1)
 			return value => first({ value }) as ExecutionResult
@@ -312,12 +323,14 @@ function createFinalizedPipeExecutor(
 			return value => second(first({ value }) as ExecutionResult) as ExecutionResult
 		}
 
+		// Stryker restore EqualityOperator
 		return (value) => {
 			let result = first({ value }) as ExecutionResult
 			for (let i = 1; i < len; i++)
 				result = runtimeSteps[i]!(result) as ExecutionResult
 			return result
 		}
+		// Stryker disable EqualityOperator: see above
 	}
 
 	if (len === 1)
@@ -333,11 +346,13 @@ function createFinalizedPipeExecutor(
 				: second(result)
 		}
 	}
+	// Stryker restore ConditionalExpression,BlockStatement,EqualityOperator
 
 	return (value) => {
 		let result = first({ value })
 		if (isPromiseLike(result)) {
 			let chain = Promise.resolve(result)
+			// Stryker disable next-line EqualityOperator: `runtimeSteps[len]` is `undefined` and `then(undefined)` passes the value through, so one extra iteration is observably this program.
 			for (let i = 1; i < len; i++)
 				chain = chain.then(runtimeSteps[i]!)
 			return chain
@@ -347,6 +362,7 @@ function createFinalizedPipeExecutor(
 			result = runtimeSteps[i]!(result)
 			if (isPromiseLike(result)) {
 				let chain = Promise.resolve(result)
+				// Stryker disable next-line EqualityOperator: same `then(undefined)` pass-through as above.
 				for (let j = i + 1; j < len; j++)
 					chain = chain.then(runtimeSteps[j]!)
 				return chain
@@ -788,6 +804,7 @@ function createExecutionStepMethodUtils(
 				? defaultOperationMode
 				: toRuntimeOperationMode(operationMode)
 			runtimeExecutions.push(wrapWithErrorHandling(fn, runtimeOperationMode))
+			// Stryker disable next-line EqualityOperator: the guard elides a write, so `>=` differs only when the two are equal and then assigns the value already there.
 			if (runtimeOperationMode > utils['~operationMode'])
 				utils['~operationMode'] = runtimeOperationMode
 		},
@@ -796,6 +813,7 @@ function createExecutionStepMethodUtils(
 				? defaultOperationMode
 				: toRuntimeOperationMode(operationMode)
 			runtimeExecutions.push(wrapWithErrorHandling(result => 'value' in result ? fn(result.value) : result, runtimeOperationMode))
+			// Stryker disable next-line EqualityOperator: the guard elides a write, so `>=` differs only when the two are equal and then assigns the value already there.
 			if (runtimeOperationMode > utils['~operationMode'])
 				utils['~operationMode'] = runtimeOperationMode
 		},
@@ -804,6 +822,7 @@ function createExecutionStepMethodUtils(
 				? defaultOperationMode
 				: toRuntimeOperationMode(operationMode)
 			runtimeExecutions.push(wrapWithErrorHandling(result => isFailure(result) ? fn(result.issues) : result, runtimeOperationMode))
+			// Stryker disable next-line EqualityOperator: the guard elides a write, so `>=` differs only when the two are equal and then assigns the value already there.
 			if (runtimeOperationMode > utils['~operationMode'])
 				utils['~operationMode'] = runtimeOperationMode
 		},

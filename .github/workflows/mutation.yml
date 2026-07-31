@@ -1,0 +1,165 @@
+name: Mutation
+
+# Test adequacy, which is a different question from coverage and is measured separately for
+# that reason. Coverage asks whether execution reached a line; mutation asks whether a
+# plausible behavioural change to it would be noticed. The #134/#135 audit established the
+# gap is real here — reading missed defects mutation found, and several tests that looked
+# meaningful were shown not to discriminate the behaviour their titles claimed — so it runs
+# on a schedule instead of by hand.
+#
+# Two runs, answering two questions:
+#
+#   - pull_request: "did this diff weaken the suite's ability to notice a broken
+#     implementation?" Scoped to the production files the diff touches, so it costs minutes
+#     rather than the full sweep's hour. It blocks.
+#   - schedule / workflow_dispatch: "where are this repository's blind spots?" The whole
+#     source tree, weekly. It is a signal to investigate, like security-audit, and it is the
+#     run that finds what the scoped one cannot: `scripts/mutation-scope.ts` selects changed
+#     files and their sibling tests but does not compute reverse dependencies, so a change to
+#     a shared module can weaken a step the scoped run never mutates.
+#
+# Neither job gates on a mutation score. `stryker.config.mjs` sets `thresholds.break` to null
+# and `scripts/check-mutation-survivors.ts` carries the contract instead: every surviving
+# mutant must be killed or carry a written classification. A percentage target would reward
+# killing equivalent mutants, and the only way to kill one of those is to assert an
+# implementation detail.
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    # Production source and the tests that discriminate it, plus the files that define this
+    # gate. A rule the workflow never starts for cannot fire.
+    paths:
+      - 'packages/*/src/**'
+      - mutation-survivors.json
+      - stryker.config.mjs
+      - vitest.mutation.config.ts
+      - scripts/check-mutation-survivors.ts
+      - scripts/mutation-scope.ts
+      - .github/workflows/mutation.yml
+
+  schedule:
+    # Weekly, Sunday 22:00 UTC (Monday 06:00 Asia/Taipei), an hour after security-audit so
+    # the two do not contend for runners.
+    - cron: '0 22 * * 0'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  Changed-Scope:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # The scope is computed from the merge base, so the base branch has to be present.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Mutate The Changed Files
+        shell: bash
+        env:
+          MUTATION_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -o pipefail
+          pnpm mutation:changed 2>&1 | tee mutation.log
+
+      # Runs even when the Stryker step failed, because a partial report still names the
+      # survivors it did measure and that is the actionable part of a red run.
+      - name: Check Survivors Against The Ledger
+        if: always() && hashFiles('reports/mutation/mutation.json') != ''
+        run: pnpm mutation:survivors
+
+      - name: Publish Mutation Summary
+        if: always() && hashFiles('artifacts/mutation-summary.md') != ''
+        run: cat artifacts/mutation-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Mutation Report
+        if: always() && hashFiles('reports/mutation/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutation-changed-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: |
+            reports/mutation
+            artifacts/mutation-summary.md
+            mutation.log
+          if-no-files-found: error
+          retention-days: 14
+
+  Full-Sweep:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # The sweep mutates every production file in the workspace. It is the long run by design;
+    # the budget is generous so a slower runner reports a result rather than a timeout that
+    # reads as infrastructure failure.
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Mutate Every Production File
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm mutation 2>&1 | tee mutation.log
+
+      - name: Check Survivors Against The Ledger
+        if: always() && hashFiles('reports/mutation/mutation.json') != ''
+        run: pnpm mutation:survivors
+
+      - name: Publish Mutation Summary
+        if: always() && hashFiles('artifacts/mutation-summary.md') != ''
+        run: cat artifacts/mutation-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Retained longer than the scoped run's: this is the artifact a future audit reads
+      # instead of rediscovering what was already classified.
+      - name: Upload Mutation Report
+        if: always() && hashFiles('reports/mutation/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutation-full-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/mutation
+            artifacts/mutation-summary.md
+            mutation.log
+          if-no-files-found: error
+          retention-days: 90
