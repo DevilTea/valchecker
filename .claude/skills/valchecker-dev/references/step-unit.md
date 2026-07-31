@@ -74,7 +74,8 @@ v.string()
   declared in `apiPages` in `scripts/docs-api.ts`. It is never inferred from the step's name:
   `isXxx → formats` would file `isInteger` under string formats and would invent a category for a
   step nobody has written yet.
-- **`section`** is a `<!-- steps: … -->` slot in that page's template. A section the template does
+- **`section`** is a visible `<!-- steps: … -->` slot in that page's template. A marker shown inside
+  a fenced example or an enclosing HTML comment is content, not a slot. A section the template does
   not offer fails, and so does a slot no step fills.
 - **`summary`** is one line, for the catalog on the overview page.
 
@@ -93,11 +94,12 @@ earlier fences' bindings are in scope, `v` is imported automatically, and the pa
 `.doc.md` for the same reason. An example that needs its own imports takes
 `<!-- typecheck-isolate -->`.
 
-`scripts/step-completeness.ts` decides four mechanical facts about the file: the entry's heading
-writes the step in call form in a code span, prose follows the heading, at least one ` ```ts ` fence
-is present, and every issue code the step declares appears in a code span outside the fences. It
-cannot decide whether the description is true or whether the sentence beside a code lists what that
-issue means — same limit as every other matching rule here.
+`scripts/step-completeness.ts` decides four mechanical facts about the file: the opening entry
+heading writes the step in call form in a code span, prose follows the heading, at least one
+non-empty ` ```ts ` fence is present outside HTML comments, and every issue code the step declares
+appears as a complete token in a code span outside the fences. It cannot decide whether the
+description is true or whether the sentence beside a code lists what that issue means — same limit
+as every other matching rule here.
 
 ## The steps root
 
@@ -152,10 +154,12 @@ that allow-list rather than as a list of value kinds because an enumeration of `
 ### What the gate decides, and what it leaves to review
 
 Section 1 is the eslint import rules. From the rest, `scripts/step-completeness.ts` decides that
-`Meta` and `PluginDef` exist under those names, that `Meta` precedes `PluginDef`, that nothing but
-erased syntax precedes `PluginDef`, that a local namespace is named `Internal`, that `implStepPlugin`
-is constructed exactly once as the file's last statement, and that the plugin is the file's only
-export. It decides the file set, both naming patterns, and the steps root.
+`Meta` is an alias through `DefineStepMethodMeta` imported from `../../core` and `PluginDef` extends
+`TStepPluginDef` imported from there under those names, that `Meta` precedes `PluginDef`, that
+nothing but erased syntax precedes `PluginDef`, that a local namespace is named `Internal`, that
+the `implStepPlugin` imported from the core module is constructed exactly once as the file's last
+statement, and that its variable statement exports only that plugin binding. It decides the file
+set, both naming patterns, and the steps root.
 
 Three things it cannot decide, and their limits are the honest ones:
 

@@ -61,7 +61,7 @@ interface StepFixture {
  */
 function main({ name, code }: StepFixture): string {
 	return [
-		`import type { TStepPluginDef } from '../../core'`,
+		`import type { DefineStepMethodMeta, TStepPluginDef } from '../../core'`,
 		`import { implStepPlugin } from '../../core'`,
 		'',
 		...(code == null
@@ -255,14 +255,14 @@ describe('the colocated test rule', () => {
 
 	it('accepts a case registered through `it.each`', () => {
 		expect(checkStepCompleteness(repository({
-			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: 'it.each([1, 2])(\'trims %i\', (value) => {\n\texpect(value).toBeDefined()\n})\n',
+			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: 'import { expect, it } from \'vitest\'\n\nit.each([1, 2])(\'trims %i\', (value) => {\n\texpect(value).toBeDefined()\n})\n',
 		})).errors)
 			.toEqual([])
 	})
 
 	it('accepts a case registered through a tagged `test.each` template', () => {
 		expect(checkStepCompleteness(repository({
-			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: `test.each\`\n\tvalue\n\t\${1}\n\`('trims $value', () => {})\n`,
+			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: `import { test } from 'vitest'\n\ntest.each\`\n\tvalue\n\t\${1}\n\`('trims $value', () => {})\n`,
 		})).errors)
 			.toEqual([])
 	})
@@ -272,10 +272,31 @@ describe('the colocated test rule', () => {
 			.toContain('calls no `it` or `test`')
 	})
 
+	it('fails a local function merely named `it`, because it registers no Vitest case', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: 'const it = (..._args: unknown[]) => undefined\nit(\'works\', () => {})\n',
+		}))
+			.toContain('calls no `it` or `test`')
+	})
+
+	it('fails a block-scoped local `it` that shadows the Vitest import', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: 'import { it } from \'vitest\'\n\n{\n\tconst it = (..._args: unknown[]) => undefined\n\tit(\'works\', () => {})\n}\n',
+		}))
+			.toContain('calls no `it` or `test`')
+	})
+
+	it('fails a case call reached through a type-only Vitest import', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: 'import type { it } from \'vitest\'\n\nit(\'works\', () => {})\n',
+		}))
+			.toContain('calls no `it` or `test`')
+	})
+
 	// The gap the message admits to: this rule stops at "a case exists".
 	it('accepts a case that asserts nothing about the step, as its message says', () => {
 		expect(checkStepCompleteness(repository({
-			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: 'it(\'works\', () => {\n\texpect(1).toBe(1)\n})\n',
+			[`${stepsRoot}/toTrimmed/toTrimmed.test.ts`]: 'import { expect, it } from \'vitest\'\n\nit(\'works\', () => {\n\texpect(1).toBe(1)\n})\n',
 		})).errors)
 			.toEqual([])
 	})
@@ -298,6 +319,27 @@ describe('the focused benchmark rule', () => {
 		// gate cannot read: a `bench(name, fn)` carries no group, no expectation, and no
 		// batch, so nothing downstream can measure it or check that it reaches its own step.
 		expect(onlyError({ [`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: 'describe(\'toTrimmed\', () => {\n\tbench(\'valid\', () => run())\n})\n' }))
+			.toContain('calls no `stepBench`')
+	})
+
+	it('fails a local function merely named `stepBench`, because it declares no harness cell', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: 'const stepBench = (..._args: unknown[]) => undefined\nstepBench(\'toTrimmed\', [])\n',
+		}))
+			.toContain('calls no `stepBench`')
+	})
+
+	it('fails a block-scoped local `stepBench` that shadows the harness import', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: 'import { stepBench } from \'../../test-utils/step-bench\'\n\n{\n\tconst stepBench = (..._args: unknown[]) => undefined\n\tstepBench(\'toTrimmed\', [])\n}\n',
+		}))
+			.toContain('calls no `stepBench`')
+	})
+
+	it('fails a cell call reached through a type-only harness import', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.bench.ts`]: 'import type { stepBench } from \'../../test-utils/step-bench\'\n\nstepBench(\'toTrimmed\', [])\n',
+		}))
 			.toContain('calls no `stepBench`')
 	})
 })
@@ -332,6 +374,23 @@ describe('the step-documentation rule', () => {
 			.toContain('`toTrimmed.doc.md` writes no code span containing `toTrimmed(`')
 	})
 
+	it('fails a name found in prose but not in the entry heading', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('### `toTrimmed()`', '### Trimming')
+				.replace('Does the thing, and nothing the name does not say.', 'Use `toTrimmed()` to do the thing.'),
+		}))
+			.toContain('`toTrimmed.doc.md` writes no code span containing `toTrimmed(`')
+	})
+
+	it('fails visible content before an otherwise valid entry heading', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('### `toTrimmed()`', 'Prose first.\n\n### `toTrimmed()`'),
+		}))
+			.toContain('writes no code span containing `toTrimmed(` in its opening `### ` heading')
+	})
+
 	it('fails a mention that lives only inside a fenced code block', () => {
 		expect(onlyError({
 			[docPath]: [
@@ -347,6 +406,59 @@ describe('the step-documentation rule', () => {
 				'',
 				'```ts',
 				'// `toTrimmed()` — removed in 2.0',
+				'```',
+				'',
+			].join('\n'),
+		}))
+			.toContain('writes no code span containing `toTrimmed(`')
+	})
+
+	it('fails a heading and description that both live inside a fenced block', () => {
+		expect(onlyError({
+			[docPath]: [
+				'<!-- step-doc',
+				'category: primitives',
+				'section: initial',
+				'summary: does the thing',
+				'-->',
+				'',
+				'```md',
+				'### `toTrimmed()`',
+				'',
+				'Does the thing.',
+				'```',
+				'',
+				'### Trimming',
+				'',
+				'```ts',
+				'v.toTrimmed()',
+				'```',
+				'',
+			].join('\n'),
+		}))
+			.toContain('writes no code span containing `toTrimmed(`')
+	})
+
+	it('does not treat a fence-looking code line with an info string as a closing fence', () => {
+		expect(onlyError({
+			[docPath]: [
+				'<!-- step-doc',
+				'category: primitives',
+				'section: initial',
+				'summary: does the thing',
+				'-->',
+				'',
+				'```md',
+				'```ts',
+				'### `toTrimmed()`',
+				'',
+				'Does the thing.',
+				'```',
+				'',
+				'### Trimming',
+				'',
+				'```ts',
+				'v.toTrimmed()',
 				'```',
 				'',
 			].join('\n'),
@@ -391,6 +503,22 @@ describe('the step-documentation rule', () => {
 		expect(onlyError({
 			[docPath]: doc({ name: 'toTrimmed' })
 				.replace('```ts', '```js'),
+		}))
+			.toContain('holds no `ts` fenced example')
+	})
+
+	it('fails a `ts` fence hidden inside an HTML comment', () => {
+		expect(onlyError({
+			[docPath]: `${doc({ name: 'toTrimmed' })
+				.replace('```ts', '```js')}\n<!--\n\`\`\`ts\nv.toTrimmed()\n\`\`\`\n-->\n`,
+		}))
+			.toContain('holds no `ts` fenced example')
+	})
+
+	it('fails an empty `ts` fence, because there is no example to compile', () => {
+		expect(onlyError({
+			[docPath]: doc({ name: 'toTrimmed' })
+				.replace('v.toTrimmed()', ''),
 		}))
 			.toContain('holds no `ts` fenced example')
 	})
@@ -484,24 +612,44 @@ describe('the asserted issue-code rule', () => {
 
 	it('accepts a code carried by an inline snapshot template', () => {
 		expect(checkStepCompleteness(repository({
-			[`${stepsRoot}/isEmail/isEmail.test.ts`]: 'it(\'rejects\', () => {\n\texpect(run()).toMatchInlineSnapshot(`{ "code": "isEmail:expected_email" }`)\n})\n',
+			[`${stepsRoot}/isEmail/isEmail.test.ts`]: 'import { expect, it } from \'vitest\'\n\nit(\'rejects\', () => {\n\texpect(run()).toMatchInlineSnapshot(`{ "code": "isEmail:expected_email" }`)\n})\n',
 		})).errors)
 			.toEqual([])
 	})
 
 	it('reads a sibling test file in the same directory', () => {
 		expect(checkStepCompleteness(repository({
-			[`${stepsRoot}/isEmail/isEmail.test.ts`]: 'it(\'rejects\', () => {\n\texpect(1).toBe(1)\n})\n',
-			[`${stepsRoot}/isEmail/isEmail.types.test.ts`]: 'it(\'rejects\', () => {\n\texpectTypeOf(run().issues[0].code).toEqualTypeOf<\'isEmail:expected_email\'>()\n})\n',
+			[`${stepsRoot}/isEmail/isEmail.test.ts`]: 'import { expect, it } from \'vitest\'\n\nit(\'rejects\', () => {\n\texpect(1).toBe(1)\n})\n',
+			[`${stepsRoot}/isEmail/isEmail.types.test.ts`]: 'import { expectTypeOf, it } from \'vitest\'\n\nit(\'rejects\', () => {\n\texpectTypeOf(run().issues[0].code).toEqualTypeOf<\'isEmail:expected_email\'>()\n})\n',
 		})).errors)
 			.toEqual([])
+	})
+
+	it('does not let one longer issue code stand in for another code that prefixes it', () => {
+		const path = `${stepsRoot}/isEmail`
+		const source = main({ name: 'isEmail', code: 'isEmail:expected_email' })
+			.replace(
+				`ExecutionIssue<'isEmail:expected_email', { value: string }>`,
+				`ExecutionIssue<'isEmail:expected_email', { value: string }> | ExecutionIssue<'isEmail:expected_email_address', { value: string }>`,
+			)
+		const report = checkStepCompleteness(repository({
+			[`${path}/isEmail.ts`]: source,
+			[`${path}/isEmail.doc.md`]: doc({ name: 'isEmail', code: 'isEmail:expected_email_address' }),
+			[`${path}/isEmail.test.ts`]: test_({ name: 'isEmail', code: 'isEmail:expected_email_address' }),
+		}))
+		expect(report.errors)
+			.toHaveLength(1)
+		expect(report.errors[0])
+			.toContain('the owned issue code `isEmail:expected_email` appears in no code span')
+		expect(report.errors[0])
+			.toContain('the owned issue code `isEmail:expected_email` appears in no string')
 	})
 })
 
 describe('the file-set rule', () => {
 	it('accepts the one auxiliary test the standard names', () => {
 		expect(checkStepCompleteness(repository({
-			[`${stepsRoot}/toTrimmed/toTrimmed.types.test.ts`]: 'it(\'infers a string\', () => {\n\texpectTypeOf(run()).toEqualTypeOf<string>()\n})\n',
+			[`${stepsRoot}/toTrimmed/toTrimmed.types.test.ts`]: 'import { expectTypeOf, it } from \'vitest\'\n\nit(\'infers a string\', () => {\n\texpectTypeOf(run()).toEqualTypeOf<string>()\n})\n',
 		})).errors)
 			.toEqual([])
 	})
@@ -557,6 +705,17 @@ describe('the file-set rule', () => {
 			.toContain('`lazy-output.test.ts` reads as the suite for `lazy-output.ts`')
 	})
 
+	it('fails unreachable helper modules that only reach each other', () => {
+		const error = onlyError({
+			[`${stepsRoot}/toTrimmed/lazy-output.ts`]: 'export { materialize } from \'./materialize-output\'\n',
+			[`${stepsRoot}/toTrimmed/materialize-output.ts`]: 'export { lazy } from \'./lazy-output\'\n',
+		})
+		expect(error)
+			.toContain('`lazy-output.ts` is a module nothing in this step reaches')
+		expect(error)
+			.toContain('`materialize-output.ts` is a module nothing in this step reaches')
+	})
+
 	// The distinction that separates a helper's suite from a step's suite under another name: the
 	// module it claims to test has to be there, and the step has to reach it.
 	it('fails a kebab-case test with no module of that name beside it', () => {
@@ -583,9 +742,23 @@ describe('the file-set rule', () => {
 
 	it('accepts a `<name>.types.test.ts` that uses assertType', () => {
 		expect(checkStepCompleteness(repository({
-			[`${stepsRoot}/toTrimmed/toTrimmed.types.test.ts`]: 'it(\'trims\', () => {\n\tassertType<string>(run())\n})\n',
+			[`${stepsRoot}/toTrimmed/toTrimmed.types.test.ts`]: 'import { assertType, it } from \'vitest\'\n\nit(\'trims\', () => {\n\tassertType<string>(run())\n})\n',
 		})).errors)
 			.toEqual([])
+	})
+
+	it('fails a local type-assertion helper that shadows the Vitest import', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.types.test.ts`]: 'import { expectTypeOf } from \'vitest\'\n\n{\n\tconst expectTypeOf = (..._args: unknown[]) => undefined\n\texpectTypeOf(run())\n}\n',
+		}))
+			.toContain('calls no `expectTypeOf` or `assertType`')
+	})
+
+	it('fails a type assertion reached through a type-only Vitest import', () => {
+		expect(onlyError({
+			[`${stepsRoot}/toTrimmed/toTrimmed.types.test.ts`]: 'import type { expectTypeOf } from \'vitest\'\n\nexpectTypeOf(run())\n',
+		}))
+			.toContain('calls no `expectTypeOf` or `assertType`')
 	})
 
 	it('fails a helper module whose name is not kebab-case', () => {
@@ -825,13 +998,80 @@ describe('the section-order rule', () => {
 	const plugin = 'export const toTrimmed = implStepPlugin<PluginDef>({}, \'sync\')'
 
 	function file(...lines: (string | null)[]): string {
-		return `${lines.filter(line => line != null)
+		return `${[
+			'import type { DefineStepMethodMeta, TStepPluginDef } from \'../../core\'',
+			'import { implStepPlugin } from \'../../core\'',
+			'',
+			...lines,
+		].filter(line => line != null)
 			.join('\n')}\n`
 	}
 
 	it('accepts the canonical order, with values between PluginDef and the plugin', () => {
 		expect(declarationProblems(file(...contract, '', 'const pattern = /\\s/', '', plugin), 'toTrimmed'))
 			.toEqual([])
+	})
+
+	it('fails `Meta` when it is not defined through `DefineStepMethodMeta`', () => {
+		expect(declarationProblems(file(
+			'type Meta = { Name: \'toTrimmed\' }',
+			'',
+			...contract.slice(4),
+			'',
+			plugin,
+		), 'toTrimmed')[0])
+			.toContain('`type Meta` is not a `DefineStepMethodMeta<…>`')
+	})
+
+	it('fails a locally redefined `DefineStepMethodMeta` rather than the core utility', () => {
+		expect(declarationProblems(file(
+			'type DefineStepMethodMeta<T> = T',
+			'',
+			...contract,
+			'',
+			plugin,
+		)
+			.replace('import type { DefineStepMethodMeta, TStepPluginDef } from \'../../core\'', 'import type { TStepPluginDef } from \'../../core\''), 'toTrimmed')
+			.some(problem => problem.includes('`type Meta` is not defined through the `DefineStepMethodMeta` imported from `../../core`')))
+			.toBe(true)
+	})
+
+	it('fails `PluginDef` when it does not extend `TStepPluginDef`', () => {
+		expect(declarationProblems(file(
+			...contract.slice(0, 3),
+			'',
+			'interface PluginDef {',
+			'}',
+			'',
+			plugin,
+		), 'toTrimmed')[0])
+			.toContain('`interface PluginDef` does not extend `TStepPluginDef`')
+	})
+
+	it('fails a locally redefined `TStepPluginDef` rather than the core base', () => {
+		expect(declarationProblems(file(
+			'interface TStepPluginDef {}',
+			'',
+			...contract,
+			'',
+			plugin,
+		)
+			.replace('import type { DefineStepMethodMeta, TStepPluginDef } from \'../../core\'', 'import type { DefineStepMethodMeta } from \'../../core\''), 'toTrimmed')
+			.some(problem => problem.includes('`interface PluginDef` does not extend the `TStepPluginDef` imported from `../../core`')))
+			.toBe(true)
+	})
+
+	it('fails a locally declared `implStepPlugin` rather than the core constructor', () => {
+		expect(declarationProblems(file(
+			'declare function implStepPlugin<T>(definition: unknown, mode: string): T',
+			'',
+			...contract,
+			'',
+			plugin,
+		)
+			.replace('import { implStepPlugin } from \'../../core\'', ''), 'toTrimmed')
+			.some(problem => problem.includes('no `implStepPlugin` construction imported from the core module')))
+			.toBe(true)
 	})
 
 	it('fails a value declared above PluginDef, naming it', () => {
@@ -920,6 +1160,12 @@ describe('the section-order rule', () => {
 		expect(declarationProblems(file(...contract, '', statement, '', plugin), 'toTrimmed')
 			.some(problem => problem.includes('is exported. The plugin is the file\'s only export')))
 			.toBe(true)
+	})
+
+	it('fails a second exported binding hidden in the plugin variable statement', () => {
+		const pluginWithExtra = 'export const toTrimmed = implStepPlugin<PluginDef>({}, \'sync\'), helper = 1'
+		expect(declarationProblems(file(...contract, '', pluginWithExtra), 'toTrimmed')[0])
+			.toContain('exports 2 bindings')
 	})
 
 	// The limit the module's comment admits to: a *type* is the same syntax in either section, so

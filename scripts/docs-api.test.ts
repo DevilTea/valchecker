@@ -397,6 +397,23 @@ describe('anything unplaceable fails', () => {
 			.toContain('`<!-- steps: shapes -->` is a section no step declares')
 	})
 
+	it('does not place a step into a slot shown inside a fenced example', () => {
+		const { problems } = composeDocsApi(repository({
+			'scripts/docs-api-templates/primitives.md': [
+				'# Primitives',
+				'',
+				'## Initial schemas',
+				'',
+				'```md',
+				'<!-- steps: initial -->',
+				'```',
+				'',
+			].join('\n'),
+		}))
+		expect(problems)
+			.toContain('scripts/docs-api-templates/primitives.md offers no `<!-- steps: … -->` slot, so nothing can be documented on a page that claims `category: primitives`. Every step declaring that category would fail for want of a section.')
+	})
+
 	it('fails a section slot with no heading above it to name it', () => {
 		expect(onlyProblem({
 			'scripts/docs-api-templates/primitives.md': '# Primitives\n\nProse.\n\n<!-- steps: initial -->\n',
@@ -461,6 +478,13 @@ describe('anything unplaceable fails', () => {
 
 	it('fails a config with no sidebar region', () => {
 		expect(onlyProblem({ 'docs/.vitepress/config.ts': 'export default {}\n' }))
+			.toContain('no `// #region generated-api-sidebar`')
+	})
+
+	it('fails a config with more than one sidebar region', () => {
+		expect(onlyProblem({
+			'docs/.vitepress/config.ts': `${config}\n${config}`,
+		}))
 			.toContain('no `// #region generated-api-sidebar`')
 	})
 
@@ -532,6 +556,40 @@ describe('readSlots', () => {
 
 	it('does not read a slot that is not a line of its own', () => {
 		expect(readSlots('Prose <!-- steps: a --> more prose\n'))
+			.toEqual([])
+	})
+
+	it('does not read slots or headings inside fenced blocks or enclosing HTML comments', () => {
+		expect(readSlots([
+			'# Page',
+			'',
+			'## Real',
+			'',
+			'```md',
+			'## Fenced',
+			'<!-- steps: fenced -->',
+			'```',
+			'',
+			'<!-- explanation',
+			'## Commented',
+			'<!-- steps: commented -->',
+			'-->',
+			'',
+			'<!-- steps: real -->',
+		].join('\n')))
+			.toEqual([{ kind: 'steps', id: 'real', line: 14, title: 'Real' }])
+	})
+
+	it('does not treat a fence-looking code line with an info string as a closing fence', () => {
+		expect(readSlots([
+			'# Page',
+			'',
+			'```md',
+			'```ts',
+			'## Fenced',
+			'<!-- steps: fenced -->',
+			'```',
+		].join('\n')))
 			.toEqual([])
 	})
 })

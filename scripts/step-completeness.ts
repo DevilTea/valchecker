@@ -35,8 +35,11 @@ import { discoverSteps, stepsBarrel, stepsRoot } from './step-inventory'
 // adversarial review walked through the gap: a test file can register a case that asserts
 // `1 === 1`, and a reference page can mention a step in a sentence saying it does not exist.
 //
-// - **A test exists and registers a case.** Whether the case asserts anything about this step is
-//   not decidable here; `it('works', () => expect(1).toBe(1))` satisfies the rule.
+// - **A test exists and contains module-scope Vitest case-registration syntax.** Whether the call
+//   executes or the case asserts anything about this step is not decidable here: arbitrary control
+//   flow is not interpreted, and `it('works', () => expect(1).toBe(1))` satisfies the rule. The
+//   scan follows top-level syntax and callbacks passed directly to imported `describe`/`suite`
+//   calls, while skipping dormant function and class bodies.
 // - **An issue code appears in a string in the directory's tests.** Not "is asserted": the rule
 //   reads string literals out of the parsed test files, which is enough to reject a code that
 //   survives only in a comment, and not enough to know the string reached an assertion.
@@ -110,6 +113,28 @@ function parse(source: string): ts.SourceFile {
 	return ts.createSourceFile('input.ts', source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS)
 }
 
+/** One in-memory file with enough binding information to distinguish imports from shadows. */
+function checkedSource(source: string): { sourceFile: ts.SourceFile, checker: ts.TypeChecker } {
+	const sourceFile = parse(source)
+	const host: ts.CompilerHost = {
+		fileExists: fileName => fileName === sourceFile.fileName,
+		getCanonicalFileName: fileName => fileName,
+		getCurrentDirectory: () => '',
+		getDefaultLibFileName: () => 'lib.d.ts',
+		getNewLine: () => '\n',
+		getSourceFile: fileName => fileName === sourceFile.fileName ? sourceFile : undefined,
+		readFile: fileName => fileName === sourceFile.fileName ? source : undefined,
+		useCaseSensitiveFileNames: () => true,
+		writeFile: () => {},
+	}
+	const program = ts.createProgram({
+		rootNames: [sourceFile.fileName],
+		options: { noLib: true },
+		host,
+	})
+	return { sourceFile, checker: program.getTypeChecker() }
+}
+
 /**
  * Every issue code declared through `ExecutionIssue<'…'>`, the way `check-issue-codes` reads them.
  */
@@ -141,12 +166,12 @@ export function stringLiteralTexts(source: string): string[] {
 	return texts
 }
 
-/** The identifier a call's callee ultimately starts from, so `it.each([…])('…')` reports `it`. */
-function rootIdentifier(node: ts.Node): string | null {
+/** The identifier node a call's callee ultimately starts from. */
+function rootIdentifierNode(node: ts.Node): ts.Identifier | null {
 	let current = node
 	for (;;) {
 		if (ts.isIdentifier(current))
-			return current.text
+			return current
 		if (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current) || ts.isParenthesizedExpression(current) || ts.isNonNullExpression(current) || ts.isCallExpression(current))
 			current = current.expression
 		else if (ts.isTaggedTemplateExpression(current))
@@ -154,6 +179,11 @@ function rootIdentifier(node: ts.Node): string | null {
 		else
 			return null
 	}
+}
+
+/** The identifier a call's callee ultimately starts from, so `it.each([…])('…')` reports `it`. */
+function rootIdentifier(node: ts.Node): string | null {
+	return rootIdentifierNode(node)?.text ?? null
 }
 
 /** Whether the file calls any of `names`, however the call is qualified or tagged. */
@@ -173,6 +203,136 @@ export function callsAnyOf(source: string, names: readonly string[]): boolean {
 		ts.forEachChild(node, visit)
 	}
 	ts.forEachChild(parse(source), visit)
+	return found
+}
+
+/** Local names imported from `moduleName` for one of `names`, including aliased imports. */
+function importedNames(sourceFile: ts.SourceFile, moduleName: string, names: readonly string[]): Set<string> {
+	const wanted = new Set(names)
+	const imported = new Set<string>()
+	for (const statement of sourceFile.statements) {
+		if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
+			|| statement.moduleSpecifier.text !== moduleName) {
+			continue
+		}
+		const bindings = statement.importClause?.namedBindings
+		if (bindings == null || !ts.isNamedImports(bindings))
+			continue
+		for (const element of bindings.elements) {
+			if (wanted.has(element.propertyName?.text ?? element.name.text))
+				imported.add(element.name.text)
+		}
+	}
+	return imported
+}
+
+/** Symbols imported from `moduleName`, so a nested binding with the same spelling does not count. */
+function importedSymbols(
+	sourceFile: ts.SourceFile,
+	checker: ts.TypeChecker,
+	moduleName: string,
+	names: readonly string[],
+): Set<ts.Symbol> {
+	const wanted = new Set(names)
+	const imported = new Set<ts.Symbol>()
+	for (const statement of sourceFile.statements) {
+		if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
+			|| statement.moduleSpecifier.text !== moduleName) {
+			continue
+		}
+		const bindings = statement.importClause?.namedBindings
+		if (bindings == null || !ts.isNamedImports(bindings))
+			continue
+		for (const element of bindings.elements) {
+			if (statement.importClause?.isTypeOnly === true || element.isTypeOnly)
+				continue
+			if (!wanted.has(element.propertyName?.text ?? element.name.text))
+				continue
+			const symbol = checker.getSymbolAtLocation(element.name)
+			if (symbol != null)
+				imported.add(symbol)
+		}
+	}
+	return imported
+}
+
+/** Whether `identifier` resolves to one of the selected import bindings. */
+function isImportedBinding(
+	identifier: ts.Identifier | null,
+	checker: ts.TypeChecker,
+	imports: ReadonlySet<ts.Symbol>,
+): boolean {
+	const symbol = identifier == null ? null : checker.getSymbolAtLocation(identifier)
+	return symbol != null && imports.has(symbol)
+}
+
+/**
+ * Whether module-scope syntax holds a registration-shaped call imported from `moduleName`.
+ *
+ * Function and class bodies are not module evaluation. The exception is a callback passed directly
+ * to an imported `describe` or `suite`: Vitest executes that callback to register the cases inside
+ * it, including nested suites. This is intentionally a syntactic floor, not a JavaScript
+ * interpreter; arbitrary conditional control flow remains one of the limits the success message
+ * names.
+ */
+function hasModuleScopeImportedCall(
+	source: string,
+	moduleName: string,
+	names: readonly string[],
+	registrars: readonly string[] = [],
+): boolean {
+	const { sourceFile, checker } = checkedSource(source)
+	const targets = importedSymbols(sourceFile, checker, moduleName, names)
+	if (targets.size === 0)
+		return false
+	const suites = importedSymbols(sourceFile, checker, moduleName, registrars)
+	let found = false
+
+	const visit = (node: ts.Node): void => {
+		if (found)
+			return
+		if (ts.isFunctionLike(node) || ts.isClassLike(node))
+			return
+		if (ts.isCallExpression(node) || ts.isTaggedTemplateExpression(node)) {
+			const root = rootIdentifierNode(ts.isCallExpression(node) ? node.expression : node.tag)
+			if (isImportedBinding(root, checker, targets)) {
+				found = true
+				return
+			}
+			if (ts.isCallExpression(node) && isImportedBinding(root, checker, suites)) {
+				for (const argument of node.arguments) {
+					if (ts.isArrowFunction(argument) || ts.isFunctionExpression(argument))
+						visit(argument.body)
+				}
+			}
+		}
+		ts.forEachChild(node, visit)
+	}
+	for (const statement of sourceFile.statements)
+		visit(statement)
+	return found
+}
+
+/** Whether a call imported from `moduleName` appears anywhere, including in type-test helpers. */
+function callsImportedAnyOf(source: string, moduleName: string, names: readonly string[]): boolean {
+	const { sourceFile, checker } = checkedSource(source)
+	const imports = importedSymbols(sourceFile, checker, moduleName, names)
+	if (imports.size === 0)
+		return false
+	let found = false
+	const visit = (node: ts.Node): void => {
+		if (found)
+			return
+		if (ts.isCallExpression(node) || ts.isTaggedTemplateExpression(node)) {
+			const root = rootIdentifierNode(ts.isCallExpression(node) ? node.expression : node.tag)
+			if (isImportedBinding(root, checker, imports)) {
+				found = true
+				return
+			}
+		}
+		ts.forEachChild(node, visit)
+	}
+	ts.forEachChild(sourceFile, visit)
 	return found
 }
 
@@ -219,14 +379,18 @@ export function unexpectedEntries(tree: SourceTree, directory: string): string[]
 		.map(entry => entry.slice(0, -'.ts'.length))
 		.filter(isKebabCase)
 
-	// Reachability from the step's own source, following helper-to-helper imports.
+	// Reachability from the step's own source, following helper-to-helper imports. Start at the
+	// step, rather than flattening every helper's imports into one set: two otherwise-unreachable
+	// helpers importing each other are still not reached by the step.
 	const reached = new Set<string>()
-	const sources = [`${directory}.ts`, ...candidates.map(stem => `${stem}.ts`)]
-		.map(entry => tree.read(`${stepsRoot}/${directory}/${entry}`) ?? '')
-	const reachable = new Set(sources.flatMap(localSpecifiers))
-	for (const stem of candidates) {
-		if (reachable.has(stem))
-			reached.add(stem)
+	const candidateSet = new Set(candidates)
+	const pending = [...localSpecifiers(tree.read(`${stepsRoot}/${directory}/${directory}.ts`) ?? '')]
+	while (pending.length > 0) {
+		const stem = pending.shift()!
+		if (!candidateSet.has(stem) || reached.has(stem))
+			continue
+		reached.add(stem)
+		pending.push(...localSpecifiers(tree.read(`${stepsRoot}/${directory}/${stem}.ts`) ?? ''))
 	}
 
 	const problems: string[] = []
@@ -327,13 +491,15 @@ export function barrelProblems(barrel: string | null, directory: string): string
 		: [`\`index.ts\` is not exactly \`${expected}\`. A step's barrel re-exports the step and nothing else: another step reaching a helper module imports it by direct relative path, so re-exporting one here would publish it by accident.`]
 }
 
-function isPluginConstruction(statement: ts.Statement): boolean {
+function pluginConstructions(statement: ts.Statement, constructorNames: ReadonlySet<string>): ts.VariableDeclaration[] {
 	if (!ts.isVariableStatement(statement))
-		return false
-	const initializer = statement.declarationList.declarations[0]?.initializer
-	return initializer != null
-		&& ts.isCallExpression(initializer)
-		&& rootIdentifier(initializer.expression) === 'implStepPlugin'
+		return []
+	return [...statement.declarationList.declarations].filter((declaration) => {
+		const initializer = declaration.initializer
+		return initializer != null
+			&& ts.isCallExpression(initializer)
+			&& constructorNames.has(rootIdentifier(initializer.expression) ?? '')
+	})
 }
 
 /** Whether the statement is erased by the compiler and so cannot run above `PluginDef`. */
@@ -394,11 +560,20 @@ function isExported(statement: ts.Statement): boolean {
  * review guidance. `step-unit.md` says so in the same words.
  */
 export function declarationProblems(source: string, directory: string): string[] {
-	const statements = parse(source).statements
+	const sourceFile = parse(source)
+	const statements = sourceFile.statements
 	const problems: string[] = []
+	const metaUtilities = importedNames(sourceFile, '../../core', ['DefineStepMethodMeta'])
+	const pluginDefBases = importedNames(sourceFile, '../../core', ['TStepPluginDef'])
+	const pluginConstructors = new Set([
+		...importedNames(sourceFile, '../../core', ['implStepPlugin']),
+		...importedNames(sourceFile, '../../core/core', ['implStepPlugin']),
+	])
 
-	let meta = -1
-	let pluginDef = -1
+	const meta = statements.findIndex(statement => ts.isTypeAliasDeclaration(statement) && statement.name.text === 'Meta')
+	const pluginDef = statements.findIndex(statement => ts.isInterfaceDeclaration(statement) && statement.name.text === 'PluginDef')
+	const metaDeclaration = meta === -1 ? null : statements[meta] as ts.TypeAliasDeclaration
+	const pluginDefDeclaration = pluginDef === -1 ? null : statements[pluginDef] as ts.InterfaceDeclaration
 	let firstRunnable = -1
 	let firstRunnableName = ''
 	const plugins: number[] = []
@@ -410,13 +585,15 @@ export function declarationProblems(source: string, directory: string): string[]
 		if (ts.isModuleDeclaration(statement) && ts.isIdentifier(statement.name) && statement.name.text !== 'Internal')
 			problems.push(`the local namespace is \`${statement.name.text}\`, not \`Internal\`. A step's only namespace is the erased \`declare namespace Internal\` holding the issue types it owns; no other module can see it, so a different name only costs a reader comparing two steps.`)
 
-		if (ts.isTypeAliasDeclaration(statement) && statement.name.text === 'Meta')
-			meta = index
-		else if (ts.isInterfaceDeclaration(statement) && statement.name.text === 'PluginDef')
-			pluginDef = index
-
-		if (isPluginConstruction(statement)) {
-			plugins.push(index)
+		const constructions = pluginConstructions(statement, pluginConstructors)
+		if (constructions.length > 0) {
+			plugins.push(...constructions.map(() => index))
+			if (ts.isVariableStatement(statement) && statement.declarationList.declarations.length !== 1) {
+				const count = statement.declarationList.declarations.length
+				problems.push(isExported(statement)
+					? `the plugin variable statement exports ${count} bindings. The plugin is the file's only export and occupies a declaration of its own.`
+					: `the plugin variable statement declares ${count} bindings. A step unit constructs one plugin in a declaration of its own.`)
+			}
 			return
 		}
 
@@ -429,10 +606,37 @@ export function declarationProblems(source: string, directory: string): string[]
 		}
 	})
 
-	if (meta === -1)
+	if (meta === -1) {
 		problems.push('no `type Meta` declaration. A step declares its name, expected state, and owned issues as `type Meta`, whatever type parameters it takes.')
-	if (pluginDef === -1)
+	}
+	else if (metaDeclaration != null
+		&& (!ts.isTypeReferenceNode(metaDeclaration.type)
+			|| !ts.isIdentifier(metaDeclaration.type.typeName)
+			|| !metaUtilities.has(metaDeclaration.type.typeName.text))) {
+		if (ts.isTypeReferenceNode(metaDeclaration.type)
+			&& ts.isIdentifier(metaDeclaration.type.typeName)
+			&& metaDeclaration.type.typeName.text === 'DefineStepMethodMeta') {
+			problems.push('`type Meta` is not defined through the `DefineStepMethodMeta` imported from `../../core`. A local type with the same spelling does not declare the public step contract.')
+		}
+		else {
+			problems.push('`type Meta` is not a `DefineStepMethodMeta<…>`. That utility declares the public name, expected state, and owned issues under the fixed local name.')
+		}
+	}
+	if (pluginDef === -1) {
 		problems.push('no `interface PluginDef extends TStepPluginDef` declaration. A generic step still names it `PluginDef`.')
+	}
+	else if (pluginDefDeclaration != null && !(pluginDefDeclaration.heritageClauses ?? [])
+		.flatMap(clause => [...clause.types])
+		.some(type => ts.isIdentifier(type.expression) && pluginDefBases.has(type.expression.text))) {
+		if ((pluginDefDeclaration.heritageClauses ?? [])
+			.flatMap(clause => [...clause.types])
+			.some(type => ts.isIdentifier(type.expression) && type.expression.text === 'TStepPluginDef')) {
+			problems.push('`interface PluginDef` does not extend the `TStepPluginDef` imported from `../../core`. A local interface with the same spelling is not the core state-aware step definition.')
+		}
+		else {
+			problems.push('`interface PluginDef` does not extend `TStepPluginDef`. That base is what makes the fixed interface a state-aware step definition.')
+		}
+	}
 
 	if (meta !== -1 && pluginDef !== -1 && meta > pluginDef)
 		problems.push('`PluginDef` is declared before `Meta`. `Meta` comes first: it is what `PluginDef` is written against.')
@@ -441,7 +645,7 @@ export function declarationProblems(source: string, directory: string): string[]
 		problems.push(`${firstRunnableName} is above \`PluginDef\`, and it is not erased syntax. Only types may sit between the imports and \`PluginDef\`; anything that runs goes below it, so opening the file shows what the step does before how — and nothing forward-references, because the only statement that reads it is the last one.`)
 
 	if (plugins.length === 0) {
-		problems.push('no `implStepPlugin` construction, so this file publishes no step. (That it is `export`ed under the step\'s identifier is `step-inventory`\'s rule, not this one.)')
+		problems.push('no `implStepPlugin` construction imported from the core module, so this file publishes no step. (That it is `export`ed under the step\'s identifier is `step-inventory`\'s rule, not this one.)')
 	}
 	else if (plugins.length > 1) {
 		// Counted rather than overwritten: taking the last match let an earlier construction sit
@@ -457,6 +661,15 @@ export function declarationProblems(source: string, directory: string): string[]
 
 /** A CommonMark fence opener or closer: up to three spaces, then three or more backticks or tildes. */
 const fenceDelimiter = /^ {0,3}(`{3,}|~{3,})/
+
+/** CommonMark closing fences carry only optional whitespace after the delimiter. */
+function closesFence(line: string, delimiter: string | null | undefined, fence: string): boolean {
+	return delimiter != null
+		&& delimiter[0] === fence[0]
+		&& delimiter.length >= fence.length
+		&& line.slice(line.indexOf(delimiter) + delimiter.length)
+			.trim() === ''
+}
 
 /** HTML comments blanked out, keeping every newline so the line structure survives. */
 export function stripHtmlComments(markdown: string): string {
@@ -482,7 +695,7 @@ export function outsideFencedBlocks(markdown: string): string {
 				fence = delimiter
 			continue
 		}
-		if (delimiter != null && delimiter[0] === fence[0] && delimiter.length >= fence.length)
+		if (closesFence(line, delimiter, fence))
 			fence = null
 	}
 	return kept.join('\n')
@@ -526,8 +739,59 @@ export function documents(spans: string[], name: string): boolean {
  * gate reads, so an example inside one would never be compiled.
  */
 export function hasTypeScriptExample(markdown: string): boolean {
-	return markdown.split(/\r?\n/)
-		.some(line => /^`{3,}(?:ts|tsx)(?:\s|$)/.test(line.trim()))
+	const lines = stripHtmlComments(markdown)
+		.split(/\r?\n/)
+	let fence: string | null = null
+	let typeScript = false
+
+	for (const line of lines) {
+		const delimiter = fenceDelimiter.exec(line)?.[1] ?? null
+		if (fence == null) {
+			if (delimiter == null)
+				continue
+			fence = delimiter
+			const info = line.slice(line.indexOf(delimiter) + delimiter.length)
+				.trim()
+			typeScript = delimiter[0] === '`' && /^(?:ts|tsx)(?:\s|$)/.test(info)
+			continue
+		}
+		if (closesFence(line, delimiter, fence)) {
+			fence = null
+			typeScript = false
+			continue
+		}
+		if (typeScript && line.trim() !== '') {
+			return true
+		}
+	}
+	return false
+}
+
+/** The opening visible content when it is a `### ` heading. */
+function entryHeading(markdown: string): { text: string, line: number } | null {
+	const lines = stripHtmlComments(markdown)
+		.split(/\r?\n/)
+	for (const [index, line] of lines.entries()) {
+		if (line.trim() === '')
+			continue
+		if (line.startsWith('### '))
+			return { text: line, line: index }
+		return null
+	}
+	return null
+}
+
+/** The visible inline-code spans in the entry's opening `### ` heading. */
+function entryHeadingSpans(markdown: string): string[] {
+	const heading = entryHeading(markdown)
+	return heading == null ? [] : codeSpans(heading.text)
+}
+
+/** Whether `token` occurs as a complete issue-code token rather than as another code's prefix. */
+function containsToken(text: string, token: string): boolean {
+	const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+	return new RegExp(`(?<![\\w:$])${escaped}(?![\\w:$])`)
+		.test(text)
 }
 
 /**
@@ -541,12 +805,12 @@ export function hasTypeScriptExample(markdown: string): boolean {
 export function entryDescription(markdown: string): string | null {
 	const lines = stripHtmlComments(markdown)
 		.split(/\r?\n/)
-	const heading = lines.findIndex(line => line.startsWith('### '))
-	if (heading === -1)
+	const heading = entryHeading(markdown)
+	if (heading == null)
 		return null
 
 	const prose: string[] = []
-	for (const line of lines.slice(heading + 1)) {
+	for (const line of lines.slice(heading.line + 1)) {
 		if (line.startsWith('#') || fenceDelimiter.test(line))
 			break
 		prose.push(line)
@@ -609,19 +873,19 @@ function missingPieces(tree: SourceTree, step: StepWithCodes, context: {
 	// different tool. A file called `<name>.types.test.ts` holding runtime cases is that exception
 	// used as a way around the fold — so the name has to be earned.
 	const types = tree.read(`${directory}/${step.directory}.types.test.ts`)
-	if (types != null && !callsAnyOf(types, typeAssertionCalls))
+	if (types != null && !callsImportedAnyOf(types, 'vitest', typeAssertionCalls))
 		missing.push(`\`${step.directory}.types.test.ts\` calls no \`expectTypeOf\` or \`assertType\`, so nothing in it is decided by \`pnpm typecheck\` — which is the only reason a step may hold a second test file. Fold it into \`${step.directory}.test.ts\`.`)
 
 	const test = tree.read(`${directory}/${step.directory}.test.ts`)
 	if (test == null)
 		missing.push(`no colocated \`${step.directory}.test.ts\`. Coverage does not stand in for it: other steps' tests execute this one, so removing a step's own test file leaves the per-file floor intact about half the time.`)
-	else if (!callsAnyOf(test, testCalls))
+	else if (!hasModuleScopeImportedCall(test, 'vitest', testCalls, ['describe', 'suite']))
 		missing.push(`\`${step.directory}.test.ts\` calls no \`it\` or \`test\`, so it registers no case at all. This rule only checks that a case exists — it cannot tell an assertion about this step from \`expect(1).toBe(1)\`.`)
 
 	const bench = tree.read(`${directory}/${step.directory}.bench.ts`)
 	if (bench == null)
 		missing.push(`no focused \`${step.directory}.bench.ts\`. Copy the closest step's and replace its inputs with ones that exercise this step; it is the only benchmark file a step unit holds.`)
-	else if (!callsAnyOf(bench, cellDeclarationCalls))
+	else if (!hasModuleScopeImportedCall(bench, '../../test-utils/step-bench', cellDeclarationCalls))
 		missing.push(`\`${step.directory}.bench.ts\` calls no \`stepBench\`, so it declares no cell: \`vitest bench\` measures nothing for this step and the Performance Impact gate has nothing of it to select. This rule only checks that a declaration exists — \`pnpm bench:cells\` is what executes the cells and decides whether they measure this step.`)
 
 	for (const [packageName, identifiers] of Object.entries(context.exports)) {
@@ -634,12 +898,13 @@ function missingPieces(tree: SourceTree, step: StepWithCodes, context: {
 	// spell its name, which is what the rule this replaced could reach.
 	const doc = tree.read(`${directory}/${step.directory}.doc.md`)
 	const docSpans = doc == null ? [] : codeSpans(visibleMarkdown(doc))
+	const headingSpans = doc == null ? [] : entryHeadingSpans(doc)
 	if (doc == null) {
 		missing.push(`no \`${step.directory}.doc.md\`. It is the step's entry in the API reference, which \`scripts/docs-api.ts\` composes \`docs/api/*\` from: without one the step appears nowhere on the documentation site. \`pnpm docs:api\` reports this from the other side, and reports the \`category\` and \`section\` it must declare.`)
 	}
 	else {
-		if (!documents(docSpans, step.name))
-			missing.push(`\`${step.directory}.doc.md\` writes no code span containing \`${step.name}(\`, so its entry does not name the step it documents. The heading is written in call form in a code span — \`### \\\`${step.name}()\\\`\` — and the rule matches that outside fenced blocks and HTML comments; it does not read the sentence around it.`)
+		if (!documents(headingSpans, step.name))
+			missing.push(`\`${step.directory}.doc.md\` writes no code span containing \`${step.name}(\` in its opening \`### \` heading, so its entry does not name the step it documents. The heading is written in call form in a code span — \`### \\\`${step.name}()\\\`\` — and the rule matches that outside fenced blocks and HTML comments; it does not read the sentence around it.`)
 
 		const description = entryDescription(doc)
 		if (description == null)
@@ -655,9 +920,9 @@ function missingPieces(tree: SourceTree, step: StepWithCodes, context: {
 		const literals = testFileNames(tree, step.directory)
 			.flatMap(entry => stringLiteralTexts(tree.read(`${directory}/${entry}`) ?? ''))
 		for (const code of step.codes) {
-			if (doc != null && !docSpans.some(span => span.includes(code)))
+			if (doc != null && !docSpans.some(span => containsToken(span, code)))
 				missing.push(`the owned issue code \`${code}\` appears in no code span of \`${step.directory}.doc.md\`, outside fenced blocks and HTML comments, so a consumer handling this failure has nothing to read. This checks that the code is listed, not that what is written beside it is what the step does.`)
-			if (!literals.some(literal => literal.includes(code)))
+			if (!literals.some(literal => containsToken(literal, code)))
 				missing.push(`the owned issue code \`${code}\` appears in no string of any \`*.test.ts\` in this directory, so a change to it would break consumers with every test still green. A mention in a comment does not count; the rule reads string literals, not whether one reached an assertion.`)
 		}
 	}
@@ -701,12 +966,12 @@ export function successMessage(report: CompletenessReport): string {
 		`Built-in steps are complete: ${report.complete} steps each hold only the files a step unit names,`,
 		'a one-line `index.ts`, a `<name>.ts` whose only export is a single `implStepPlugin` construction last in the file,',
 		'with `Meta` then `PluginDef` above every statement that is not erased syntax,',
-		'a `<name>.test.ts` registering at least one case,',
+		'a `<name>.test.ts` syntactically registering at least one case through a module-scope Vitest call,',
 		'a `<name>.bench.ts` declaring cells with `stepBench`, a runtime export in api-surface.json,',
 		'a `<name>.doc.md` whose `### ` entry writes their name in call form in a code span, describes them, and holds a `ts` example,',
 		'and every owned issue code both listed in a code span of that entry and present in a string in their own tests.',
 		'The steps root holds only the barrel, kebab-case shared modules, and cross-step tests whose family is not a step.',
-		'None of it finds meaning: these rules cannot tell a real assertion from a tautology, a description that is true from one',
-		'that is stale, a helper the step uses from one it merely imports, or a type in the right section from one in the wrong one.',
+		'None of it finds meaning: these rules cannot tell a real assertion from a tautology or interpret arbitrary registration control flow,',
+		'a description that is true from one that is stale, a helper the step uses from one it merely imports, or a type in the right section from one in the wrong one.',
 	].join(' ')
 }

@@ -76,6 +76,22 @@ describe('reading a cell catalog from source', () => {
 		expect(catalog.problems.some(problem => problem.includes('declared twice')))
 			.toBe(true)
 	})
+
+	it('reports a duplicate id even when one or both declarations are baseline cells', () => {
+		const mixed = staticCatalog([
+			{ path: 'a.bench.ts', text: bench('string', [{ name: 'native', group: 'baseline' }]) },
+			{ path: 'b.bench.ts', text: bench('string', [{ name: 'native' }]) },
+		])
+		expect(mixed.problems.some(problem => problem.includes('declared twice')))
+			.toBe(true)
+
+		const baselineOnly = staticCatalog([
+			{ path: 'a.bench.ts', text: bench('string', [{ name: 'native', group: 'baseline' }]) },
+			{ path: 'b.bench.ts', text: bench('string', [{ name: 'native', group: 'baseline' }]) },
+		])
+		expect(baselineOnly.problems.some(problem => problem.includes('declared twice')))
+			.toBe(true)
+	})
 })
 
 describe('diffing two revisions', () => {

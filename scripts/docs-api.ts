@@ -238,10 +238,70 @@ function approximateAnchor(heading: string): string {
 		.replace(/^-|-$/g, '')
 }
 
-/** Every heading in a template, at any level. */
+interface VisibleTemplateLine {
+	text: string
+	line: number
+}
+
+/**
+ * Markdown lines that can carry generator structure.
+ *
+ * A slot shown inside a fenced example is example text, not a place to publish a step. Likewise a
+ * heading inside a fence or an enclosing HTML comment cannot name the section of a later slot.
+ * Keeping original line numbers lets bottom-up replacement still address the template itself.
+ */
+function visibleTemplateLines(template: string): VisibleTemplateLine[] {
+	const visible: VisibleTemplateLine[] = []
+	let fence: string | null = null
+	let htmlComment = false
+	for (const [index, line] of template.split(/\r?\n/)
+		.entries()) {
+		const delimiter = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1] ?? null
+		if (fence != null) {
+			if (delimiter != null
+				&& delimiter[0] === fence[0]
+				&& delimiter.length >= fence.length
+				&& line.slice(line.indexOf(delimiter) + delimiter.length)
+					.trim() === '') {
+				fence = null
+			}
+			continue
+		}
+		if (htmlComment) {
+			if (line.includes('-->'))
+				htmlComment = false
+			continue
+		}
+		if (delimiter != null) {
+			fence = delimiter
+			continue
+		}
+		if (/^(?: {4,}|\t)/.test(line))
+			continue
+
+		const trimmed = line.trim()
+		const slot = /^<!--\s*(steps|catalog):\s*([\w-]+)\s*-->$/.exec(trimmed)
+		if (slot != null) {
+			visible.push({ text: line, line: index })
+			continue
+		}
+		const opener = line.indexOf('<!--')
+		if (opener !== -1) {
+			if (!line.slice(opener + '<!--'.length)
+				.includes('-->')) {
+				htmlComment = true
+			}
+			continue
+		}
+		visible.push({ text: line, line: index })
+	}
+	return visible
+}
+
+/** Every visible heading in a template, at any level. */
 function headings(template: string): string[] {
-	return template.split(/\r?\n/)
-		.map(line => /^#{1,6} (.*)$/.exec(line.trim())?.[1]?.trim())
+	return visibleTemplateLines(template)
+		.map(({ text }) => /^#{1,6} (.*)$/.exec(text.trim())?.[1]?.trim())
 		.filter((heading): heading is string => heading != null)
 }
 
@@ -257,16 +317,16 @@ interface Slot {
 export function readSlots(template: string): Slot[] {
 	const slots: Slot[] = []
 	let title: string | null = null
-	template.split(/\r?\n/)
-		.forEach((line, index) => {
-			const trimmed = line.trim()
+	visibleTemplateLines(template)
+		.forEach(({ text, line }) => {
+			const trimmed = text.trim()
 			if (trimmed.startsWith('## ')) {
 				title = trimmed.slice('## '.length)
 					.trim()
 			}
 			const match = /^<!--\s*(steps|catalog):\s*([\w-]+)\s*-->$/.exec(trimmed)
 			if (match != null)
-				slots.push({ kind: match[1] as 'steps' | 'catalog', id: match[2]!, line: index, title })
+				slots.push({ kind: match[1] as 'steps' | 'catalog', id: match[2]!, line, title })
 		})
 	return slots
 }
@@ -531,10 +591,12 @@ function compose(tree: SourceTree): ComposedDocs {
 	}
 
 	const configLines = config.split(/\r?\n/)
-	const start = configLines.findIndex(line => line.trim() === sidebarRegionStart)
-	const end = configLines.findIndex(line => line.trim() === sidebarRegionEnd)
-	if (start === -1 || end === -1 || end < start) {
-		problems.push(`${vitepressConfig}: no \`${sidebarRegionStart}\` … \`${sidebarRegionEnd}\` region. The API Reference sidebar entries are generated from \`apiPages\`, and they are spliced between those two markers.`)
+	const starts = configLines.flatMap((line, index) => line.trim() === sidebarRegionStart ? [index] : [])
+	const ends = configLines.flatMap((line, index) => line.trim() === sidebarRegionEnd ? [index] : [])
+	const start = starts[0] ?? -1
+	const end = ends[0] ?? -1
+	if (starts.length !== 1 || ends.length !== 1 || end < start) {
+		problems.push(`${vitepressConfig}: no \`${sidebarRegionStart}\` … \`${sidebarRegionEnd}\` region appearing exactly once in the right order. The API Reference sidebar entries are generated from \`apiPages\`, and they are spliced between those two markers.`)
 		return { outputs, problems }
 	}
 

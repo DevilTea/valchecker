@@ -113,15 +113,17 @@ export function cellsOfSource(path: string, text: string): { cells: StaticCell[]
 /** The gate's static catalog for one revision, from that revision's bench files. */
 export function staticCatalog(files: readonly { path: string, text: string }[]): StaticCatalog {
 	const ids: string[] = []
+	const declaredIds: string[] = []
 	const groups: Record<string, string> = {}
 	const problems: string[] = []
 	for (const file of files) {
 		const { cells, problems: fileProblems } = cellsOfSource(file.path, file.text)
 		problems.push(...fileProblems)
 		for (const cell of cells) {
+			declaredIds.push(cell.id)
 			// Every cell's group is retained, `baseline` included, so a move into or out of the gate
 			// is legible as a move rather than as an unexplained addition or deletion.
-			groups[cell.id] = cell.group
+			groups[cell.id] ??= cell.group
 			// `baseline` is excluded from the gate set for the same reason the runtime catalog
 			// excludes it: a cell that measures JavaScript rather than the library is not part of
 			// what the gate covers.
@@ -129,7 +131,7 @@ export function staticCatalog(files: readonly { path: string, text: string }[]):
 				ids.push(cell.id)
 		}
 	}
-	const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index)
+	const duplicates = declaredIds.filter((id, index) => declaredIds.indexOf(id) !== index)
 	for (const id of [...new Set(duplicates)])
 		problems.push(`the cell id '${id}' is declared twice across the revision's bench files, so a diff cannot tell which one moved`)
 	return { ids: [...new Set(ids)].sort(), groups, problems: [...new Set(problems)] }
