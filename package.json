@@ -61,7 +61,8 @@
 		"lint:fix": "eslint --fix .",
 		"typecheck": "pnpm -r typecheck && tsc -p tsconfig.scripts.json --noEmit",
 		"typeperf": "pnpm build && tsx ./scripts/check-type-performance.ts",
-		"prepare": "simple-git-hooks"
+		"prepare": "simple-git-hooks",
+		"verify:push": "pnpm typecheck && pnpm test:quality"
 	},
 	"devDependencies": {
 		"@clack/prompts": "catalog:",
@@ -84,7 +85,8 @@
 		"zx": "catalog:"
 	},
 	"simple-git-hooks": {
-		"pre-commit": "pnpm lint-staged"
+		"pre-commit": "pnpm lint-staged",
+		"pre-push": "pnpm verify:push"
 	},
 	"lint-staged": {
 		"*": "eslint --fix"

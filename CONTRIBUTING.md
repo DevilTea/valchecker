@@ -35,6 +35,12 @@ pnpm typeperf          # TypeScript compiler complexity budget
 pnpm bench <path>      # focused runtime benchmarks
 ```
 
+Two git hooks run without being asked. `pre-commit` formats the staged files with ESLint.
+`pre-push` runs `pnpm verify:push` — typecheck plus the quality gates, about ten seconds — because
+a push here starts a benchmark comparison that costs the better part of an hour, and the class of
+mistake it catches is a file the test runner executes but never typechecks. It is not a substitute
+for `pnpm verify`; it is the cheap part of it, run early. Do not skip either with `--no-verify`.
+
 ## Generated files — do not hand-edit
 
 | File | How to change it |

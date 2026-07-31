@@ -52,6 +52,22 @@ function localScript(name: string, file: string): Gate {
 	return { name, command: 'tsx', args: [path.join(root, 'scripts', file)] }
 }
 
+/**
+ * A gate that lives in the separately-installed `benchmarks` workspace.
+ *
+ * Run through `pnpm --dir`, not as `tsx <path>`, because the script is `node --test` over a
+ * glob and pnpm's own shell is what expands it — and because this is the exact command CI's
+ * preflight job runs, so the two cannot measure different files.
+ *
+ * It needs no `benchmarks/node_modules`: the suite is Node's own test runner over modules
+ * whose graphs contain no bare specifier, the same property `check-benchmark-coverage.ts`
+ * relies on. A gate here that required the separate install would make `pnpm verify` fail for
+ * anyone who had not run it.
+ */
+function benchmarksScript(name: string): Gate {
+	return { name, command: 'pnpm', args: ['--dir', 'benchmarks', 'test'] }
+}
+
 const gates: Gate[] = [
 	localScript('test quality', 'check-test-quality.ts'),
 	localScript('step parameter style', 'check-step-parameter-style.ts'),
@@ -60,6 +76,11 @@ const gates: Gate[] = [
 	packageScript('step completeness', 'steps:complete'),
 	packageScript('generated API reference', 'docs:api'),
 	packageScript('benchmark step coverage', 'bench:coverage'),
+	// The harness that decides the Performance Impact verdict. It was reachable only from that
+	// workflow's preflight job, so a change to the code that classifies a regression could break
+	// its own tests and `pnpm verify` would not notice — which is the wrong shape for a suite the
+	// blocking gate rests on.
+	benchmarksScript('benchmark harness'),
 	localScript('workflow pipefail', 'check-workflow-pipefail.ts'),
 	localScript('impact triggers', 'check-impact-triggers.ts'),
 ]
