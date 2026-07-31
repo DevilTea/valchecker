@@ -825,15 +825,20 @@ jobs:
           # unrelated boundary rows pushed a shared budget over the limit.
           confirm_args=()
           if [[ "$CONFIRM_RESULT" == "success" && -d artifacts/confirm-batches ]]; then
-            # `<id> <kind> <group> <shardCount>` per batch, from the plan the compare job emitted.
-            mapfile -t batch_lines < <(node -e '
+            # `<id> <kind> <group> <shardCount>` per batch, from the plan the compare job emitted,
+            # through a file rather than `mapfile`: that builtin needs bash 4, so a snippet using
+            # it cannot be run on a macOS bash 3.2 before being pushed. This is the same mistake as
+            # depending on GNU `seq -s,`, and the point of avoiding it is that the loop below can
+            # be rehearsed locally against a real plan.
+            batches_file=artifacts/performance-impact-verdict/batches.txt
+            node -e '
               const plan = JSON.parse(process.argv[1])
               for (const batch of plan.batches)
                 process.stdout.write(`${batch.id} ${batch.kind} ${batch.group ?? "-"} ${batch.shardCount}\n`)
-            ' "$PLAN")
+            ' "$PLAN" > "$batches_file"
 
             # The row batch: merge its shards per (side, repetition), then compare once.
-            row_shards="$(printf '%s\n' "${batch_lines[@]}" | awk '$2 == "rows" { print $4 }' | head -1)"
+            row_shards="$(awk '$2 == "rows" { print $4 }' "$batches_file" | head -1)"
             if [[ -n "$row_shards" ]]; then
               for side in baseline candidate; do
                 for repetition in $(seq 1 "$runs"); do
@@ -886,7 +891,7 @@ jobs:
                 --json "../artifacts/performance-impact-verdict/$id.json" \
                 --html "../artifacts/performance-impact-verdict/$id.html"
               confirm_args+=(--group-confirm "$group=../artifacts/performance-impact-verdict/$id.json")
-            done < <(printf '%s\n' "${batch_lines[@]}")
+            done < "$batches_file"
           fi
 
           pnpm --dir benchmarks confirm \

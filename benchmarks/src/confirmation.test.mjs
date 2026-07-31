@@ -5,6 +5,7 @@ import {
 	confirmationBudgetSeconds,
 	confirmationPlan,
 	confirmationSelection,
+	planSummaryLines,
 	renderConfirmationMarkdown,
 	resolveConfirmation,
 	secondsPerCellRun,
@@ -440,4 +441,45 @@ test('the budget constants are the measured ones', () => {
 	assert.equal(Number((1429 / ((245 / 4) * 5 * 2)).toFixed(2)), secondsPerCellRun)
 	assert.equal(confirmationBudgetSeconds, 45 * 60, 'three quarters of the job timeout, leaving room for a slower runner')
 	assert.equal(confirmationBudget(9).fitsOneRunner, true, 'the nine-cell collect-all group fits easily')
+})
+
+test('the plan summary reads every field the plan actually has', () => {
+	// The regression this covers: the summary lived in the CLI, went stale when the planner moved
+	// to independent batches, and killed the compare job with `TypeError: Cannot read properties
+	// of undefined (reading 'totalSeconds')`. A hand-built fixture never exercised it because the
+	// tests called the planner directly and the CLI was assumed thin. It was not thin — formatting
+	// the plan is logic about the plan — so it lives here now and a shape change fails a test.
+	const screen = groupScreen(['a', 'b'])
+	for (let index = 0; index < 6; index++)
+		screen.rows.push({ scenario: `x/${index}`, classification: 'severe', delta: -0.2, intervalLow: -0.25, intervalHigh: -0.15, group: 'warm/success' })
+	const lines = planSummaryLines(confirmationPlan(screen))
+	assert.match(lines.join('\n'), /\[confirm\] rows: 8 cell\(s\) over 4 shard\(s\), \d+s of measurement/)
+	assert.match(lines.join('\n'), /\[confirm\] group warm\/failure\/all: 2 cell\(s\) on one runner, 2\.8 min of a 45 min budget/)
+})
+
+test('the plan summary handles a plan with no groups and a plan with nothing to do', () => {
+	// The two shapes the crash showed nobody had exercised: rows without groups, and an empty
+	// plan. Neither may throw, and the empty one must say what it means rather than print nothing.
+	const rowsOnly = screenOf([['a', 'severe', -0.2, -0.25, -0.15]], { verdict: 'regression' })
+	const rowLines = planSummaryLines(confirmationPlan(rowsOnly))
+	assert.match(rowLines.join('\n'), /rows: 1 cell\(s\) over 1 shard\(s\)/)
+	assert.equal(rowLines.some(line => line.includes('group')), false)
+
+	const empty = planSummaryLines(confirmationPlan(screenOf([['a', 'cleared', 0]], { verdict: 'neutral' })))
+	assert.deepEqual(empty.length, 1)
+	assert.match(empty[0], /nothing to confirm/)
+})
+
+test('a group with no budget entry is described rather than crashed on', () => {
+	// The shape the reviewer named: a group batch whose cost entry is missing. It cannot arise
+	// from `confirmationPlan` today, and a summary that throws on it would be another job-killing
+	// `TypeError` rather than a report.
+	const lines = planSummaryLines({
+		batches: [{ id: 'group-g', kind: 'group', group: 'g', cells: ['a'], shardIndex: 0, shardCount: 1 }],
+		groupBudgets: [],
+		unconfirmableGroups: ['h'],
+		rowBudget: confirmationBudget(0),
+	})
+	assert.match(lines.join('\n'), /group g: 1 cell\(s\) on one runner$/m)
+	assert.match(lines.join('\n'), /group h cannot be confirmed on one runner — it is review, not blocking/)
 })

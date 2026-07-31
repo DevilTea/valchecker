@@ -214,6 +214,41 @@ export function confirmationPlan(screen, { acknowledgedGroups = new Set(), ackno
 	}
 }
 
+/**
+ * The plan as a person reads it, kept here rather than in the CLI.
+ *
+ * It lived in `resolve-confirmation.mjs` and went stale the moment `confirmationPlan` changed
+ * shape: it still read `plan.budget.totalSeconds` and `plan.shardCount`, both of which had been
+ * replaced by per-batch and per-group figures, so the compare job died with a `TypeError` on an
+ * undefined field and the confirmation stage never ran. Formatting the plan is logic about the
+ * plan, so it belongs where the plan is defined and where a test fails on it — a thin CLI is the
+ * point of the split, and this was not thin.
+ */
+export function planSummaryLines(plan) {
+	const lines = []
+	if (plan.batches.length === 0) {
+		lines.push('[confirm] nothing to confirm: no row claimed a regression, came within the decision boundary, or belongs to a group being settled')
+		return lines
+	}
+	const rowBatches = plan.batches.filter(batch => batch.kind === 'rows')
+	if (rowBatches.length > 0) {
+		lines.push(`[confirm] rows: ${rowBatches[0].cells.length} cell(s) over ${rowBatches.length} shard(s), `
+			+ `${plan.rowBudget.totalSeconds.toFixed(0)}s of measurement`)
+	}
+	for (const batch of plan.batches.filter(candidate => candidate.kind === 'group')) {
+		const budget = plan.groupBudgets.find(entry => entry.group === batch.group)
+		lines.push(`[confirm] group ${batch.group}: ${batch.cells.length} cell(s) on one runner`
+			+ `${budget == null ? '' : `, ${(budget.totalSeconds / 60).toFixed(1)} min of a ${(budget.budgetSeconds / 60).toFixed(0)} min budget`}`)
+	}
+	for (const group of plan.unconfirmableGroups) {
+		const budget = plan.groupBudgets.find(entry => entry.group === group)
+		lines.push(`[confirm] group ${group} cannot be confirmed on one runner`
+			+ `${budget == null ? '' : ` (${budget.cells} cells need ${(budget.totalSeconds / 60).toFixed(1)} min against a ${(budget.budgetSeconds / 60).toFixed(0)} min budget)`}`
+			+ ' — it is review, not blocking')
+	}
+	return lines
+}
+
 export function confirmationSelection(screen) {
 	const boundary = -meaningfulThreshold / 100
 	return screen.rows

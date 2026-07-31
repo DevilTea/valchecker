@@ -15,7 +15,7 @@ import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { acceptedGroupRegressions, acceptedRegressions } from './accepted-regressions.mjs'
-import { confirmationPlan, renderConfirmationMarkdown, resolveConfirmation } from './confirmation.mjs'
+import { confirmationPlan, planSummaryLines, renderConfirmationMarkdown, resolveConfirmation } from './confirmation.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 
@@ -71,27 +71,16 @@ const options = parseArguments(process.argv.slice(2))
 const screen = JSON.parse(await readFile(options.screen, 'utf8'))
 
 if (options.plan) {
-	// Stdout is the plan as JSON and nothing else, so the caller can read the cell list, the
-	// shard count, and which groups this batch can settle without parsing prose. The shard count
-	// is 1 whenever a group is at stake: a group aggregate mixed across runners is the defect
-	// being corrected, so confirming it on four machines would reproduce it.
+	// Stdout is the whole plan as JSON and nothing else, so the workflow reads `batches` — the
+	// unit it schedules — rather than a hand-picked subset that can drift from it. It drifted:
+	// this branch emitted `{ cells, shardCount }` after the planner had moved to independent
+	// batches, so even past the `TypeError` the next step would have read an undefined `batches`.
 	const acknowledgedGroups = new Set(acceptedGroupRegressions.map(entry => entry.group))
 	const acknowledgedCells = new Set(acceptedRegressions.map(entry => entry.cell))
 	const plan = confirmationPlan(screen, { acknowledgedGroups, acknowledgedCells })
-	process.stdout.write(JSON.stringify({
-		cells: plan.cells,
-		shardCount: plan.shardCount,
-		groups: plan.groups,
-		unconfirmableGroups: plan.unconfirmableGroups,
-	}))
-	console.error(`[confirm] ${plan.cells.length} cell${plan.cells.length === 1 ? '' : 's'} over ${plan.shardCount} shard(s); `
-		+ `${plan.budget.totalSeconds.toFixed(0)}s of a ${plan.budget.budgetSeconds}s single-runner budget`)
-	for (const group of plan.groups)
-		console.error(`[confirm] group to confirm on one runner: ${group}`)
-	for (const group of plan.unconfirmableGroups) {
-		console.error(`[confirm] group cannot be confirmed on one runner (${plan.budget.cells} cells would need `
-			+ `${(plan.budget.totalSeconds / 60).toFixed(1)} min against a ${(plan.budget.budgetSeconds / 60).toFixed(0)} min budget): ${group} — it will be review, not blocking`)
-	}
+	process.stdout.write(JSON.stringify(plan))
+	for (const line of planSummaryLines(plan))
+		console.error(line)
 }
 else {
 	const confirm = options.confirm == null
