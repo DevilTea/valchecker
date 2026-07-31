@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, MessageHandler, Next, TStepPluginDef, TValchecker } from './types'
 import { describe, expect, it } from 'vitest'
-import { array, number, object, toAsync } from '../steps'
+import { array, number, object, string, toAsync, tuple } from '../steps'
 import { createValchecker, implStepPlugin, resolveMessagePriority, resolveStaticIssueMessage } from './core'
 
 type MessageFixtureMeta = DefineStepMethodMeta<{
@@ -22,6 +22,15 @@ interface MessageFixtureDef extends TStepPluginDef {
 	throwingCustom: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
 	throwingDefault: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
 	replaceScoped: DefineStepMethod<MessageFixtureMeta, this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker'] ? FixtureStep<This> : never>
+	tiered: DefineStepMethod<
+		MessageFixtureMeta,
+		this['CurrentValchecker'] extends infer This extends MessageFixtureMeta['ExpectedCurrentValchecker']
+			? (
+					customMessage: MessageHandler<any> | undefined,
+					defaultMessage: MessageHandler<any> | undefined,
+				) => Next<undefined, This>
+			: never
+	>
 }
 
 const frozenExternalIssue = Object.freeze({
@@ -91,6 +100,16 @@ const messageFixturePlugin = implStepPlugin<MessageFixtureDef>({
 			defaultMessage: () => {
 				throw new Error('default failure')
 			},
+		})))
+	},
+	// Both message tiers come from the caller, so one step can be driven through every
+	// combination the resolver distinguishes.
+	tiered: ({ utils: { addSuccessStep, createIssue, failure }, params: [customMessage, defaultMessage] }: any) => {
+		addSuccessStep(() => failure(createIssue({
+			code: 'fixture:tiered',
+			payload: {},
+			customMessage,
+			defaultMessage,
 		})))
 	},
 	// A statically resolved issue (no dynamic handler anywhere) carries no draft
@@ -276,6 +295,29 @@ describe('issue message finalization', () => {
 			})
 		expect(receivedPath)
 			.toEqual([0])
+	})
+
+	/**
+	 * `replaceIssuePath` overwrites a child's path outright, and `tuple`'s rest region is its
+	 * only production caller. The scopes an issue has already collected on the way out have
+	 * to survive that rewrite: an inner structure's message is nearer than the tuple's and
+	 * must still win. Dropping the accumulated list and keeping only the new scope is
+	 * invisible to every other test, because nothing else nests a scoped structure inside a
+	 * rest region.
+	 */
+	it('keeps the scopes a child already collected when a rest region replaces its path', () => {
+		const v = createValchecker({ steps: [array, string, tuple] })
+		const schema = v.tuple(['...', v.array(v.string(), { message: 'INNER' })], { message: 'OUTER' })
+
+		expect(schema.execute([1]))
+			.toMatchObject({
+				issues: [{ code: 'string:expected_string', message: 'INNER', path: [0] }],
+			})
+
+		// Without an inner scope the tuple's own message is what remains nearest.
+		expect(v.tuple(['...', v.array(v.string())], { message: 'OUTER' })
+			.execute([1]))
+			.toMatchObject({ issues: [{ message: 'OUTER' }] })
 	})
 
 	it.each([null, undefined])('continues to the global handler when a step map returns %s', (emptyMessage) => {
@@ -608,6 +650,37 @@ describe('static and dynamic message resolution parity', () => {
 					}
 				}
 			}
+		}
+	})
+
+	/**
+	 * The third mirror of the tier order. While resolution is deferred the issue still has
+	 * to carry *a* message, and `~execute` hands that placeholder straight to a plugin author
+	 * — only the public `execute()` replaces it. Its rule is the same order restricted to
+	 * string handlers: custom, then global, then default, then the fallback. Nothing asserted
+	 * it, so every tier of the placeholder could be rewritten unnoticed.
+	 *
+	 * Deferral is forced by a handler the static path cannot commit on: a plain-string custom
+	 * message (a context scope could still override it) or a dynamic global.
+	 */
+	it('fills a deferred issue with the first string handler down the same tier order', () => {
+		const dynamic = () => 'D:dynamic'
+		const cases: Array<{ label: string, global: MessageHandler<any> | undefined, custom: MessageHandler<any> | undefined, default: MessageHandler<any> | undefined, placeholder: string }> = [
+			{ label: 'custom string wins', global: dynamic, custom: 'S:custom', default: 'S:default', placeholder: 'S:custom' },
+			{ label: 'global string when custom is dynamic', global: 'S:global', custom: dynamic, default: 'S:default', placeholder: 'S:global' },
+			{ label: 'default string when custom and global are not strings', global: dynamic, custom: undefined, default: 'S:default', placeholder: 'S:default' },
+			{ label: 'fallback when no tier holds a string', global: dynamic, custom: undefined, default: undefined, placeholder: 'Invalid value.' },
+		]
+
+		for (const testCase of cases) {
+			const w = createValchecker({ steps: [messageFixturePlugin], message: testCase.global }) as any
+			const schema = w.tiered(testCase.custom, testCase.default)
+
+			expect(schema['~execute']('value'), testCase.label)
+				.toMatchObject({ issues: [{ message: testCase.placeholder }] })
+			// The placeholder is never what a consumer sees: `execute()` resolves it.
+			expect(typeof (schema.execute('value') as any).issues[0].message, testCase.label)
+				.toBe('string')
 		}
 	})
 

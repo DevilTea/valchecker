@@ -16,7 +16,7 @@
  * "fewer than last time": a survivor is either killed by a test or written down with a
  * classification and the evidence behind it.
  *
- * **Triage has four outcomes, and only three of them can be recorded here.**
+ * **Triage has six outcomes, and only four of them can be recorded here.**
  *
  * - `TEST_GAP` — the suite cannot tell correct behaviour from this broken one. **Not a ledger
  *   classification.** Add or strengthen the smallest assertion at the layer that owns the
@@ -62,9 +62,10 @@
  *
  * **Collection failure is detection.** The hand-rolled sweep this replaces counted Vitest's
  * collection-time failure (`no tests`) as "no test failed", and mistook three killed mutants
- * per slice for survivors. Stryker reports those as `CompileError` and `RuntimeError`; only
- * `Survived` and `NoCoverage` are treated as undetected here. `mutation-survivors.test.ts` pins
- * that mapping so a future runner or config change cannot quietly reinterpret it.
+ * per slice for survivors. Stryker reports those as `CompileError` and `RuntimeError`, and
+ * only `Survived` counts as undetected here — `NoCoverage` is separated for the reason given
+ * on `UNCONFIRMED_STATUSES`. `mutation-survivors.test.ts` pins the whole mapping by name so a
+ * future runner or config change cannot quietly reinterpret it.
  */
 
 import { existsSync } from 'node:fs'
@@ -79,11 +80,23 @@ const artifactDirectory = resolve(root, 'artifacts')
 const summaryPath = resolve(artifactDirectory, 'mutation-summary.md')
 
 /**
- * Statuses that mean "the suite did not notice this change". Everything else — `Killed`,
- * `Timeout`, `CompileError`, `RuntimeError`, `Ignored` — means the mutant was detected or was
- * never a question, and must not reach the ledger.
+ * The one status that means "a test ran this mutant and did not notice". Everything else —
+ * `Killed`, `Timeout`, `CompileError`, `RuntimeError`, `Ignored` — means the mutant was
+ * detected or was never a question, and must not reach the ledger.
  */
-export const UNDETECTED_STATUSES = ['Survived', 'NoCoverage'] as const
+export const UNDETECTED_STATUSES = ['Survived'] as const
+
+/**
+ * `NoCoverage` is a *claim* rather than a measurement, and in this repository it has been
+ * observed to be wrong. Stryker never executes a `NoCoverage` mutant: it reports it from the
+ * `perTest` coverage map alone. The empty-capabilities array in `createValchecker` came back
+ * `NoCoverage` while `core.test.ts`'s "exposes every registered plugin capability" test kills
+ * it outright — applied by hand, that test fails. So these are neither undetected nor
+ * detected; they are unconfirmed, and the gate says so instead of demanding a classification
+ * for a mutant that may already be dead. Confirm with `--coverageAnalysis off`, which runs
+ * every mutant against the whole suite and removes the attribution step entirely.
+ */
+export const UNCONFIRMED_STATUSES = ['NoCoverage'] as const
 
 export const LEDGER_CLASSIFICATIONS = ['EQUIVALENT', 'UNREACHABLE', 'PRODUCT_DECISION', 'TOOL_ARTIFACT'] as const
 
@@ -175,11 +188,14 @@ function condense(text: string): string {
 	return collapsed.length > 160 ? `${collapsed.slice(0, 157)}...` : collapsed
 }
 
-export function collectSurvivors(report: MutationReport): Map<string, LedgerEntry> {
+export function collectSurvivors(
+	report: MutationReport,
+	statuses: readonly string[] = UNDETECTED_STATUSES,
+): Map<string, LedgerEntry> {
 	const survivors = new Map<string, LedgerEntry>()
 	for (const [file, { source, mutants }] of Object.entries(report.files)) {
 		for (const mutant of mutants) {
-			if (!(UNDETECTED_STATUSES as readonly string[]).includes(mutant.status))
+			if (!statuses.includes(mutant.status))
 				continue
 			const entry: LedgerEntry = {
 				file,
@@ -399,7 +415,8 @@ function renderSummary(
 		...[...byStatus].sort(([a], [b]) => a.localeCompare(b))
 			.map(([status, count]) => `| ${status} | ${count} |`),
 		'',
-		`Undetected mutants (${UNDETECTED_STATUSES.join(', ')}): ${[...survivors.values()].reduce((total, entry) => total + entry.count, 0)}.`,
+		`Survived (executed, unnoticed): ${[...survivors.values()].reduce((total, entry) => total + entry.count, 0)}. ${UNCONFIRMED_STATUSES.join('/')} (never executed, unconfirmed): ${[...collectSurvivors(report, UNCONFIRMED_STATUSES)
+			.values()].reduce((total, entry) => total + entry.count, 0)}.`,
 		`Ledger: ${result.acknowledged.length} acknowledged, ${result.unexplained.length} unexplained, ${result.stale.length} stale, ${result.untriaged.length} ${UNTRIAGED}, ${result.skipped.length} not measured by this run.`,
 		`In-source suppressions covering a structural pattern: ${suppressions.length}.`,
 	]
@@ -465,11 +482,26 @@ async function main(): Promise<void> {
 
 	const result = evaluate(ledger, survivors, measuredFiles, file => existsSync(resolve(root, file)))
 	const { suppressions, problems } = checkSuppressions(report, measuredFiles)
+	const unconfirmed = collectSurvivors(report, UNCONFIRMED_STATUSES)
 
 	await mkdir(artifactDirectory, { recursive: true })
 	await writeFile(summaryPath, renderSummary(survivors, result, report, suppressions))
 
 	const failures: string[] = []
+	if (unconfirmed.size > 0) {
+		failures.push([
+			`${unconfirmed.size} mutant(s) were reported ${UNCONFIRMED_STATUSES.join('/')} and never executed:`,
+			...sortEntries([...unconfirmed.values()])
+				.map(formatEntry),
+			'',
+			'This is a claim from the coverage map, not a measurement, and it has been wrong here before:',
+			'the empty-capabilities array in `createValchecker` was reported NoCoverage while a test in',
+			'`core.test.ts` kills it. Confirm before classifying anything —',
+			'  npx stryker run --coverageAnalysis off --mutate <file>',
+			'runs every mutant against the whole suite and removes the attribution step. Only what still',
+			'survives that run is a survivor.',
+		].join('\n'))
+	}
 	if (result.unexplained.length > 0) {
 		failures.push([
 			`${result.unexplained.length} mutant(s) survived with nothing in the repository noticing:`,

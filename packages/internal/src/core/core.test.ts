@@ -298,6 +298,33 @@ describe('valchecker instance contracts', () => {
 			})
 	})
 
+	// The shared-prototype layout is an architectural contract, not an accident: registered
+	// methods are non-enumerable prototype properties and the fixed schema fields are own
+	// enumerable ones, which is what makes `Object.keys` and `for...in` over a schema return
+	// its data rather than the whole registered API. Nothing asserted the descriptors, so a
+	// change to any of the three flags was invisible. They are pinned together because the
+	// three arguments are one decision about how a schema presents itself.
+	it('registers step methods as non-enumerable, writable, configurable prototype properties', () => {
+		const v = createValchecker({ steps: [flowPlugin] }) as any
+		const schema = v.increment(1)
+		const prototype = Object.getPrototypeOf(schema)
+
+		expect(Object.hasOwn(schema, 'increment'))
+			.toBe(false)
+		expect(Object.getOwnPropertyDescriptor(prototype, 'increment'))
+			.toMatchObject({ enumerable: false, writable: true, configurable: true })
+
+		// The observable consequence, stated separately from the descriptor that causes it.
+		const fixedFields = ['~standard', '~core', '~execute', 'execute', 'isSuccess', 'isFailure']
+		expect(Object.keys(schema))
+			.toEqual(fixedFields)
+		const enumerated: string[] = []
+		for (const key in schema)
+			enumerated.push(key)
+		expect(enumerated)
+			.toEqual(fixedFields)
+	})
+
 	it('creates immutable chains and passes method parameters', () => {
 		const v = createValchecker({ steps: [flowPlugin] }) as any
 		const incremented = v.increment(2)

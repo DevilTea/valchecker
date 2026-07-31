@@ -642,7 +642,9 @@ function finalizeFailureResult(
 	const issues = result.issues
 	const firstIssue = issues[0]!
 	const firstMetadata = getIssueDraftMetadata(firstIssue)
+	// Stryker disable next-line ConditionalExpression,BlockStatement,EqualityOperator: the single-issue arm is what the loop below already does for one issue; removing it computes the same result down the general path.
 	if (issues.length === 1) {
+		// Stryker disable next-line ConditionalExpression: the caller only enters here when some issue carries draft metadata, so with one issue `firstMetadata` is never null and the `result` arm is dead.
 		return firstMetadata == null
 			? result
 			: { issues: [finalizeIssue(firstIssue, firstMetadata)] }
@@ -651,6 +653,7 @@ function finalizeFailureResult(
 	let finalizedIssues: AnyExecutionIssue[] | undefined
 	for (let i = 0; i < issues.length; i++) {
 		const issue = issues[i]!
+		// Stryker disable next-line ConditionalExpression: reuses the lookup already made above; `getIssueDraftMetadata(issues[0])` returns that same value, so the branch saves a read rather than choosing anything.
 		const metadata = i === 0 ? firstMetadata : getIssueDraftMetadata(issue)
 		if (metadata != null) {
 			finalizedIssues ??= issues.slice(0, i)
@@ -661,16 +664,29 @@ function finalizeFailureResult(
 		}
 	}
 
+	// Stryker disable next-line ConditionalExpression: the caller guarantees at least one issue carries metadata, so the loop always assigns `finalizedIssues` and the `result` arm is dead.
 	return finalizedIssues == null
 		? result
 		: { issues: finalizedIssues as [AnyExecutionIssue, ...AnyExecutionIssue[]] }
 }
 
+/**
+ * Whether any issue still needs its message resolved.
+ *
+ * This decides how much work happens, never what is returned: `finalizeFailureResult` walks
+ * issues without draft metadata unchanged, so answering `true` for a result that has none
+ * produces the same output by a longer route. Mutants that make it always answer `true` are
+ * equivalent for that reason, verified by comparing the executed output of nine failure
+ * shapes — single and multi-issue, custom, global and enclosing messages, nested and array —
+ * before and after.
+ */
 function hasIssueDraft(issues: readonly AnyExecutionIssue[]): boolean {
 	for (let i = 0; i < issues.length; i++) {
+		// Stryker disable next-line ConditionalExpression: see above — a `true` here only skips the search, and finalization of a metadata-free issue is the identity.
 		if ((issues[i] as IssueWithDraftMetadata)[issueDraftMetadata] != null)
 			return true
 	}
+	// Stryker disable next-line BooleanLiteral: same invariant — returning `true` with no draft present makes the caller walk issues it will not change.
 	return false
 }
 

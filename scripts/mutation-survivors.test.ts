@@ -1,6 +1,6 @@
 import type { LedgerEntry } from './check-mutation-survivors'
 import { describe, expect, it } from 'vitest'
-import { checkSuppressions, collectSuppressions, collectSurvivors, evaluate, LEDGER_CLASSIFICATIONS, sliceSource, statesSomething, survivorKey, UNDETECTED_STATUSES, UNTRIAGED } from './check-mutation-survivors'
+import { checkSuppressions, collectSuppressions, collectSurvivors, evaluate, LEDGER_CLASSIFICATIONS, sliceSource, statesSomething, survivorKey, UNCONFIRMED_STATUSES, UNDETECTED_STATUSES, UNTRIAGED } from './check-mutation-survivors'
 
 /**
  * These protect the two things a mutation gate gets wrong silently.
@@ -68,20 +68,42 @@ function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
 const alwaysExists = () => true
 
 describe('mutation status mapping', () => {
-	it('treats only Survived and NoCoverage as undetected', () => {
+	it('treats only Survived as measured-and-undetected', () => {
 		expect([...UNDETECTED_STATUSES])
-			.toEqual(['Survived', 'NoCoverage'])
+			.toEqual(['Survived'])
+	})
+
+	/**
+	 * `NoCoverage` is separated from `Survived` because Stryker never executes those mutants
+	 * — it reports them from the `perTest` coverage map — and that map has been wrong here:
+	 * the empty-capabilities array in `createValchecker` came back `NoCoverage` while a test
+	 * in `core.test.ts` kills it when the mutation is applied by hand. Folding the two
+	 * together would make the gate demand a written classification for a mutant that is
+	 * already dead, which is how a ledger fills up with false entries.
+	 */
+	it('separates the never-executed NoCoverage claim from a measured survivor', () => {
+		expect([...UNCONFIRMED_STATUSES])
+			.toEqual(['NoCoverage'])
+		expect([...UNDETECTED_STATUSES as readonly string[]]).not.toContain('NoCoverage')
+
+		const both = report([{ status: 'Survived' }, { status: 'NoCoverage' }], 'cc\n')
+		expect(collectSurvivors(both).size)
+			.toBe(1)
+		expect(collectSurvivors(both, UNCONFIRMED_STATUSES).size)
+			.toBe(1)
 	})
 
 	it('counts a mutant that breaks compilation or the test run as detected, never as a survivor', () => {
 		const survivors = collectSurvivors(report(REPORT_STATUSES.map(status => ({ status }))))
-		const statuses = REPORT_STATUSES.filter(status => !(UNDETECTED_STATUSES as readonly string[]).includes(status))
+		const statuses = REPORT_STATUSES.filter(status =>
+			!(UNDETECTED_STATUSES as readonly string[]).includes(status)
+			&& !(UNCONFIRMED_STATUSES as readonly string[]).includes(status))
 
 		// The explicit list, not just the count: a rename on either side must fail loudly.
 		expect(statuses)
 			.toEqual(['Killed', 'Timeout', 'CompileError', 'RuntimeError', 'Ignored', 'Pending'])
 		expect([...survivors.values()].reduce((total, survivor) => total + survivor.count, 0))
-			.toBe(2)
+			.toBe(1)
 	})
 
 	it('groups identical mutants by source text rather than by position', () => {
