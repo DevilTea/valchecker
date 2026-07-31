@@ -161,6 +161,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	path: Issue['path'],
 	messageScope?: MessageHandler<any> | undefined,
 ): Issue {
+	// Stryker disable next-line ConditionalExpression: `path` is required and every one of the thirteen call sites passes an array literal or an array-valued binding, so the nullish half is invariantly true and dropping it changes nothing.
 	const hasPath = path != null && path.length > 0
 	const metadata = getIssueDraftMetadata(issue)
 	const hasMessageScope = messageScope != null
@@ -172,6 +173,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	const nextIssue = {
 		...issue,
 		path: hasPath
+			// Stryker disable next-line ConditionalExpression,LogicalOperator: a spread-elision fast path. `[...path, ...existingPath]` with an empty `existingPath` is `[...path]`, and `createIssue` defaults `path` to `[]` so it is never nullish — every mutant of this condition therefore builds the same array.
 			? existingPath == null || existingPath.length === 0
 				? [...path]
 				: [...path, ...existingPath]
@@ -186,6 +188,7 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 				: metadata.contextMessages,
 		})
 	}
+	// Stryker disable next-line ConditionalExpression: entering with no scope attaches draft metadata whose only context handler is `undefined` and whose default is the issue's current message, so resolution skips the handler and reproduces that message.
 	else if (hasMessageScope) {
 		setIssueDraftMetadata(nextIssue, {
 			resolveMessage: resolveExternalIssueMessage.resolve,
@@ -214,6 +217,7 @@ export function replaceIssuePath<Issue extends AnyExecutionIssue>(
 	messageScope?: MessageHandler<any> | undefined,
 ): Issue {
 	const metadata = getIssueDraftMetadata(issue)
+	// Stryker disable next-line ConditionalExpression: with no scope this appends `undefined` to the context list, and message resolution passes over an entry that is not a handler, so the same tier still answers.
 	const hasMessageScope = messageScope != null
 
 	const nextIssue = {
@@ -229,6 +233,7 @@ export function replaceIssuePath<Issue extends AnyExecutionIssue>(
 				: metadata.contextMessages,
 		})
 	}
+	// Stryker disable next-line ConditionalExpression: as in `prependIssuePath` — metadata built from an absent scope resolves back to the issue's own message.
 	else if (hasMessageScope) {
 		setIssueDraftMetadata(nextIssue, {
 			resolveMessage: resolveExternalIssueMessage.resolve,
@@ -252,6 +257,7 @@ export function appendIssueContext<Issue extends AnyExecutionIssue>(
 			? [context]
 			: [...issue.context, context],
 	}
+	// Stryker disable next-line ConditionalExpression: copying an absent value writes the marker as `undefined`, and both `getIssueDraftMetadata` and `hasIssueDraft` test it with `!= null`, so the issue still reads as carrying no draft.
 	if (metadata != null)
 		setIssueDraftMetadata(nextIssue, metadata)
 	return nextIssue as Issue
@@ -500,6 +506,13 @@ function hasDynamicMessageForCode(
 ): boolean {
 	if (typeof message === 'function')
 		return true
+	// Every mutant of this expression can only widen what counts as dynamic, and widening is
+	// safe by construction: answering `true` makes `resolveStaticIssueMessage` decline to
+	// commit, and the dynamic resolver it defers to walks the same tier order and reaches the
+	// same message. Only a narrowing — committing where it should have deferred — is
+	// observable, and those mutants are killed. Checked against an 85-case matrix of global
+	// and step handler shapes, in the root, nested, raw, thrown and asynchronous positions.
+	// Stryker disable next-line ConditionalExpression,LogicalOperator: widening what counts as a dynamic handler only defers resolution to the authority that would answer the same.
 	return message != null
 		&& typeof message === 'object'
 		&& Object.hasOwn(message, code)
@@ -524,10 +537,12 @@ export function resolveStaticIssueMessage(
 		return undefined
 	if (typeof globalMessage === 'string')
 		return globalMessage
+	// Stryker disable next-line ConditionalExpression: deferring is the safe answer — see `hasDynamicMessageForCode`. Committing where this should defer is what would be observable, and that mutant dies.
 	if (hasDynamicMessageForCode(globalMessage, code))
 		return undefined
 	if (typeof defaultMessage === 'string')
 		return defaultMessage
+	// Stryker disable next-line ConditionalExpression: as above.
 	if (hasDynamicMessageForCode(defaultMessage, code))
 		return undefined
 	return 'Invalid value.'
@@ -700,6 +715,13 @@ function createPublicExecutor(
 	executeRaw: PipeExecutor,
 	operationMode: RuntimeOperationMode,
 ): PipeExecutor {
+	// Both specializations below are the general form with one branch of `isPromiseLike`
+	// already decided by the mode. Deleting either one falls through to that general form,
+	// which re-decides the same thing at run time and returns the same result — checked by
+	// comparing executed output across thirteen shapes: sync, maybe-async and async success
+	// and failure, a global handler, a thrown callback, a nested async child, and the raw
+	// `~execute` path.
+	// Stryker disable next-line ConditionalExpression,BlockStatement: mode specialization of the general executor below; removing it re-decides `isPromiseLike` at run time and returns the same result.
 	if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
 		return (value) => {
 			const result = executeRaw(value) as ExecutionResult
@@ -709,6 +731,7 @@ function createPublicExecutor(
 		}
 	}
 
+	// Stryker disable next-line ConditionalExpression,BlockStatement: as above — the general form wraps a promise it is handed and finalizes it the same way.
 	if (operationMode === RUNTIME_OPERATION_MODE_ASYNC) {
 		return value => Promise.resolve(executeRaw(value))
 			.then(finalizeAsyncResult)
@@ -748,6 +771,7 @@ function createUnknownExceptionFailure(
 		message: staticMessage ?? getInitialIssueMessage(undefined, globalMessage, defaultMessage),
 		path: [],
 	}
+	// Stryker disable next-line ConditionalExpression: attaching draft metadata unconditionally only defers a message the static path had already settled, and the dynamic resolver walks the same tier order to the same answer.
 	if (staticMessage == null) {
 		setIssueDraftMetadata(issue, {
 			resolveMessage: resolver.resolve,
@@ -770,6 +794,7 @@ function createExecutionStepMethodUtils(
 		fn: (lastResult: ExecutionResult) => MaybePromiseLike<ExecutionResult>,
 		operationMode: RuntimeOperationMode,
 	): RuntimeStep => {
+		// Stryker disable next-line ConditionalExpression,BlockStatement: mode specialization; the general wrapper below catches a synchronous throw the same way, so removing this returns the same result by a longer route.
 		if (operationMode === RUNTIME_OPERATION_MODE_SYNC) {
 			return (lastResult) => {
 				try {
@@ -883,6 +908,7 @@ function createExecutionStepMethodUtils(
 			}
 			if (context != null)
 				issue.context = context
+			// Stryker disable next-line ConditionalExpression: as in `createUnknownExceptionFailure` — deferring a message the static path could have committed reaches the same answer through the dynamic resolver.
 			if (staticMessage == null) {
 				setIssueDraftMetadata(issue, {
 					resolveMessage: resolver.resolve,

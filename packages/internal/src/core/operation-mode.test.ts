@@ -194,5 +194,30 @@ describe('runtime operation-mode metadata', () => {
 			expect(declared[method]()['~core'].operationMode, method)
 				.toBe('async')
 		}
+
+		// A schema's mode only ever climbs. Adding a synchronous step after an asynchronous
+		// one must not report the chain as synchronous again, and only a chain in that order
+		// can tell the raising guard from an unconditional assignment — every case above
+		// registers its step against a lower current mode, where the two agree.
+		const alreadyAsync = declared.explicitAsync()
+		for (const method of ['pluginDefault', 'pluginDefaultSuccess', 'pluginDefaultFailure']) {
+			expect(alreadyAsync[method]()['~core'].operationMode, method)
+				.toBe('async')
+		}
+	})
+
+	// `async` specifically, because the runtime modes are ordered numbers and every other
+	// declared default coincides with a value that survives being folded together with the
+	// fallback: sync is 0 and maybe-async is the fallback itself. Only a plugin declared
+	// `async` distinguishes reading the declaration from defaulting.
+	it('honours a step plugin declared async, not just sync or the maybe-async fallback', () => {
+		const declaredAsync = implStepPlugin({
+			step: ({ utils }: any) => {
+				utils.addStep((result: ExecutionResult) => result)
+			},
+		} as any, 'async') as StepPluginImpl<TStepPluginDef>
+
+		expect((createValchecker({ steps: [declaredAsync] }) as any).step()['~core'].operationMode)
+			.toBe('async')
 	})
 })
