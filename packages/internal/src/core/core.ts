@@ -23,8 +23,15 @@ import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
 
+// Both descriptions are read by nobody: one module-level constant is the key for the writer
+// (`implStepPlugin`) and the reader (`createValchecker`) alike, so renaming a description
+// renames it consistently on both sides. What the description does carry is cross-copy
+// identity — `Symbol.for` is the global registry, so two copies of this package in one
+// process must spell it the same — and no in-process test can construct that second copy.
+// Stryker disable ConditionalExpression,StringLiteral: the description is only ever compared against itself through this constant, so renaming it is consistent on both sides.
 const stepPluginDefaultOperationMode = Symbol.for('valchecker.stepPluginDefaultOperationMode')
 const stepPluginCapabilities = Symbol.for('valchecker.stepPluginCapabilities')
+// Stryker restore ConditionalExpression,StringLiteral
 
 const RUNTIME_OPERATION_MODE_SYNC = 0
 const RUNTIME_OPERATION_MODE_MAYBE_ASYNC = 1
@@ -128,6 +135,7 @@ function setIssueDraftMetadata(
  */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
 	stepImpl: StepPluginImpl<StepPluginDef>,
+	// Stryker disable next-line StringLiteral: `toRuntimeOperationMode` maps anything that is neither `'sync'` nor `'async'` to maybe-async, so any other default string resolves to the same runtime mode.
 	defaultOperationMode: OperationMode = 'maybe-async',
 	capabilities?: Readonly<Record<symbol, unknown>>,
 ): StepPluginImpl<StepPluginDef> {
@@ -135,6 +143,7 @@ export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
 	Object.defineProperty(stepImpl, stepPluginDefaultOperationMode, {
 		value: toRuntimeOperationMode(defaultOperationMode),
 	})
+	// Stryker disable next-line ConditionalExpression: defining the symbol with `undefined` is indistinguishable from not defining it — the one reader tests `!= null` before iterating, and the method enumeration skips this symbol by name.
 	if (capabilities !== undefined) {
 		Object.defineProperty(stepImpl, stepPluginCapabilities, {
 			value: capabilities,
@@ -509,11 +518,15 @@ function hasDynamicMessageForCode(
 	// same message. Only a narrowing — committing where it should have deferred — is
 	// observable, and those mutants are killed. Checked against an 85-case matrix of global
 	// and step handler shapes, in the root, nested, raw, thrown and asynchronous positions.
-	// Stryker disable next-line ConditionalExpression,LogicalOperator: widening what counts as a dynamic handler only defers resolution to the authority that would answer the same.
+	// Block form rather than `next-line`, because the expression spans four lines and
+	// `next-line` covers exactly one — the two trailing conjuncts came back as survivors
+	// with a directive apparently sitting over them.
+	// Stryker disable ConditionalExpression,LogicalOperator: widening what counts as a dynamic handler only defers resolution to the authority that would answer the same.
 	return message != null
 		&& typeof message === 'object'
 		&& Object.hasOwn(message, code)
 		&& typeof (message as any)[code] === 'function'
+	// Stryker restore ConditionalExpression,LogicalOperator
 }
 
 /**

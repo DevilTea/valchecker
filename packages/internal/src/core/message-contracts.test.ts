@@ -367,6 +367,47 @@ describe('issue message finalization', () => {
 			})
 	})
 
+	// The case above has the global handler throw for every code, including the
+	// `core:message_exception` raised to report it, so the fallback message is what survives
+	// either way — resolving it or not is indistinguishable there. A handler that throws for
+	// the original code and answers for the exception is what shows the resolution happening.
+	it('resolves a message-exception issue through the global handler that did not throw for it', () => {
+		const v = createValchecker({
+			steps: [number],
+			message: {
+				'number:expected_number': () => {
+					throw new Error('message failure')
+				},
+				'core:message_exception': () => 'reported by the global handler',
+			},
+		})
+
+		expect(v.number()
+			.execute('wrong'))
+			.toMatchObject({
+				issues: [{
+					code: 'core:message_exception',
+					message: 'reported by the global handler',
+				}],
+			})
+	})
+
+	// The placeholder an internal issue carries while resolution is deferred. `??` and `&&`
+	// agree whenever the static path committed, so only a deferring global — one that makes
+	// `staticMessage` undefined — separates "fall back to the placeholder" from "discard it".
+	it('gives a deferred internal issue its step default as a placeholder, not nothing', () => {
+		const v = createValchecker({ steps: [messageFixturePlugin], message: () => 'G' }) as any
+
+		const schema = v.emptyFailure()
+		expect(schema['~execute']('value'))
+			.toMatchObject({
+				issues: [{
+					code: 'core:unknown_exception',
+					message: 'An unexpected error occurred during step execution.',
+				}],
+			})
+	})
+
 	it('reports a throwing enclosing scope and copies the unresolved path', () => {
 		const v = createValchecker({ steps: [number, object] })
 		const result = v.object({ age: v.number() }, { message: {
@@ -594,8 +635,9 @@ describe('issue message finalization', () => {
 
 	it('turns an empty failure collection into an internal execution issue', () => {
 		const v = createValchecker({ steps: [messageFixturePlugin] }) as any
-		expect(v.emptyFailure()
-			.execute('value'))
+		const result = v.emptyFailure()
+			.execute('value')
+		expect(result)
 			.toMatchObject({
 				issues: [{
 					code: 'core:unknown_exception',
@@ -603,6 +645,11 @@ describe('issue message finalization', () => {
 					payload: { error: expect.any(TypeError) },
 				}],
 			})
+		// The text reaches a plugin author through `payload.error`, and it is the only thing
+		// that says which invariant was broken — `expect.any(TypeError)` accepts any wording,
+		// including none.
+		expect((result as any).issues[0].payload.error.message)
+			.toBe('A failure result requires at least one issue.')
 	})
 })
 

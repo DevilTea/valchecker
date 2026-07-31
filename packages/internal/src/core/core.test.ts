@@ -42,6 +42,21 @@ const flowPlugin = implStepPlugin({
 			defaultMessage: 'Test failure.',
 		})), 'sync')
 	},
+	issueWithoutContext: ({ utils }: any) => {
+		utils.addSuccessStep((value: unknown) => utils.failure(utils.createIssue({
+			code: 'test:no_context',
+			payload: { value },
+			defaultMessage: 'No context.',
+		})), 'sync')
+	},
+	issueWithContext: ({ utils }: any) => {
+		utils.addSuccessStep((value: unknown) => utils.failure(utils.createIssue({
+			code: 'test:with_context',
+			payload: { value },
+			context: [{ type: 'fixture' }],
+			defaultMessage: 'With context.',
+		})), 'sync')
+	},
 	recover: ({ utils }: any) => {
 		utils.addFailureStep((issues: ExecutionIssue[]) => utils.success(`recovered:${issues[0]!.code}`), 'sync')
 	},
@@ -176,6 +191,25 @@ describe('core issue contracts', () => {
 			])
 		expect(issue.context)
 			.toEqual([{ type: 'existing' }])
+	})
+
+	// `context` is documented as optional, which means absent rather than present-and-
+	// undefined. Every other assertion here uses `toEqual` or `toMatchObject`, and both treat
+	// an `undefined` property as equal to a missing one, so a `createIssue` that always
+	// assigned the key would have looked correct everywhere.
+	it('omits the context key entirely when a step declares none', () => {
+		const v = createValchecker({ steps: [flowPlugin] }) as any
+		const withoutContext = v.issueWithoutContext()
+			.execute('value')
+		const withContext = v.issueWithContext()
+			.execute('value')
+
+		expect(Object.hasOwn(withoutContext.issues[0], 'context'))
+			.toBe(false)
+		expect(Object.hasOwn(withContext.issues[0], 'context'))
+			.toBe(true)
+		expect(withContext.issues[0].context)
+			.toEqual([{ type: 'fixture' }])
 	})
 
 	it('replaces the issue path unconditionally without mutating the source', () => {
