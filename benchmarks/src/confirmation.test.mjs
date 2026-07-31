@@ -25,11 +25,14 @@ function screenOf(rows, { verdict = 'review', severeGroups = [] } = {}) {
 		verdict,
 		severeGroups,
 		runCounts: { baseline: 5, candidate: 5 },
-		rows: rows.map(([scenario, classification, delta, intervalLow = delta]) => ({
+		// `intervalHigh` as well as `intervalLow`: a bound is judged against the interval, so a
+		// fixture without one cannot be classified against it at all.
+		rows: rows.map(([scenario, classification, delta, intervalLow = delta - 0.01, intervalHigh = delta + 0.01]) => ({
 			scenario,
 			classification,
 			delta,
 			intervalLow,
+			intervalHigh,
 		})),
 	}
 }
@@ -37,7 +40,13 @@ function screenOf(rows, { verdict = 'review', severeGroups = [] } = {}) {
 function confirmOf(rows) {
 	return {
 		runCounts: { baseline: 5, candidate: 5 },
-		rows: rows.map(([scenario, classification, delta]) => ({ scenario, classification, delta })),
+		rows: rows.map(([scenario, classification, delta, intervalLow = delta - 0.01, intervalHigh = delta + 0.01]) => ({
+			scenario,
+			classification,
+			delta,
+			intervalLow,
+			intervalHigh,
+		})),
 	}
 }
 
@@ -198,7 +207,7 @@ test('an acknowledged cell past its bound blocks, and the list is reported as wr
 	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.58]]), { acceptedRegressions: accepted })
 	assert.deepEqual(result.acknowledged, [])
 	assert.equal(result.verdict, 'regression')
-	assert.match(result.acknowledgementProblems[0], /a regressed 60\.00%, past the 25% this repository accepts for it/)
+	assert.match(result.acknowledgementProblems[0], /a breached its 25% bound \(deepest estimate 60\.00%\) — both batches place the whole interval past the bound/)
 	assert.match(renderConfirmationMarkdown(result), /The accepted-regression list is wrong/)
 })
 
@@ -221,19 +230,36 @@ test('an acknowledged cell only the screen cleared is unassessed, not stale', ()
 	assert.match(renderConfirmationMarkdown(result), /rot check this run could not perform/)
 })
 
+/**
+ * One group's own single-runner confirmation batch, as the workflow produces one: its cells, its
+ * aggregate, and the shard count that decides whether it is single-runner evidence at all.
+ */
+function groupConfirmation(name, classification, delta, cells, { shardCount = 1, width = 0.01 } = {}) {
+	return {
+		runCounts: { baseline: 5, candidate: 5 },
+		measurement: { shardCount },
+		rows: cells.map(cell => ({ scenario: cell, classification: 'regression', delta, intervalLow: delta - width, intervalHigh: delta + width })),
+		groups: [{ group: name, classification, delta, scenarios: cells.length, intervalLow: delta - width, intervalHigh: delta + width }],
+	}
+}
+
+/** A screen carrying one group and rows that belong to it. */
+function groupScreen(cells, { classification = 'regression', delta = -0.064, group = 'warm/failure/all', width = 0.007, verdict = 'regression' } = {}) {
+	const screen = screenOf(cells.map(cell => [cell, 'inconclusive', -0.06, -0.09, -0.03]), { verdict, severeGroups: [group] })
+	screen.groups = [{ group, classification, delta, scenarios: cells.length, intervalLow: delta - width, intervalHigh: delta + width }]
+	for (const row of screen.rows)
+		row.group = group
+	return screen
+}
+
 test('an acknowledged group stops failing the gate but keeps its true measured value', () => {
-	// `warm/failure/all` as CI measured it. The group table still says -6.40% over all nine cells,
-	// because a bound says how much of a true number a person agreed to; nothing is excluded from
-	// the aggregate.
-	const screen = screenOf([['a', 'severe', -0.3237, -0.35]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
-	screen.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064 }]
-	screen.rows[0].group = 'warm/failure/all'
-	const confirm = confirmOf([['a', 'severe', -0.2983]])
-	confirm.measurement = { shardCount: 1 }
-	confirm.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 1 }]
-	const result = resolveConfirmation(screen, confirm, {
-		acceptedRegressions: [{ cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+	// The group table still says -6.40% over all nine cells, because a bound says how much of a
+	// true number a person agreed to; nothing is excluded from the aggregate.
+	const screen = groupScreen(['a', 'b'])
+	const result = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
 		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.064, ['a', 'b']) },
 	})
 	assert.deepEqual(result.severeGroups, ['warm/failure/all'], 'the measured trigger is still reported')
 	assert.deepEqual(result.unacknowledgedSevereGroups, [], 'and it no longer fails the gate')
@@ -243,62 +269,49 @@ test('an acknowledged group stops failing the gate but keeps its true measured v
 	assert.match(renderConfirmationMarkdown(result), /\| `warm\/failure\/all` \| −6\.40% \| −12% \|/)
 })
 
-test('a group past its bound fails, and an unacknowledged group still fails', () => {
-	const screen = screenOf([['a', 'cleared', 0]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
-	screen.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.2 }]
-	screen.rows[0].group = 'warm/failure/all'
-	// Past its bound only on single-runner evidence: failing on a cross-shard aggregate would be
-	// the same overconfidence in the other direction.
-	const confirm = confirmOf([['a', 'severe', -0.2]])
-	confirm.measurement = { shardCount: 1 }
-	confirm.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.2, scenarios: 1 }]
-	const past = resolveConfirmation(screen, confirm, {
+test('a group breaches its bound only when both batches place the interval past it', () => {
+	const screen = groupScreen(['a', 'b'], { delta: -0.2, width: 0.01 })
+	const both = resolveConfirmation(screen, null, {
 		acceptedRegressions: [],
 		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.2, ['a', 'b']) },
 	})
-	assert.equal(past.verdict, 'regression')
-	assert.match(past.acknowledgementProblems[0], /the group warm\/failure\/all regressed 20\.00%, past the 12%/)
+	assert.equal(both.verdict, 'regression')
+	assert.match(both.acknowledgementProblems[0], /the group warm\/failure\/all breached its 12% bound/)
 
-	// An unacknowledged trigger stands, but standing is no longer the same as blocking: with no
-	// independent single-runner batch behind it, the evidence is a cross-shard aggregate whose
-	// interval cannot see a between-runner shift, so it is reported for review.
-	const other = screenOf([['a', 'cleared', 0]], { verdict: 'regression', severeGroups: ['warm/success'] })
-	other.groups = [{ group: 'warm/success', classification: 'regression', delta: -0.08, scenarios: 2 }]
-	const unacknowledged = resolveConfirmation(other, null, { acceptedRegressions: [], acceptedGroupRegressions: [] })
-	assert.deepEqual(unacknowledged.unacknowledgedSevereGroups, ['warm/success'])
-	assert.deepEqual(unacknowledged.blockingGroups, [])
-	assert.deepEqual(unacknowledged.reviewGroups, ['warm/success'])
-	assert.notEqual(unacknowledged.verdict, 'regression')
-	assert.match(unacknowledged.groupVerdicts[0].why, /no confirmation batch ran/)
+	// And a confirmation breach the screen does not reproduce is unassessed rather than red.
+	const oneSided = resolveConfirmation(groupScreen(['a', 'b']), null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.2, ['a', 'b']) },
+	})
+	assert.deepEqual(oneSided.acknowledgementProblems, [])
+	assert.match(oneSided.unassessedAcknowledgements[0], /not independently reproduced/)
 })
 
 test('a cell acknowledgement does not reach a group verdict', () => {
-	// Stated as a limit rather than left to be discovered: "did this cell regress?" and "did this
-	// affected group broadly regress?" are different questions, and an accepted answer to the
-	// first is not an answer to the second.
+	// "Did this cell regress?" and "did this affected group broadly regress?" are different
+	// questions, and an accepted answer to the first is not an answer to the second.
 	const screen = screenOf([['a', 'severe', -0.1467, -0.182]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
 	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.1159]]), { acceptedRegressions: accepted })
 	assert.deepEqual(result.rows.map(row => row.resolution), ['acknowledged'])
 	assert.deepEqual(result.blocking, [])
-	// The cell is forgiven; the group trigger it sits in is untouched by that and remains
-	// standing. Whether it blocks is the confirmation's question, not this acknowledgement's.
 	assert.deepEqual(result.unacknowledgedSevereGroups, ['warm/failure/all'])
 	assert.deepEqual(result.severeGroups, ['warm/failure/all'])
 })
 
 test('a severe group with no single-runner confirmation is review, and says why', () => {
-	// This case used to block. It no longer does, and the reason is the finding that changed it:
-	// the screen's group aggregate mixes runners, and because a cell keeps its shard across every
-	// repetition, a between-runner shift in its ratio is a fixed effect the interval cannot see.
-	// Blocking on that is blocking on evidence that cannot support it.
-	const screen = screenOf([['a', 'cleared', -0.01]], { verdict: 'regression', severeGroups: ['warm/success'] })
-	screen.groups = [{ group: 'warm/success', classification: 'regression', delta: -0.08, scenarios: 2 }]
-	const result = resolveConfirmation(screen, confirmOf([]))
-	assert.deepEqual(result.rows, [])
+	// This case used to block. It no longer does: the screen's group aggregate mixes runners, and
+	// because a cell keeps its shard across every repetition a between-runner shift in its ratio is
+	// a fixed effect the interval cannot see. Blocking on that is blocking on evidence that cannot
+	// support it.
+	const screen = groupScreen(['a', 'b'], { group: 'warm/success' })
+	const result = resolveConfirmation(screen, null, { acceptedRegressions: [], acceptedGroupRegressions: [] })
 	assert.deepEqual(result.severeGroups, ['warm/success'])
 	assert.deepEqual(result.blockingGroups, [])
 	assert.deepEqual(result.reviewGroups, ['warm/success'])
 	assert.notEqual(result.verdict, 'regression')
+	assert.match(result.groupVerdicts[0].why, /no single-runner batch measured this group/)
 	assert.match(renderConfirmationMarkdown(result), /group triggers? to settle/)
 })
 
@@ -311,128 +324,114 @@ test('a clean screen needs no confirmation and keeps its own verdict', () => {
 	}
 })
 
-function screenWithGroup(rows, groups, options = {}) {
-	const screen = screenOf(rows, options)
-	screen.groups = groups
-	// Every row belongs to the first group, so "did the confirmation measure the whole group" has
-	// a membership to read. A row with no group belongs to none, which is a different case.
-	for (const row of screen.rows)
-		row.group = groups[0].group
-	return screen
-}
-
-test('a triggered group is confirmed on one runner, and only then can block', () => {
-	// The finding: a cell keeps its shard across all five repetitions, so a runner-dependent
-	// effect on its ratio is a fixed effect that shifts every `G_r` equally and contributes no
-	// variance. The screen's group interval cannot widen for it, so a tight group interval can
-	// still be displaced by which runners the shards drew — bias, not noise. A blocking group
-	// therefore needs an independent single-runner batch that agrees.
-	const rows = [['a', 'inconclusive', -0.06, -0.09], ['b', 'inconclusive', -0.07, -0.1]]
-	const groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 2 }]
-	const screen = screenWithGroup(rows, groups, { verdict: 'regression', severeGroups: ['warm/failure/all'] })
-
-	const confirm = confirmOf([['a', 'regression', -0.062], ['b', 'regression', -0.068]])
-	confirm.measurement = { shardCount: 1 }
-	confirm.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.065, scenarios: 2 }]
-	const blocked = resolveConfirmation(screen, confirm, { acceptedRegressions: [], acceptedGroupRegressions: [] })
+test('a triggered group blocks only when its own single-runner batch agrees', () => {
+	const screen = groupScreen(['a', 'b'])
+	const blocked = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.065, ['a', 'b']) },
+	})
 	assert.deepEqual(blocked.blockingGroups, ['warm/failure/all'])
 	assert.equal(blocked.verdict, 'regression')
 	assert.match(blocked.groupVerdicts[0].why, /independent single-runner batch measured the whole group and agreed/)
 })
 
-test('a group confirmed across four shards is review, not blocking', () => {
-	// Confirming a cross-runner aggregate on four more runners would reproduce the very defect
-	// being corrected, so the evidence cannot support blocking however severe it looks.
-	const rows = [['a', 'inconclusive', -0.06, -0.09], ['b', 'inconclusive', -0.07, -0.1]]
-	const groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 2 }]
-	const screen = screenWithGroup(rows, groups, { verdict: 'regression', severeGroups: ['warm/failure/all'] })
-	const confirm = confirmOf([['a', 'regression', -0.062], ['b', 'regression', -0.068]])
-	confirm.measurement = { shardCount: 4 }
-	confirm.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.065, scenarios: 2 }]
-	const result = resolveConfirmation(screen, confirm, { acceptedRegressions: [], acceptedGroupRegressions: [] })
+test('a group whose own batch ran sharded is review, not blocking', () => {
+	// Confirming a cross-runner aggregate on four more runners would reproduce the defect being
+	// corrected, so the evidence cannot support blocking however severe it looks.
+	const screen = groupScreen(['a', 'b'])
+	const result = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.065, ['a', 'b'], { shardCount: 4 }) },
+	})
 	assert.deepEqual(result.blockingGroups, [])
 	assert.deepEqual(result.reviewGroups, ['warm/failure/all'])
-	assert.notEqual(result.verdict, 'regression')
-	assert.match(result.groupVerdicts[0].why, /ran over 4 shards, so its group aggregate mixes runners/)
+	assert.match(result.groupVerdicts[0].why, /ran over 4 shards/)
 	assert.match(renderConfirmationMarkdown(result), /\| `warm\/failure\/all` \| no \| regression \|/)
 })
 
-test('a group the confirmation did not measure in full cannot block', () => {
-	// Reading a group aggregate over the part of a group that happened to be selected would be
-	// exactly the outcome-conditioned estimate the group estimator was rebuilt to remove.
-	const rows = [['a', 'inconclusive', -0.06, -0.09], ['b', 'inconclusive', -0.07, -0.1]]
-	const groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 2 }]
-	const screen = screenWithGroup(rows, groups, { verdict: 'regression', severeGroups: ['warm/failure/all'] })
-	const confirm = confirmOf([['a', 'regression', -0.062]])
-	confirm.measurement = { shardCount: 1 }
-	confirm.groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.062, scenarios: 1 }]
-	const result = resolveConfirmation(screen, confirm, { acceptedRegressions: [], acceptedGroupRegressions: [] })
+test('a group whose batch missed a cell cannot block', () => {
+	// Reading an aggregate over the part of a group that happened to be measured would be exactly
+	// the outcome-conditioned estimate the group estimator was rebuilt to remove.
+	const screen = groupScreen(['a', 'b'])
+	const result = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.065, ['a']) },
+	})
 	assert.deepEqual(result.blockingGroups, [])
 	assert.match(result.groupVerdicts[0].why, /did not measure every cell of the group/)
 })
 
 test('a single-runner batch that clears the group turns the trigger into review', () => {
-	const rows = [['a', 'inconclusive', -0.06, -0.09], ['b', 'inconclusive', -0.07, -0.1]]
-	const groups = [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 2 }]
-	const screen = screenWithGroup(rows, groups, { verdict: 'regression', severeGroups: ['warm/failure/all'] })
-	const confirm = confirmOf([['a', 'cleared', 0.001], ['b', 'cleared', -0.002]])
-	confirm.measurement = { shardCount: 1 }
-	confirm.groups = [{ group: 'warm/failure/all', classification: 'cleared', delta: -0.001, scenarios: 2 }]
-	const result = resolveConfirmation(screen, confirm, { acceptedRegressions: [], acceptedGroupRegressions: [] })
+	const screen = groupScreen(['a', 'b'])
+	const result = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'cleared', -0.001, ['a', 'b']) },
+	})
 	assert.deepEqual(result.blockingGroups, [])
 	assert.notEqual(result.verdict, 'regression')
 	assert.match(result.groupVerdicts[0].why, /reported it cleared/)
 })
 
-test('the plan measures the whole triggered group, on one runner, and shows its arithmetic', () => {
-	const rows = [['a', 'severe', -0.14, -0.2], ['b', 'cleared', 0], ['c', 'inconclusive', -0.02, -0.03]]
-	const screen = screenWithGroup(rows, [{ group: 'g', classification: 'regression', delta: -0.064, scenarios: 3 }], { verdict: 'regression', severeGroups: ['g'] })
-	for (const row of screen.rows)
-		row.group = 'g'
+test('a group is scheduled in its own batch, on one runner, sized by its own cells', () => {
+	const screen = groupScreen(['a', 'b', 'c'])
 	const plan = confirmationPlan(screen)
-	// Every cell of the group, including the cleared one the cell selection would never pick.
-	assert.deepEqual(plan.cells, ['a', 'b', 'c'])
-	assert.equal(plan.shardCount, 1, 'one runner whenever a group is at stake')
-	assert.deepEqual(plan.groups, ['g'])
-	assert.deepEqual(plan.unconfirmableGroups, [])
+	const groupBatch = plan.batches.find(batch => batch.kind === 'group')
+	assert.deepEqual(groupBatch.cells, ['a', 'b', 'c'], 'every cell of the group, including ones the row rule would skip')
+	assert.equal(groupBatch.shardCount, 1, 'one runner whenever a group is at stake')
+	assert.equal(groupBatch.group, 'warm/failure/all')
+	assert.deepEqual(plan.groups, ['warm/failure/all'])
 	// 3 cells x 5 repetitions x 2 sides x 2.33 s + 120 s of overhead.
-	assert.equal(Number(plan.budget.measurementSeconds.toFixed(1)), 69.9)
-	assert.equal(plan.budget.fitsOneRunner, true)
+	assert.equal(Number(plan.groupBudgets[0].measurementSeconds.toFixed(1)), 69.9)
+})
+
+test('unrelated row confirmations cannot cost a group its confirmability', () => {
+	// The coupling this removes. A group that fits a single runner comfortably by itself used to be
+	// downgraded to `review` because unrelated boundary rows also needed confirming, and two groups
+	// that each fitted alone but not together left neither able to block.
+	const screen = groupScreen(['g1', 'g2'])
+	for (let index = 0; index < 130; index++) {
+		screen.rows.push({ scenario: `x/${index}`, classification: 'inconclusive', delta: -0.06, intervalLow: -0.09, intervalHigh: -0.03, group: 'warm/success' })
+	}
+	const plan = confirmationPlan(screen)
+	assert.deepEqual(plan.groups, ['warm/failure/all'], 'the group is still confirmable')
+	assert.deepEqual(plan.unconfirmableGroups, [])
+	const rowBatches = plan.batches.filter(batch => batch.kind === 'rows')
+	assert.equal(rowBatches.length, 4, 'while the rows shard four ways as usual')
+	assert.equal(plan.batches.find(batch => batch.kind === 'group').cells.length, 2)
 })
 
 test('a group too large for one runner is review, and the arithmetic says why', () => {
-	// `warm/success` is 124 cells: 124 x 5 x 2 x 2.33 s is 48.2 min, and with a confirmation
-	// batch beside it the batch cannot fit the 45 min a single runner is allowed. The fallback is
-	// forced by that arithmetic rather than chosen, and the plan reports it rather than blocking
-	// on evidence that cannot support it.
-	const rows = Array.from({ length: 124 }, (unused, index) => [`cell-${index}`, 'inconclusive', -0.06, -0.09])
-	const screen = screenWithGroup(rows, [{ group: 'warm/success', classification: 'regression', delta: -0.064, scenarios: 124 }], { verdict: 'regression', severeGroups: ['warm/success'] })
-	for (const row of screen.rows)
-		row.group = 'warm/success'
+	// `warm/success` is 124 cells: 124 x 5 x 2 x 2.33 s is 48.2 min against the 45 min a single
+	// runner is allowed, so the fallback is forced by arithmetic rather than chosen.
+	const screen = groupScreen(Array.from({ length: 124 }, (unused, index) => `cell-${index}`), { group: 'warm/success' })
 	const plan = confirmationPlan(screen)
-	assert.equal(plan.budget.fitsOneRunner, false)
-	assert.ok(plan.budget.totalSeconds > plan.budget.budgetSeconds)
 	assert.deepEqual(plan.groups, [])
 	assert.deepEqual(plan.unconfirmableGroups, ['warm/success'])
-	assert.equal(plan.shardCount, 4, 'the cell confirmation still shards; only the group falls back')
+	assert.equal(plan.groupBudgets[0].fitsOneRunner, false)
+	assert.ok(plan.groupBudgets[0].totalSeconds > plan.groupBudgets[0].budgetSeconds)
+	assert.equal(plan.batches.filter(batch => batch.kind === 'group').length, 0)
 })
 
 test('an acknowledged group is queued for confirmation, so its entry stays falsifiable', () => {
-	// It is not queued to decide whether it blocks — it cannot block — but to decide whether the
-	// entry should still exist. An acknowledgement nobody ever remeasures cannot be retired.
-	const screen = screenWithGroup([['a', 'cleared', 0]], [{ group: 'warm/failure/all', classification: 'regression', delta: -0.064, scenarios: 2 }], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
+	// Not to decide whether it blocks — it cannot block — but to decide whether the entry should
+	// still exist. An acknowledgement nobody ever remeasures cannot be retired.
+	const screen = groupScreen(['a', 'b'])
 	const plan = confirmationPlan(screen, { acknowledgedGroups: new Set(['warm/failure/all']) })
 	assert.deepEqual(plan.groups, ['warm/failure/all'])
-	assert.deepEqual(plan.cells, ['a'], 'every cell of the group, so the confirmation can aggregate it')
-	assert.equal(plan.shardCount, 1, 'and on one runner, which is the only evidence that counts for a group')
+	assert.deepEqual(plan.batches.find(batch => batch.kind === 'group').cells, ['a', 'b'])
 })
 
 test('an acknowledged cell is queued even when the row rule would skip it', () => {
 	// A cleared cell is exactly the case that decides whether its entry should still exist, and
-	// exactly the case the row selection ignores.
+	// exactly the case the row selection ignores. It rides with the rows: it needs no single runner
+	// and must not enter any group's budget.
 	const screen = screenOf([['a', 'cleared', -0.002], ['b', 'cleared', 0]], { verdict: 'neutral' })
 	const plan = confirmationPlan(screen, { acknowledgedCells: new Set(['a']) })
-	assert.deepEqual(plan.cells, ['a'])
+	assert.deepEqual(plan.batches.map(batch => [batch.kind, batch.cells]), [['rows', ['a']]])
 	assert.deepEqual(plan.reasons.map(entry => entry.reason), ['acknowledged'])
 })
 

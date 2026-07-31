@@ -128,16 +128,58 @@ export interface CatalogIdDiff {
 	headCells: number
 	/** Anything either side could not read. A non-empty list means the counts are not a complete audit. */
 	problems: string[]
+	/** The subset that makes the audit unusable rather than merely incomplete. */
+	fatalProblems: string[]
+	/** Why an incomplete audit was tolerated, when it was. */
+	toleratedBaseline: string | null
 }
 
-export function catalogIdDiff(base: StaticCatalog, head: StaticCatalog): CatalogIdDiff {
+/**
+ * The one baseline this audit tolerates being unable to read, named rather than inferred.
+ *
+ * Every bench file on `main` predates `stepBench()`: the cells were `bench()` calls, so the
+ * static reader finds no cells in any of them. That is a real migration, it happens exactly once,
+ * and refusing it would mean this pull request could not introduce the audit that needs it.
+ *
+ * It is deliberately narrow and self-retiring. It applies only when **every** base bench file is
+ * legacy and the base declares no cells at all — a partially migrated base is an anomaly, not a
+ * migration — and once this pull request merges, `main` declares 245 cells, the shape stops
+ * matching, and base problems become fatal with no further edit. That is the follow-up condition,
+ * written down here rather than left to memory: when `baseCells > 0`, this case cannot fire.
+ */
+export function isLegacyBaselineOnly(base: StaticCatalog, benchFileCount: number): boolean {
+	if (base.ids.length > 0 || benchFileCount === 0)
+		return false
+	const legacy = base.problems.filter(problem => problem.includes('declares no `stepBench()` call'))
+	return legacy.length === benchFileCount && legacy.length === base.problems.length
+}
+
+/**
+ * The diff, with its problems split by whether they can be tolerated.
+ *
+ * A **head** problem is always fatal. An unreadable candidate catalog is not an audit that found
+ * nothing; it is an audit that could not run, and the escape route was concrete — a computed cell
+ * name passed the quality gate, made this reader emit a head problem, and left the required check
+ * green. A **base** problem is fatal too, except for the one named migration case above.
+ */
+export function catalogIdDiff(base: StaticCatalog, head: StaticCatalog, benchFileCount = 0): CatalogIdDiff {
 	const baseIds = new Set(base.ids)
 	const headIds = new Set(head.ids)
+	const headProblems = head.problems.map(problem => `head: ${problem}`)
+	const baseProblems = base.problems.map(problem => `base: ${problem}`)
+	const tolerated = isLegacyBaselineOnly(base, benchFileCount)
 	return {
 		added: head.ids.filter(id => !baseIds.has(id)),
 		removed: base.ids.filter(id => !headIds.has(id)),
 		baseCells: base.ids.length,
 		headCells: head.ids.length,
-		problems: [...new Set([...base.problems.map(problem => `base: ${problem}`), ...head.problems.map(problem => `head: ${problem}`)])],
+		problems: [...new Set([...baseProblems, ...headProblems])],
+		/** Problems that make this audit unusable. Non-empty means the gate must fail. */
+		fatalProblems: [...new Set([...headProblems, ...(tolerated ? [] : baseProblems)])],
+		/** The named migration case, so a reader knows why an incomplete audit was allowed. */
+		toleratedBaseline: tolerated
+			? `every one of the ${benchFileCount} base bench files predates \`stepBench()\`, which is this repository's one-time cell-format migration. `
+			+ 'This case cannot fire once the base declares any cells.'
+			: null,
 	}
 }

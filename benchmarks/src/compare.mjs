@@ -141,6 +141,17 @@ const catalog = options.catalog === 'cells'
 const groupTotals = groupTotalsOf(catalog.cells)
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
 const catalogDiff = options.catalogDiff == null ? null : JSON.parse(await readFile(options.catalogDiff, 'utf8'))
+// Existence is not completeness. `--require-catalog-diff` used to be satisfied by a file, so an
+// audit that reported itself unable to read a revision still left the gate green — the same class
+// of defect as a `removed 0` that could never see a removal. `bench-catalog-diff.ts` already exits
+// non-zero on a fatal problem; this refuses the artifact as well, so a diff produced before that
+// rule existed, or copied from elsewhere, cannot satisfy the requirement either.
+if (options.requireCatalogDiff && (catalogDiff?.fatalProblems ?? []).length > 0) {
+	throw new Error(
+		`The catalog diff carries ${catalogDiff.fatalProblems.length} problem(s) that make it unusable, so it cannot satisfy --require-catalog-diff: `
+		+ `${catalogDiff.fatalProblems.join('; ')}`,
+	)
+}
 const result = compareResults(baseline, candidate, { groupTotals, catalogHash: catalog.catalogHash, catalogDiff })
 // eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
 await Promise.all([

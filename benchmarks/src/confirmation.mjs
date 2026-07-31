@@ -72,6 +72,8 @@ import { markdownCell, meaningfulThreshold, minimumScenariosPerGroup } from './i
  * blocking decision into a timeout, which reads as infrastructure failure rather than as a
  * verdict.
  */
+const byScenario = (left, right) => (left.scenario < right.scenario ? -1 : left.scenario > right.scenario ? 1 : 0)
+
 export const secondsPerCellRun = 2.33
 export const confirmationOverheadSeconds = 120
 export const confirmationBudgetSeconds = 45 * 60
@@ -127,68 +129,91 @@ export function groupsNeedingConfirmation(screen, acknowledgedGroups = new Set()
  * cannot support blocking, rather than blocking on it anyway.
  */
 export function confirmationPlan(screen, { acknowledgedGroups = new Set(), acknowledgedCells = new Set(), repetitions = 5 } = {}) {
-	const cellSelection = confirmationSelection(screen)
-	// A triggered group needs confirming before it can block. An **acknowledged** group needs
-	// confirming for the mirror reason: its entry can only be retired on single-runner evidence,
-	// so a group nobody remeasures has an unfalsifiable acknowledgement. Same for an acknowledged
-	// cell, which the row selection would otherwise skip whenever it lands cleared — exactly the
-	// case that decides whether the entry should still exist.
-	const groups = [...new Set([
+	// Rows and groups are scheduled **independently**, and that is the whole shape of this
+	// function. They used to share one budget over the union of everything the second stage
+	// asked, and `confirmsGroups` was all-or-nothing over it — so a group that fitted a single
+	// runner comfortably by itself was downgraded to `review` because unrelated boundary rows
+	// also needed confirming, and two groups that each fitted alone but not together left
+	// neither able to block. The one trigger built to catch a broad moderate regression was
+	// coupled to unrelated noise elsewhere in the run, and the rot-check workload consumed the
+	// same budget although it must not decide whether a new severe group gets valid evidence.
+	//
+	// So each group gets its own single-runner batch, sized by the cells required to establish
+	// *that group's* claim and nothing else, and the ordinary rows keep their sharded batch.
+	const rowCells = [
+		...confirmationSelection(screen),
+		// Acknowledged cells ride with the rows: they are a rot-check workload, they do not need a
+		// single runner, and they must not enter any group's budget.
+		...(screen.rows ?? []).filter(row => acknowledgedCells.has(row.scenario))
+			.map(row => ({ scenario: row.scenario, reason: 'acknowledged' })),
+	]
+	const mergedRows = new Map()
+	for (const entry of rowCells) {
+		if (!mergedRows.has(entry.scenario))
+			mergedRows.set(entry.scenario, entry)
+	}
+	const rows = [...mergedRows.values()].sort(byScenario)
+
+	// Triggered groups need confirmation before they can block; acknowledged groups need it so
+	// their entries stay falsifiable. Both are judged on their own cells.
+	const groupNames = [...new Set([
 		...groupsNeedingConfirmation(screen, acknowledgedGroups),
 		...(screen.groups ?? []).filter(group => acknowledgedGroups.has(group.group))
 			.map(group => group.group),
 	])]
-	const groupCells = (screen.rows ?? [])
-		.filter(row => groups.includes(row.group))
-		.map(row => ({ scenario: row.scenario, reason: 'group' }))
-	const acknowledgedRows = (screen.rows ?? [])
-		.filter(row => acknowledgedCells.has(row.scenario))
-		.map(row => ({ scenario: row.scenario, reason: 'acknowledged' }))
-	const merged = new Map()
-	for (const entry of [...cellSelection, ...groupCells, ...acknowledgedRows]) {
-		if (!merged.has(entry.scenario))
-			merged.set(entry.scenario, entry)
-	}
-	const cells = [...merged.values()].sort((left, right) => (left.scenario < right.scenario ? -1 : left.scenario > right.scenario ? 1 : 0))
-	const budget = confirmationBudget(cells.length, repetitions)
-	const confirmsGroups = groups.length > 0 && budget.fitsOneRunner
+	const groups = groupNames.map((group) => {
+		const cells = (screen.rows ?? []).filter(row => row.group === group)
+			.map(row => row.scenario)
+			.sort()
+		const budget = confirmationBudget(cells.length, repetitions)
+		return { group, cells, budget, fits: budget.fitsOneRunner }
+	})
+
+	const rowBudget = confirmationBudget(rows.length, repetitions)
+	const batches = [
+		...Array.from({ length: rows.length === 0 ? 0 : Math.min(4, rows.length) }, (unused, shard) => ({
+			id: `rows-${shard}`,
+			kind: 'rows',
+			group: null,
+			cells: rows.map(entry => entry.scenario),
+			shardIndex: shard,
+			shardCount: Math.min(4, rows.length),
+		})),
+		...groups.filter(entry => entry.fits && entry.cells.length > 0)
+			.map(entry => ({
+				id: `group-${entry.group.replaceAll('/', '-')}`,
+				kind: 'group',
+				group: entry.group,
+				cells: entry.cells,
+				shardIndex: 0,
+				// One runner, always: a group aggregate mixed across runners is the defect being
+				// corrected, so confirming it on four machines would reproduce it.
+				shardCount: 1,
+			})),
+	]
+
 	return {
-		cells: cells.map(entry => entry.scenario),
-		reasons: cells,
-		/** The groups this batch can settle — triggered or acknowledged. Empty when it does not fit one runner. */
-		groups: confirmsGroups ? groups : [],
+		batches,
+		/** Every cell the second stage measures, across all batches. Reported, never a budget. */
+		cells: [...new Set(batches.flatMap(batch => batch.cells))].sort(),
+		reasons: rows,
+		/** The groups a batch will settle, each admitted on its own cost. */
+		groups: groups.filter(entry => entry.fits)
+			.map(entry => entry.group),
 		/**
-		 * The groups this batch cannot settle. A triggered one becomes `review` instead of
-		 * blocking; an acknowledged one has its rot check reported as unassessed. Either way the
-		 * report says which, because a group too large to confirm on one runner is a group whose
-		 * bounded acknowledgement cannot be checked on this hardware at all.
+		 * The groups no single runner can settle within the budget. A triggered one becomes
+		 * `review` instead of blocking; an acknowledged one has its rot check reported unassessed,
+		 * which is also the signal that a bounded acknowledgement is the wrong instrument for a
+		 * group that large on this hardware.
 		 */
-		unconfirmableGroups: confirmsGroups ? [] : groups,
-		// One runner whenever a group is at stake, up to four otherwise: a cell's confirmation is
-		// a per-cell paired ratio, which sharding does not disturb.
-		shardCount: confirmsGroups ? 1 : Math.min(4, Math.max(1, cells.length)),
-		budget,
+		unconfirmableGroups: groups.filter(entry => !entry.fits)
+			.map(entry => entry.group),
+		/** Per-group arithmetic, so a `review` can be read rather than trusted. */
+		groupBudgets: groups.map(entry => ({ group: entry.group, cells: entry.cells.length, ...entry.budget })),
+		rowBudget,
 	}
 }
 
-/**
- * Which cells the confirmation batch measures.
- *
- * Two kinds, and no others:
- *
- * - every candidate regression, `severe` or not. A claimed regression is what an
- *   independent reproduction is for;
- * - every `inconclusive` row whose interval reaches at or below −5%. An inconclusive row
- *   always spans *some* threshold — that is what makes it inconclusive — so the qualifier
- *   is which one: a row whose interval could still be a blocking regression is worth
- *   another batch, and one sitting between −4% and +6% is a question about an improvement
- *   nobody is gated on.
- *
- * An `improvement` and a `cleared` row are not re-measured. Neither can block, and
- * spending the batch on them would make the stage cost scale with the run rather than with
- * what is at stake. In the hosted-runner null runs this selects 6 of 170 cells in the
- * quieter run and 47 in the noisier one.
- */
 export function confirmationSelection(screen) {
 	const boundary = -meaningfulThreshold / 100
 	return screen.rows
@@ -229,18 +254,27 @@ function resolutionOf(screenClassification, confirmClassification) {
  * pull request and is not the same as a confirmation that found nothing — the report says
  * which.
  */
-export function resolveConfirmation(screen, confirm, { acceptedRegressions: entries, acceptedGroupRegressions: groupEntries } = {}) {
+export function resolveConfirmation(screen, confirm, { acceptedRegressions: entries, acceptedGroupRegressions: groupEntries, groupConfirmations = {} } = {}) {
 	const selection = confirmationSelection(screen)
 	const confirmByScenario = new Map((confirm?.rows ?? []).map(row => [row.scenario, row]))
 	// Over every measured cell, because a stale entry is one whose cell the screen *cleared*,
 	// and a cleared cell is never in the confirmation selection.
-	const measured = screen.rows.map(row => ({
-		scenario: row.scenario,
-		screen: row.classification,
-		screenDelta: row.delta,
-		confirm: confirmByScenario.get(row.scenario)?.classification ?? null,
-		confirmDelta: confirmByScenario.get(row.scenario)?.delta ?? null,
-	}))
+	const measured = screen.rows.map((row) => {
+		const confirmRow = confirmByScenario.get(row.scenario) ?? null
+		return {
+			scenario: row.scenario,
+			screen: row.classification,
+			screenDelta: row.delta,
+			// Intervals, because a bound is a decision threshold and gets the same interval
+			// semantics as every other threshold in this gate.
+			screenLow: row.intervalLow,
+			screenHigh: row.intervalHigh,
+			confirm: confirmRow?.classification ?? null,
+			confirmDelta: confirmRow?.delta ?? null,
+			confirmLow: confirmRow?.intervalLow ?? null,
+			confirmHigh: confirmRow?.intervalHigh ?? null,
+		}
+	})
 	const malformed = entries === undefined ? malformedAcceptedRegressions() : malformedAcceptedRegressions(entries)
 	const accepted = entries === undefined ? evaluateAcceptedRegressions(measured) : evaluateAcceptedRegressions(measured, entries)
 	const acknowledgedCells = new Set(accepted.acknowledged.map(record => record.cell))
@@ -252,15 +286,26 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	// Every judgement about an acknowledged group reads the single-runner confirmation, never the
 	// cross-shard screen: retiring an entry is as consequential as blocking on one, and the screen
 	// is the instrument that reported this group `regression` and `cleared` two runs apart.
+	// Each group's evidence is **its own** single-runner batch, not the row confirmation. The two
+	// are scheduled independently, so a group's claim never depends on how much unrelated work the
+	// second stage happened to have.
+	const groupEvidence = (group) => {
+		const comparison = groupConfirmations[group] ?? null
+		const members = (screen.rows ?? []).filter(row => row.group === group)
+			.map(row => row.scenario)
+		const measured = new Set((comparison?.rows ?? []).map(row => row.scenario))
+		return {
+			comparison,
+			row: (comparison?.groups ?? []).find(entry => entry.group === group) ?? null,
+			singleRunner: comparison?.measurement?.shardCount === 1,
+			measuredWhole: members.length > 0 && members.every(cell => measured.has(cell)),
+		}
+	}
 	const confirmationContext = {
-		groups: confirm?.groups ?? [],
-		singleRunner: confirm?.measurement?.shardCount === 1,
-		measuredWhole: (group) => {
-			const members = (screen.rows ?? []).filter(row => row.group === group)
-				.map(row => row.scenario)
-			const measured = new Set((confirm?.rows ?? []).map(row => row.scenario))
-			return members.length > 0 && members.every(cell => measured.has(cell))
-		},
+		groups: Object.values(groupConfirmations)
+			.flatMap(comparison => comparison?.groups ?? []),
+		singleRunner: true,
+		measuredWhole: group => groupEvidence(group).singleRunner && groupEvidence(group).measuredWhole,
 	}
 	const acceptedGroups = groupEntries === undefined
 		? evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext)
@@ -305,9 +350,9 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	const listProblems = [
 		...malformed,
 		...groupMalformed,
-		...accepted.exceeded.map(record => `${record.cell} regressed ${record.depthPercent.toFixed(2)}%, past the ${record.bound}% this repository accepts for it`),
+		...accepted.exceeded.map(record => `${record.cell} breached its ${record.bound}% bound (deepest estimate ${record.depthPercent.toFixed(2)}%) — ${record.why}`),
 		...accepted.stale.map(record => `the accepted regression for ${record.cell} is stale — the screen now reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
-		...acceptedGroups.exceeded.map(record => `the group ${record.group} regressed ${record.depthPercent.toFixed(2)}%, past the ${record.bound}% this repository accepts for it`),
+		...acceptedGroups.exceeded.map(record => `the group ${record.group} breached its ${record.bound}% bound (deepest estimate ${record.depthPercent.toFixed(2)}%) — ${record.why}`),
 		...acceptedGroups.stale.map(record => `the accepted group regression for ${record.group} is stale — an independent single-runner batch reports it ${record.screen} at ${(record.screenDelta * 100).toFixed(2)}%, so the entry must be removed`),
 	]
 	// Reported, and deliberately not a failure. A rot check with no evidence behind it must not
@@ -329,37 +374,31 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	// screen's group interval cannot see it. Everything this needs is read from the artifacts
 	// rather than passed in: if the confirmation ran sharded, the group cannot block, whatever
 	// the workflow intended.
-	const confirmGroups = new Map((confirm?.groups ?? []).map(group => [group.group, group]))
-	const confirmedCells = new Set((confirm?.rows ?? []).map(row => row.scenario))
-	const singleRunnerConfirmation = confirm?.measurement?.shardCount === 1
 	const groupVerdicts = unacknowledgedSevereGroups.map((group) => {
-		const members = screen.rows.filter(row => row.group === group)
-			.map(row => row.scenario)
-		const measuredWhole = members.length > 0 && members.every(cell => confirmedCells.has(cell))
-		const confirmRow = confirmGroups.get(group) ?? null
-		if (confirm == null || !singleRunnerConfirmation || !measuredWhole) {
+		const evidence = groupEvidence(group)
+		if (evidence.comparison == null || !evidence.singleRunner || !evidence.measuredWhole) {
 			return {
 				group,
 				confirmed: false,
-				confirmClassification: confirmRow?.classification ?? null,
+				confirmClassification: evidence.row?.classification ?? null,
 				blocking: false,
-				why: confirm == null
-					? 'no confirmation batch ran'
-					: confirm.measurement?.shardCount == null
-						? 'the confirmation comparison does not record how many shards measured it, so it cannot be read as single-runner evidence'
-						: !singleRunnerConfirmation
-								? `the confirmation batch ran over ${confirm.measurement.shardCount} shards, so its group aggregate mixes runners exactly as the screen's does`
-								: 'the confirmation batch did not measure every cell of the group',
+				why: evidence.comparison == null
+					? 'no single-runner batch measured this group, so its trigger rests on a cross-shard aggregate whose interval cannot see a between-runner shift'
+					: evidence.comparison.measurement?.shardCount == null
+						? 'its confirmation does not record how many shards measured it, so it cannot be read as single-runner evidence'
+						: !evidence.singleRunner
+								? `its confirmation ran over ${evidence.comparison.measurement.shardCount} shards, so that aggregate mixes runners exactly as the screen's does`
+								: 'its confirmation did not measure every cell of the group',
 			}
 		}
 		return {
 			group,
 			confirmed: true,
-			confirmClassification: confirmRow?.classification ?? null,
-			blocking: confirmRow?.classification === 'regression',
-			why: confirmRow?.classification === 'regression'
+			confirmClassification: evidence.row?.classification ?? null,
+			blocking: evidence.row?.classification === 'regression',
+			why: evidence.row?.classification === 'regression'
 				? 'an independent single-runner batch measured the whole group and agreed'
-				: `an independent single-runner batch measured the whole group and reported it ${confirmRow?.classification ?? 'not at all'}`,
+				: `an independent single-runner batch measured the whole group and reported it ${evidence.row?.classification ?? 'not at all'}`,
 		}
 	})
 	const blockingGroups = groupVerdicts.filter(verdict => verdict.blocking)

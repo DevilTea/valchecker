@@ -74,8 +74,9 @@ function readRevision(ref: string): { path: string, text: string }[] {
 }
 
 const options = parseArguments(process.argv.slice(2))
-const diff = catalogIdDiff(staticCatalog(readRevision(options.base!)), staticCatalog(readRevision(options.head!)))
-const result = { schemaVersion: 1, base: options.base, head: options.head, ...diff }
+const baseFiles = readRevision(options.base!)
+const diff = catalogIdDiff(staticCatalog(baseFiles), staticCatalog(readRevision(options.head!)), baseFiles.length)
+const result = { schemaVersion: 2, base: options.base, head: options.head, ...diff }
 
 if (options.output != null) {
 	fs.mkdirSync(path.dirname(options.output), { recursive: true })
@@ -90,5 +91,16 @@ for (const id of diff.removed)
 	console.error(`[catalog-diff] removed: ${id}`)
 for (const problem of diff.problems)
 	console.error(`[catalog-diff] unreadable: ${problem}`)
+if (diff.toleratedBaseline != null)
+	console.error(`[catalog-diff] tolerated: ${diff.toleratedBaseline}`)
 if (options.output == null)
 	process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+
+// An audit that reports itself incomplete and exits 0 is the same defect as a `removed 0` that
+// could never see a removal. The file is still written, so the report can say what was wrong.
+if (diff.fatalProblems.length > 0) {
+	console.error(`\n[catalog-diff] ${diff.fatalProblems.length} problem${diff.fatalProblems.length === 1 ? '' : 's'} make this audit unusable rather than `
+		+ 'merely incomplete. A revision whose cell declarations cannot be read statically cannot be diffed against, and the runtime comparison can never '
+		+ 'see a deleted or renamed cell — so there would be no check on the benchmark contract at all.')
+	process.exitCode = 1
+}

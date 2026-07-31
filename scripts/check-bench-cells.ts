@@ -183,7 +183,21 @@ function checkBenchSource(step: string, relativePath: string, text: string): voi
 			errors.push(`${relativePath}: every cell must be an object literal; this gate reads \`group\` and \`run\` from the source and cannot follow a computed cell.`)
 			continue
 		}
-		const name = stringProperty(element, 'name') ?? '<unnamed>'
+		// A literal `name`, for the same reason the step name and `group` must be literal, plus one
+		// this gate did not previously enforce: a cell id is `<step>/<name>`, and
+		// `scripts/bench-catalog-diff.ts` reads those ids out of two revisions' source to audit
+		// what the benchmark contract declares. A computed name passes at runtime, so it used to
+		// pass here while making that audit unable to read the head — which is how a deletion or
+		// rename could reach a merge behind a green catalog check.
+		const name = stringProperty(element, 'name')
+		if (name == null) {
+			errors.push(
+				`${relativePath}: a cell declares no literal \`name\`. A cell id is \`<step>/<name>\`, and the catalog audit reads those ids from source in both `
+				+ 'revisions to see a deleted or renamed cell — which no runtime comparison can, because the apparatus comes from the candidate ref. A computed '
+				+ 'name would make that audit unable to read this revision.',
+			)
+			continue
+		}
 		const group = stringProperty(element, 'group')
 		if (group == null) {
 			errors.push(`${relativePath}: cell '${name}' declares no literal \`group\`.`)

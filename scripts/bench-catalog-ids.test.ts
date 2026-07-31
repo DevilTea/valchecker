@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { catalogIdDiff, cellsOfSource, staticCatalog } from './bench-catalog-ids'
+import { catalogIdDiff, cellsOfSource, isLegacyBaselineOnly, staticCatalog } from './bench-catalog-ids'
 
 /**
  * The static catalog reader, whose whole reason for existing is the one thing the executable
@@ -112,6 +112,55 @@ describe('diffing two revisions', () => {
 			.toContain('base: a.bench.ts')
 		expect(diff.problems)
 			.toHaveLength(1)
+	})
+
+	it('makes an unreadable head fatal, whatever the base looks like', () => {
+		// The escape route this closes: a computed cell name passed the quality gate, made this
+		// reader emit a head problem, and left the required catalog check green — so a deletion or
+		// rename could reach a merge with no check on the contract at all.
+		const head = staticCatalog([{ path: 'a.bench.ts', text: 'export const nothing = 1\n' }])
+		const diff = catalogIdDiff(base, head, 1)
+		expect(diff.fatalProblems)
+			.toHaveLength(1)
+		expect(diff.fatalProblems[0])
+			.toContain('head: a.bench.ts')
+		expect(diff.toleratedBaseline)
+			.toBeNull()
+	})
+
+	it('tolerates the all-legacy base as one named migration, and nothing else', () => {
+		// Every bench file on `main` predates `stepBench()`, so the base declares no cells and the
+		// reader reports one problem per file. That is a real one-time migration.
+		const legacyText = 'import { bench } from \'vitest\'\nbench(\'x\', () => 1)\n'
+		const legacy = staticCatalog([
+			{ path: 'a.bench.ts', text: legacyText },
+			{ path: 'b.bench.ts', text: legacyText },
+		])
+		const tolerated = catalogIdDiff(legacy, base, 2)
+		expect(tolerated.fatalProblems)
+			.toEqual([])
+		expect(tolerated.toleratedBaseline)
+			.toContain('one-time cell-format migration')
+
+		// A base that is only partly unreadable is an anomaly rather than that migration.
+		const mixed = staticCatalog([
+			{ path: 'a.bench.ts', text: legacyText },
+			{ path: 'b.bench.ts', text: 'import { stepBench } from \'x\'\nstepBench(\'map\', [{ name: \'valid\', group: \'warm/success\' }])\n' },
+		])
+		expect(catalogIdDiff(mixed, base, 2).fatalProblems.length)
+			.toBeGreaterThan(0)
+	})
+
+	it('stops tolerating the legacy base the moment the base declares any cell', () => {
+		// The follow-up condition, as a test rather than a comment: once this pull request merges,
+		// `main` declares cells, the shape stops matching, and base problems are fatal with no edit.
+		const partlyMigrated = staticCatalog([
+			{ path: 'a.bench.ts', text: 'import { bench } from \'vitest\'\nbench(\'x\', () => 1)\n' },
+		])
+		expect(isLegacyBaselineOnly(partlyMigrated, 1))
+			.toBe(true)
+		expect(isLegacyBaselineOnly({ ids: ['map/valid'], problems: partlyMigrated.problems }, 1))
+			.toBe(false)
 	})
 })
 

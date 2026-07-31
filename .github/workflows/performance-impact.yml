@@ -490,9 +490,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
-      confirm_cells: ${{ steps.confirm.outputs.cells }}
-      confirm_shards: ${{ steps.confirm.outputs.shards }}
-      confirm_shard_count: ${{ steps.confirm.outputs.shard_count }}
+      confirm_plan: ${{ steps.confirm.outputs.plan }}
+      confirm_batches: ${{ steps.confirm.outputs.batches }}
+      confirm_any: ${{ steps.confirm.outputs.any }}
     steps:
       - name: Checkout comparison tooling
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -584,7 +584,13 @@ jobs:
       # and prints them as JSON; this only lifts them into job outputs. The shard count is 1
       # whenever a group is at stake, because a group aggregate mixed across runners is the
       # defect being corrected.
-      - name: Plan the confirmation batch
+      # The confirmation stage as a set of independent batches: the ordinary rows sharded up to
+      # four ways, and one single-runner batch per group being confirmed. `confirmation.mjs`
+      # decides the batches and sizes each group's by that group's own cells, so a group's
+      # confirmability never depends on how much unrelated work the second stage happens to have.
+      # This step only lifts the plan into job outputs; the matrix is a list of batch indices and
+      # each job reads its own batch out of the plan.
+      - name: Plan the confirmation batches
         id: confirm
         shell: bash
         run: |
@@ -592,22 +598,18 @@ jobs:
           plan="$(pnpm --silent --dir benchmarks confirm \
             --screen ../artifacts/performance-impact/impact.json \
             --plan)"
-          read -r cells shard_count <<< "$(node -e '
+          batches="$(node -e '
             const plan = JSON.parse(process.argv[1])
-            process.stdout.write(`${plan.cells.join(",")} ${plan.shardCount}`)
+            process.stdout.write(JSON.stringify(plan.batches.map((unused, index) => index)))
           ' "$plan")"
-          # Joined with `paste`, not `seq -s,`: BSD's `seq` writes the separator after the
-          # last element, so `seq -s, 0 2` is `0,1,2,` there and `0,1,2` under GNU coreutils.
-          # `fromJSON` would reject the first, and a matrix that depends on which `seq` the
-          # runner ships is not a matrix anybody can reason about.
-          shards='[0]'
-          if (( shard_count > 1 )); then
-            shards="[$(seq 0 $((shard_count - 1)) | paste -sd, -)]"
-          fi
+          any="$(node -e '
+            const plan = JSON.parse(process.argv[1])
+            process.stdout.write(plan.batches.length > 0 ? "yes" : "")
+          ' "$plan")"
           {
-            echo "cells=$cells"
-            echo "shard_count=$shard_count"
-            echo "shards=$shards"
+            echo "plan=$plan"
+            echo "batches=${batches:-[0]}"
+            echo "any=$any"
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish comparison summary
@@ -654,13 +656,13 @@ jobs:
   # shard with no cells is an error rather than an empty run.
   confirm-measure:
     needs: [measure, compare]
-    if: needs.compare.outputs.confirm_cells != ''
+    if: needs.compare.outputs.confirm_any != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.compare.outputs.confirm_shards) }}
+        batch: ${{ fromJSON(needs.compare.outputs.confirm_batches) }}
     steps:
       - name: Checkout comparison tooling
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -703,21 +705,30 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Run the confirmation batch
+        id: batch
         shell: bash
         env:
           PROFILE: ${{ needs.measure.outputs.profile }}
-          CELLS: ${{ needs.compare.outputs.confirm_cells }}
+          PLAN: ${{ needs.compare.outputs.confirm_plan }}
+          BATCH: ${{ matrix.batch }}
           RUNS: ${{ needs.measure.outputs.runs }}
-          SHARD_COUNT: ${{ needs.compare.outputs.confirm_shard_count }}
           BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
           AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
           BEFORE_SHA: ${{ needs.measure.outputs.before_sha }}
           AFTER_SHA: ${{ needs.measure.outputs.after_sha }}
-          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/performance-impact-confirm
           seed="confirm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          # This job's own batch, read from the plan rather than passed field by field.
+          read -r BATCH_ID CELLS SHARD SHARD_COUNT <<< "$(node -e '
+            const plan = JSON.parse(process.argv[1])
+            const batch = plan.batches[Number(process.argv[2])]
+            process.stdout.write([batch.id, batch.cells.join(","), batch.shardIndex, batch.shardCount].join(" "))
+          ' "$PLAN" "$BATCH")"
+          echo "id=$BATCH_ID" >> "$GITHUB_OUTPUT"
+          echo "[confirm] batch $BATCH_ID: shard $SHARD of $SHARD_COUNT"
 
           run_side() {
             local side="$1" dist="$2" repetition="$3" sha="$4"
@@ -748,7 +759,7 @@ jobs:
       - name: Upload confirmation measurements
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: performance-impact-confirm-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          name: performance-impact-confirm-${{ steps.batch.outputs.id }}-${{ github.run_attempt }}
           path: artifacts/performance-impact-confirm
           if-no-files-found: error
           retention-days: 30
@@ -790,15 +801,15 @@ jobs:
         if: needs.confirm-measure.result == 'success'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: performance-impact-confirm-shard-*-${{ github.run_attempt }}
-          path: artifacts/confirm-shards
+          pattern: performance-impact-confirm-*-${{ github.run_attempt }}
+          path: artifacts/confirm-batches
 
       - name: Resolve the two stages
         shell: bash
         env:
           RUNS: ${{ needs.measure.outputs.runs }}
           CONFIRM_RESULT: ${{ needs.confirm-measure.result }}
-          CONFIRM_SHARD_COUNT: ${{ needs.compare.outputs.confirm_shard_count }}
+          PLAN: ${{ needs.compare.outputs.confirm_plan }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/performance-impact-verdict
@@ -807,39 +818,75 @@ jobs:
             runs=3
           fi
 
+          # One comparison per batch, and the batches are independent by design: the ordinary rows
+          # are one sharded comparison, and each group is its own single-runner comparison. A
+          # group's evidence therefore never depends on how much unrelated work the second stage
+          # had — which is what let a nine-cell group lose its blocking confirmation because
+          # unrelated boundary rows pushed a shared budget over the limit.
           confirm_args=()
-          if [[ "$CONFIRM_RESULT" == "success" && -d artifacts/confirm-shards ]]; then
-            for side in baseline candidate; do
-              for repetition in $(seq 1 "$runs"); do
-                inputs=()
-                for (( shard = 0; shard < CONFIRM_SHARD_COUNT; shard++ )); do
-                  inputs+=(--input "../artifacts/confirm-shards/performance-impact-confirm-shard-$shard-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard$shard.json")
+          if [[ "$CONFIRM_RESULT" == "success" && -d artifacts/confirm-batches ]]; then
+            # `<id> <kind> <group> <shardCount>` per batch, from the plan the compare job emitted.
+            mapfile -t batch_lines < <(node -e '
+              const plan = JSON.parse(process.argv[1])
+              for (const batch of plan.batches)
+                process.stdout.write(`${batch.id} ${batch.kind} ${batch.group ?? "-"} ${batch.shardCount}\n`)
+            ' "$PLAN")
+
+            # The row batch: merge its shards per (side, repetition), then compare once.
+            row_shards="$(printf '%s\n' "${batch_lines[@]}" | awk '$2 == "rows" { print $4 }' | head -1)"
+            if [[ -n "$row_shards" ]]; then
+              for side in baseline candidate; do
+                for repetition in $(seq 1 "$runs"); do
+                  inputs=()
+                  for (( shard = 0; shard < row_shards; shard++ )); do
+                    inputs+=(--input "../artifacts/confirm-batches/performance-impact-confirm-rows-$shard-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard$shard.json")
+                  done
+                  pnpm --dir benchmarks merge \
+                    "${inputs[@]}" \
+                    --output "../artifacts/performance-impact-verdict/confirm-$side-$repetition.json"
                 done
-                pnpm --dir benchmarks merge \
-                  "${inputs[@]}" \
-                  --output "../artifacts/performance-impact-verdict/confirm-$side-$repetition.json"
               done
-            done
 
-            compare_args=()
-            for repetition in $(seq 1 "$runs"); do
-              compare_args+=(--baseline "../artifacts/performance-impact-verdict/confirm-baseline-$repetition.json")
-            done
-            for repetition in $(seq 1 "$runs"); do
-              compare_args+=(--candidate "../artifacts/performance-impact-verdict/confirm-candidate-$repetition.json")
-            done
+              compare_args=()
+              for repetition in $(seq 1 "$runs"); do
+                compare_args+=(--baseline "../artifacts/performance-impact-verdict/confirm-baseline-$repetition.json")
+              done
+              for repetition in $(seq 1 "$runs"); do
+                compare_args+=(--candidate "../artifacts/performance-impact-verdict/confirm-candidate-$repetition.json")
+              done
 
-            # Judged by the same rule as the screen, with the same catalog, over its own cells
-            # only. Its group aggregates are over an outcome-selected subset and are
-            # deliberately not read: `resolveConfirmation` uses its rows.
-            pnpm --dir benchmarks compare \
-              "${compare_args[@]}" \
-              --catalog cells \
-              --cell-catalog ../artifacts/screen/cell-catalog.json \
-              --markdown ../artifacts/performance-impact-verdict/confirm-impact.md \
-              --json ../artifacts/performance-impact-verdict/confirm-impact.json \
-              --html ../artifacts/performance-impact-verdict/confirm-impact.html
-            confirm_args=(--confirm ../artifacts/performance-impact-verdict/confirm-impact.json)
+              # Judged by the same rule as the screen, with the same catalog, over its own cells
+              # only. Its group aggregates are over an outcome-selected subset and are deliberately
+              # not read: `resolveConfirmation` uses its rows, and reads each group's aggregate from
+              # that group's own single-runner comparison below.
+              pnpm --dir benchmarks compare \
+                "${compare_args[@]}" \
+                --catalog cells \
+                --cell-catalog ../artifacts/screen/cell-catalog.json \
+                --markdown ../artifacts/performance-impact-verdict/confirm-impact.md \
+                --json ../artifacts/performance-impact-verdict/confirm-impact.json \
+                --html ../artifacts/performance-impact-verdict/confirm-impact.html
+              confirm_args+=(--confirm ../artifacts/performance-impact-verdict/confirm-impact.json)
+            fi
+
+            # Each group batch: one runner, so no merge — one file per (side, repetition) already.
+            while read -r id kind group shard_count; do
+              [[ "$kind" == "group" ]] || continue
+              group_args=()
+              for side in baseline candidate; do
+                for repetition in $(seq 1 "$runs"); do
+                  group_args+=("--$side" "../artifacts/confirm-batches/performance-impact-confirm-$id-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard0.json")
+                done
+              done
+              pnpm --dir benchmarks compare \
+                "${group_args[@]}" \
+                --catalog cells \
+                --cell-catalog ../artifacts/screen/cell-catalog.json \
+                --markdown "../artifacts/performance-impact-verdict/$id.md" \
+                --json "../artifacts/performance-impact-verdict/$id.json" \
+                --html "../artifacts/performance-impact-verdict/$id.html"
+              confirm_args+=(--group-confirm "$group=../artifacts/performance-impact-verdict/$id.json")
+            done < <(printf '%s\n' "${batch_lines[@]}")
           fi
 
           pnpm --dir benchmarks confirm \

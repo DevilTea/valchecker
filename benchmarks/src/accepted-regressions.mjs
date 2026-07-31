@@ -53,7 +53,9 @@
  * @typedef {object} AcceptedRegression
  * @property {string} cell The cell id, as the catalog declares it.
  * @property {number} maxRegressionPercent How far down is accepted, as a positive percentage.
- * A measurement past it fails, so the acknowledgement bounds the cost rather than the cell.
+ * Judged as a decision threshold against each stage's **interval**, not against a point
+ * estimate: an interval wholly past it is a breach, wholly inside it is within bound, and one
+ * spanning it is unassessed. A breach blocks only when both batches reproduce it.
  * @property {string} because Why the cost was bought, for a person.
  */
 
@@ -71,7 +73,9 @@ export const acceptedRegressions = [
 			+ 'direction is solid and the magnitude is not; the bound is set well past the worse of the two rather than '
 			+ 'at it, because a bound tighter than the gate\'s own run-to-run spread would fail on noise instead of on a '
 			+ 'change. A correct index for a diagnostic that exists to point at the entry that failed is worth this on a '
-			+ 'path that is already the slow one.',
+			+ 'path that is already the slow one. Rechecked once the bound became interval-judged rather than '
+			+ 'point-judged: the widest interval any run produced for this cell is [−18.2%, −10.9%], which sits inside 25% '
+			+ 'with 6.8pp to spare, so the number set from point estimates survives the stricter reading unchanged.',
 	},
 	{
 		cell: 'set/collect-all',
@@ -82,7 +86,11 @@ export const acceptedRegressions = [
 			+ 'exists with a bound rather than as a note — the cost is real and consistently deeper than `map`\'s, and no '
 			+ 'single figure describes it. The bound sits above the deepest measurement so a genuine further slowdown, '
 			+ 'the kind a rewrite of the buffered path could introduce, still fails. Accepted on the same ground as '
-			+ '`map`: the wrong index is a wrong answer, and this is the failure-collection path only.',
+			+ '`map`: the wrong index is a wrong answer, and this is the failure-collection path only. Rechecked under '
+			+ 'interval semantics: every observed interval still sits inside 45% — the widest, [−42.9%, +26.1%] from the '
+			+ 'run where this cell was too noisy to judge, by only 2.1pp — so the bound holds but thinly, and a noisier '
+			+ 'run will report this entry `unassessed` rather than acknowledged. That is the honest outcome and it blocks '
+			+ 'nothing; the bound is deliberately not widened to make it read as acknowledged.',
 	},
 ]
 
@@ -135,10 +143,62 @@ function claimsRegression(row) {
 		|| row.confirm === 'severe' || row.confirm === 'regression'
 }
 
-/** The deepest regression either stage measured on a row, as a positive percentage. */
+/**
+ * How one stage's interval stands against a bound.
+ *
+ * A bound is a decision threshold, so it gets the semantics every other threshold in this gate
+ * has: the interval decides, not the point estimate. `breach` is an interval wholly worse than
+ * the bound, `within` wholly inside it, `spanning` neither — a measurement that cannot place
+ * the cost on either side of the number a person agreed to.
+ *
+ * This replaces a point-estimate test that reintroduced both failure modes the rest of the gate
+ * was hardened against. With a 45% bound, a noisy screen at −60% and a confirmation `cleared`
+ * at 0% was reported as a breach and failed the workflow — while the same row *without* an
+ * acknowledgement would have been `not-reproduced` and would not have blocked, so adding an
+ * acknowledgement made the gate stricter than having none. In the other direction a −40% point
+ * estimate whose interval ran past −45% was accepted, although the measurement could not
+ * establish the cost was inside the bound.
+ */
+export function boundStanding(low, high, maxRegressionPercent) {
+	const threshold = -maxRegressionPercent / 100
+	if (!Number.isFinite(low) || !Number.isFinite(high))
+		return 'spanning'
+	if (high <= threshold)
+		return 'breach'
+	if (low > threshold)
+		return 'within'
+	return 'spanning'
+}
+
+/** The deepest regression either stage measured, as a positive percentage. Reported, not decisive. */
 export function deepestRegressionPercent(row) {
 	const deltas = [row.screenDelta, row.confirmDelta].filter(delta => typeof delta === 'number')
 	return deltas.length === 0 ? 0 : Math.max(0, -Math.min(...deltas) * 100)
+}
+
+/**
+ * Two stages against one bound, and what may follow from them.
+ *
+ * A breach is a blocking action, so it needs independent reproduction exactly like an ordinary
+ * severe regression: both stages must place the whole interval past the bound. One stage
+ * breaching while the other does not is `unassessed` — a disagreement between batches is a
+ * question for a reader, never a red gate from whichever batch produced the deeper estimate.
+ */
+export function combineBoundStandings(screen, confirm) {
+	if (screen === 'breach' && confirm === 'breach')
+		return { outcome: 'breach', why: 'both batches place the whole interval past the bound' }
+	if (screen === 'breach' || confirm === 'breach') {
+		return {
+			outcome: 'unassessed',
+			why: `one batch places the whole interval past the bound and the other reports it ${screen === 'breach' ? (confirm ?? 'not at all') : screen}, `
+				+ 'so the breach is not independently reproduced',
+		}
+	}
+	if (screen === 'within' && (confirm === 'within' || confirm == null))
+		return { outcome: 'within', why: 'the measured interval sits inside the bound' }
+	if (screen == null && confirm === 'within')
+		return { outcome: 'within', why: 'the measured interval sits inside the bound' }
+	return { outcome: 'unassessed', why: 'the interval spans the bound, so this run cannot place the cost on either side of it' }
 }
 
 /**
@@ -302,12 +362,21 @@ export function evaluateAcceptedGroupRegressions(screenGroups, confirmation, ent
 			})
 			continue
 		}
-		const depth = Math.max(0, -confirmed.delta * 100)
-		const record = { group: entry.group, bound: entry.maxRegressionPercent, depthPercent: depth, because: entry.because }
-		if (depth > entry.maxRegressionPercent)
-			exceeded.push(record)
-		else
+		const confirmStanding = boundStanding(confirmed.intervalLow, confirmed.intervalHigh, entry.maxRegressionPercent)
+		const screenStanding = screen.intervalLow == null ? null : boundStanding(screen.intervalLow, screen.intervalHigh, entry.maxRegressionPercent)
+		const combined = combineBoundStandings(screenStanding, confirmStanding)
+		const record = {
+			group: entry.group,
+			bound: entry.maxRegressionPercent,
+			depthPercent: Math.max(0, -confirmed.delta * 100),
+			because: entry.because,
+		}
+		if (combined.outcome === 'breach')
+			exceeded.push({ ...record, why: combined.why })
+		else if (combined.outcome === 'within')
 			acknowledged.push(record)
+		else
+			unassessed.push({ group: entry.group, screen: confirmed.classification, screenDelta: confirmed.delta, why: `its bound cannot be judged: ${combined.why}` })
 	}
 	return { acknowledged, exceeded, stale, unassessed }
 }
@@ -338,12 +407,21 @@ export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions)
 		}
 		if (!claimsRegression(row))
 			continue
-		const depth = deepestRegressionPercent(row)
-		const record = { cell: entry.cell, bound: entry.maxRegressionPercent, depthPercent: depth, because: entry.because }
-		if (depth > entry.maxRegressionPercent)
-			exceeded.push(record)
-		else
+		const screenStanding = row.screenLow == null ? null : boundStanding(row.screenLow, row.screenHigh, entry.maxRegressionPercent)
+		const confirmStanding = row.confirmLow == null ? null : boundStanding(row.confirmLow, row.confirmHigh, entry.maxRegressionPercent)
+		const combined = combineBoundStandings(screenStanding, confirmStanding)
+		const record = {
+			cell: entry.cell,
+			bound: entry.maxRegressionPercent,
+			depthPercent: deepestRegressionPercent(row),
+			because: entry.because,
+		}
+		if (combined.outcome === 'breach')
+			exceeded.push({ ...record, why: combined.why })
+		else if (combined.outcome === 'within')
 			acknowledged.push(record)
+		else
+			unassessed.push({ cell: entry.cell, why: `its bound cannot be judged: ${combined.why}` })
 	}
 	return { acknowledged, exceeded, stale, unassessed }
 }

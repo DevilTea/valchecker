@@ -20,7 +20,7 @@ import { confirmationPlan, renderConfirmationMarkdown, resolveConfirmation } fro
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 
 function parseArguments(argv) {
-	const options = { screen: null, confirm: null, plan: false, markdown: null, json: null, failOnRegression: false }
+	const options = { screen: null, confirm: null, groupConfirm: [], plan: false, markdown: null, json: null, failOnRegression: false }
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
 		const value = argv[index + 1]
@@ -38,6 +38,15 @@ function parseArguments(argv) {
 		}
 		else if (argument === '--json' && value) {
 			options.json = resolve(benchmarkRoot, value)
+			index++
+		}
+		else if (argument === '--group-confirm' && value) {
+			// `<group>=<path>`: one comparison per group, because group confirmation is scheduled
+			// independently of row confirmation and of every other group's.
+			const separator = value.indexOf('=')
+			if (separator < 1)
+				throw new Error(`--group-confirm takes <group>=<path>, received '${value}'`)
+			options.groupConfirm.push({ group: value.slice(0, separator), path: resolve(benchmarkRoot, value.slice(separator + 1)) })
 			index++
 		}
 		else if (argument === '--plan') {
@@ -89,7 +98,12 @@ else {
 		? null
 		// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
 		: JSON.parse(await readFile(options.confirm, 'utf8'))
-	const result = resolveConfirmation(screen, confirm)
+	// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
+	const groupConfirmations = Object.fromEntries(await Promise.all(options.groupConfirm.map(async entry => [
+		entry.group,
+		JSON.parse(await readFile(entry.path, 'utf8')),
+	])))
+	const result = resolveConfirmation(screen, confirm, { groupConfirmations })
 	if (options.markdown != null) {
 		// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
 		await mkdir(dirname(options.markdown), { recursive: true })

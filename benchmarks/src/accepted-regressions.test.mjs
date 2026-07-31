@@ -21,8 +21,23 @@ import {
  * hypothetical.
  */
 
-function row(scenario, screen, screenDelta, confirm = null, confirmDelta = null) {
-	return { scenario, screen, screenDelta, confirm, confirmDelta }
+/**
+ * A row as the comparison produces one, intervals included — a bound is a decision threshold and
+ * is judged against the interval, never against the point estimate. The intervals default to a
+ * tight band around each delta so a case that is not about noise does not have to say so.
+ */
+function row(scenario, screen, screenDelta, confirm = null, confirmDelta = null, { width = 0.01 } = {}) {
+	return {
+		scenario,
+		screen,
+		screenDelta,
+		screenLow: screenDelta - width,
+		screenHigh: screenDelta + width,
+		confirm,
+		confirmDelta,
+		confirmLow: confirmDelta == null ? null : confirmDelta - width,
+		confirmHigh: confirmDelta == null ? null : confirmDelta + width,
+	}
 }
 
 test('the committed list is well formed and every entry states a reason', () => {
@@ -71,10 +86,11 @@ test('a measured regression inside its bound is acknowledged and does not block'
 	assert.equal(Number(acknowledged[0].depthPercent.toFixed(2)), 14.67, 'the deepest of the two stages is what the bound is checked against')
 })
 
-test('a regression deeper than its bound still fails', () => {
-	// The property that keeps this from being a suppression: -60% on an accepted cell is not
-	// the accepted cost, and the message carries both numbers because "we accepted 45% and
-	// measured 60%" is a different conversation from "this regressed".
+test('a breach both batches reproduce still fails', () => {
+	// The property that keeps this from being a suppression: -60% on an accepted cell is not the
+	// accepted cost. Both batches must place the whole interval past the bound, and the message
+	// carries the numbers, because "we accepted 45% and measured 60%" is a different
+	// conversation from "this regressed".
 	const { acknowledged, exceeded } = evaluateAcceptedRegressions([
 		row('set/collect-all', 'severe', -0.6, 'severe', -0.58),
 	])
@@ -82,6 +98,25 @@ test('a regression deeper than its bound still fails', () => {
 	assert.equal(exceeded.length, 1)
 	assert.equal(exceeded[0].bound, 45)
 	assert.equal(Number(exceeded[0].depthPercent.toFixed(1)), 60)
+	assert.match(exceeded[0].why, /both batches place the whole interval past the bound/)
+})
+
+test('a breach one batch does not reproduce is unassessed, not a red gate', () => {
+	// The perverse case this rule removes: a noisy screen at -60% followed by a confirmation
+	// `cleared` at 0% used to be reported as a breach and fail the workflow — while the same row
+	// *without* an acknowledgement would have been `not-reproduced` and would not have blocked.
+	// Adding an acknowledgement made the gate stricter than having none.
+	const result = evaluateAcceptedRegressions([row('set/collect-all', 'severe', -0.6, 'cleared', 0)])
+	assert.deepEqual([result.exceeded, result.acknowledged], [[], []])
+	assert.match(result.unassessed[0].why, /not independently reproduced/)
+})
+
+test('an interval spanning the bound is unassessed in either direction', () => {
+	// A -40% point estimate whose interval runs past -45% cannot establish that the cost is
+	// inside the bound, and must not be quietly accepted as if it had.
+	const spanning = evaluateAcceptedRegressions([row('set/collect-all', 'severe', -0.4, 'severe', -0.4, { width: 0.1 })])
+	assert.deepEqual([spanning.acknowledged, spanning.exceeded], [[], []])
+	assert.match(spanning.unassessed[0].why, /spans the bound/)
 })
 
 test('an entry is stale only when both measurements agree the cost is gone', () => {
@@ -141,10 +176,6 @@ const catalog = [
 	{ id: 'string/valid', group: 'warm/success' },
 ]
 
-function group(name, classification, delta) {
-	return { group: name, classification, delta }
-}
-
 test('the committed group list is well formed and names the cells that carry the aggregate', () => {
 	assert.deepEqual(malformedAcceptedGroupRegressions(), [])
 	assert.deepEqual(acceptedGroupRegressions.map(entry => entry.group), ['warm/failure/all'])
@@ -155,9 +186,13 @@ test('the committed group list is well formed and names the cells that carry the
 	assert.match(entry.because, /map\/collect-all` for −0\.88pp/)
 })
 
+function group(name, classification, delta, width = 0.01) {
+	return { group: name, classification, delta, intervalLow: delta - width, intervalHigh: delta + width }
+}
+
 /** A single-runner confirmation that measured the whole group, reporting the given aggregate. */
-function confirmedGroup(name, classification, delta) {
-	return { groups: [group(name, classification, delta)], singleRunner: true, measuredWhole: () => true }
+function confirmedGroup(name, classification, delta, width = 0.01) {
+	return { groups: [group(name, classification, delta, width)], singleRunner: true, measuredWhole: () => true }
 }
 
 test('a group aggregate is judged from the single-runner confirmation, inside its bound and past it', () => {
@@ -169,9 +204,16 @@ test('a group aggregate is judged from the single-runner confirmation, inside it
 	assert.equal(Number(within.acknowledged[0].depthPercent.toFixed(2)), 6.40)
 	assert.deepEqual([within.exceeded, within.unassessed], [[], []])
 
-	const past = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.2))
+	// A breach needs both batches, here a screen and a confirmation that agree.
+	const pastScreen = [group('warm/failure/all', 'regression', -0.2)]
+	const past = evaluateAcceptedGroupRegressions(pastScreen, confirmedGroup('warm/failure/all', 'regression', -0.2))
 	assert.deepEqual(past.acknowledged, [])
 	assert.equal(Number(past.exceeded[0].depthPercent.toFixed(1)), 20, 'a group effect roughly tripled still fails')
+
+	// And a confirmation breach the screen does not reproduce is unassessed rather than red.
+	const unreproduced = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.2))
+	assert.deepEqual([unreproduced.exceeded, unreproduced.acknowledged], [[], []])
+	assert.match(unreproduced.unassessed[0].why, /not independently reproduced/)
 })
 
 test('a cross-shard screen decides nothing about an acknowledged group', () => {
