@@ -173,7 +173,6 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 	const nextIssue = {
 		...issue,
 		path: hasPath
-			// Stryker disable next-line ConditionalExpression,LogicalOperator: a spread-elision fast path. `[...path, ...existingPath]` with an empty `existingPath` is `[...path]`, and `createIssue` defaults `path` to `[]` so it is never nullish — every mutant of this condition therefore builds the same array.
 			? existingPath == null || existingPath.length === 0
 				? [...path]
 				: [...path, ...existingPath]
@@ -188,7 +187,6 @@ export function prependIssuePath<Issue extends AnyExecutionIssue>(
 				: metadata.contextMessages,
 		})
 	}
-	// Stryker disable next-line ConditionalExpression: entering with no scope attaches draft metadata whose only context handler is `undefined` and whose default is the issue's current message, so resolution skips the handler and reproduces that message.
 	else if (hasMessageScope) {
 		setIssueDraftMetadata(nextIssue, {
 			resolveMessage: resolveExternalIssueMessage.resolve,
@@ -233,7 +231,6 @@ export function replaceIssuePath<Issue extends AnyExecutionIssue>(
 				: metadata.contextMessages,
 		})
 	}
-	// Stryker disable next-line ConditionalExpression: as in `prependIssuePath` — metadata built from an absent scope resolves back to the issue's own message.
 	else if (hasMessageScope) {
 		setIssueDraftMetadata(nextIssue, {
 			resolveMessage: resolveExternalIssueMessage.resolve,
@@ -336,7 +333,7 @@ function createFinalizedPipeExecutor(
 				result = runtimeSteps[i]!(result) as ExecutionResult
 			return result
 		}
-		// Stryker disable EqualityOperator: see above
+		// Stryker disable EqualityOperator: `runtimeSteps[len]` is `undefined` and `then(undefined)` passes the value through, so an extra iteration is a no-op here too.
 	}
 
 	if (len === 1)
@@ -542,7 +539,7 @@ export function resolveStaticIssueMessage(
 		return undefined
 	if (typeof defaultMessage === 'string')
 		return defaultMessage
-	// Stryker disable next-line ConditionalExpression: as above.
+	// Stryker disable next-line ConditionalExpression: deferring is the safe direction — the dynamic resolver walks the same tier order and reaches the same message.
 	if (hasDynamicMessageForCode(defaultMessage, code))
 		return undefined
 	return 'Invalid value.'

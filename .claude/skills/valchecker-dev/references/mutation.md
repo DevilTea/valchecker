@@ -55,6 +55,13 @@ for (let j = i + 1; j < len; j++)
 
 The argument then sits beside the code it is about. Block form is `// Stryker disable <mutators>: <why>` … `// Stryker restore <mutators>`.
 
+**A directive only attaches where the comment is a leading comment of the mutated node.** Two placements look right and silently do nothing:
+
+- inside a ternary, before the branch you meant to cover;
+- before an `else` or `else if`, where the comment reads as trailing the preceding block.
+
+There is no error for this — the mutant simply comes back `Survived` with the directive sitting above it. The rot check is what catches it, reporting the directive as ignoring nothing. When you hit it, move the classification to the ledger rather than reaching for a wider block directive that would suppress neighbouring mutants you have not argued about.
+
 **Everything else is an isolated case** and goes in `mutation-survivors.json` with its operator, location, reason and evidence.
 
 Write the *invariant*, not the conclusion. "`then(undefined)` passes the value through, so the extra iteration is a no-op" is a reason; "equivalent" is not, and the gate rejects a reason that only restates the classification.
