@@ -135,7 +135,7 @@ function setIssueDraftMetadata(
  */
 export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
 	stepImpl: StepPluginImpl<StepPluginDef>,
-	// Stryker disable next-line StringLiteral: `toRuntimeOperationMode` maps anything that is neither `'sync'` nor `'async'` to maybe-async, so any other default string resolves to the same runtime mode.
+	// Stryker disable next-line StringLiteral: the parameter is typed `OperationMode`, so every replacement the runner produces here is a type error `pnpm typecheck` rejects — not a behavioural change. (It would also be inert at run time, since `toRuntimeOperationMode` maps anything but `'sync'`/`'async'` to maybe-async, but the type is what settles it.)
 	defaultOperationMode: OperationMode = 'maybe-async',
 	capabilities?: Readonly<Record<symbol, unknown>>,
 ): StepPluginImpl<StepPluginDef> {
