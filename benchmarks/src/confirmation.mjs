@@ -49,6 +49,8 @@
  */
 
 import {
+	acceptedGroupRegressions as acceptedGroupRegressionEntries,
+	acceptedRegressions as acceptedRegressionEntries,
 	evaluateAcceptedGroupRegressions,
 	evaluateAcceptedRegressions,
 	malformedAcceptedGroupRegressions,
@@ -80,6 +82,9 @@ export const confirmationBudgetSeconds = 45 * 60
 
 /** Whether a confirmation batch of this many cells fits one runner, and the arithmetic. */
 export function confirmationBudget(cellCount, repetitions = 5) {
+	// `repetitions` is the count the run actually used. Pricing a batch at a default while the
+	// workflow executes a dispatched `runs` would admit a job nobody scheduled.
+
 	const measurementSeconds = cellCount * repetitions * 2 * secondsPerCellRun
 	const totalSeconds = measurementSeconds + confirmationOverheadSeconds
 	return {
@@ -312,7 +317,25 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	})
 	const malformed = entries === undefined ? malformedAcceptedRegressions() : malformedAcceptedRegressions(entries)
 	const accepted = entries === undefined ? evaluateAcceptedRegressions(measured) : evaluateAcceptedRegressions(measured, entries)
-	const acknowledgedCells = new Set(accepted.acknowledged.map(record => record.cell))
+	// **Acceptance state is separate from ordinary regression state.** A cell with an entry is
+	// exempt from the ordinary row rules whatever its bound turned out to say, and only the
+	// acceptance list itself can fail on it — a reproduced breach, a stale entry, a malformed one.
+	//
+	// It used to be exempt only when the bound came out `within`, which put the P1-c pattern back
+	// in a new place: an acknowledgement raises the threshold from 5% to the bound, so falling back
+	// to the ordinary threshold when the bound could not be assessed applied a *stricter* rule than
+	// the acknowledgement would have, and having the entry was worse than not having it. Concretely
+	// with a 45% bound: a screen `severe` at [−60%, −20%] spans the bound, a confirmation `severe`
+	// at [−35%, −25%] is wholly inside it, no breach is reproduced, so the bound is `unassessed` —
+	// and the cell then resolved as an ordinary reproduced severe row and turned the gate red,
+	// although neither stage established that the 45% ceiling was breached.
+	const failedAcceptanceCells = new Set([
+		...accepted.exceeded.map(record => record.cell),
+		...accepted.stale.map(record => record.cell),
+	])
+	const acceptedCellNames = new Set((entries === undefined ? acceptedRegressionEntries : entries).map(entry => entry.cell))
+	const acknowledgedCells = new Set([...acceptedCellNames].filter(cell => !failedAcceptanceCells.has(cell)))
+	const withinBoundCells = new Set(accepted.acknowledged.map(record => record.cell))
 	// The group list, read from the screen's own group estimates. The reported group numbers are
 	// untouched: a bound says how much of a true number a person has agreed to, and leaving
 	// acknowledged cells out of the aggregate instead would condition it on what was previously
@@ -346,6 +369,7 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		? evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext)
 		: evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext, groupEntries)
 	const acknowledgedGroups = new Set(acceptedGroups.acknowledged.map(record => record.group))
+	void acknowledgedGroups
 	const rows = selection.map(({ scenario, reason }) => {
 		const screenRow = screen.rows.find(row => row.scenario === scenario)
 		const confirmRow = confirmByScenario.get(scenario) ?? null
@@ -357,11 +381,13 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 			confirm: confirmRow?.classification ?? null,
 			confirmDelta: confirmRow?.delta ?? null,
 			resolution: acknowledgedCells.has(scenario)
-				// An acknowledged row keeps its two classifications and stops being a verdict input.
-				// It is never dropped from the report: the row, its bound, and its reason are printed
+				// An accepted row keeps its two classifications and stops being a verdict input. It
+				// is never dropped from the report: the row, its bound, and its reason are printed
 				// where a reader of a passing gate will see them, because a gate that hides what it
-				// forgave is the failure this mechanism is most likely to become.
-				? 'acknowledged'
+				// forgave is the failure this mechanism is most likely to become. `acknowledged`
+				// means the bound was judged and held; `acceptance-unassessed` means it could not be
+				// judged, which is review — never the ordinary threshold applied instead.
+				? (withinBoundCells.has(scenario) ? 'acknowledged' : 'acceptance-unassessed')
 				: confirm == null ? 'unconfirmed' : resolutionOf(screenRow.classification, confirmRow?.classification),
 		}
 	})
@@ -401,7 +427,17 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	// The groups whose trigger still stands. An acknowledged group leaves this list and is
 	// reported below with its true measured value; it is not removed from the group table, and
 	// the aggregate it was measured from still covers every cell.
-	const unacknowledgedSevereGroups = screen.severeGroups.filter(group => !acknowledgedGroups.has(group))
+	const failedAcceptanceGroups = new Set([
+		...acceptedGroups.exceeded.map(record => record.group),
+		...acceptedGroups.stale.map(record => record.group),
+	])
+	const acceptedGroupNames = new Set((groupEntries === undefined ? acceptedGroupRegressionEntries : groupEntries).map(entry => entry.group))
+	// Exempt because an entry exists, not because the bound came out `within`. A cross-shard screen
+	// spanning the group bound while the trusted single-runner confirmation is wholly inside it
+	// left the group unassessed and then blocked it on the ordinary 5% trigger — the stricter rule
+	// again, applied precisely where the acceptance was supposed to relax it.
+	const unacknowledgedSevereGroups = screen.severeGroups
+		.filter(group => !acceptedGroupNames.has(group) || failedAcceptanceGroups.has(group))
 	// And of those, the ones whose evidence can support blocking: a group aggregate is only
 	// blocking when an independent batch measured the whole group on **one** runner and agreed.
 	// A cell keeps its shard across every repetition, so a runner-dependent effect on its ratio

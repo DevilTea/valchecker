@@ -84,11 +84,15 @@ if (options.output != null) {
 }
 
 console.error(`[catalog-diff] ${diff.baseCells} cells at ${options.base} → ${diff.headCells} at ${options.head}: `
-	+ `${diff.added.length} added, ${diff.removed.length} removed`)
+	+ `${diff.added.length} added, ${diff.removed.length} removed, ${diff.changed.length} regrouped`)
 for (const id of diff.added)
 	console.error(`[catalog-diff] added: ${id}`)
 for (const id of diff.removed)
 	console.error(`[catalog-diff] removed: ${id}`)
+for (const change of diff.changed) {
+	console.error(`[catalog-diff] regrouped: ${change.id} ${change.baseGroup} -> ${change.headGroup}`
+		+ `${change.gateEffect == null ? '' : ` (${change.gateEffect} the gate)`}`)
+}
 for (const problem of diff.problems)
 	console.error(`[catalog-diff] unreadable: ${problem}`)
 if (diff.toleratedBaseline != null)

@@ -77,7 +77,22 @@ if (options.plan) {
 	// batches, so even past the `TypeError` the next step would have read an undefined `batches`.
 	const acknowledgedGroups = new Set(acceptedGroupRegressions.map(entry => entry.group))
 	const acknowledgedCells = new Set(acceptedRegressions.map(entry => entry.cell))
-	const plan = confirmationPlan(screen, { acknowledgedGroups, acknowledgedCells })
+	// The repetition count the screen actually used, not the planner's default. `workflow_dispatch`
+	// accepts a `runs` other than five and `confirm-measure` executes that same number, so a
+	// default of five would price a different job than the one scheduled: 100 cells is about
+	// 40.8 min at five repetitions and is admitted, while the same dispatch at ten needs about
+	// 79.7 min by this model — past the job's own timeout, admitted on arithmetic that never
+	// applied to it.
+	const repetitions = screen.runCounts?.baseline
+	if (!Number.isInteger(repetitions) || repetitions < 1)
+		throw new Error(`The screen comparison records no usable repetition count (${String(repetitions)}), so the confirmation batch cannot be priced`)
+	if (screen.runCounts.candidate !== repetitions) {
+		throw new Error(
+			`The screen comparison measured ${repetitions} baseline repetitions and ${String(screen.runCounts.candidate)} candidate ones. `
+			+ 'The confirmation batch measures both sides the same number of times, so there is no single count to price it with.',
+		)
+	}
+	const plan = confirmationPlan(screen, { acknowledgedGroups, acknowledgedCells, repetitions })
 	process.stdout.write(JSON.stringify(plan))
 	for (const line of planSummaryLines(plan))
 		console.error(line)

@@ -36,7 +36,19 @@ export interface StaticCell {
 export interface StaticCatalog {
 	/** Gate cells only, sorted: `baseline` is excluded here exactly as it is at runtime. */
 	ids: string[]
-	/** Everything this reader could not decide. A non-empty list makes the diff incomplete. */
+	/**
+	 * Every declared cell's group, `baseline` included, keyed by id.
+	 *
+	 * Retained because `group` is a measurement-contract field with a blocking consequence: it
+	 * decides which aggregate a cell lands in, and the severe-group verdict is computed over that
+	 * aggregate. It needs a static instrument for the same structural reason deletions did — the
+	 * apparatus comes from the candidate ref and supplies the group to *both* sides, so baseline
+	 * and candidate agree on the new group by construction and no runtime comparison can recover
+	 * the history. A cell moved out of `warm/failure/all` under an unchanged id would otherwise
+	 * report `added 0 / removed 0` while the group contract and its denominator had changed.
+	 */
+	groups: Record<string, string>
+	/** Everything this reader could not decide. A non-empty list means the diff is incomplete. */
 	problems: string[]
 }
 
@@ -101,14 +113,18 @@ export function cellsOfSource(path: string, text: string): { cells: StaticCell[]
 /** The gate's static catalog for one revision, from that revision's bench files. */
 export function staticCatalog(files: readonly { path: string, text: string }[]): StaticCatalog {
 	const ids: string[] = []
+	const groups: Record<string, string> = {}
 	const problems: string[] = []
 	for (const file of files) {
 		const { cells, problems: fileProblems } = cellsOfSource(file.path, file.text)
 		problems.push(...fileProblems)
-		// `baseline` is excluded for the same reason the runtime catalog excludes it: a cell that
-		// measures JavaScript rather than the library is not part of the gate's set, so its
-		// arrival or departure is not a change to what the gate covers.
 		for (const cell of cells) {
+			// Every cell's group is retained, `baseline` included, so a move into or out of the gate
+			// is legible as a move rather than as an unexplained addition or deletion.
+			groups[cell.id] = cell.group
+			// `baseline` is excluded from the gate set for the same reason the runtime catalog
+			// excludes it: a cell that measures JavaScript rather than the library is not part of
+			// what the gate covers.
 			if (cell.group !== 'baseline')
 				ids.push(cell.id)
 		}
@@ -116,7 +132,7 @@ export function staticCatalog(files: readonly { path: string, text: string }[]):
 	const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index)
 	for (const id of [...new Set(duplicates)])
 		problems.push(`the cell id '${id}' is declared twice across the revision's bench files, so a diff cannot tell which one moved`)
-	return { ids: [...new Set(ids)].sort(), problems: [...new Set(problems)] }
+	return { ids: [...new Set(ids)].sort(), groups, problems: [...new Set(problems)] }
 }
 
 export interface CatalogIdDiff {
@@ -124,6 +140,12 @@ export interface CatalogIdDiff {
 	added: string[]
 	/** Cell ids the base declared and the head does not — the deletion the runtime cannot see. */
 	removed: string[]
+	/**
+	 * Cells both revisions declare under one id but in different groups. Not automatically a
+	 * failure — a group move can be deliberate — but never invisible, because it changes which
+	 * aggregate the cell is judged in and what that aggregate's denominator is.
+	 */
+	changed: { id: string, baseGroup: string, headGroup: string, gateEffect: 'entered' | 'left' | null }[]
 	baseCells: number
 	headCells: number
 	/** Anything either side could not read. A non-empty list means the counts are not a complete audit. */
@@ -168,9 +190,24 @@ export function catalogIdDiff(base: StaticCatalog, head: StaticCatalog, benchFil
 	const headProblems = head.problems.map(problem => `head: ${problem}`)
 	const baseProblems = base.problems.map(problem => `base: ${problem}`)
 	const tolerated = isLegacyBaselineOnly(base, benchFileCount)
+	const changed = Object.keys(head.groups)
+		.filter(id => base.groups[id] != null && base.groups[id] !== head.groups[id])
+		.sort()
+		.map(id => ({
+			id,
+			baseGroup: base.groups[id]!,
+			headGroup: head.groups[id]!,
+			// A `baseline` transition is a group move that also adds the cell to the gate or takes
+			// it out, so it shows up in `added`/`removed` as well; naming it here is what stops that
+			// reading as a cell appearing from nowhere.
+			gateEffect: base.groups[id] === 'baseline'
+				? 'entered' as const
+				: head.groups[id] === 'baseline' ? 'left' as const : null,
+		}))
 	return {
 		added: head.ids.filter(id => !baseIds.has(id)),
 		removed: base.ids.filter(id => !headIds.has(id)),
+		changed,
 		baseCells: base.ids.length,
 		headCells: head.ids.length,
 		problems: [...new Set([...baseProblems, ...headProblems])],

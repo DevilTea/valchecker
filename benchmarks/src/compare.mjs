@@ -176,6 +176,7 @@ console.error(`[benchmark] cells measured ${result.cells.measured}, `
 	// "the audit did not happen" for a run where it had happened in the compare job.
 	+ `${result.cells.catalogDiff == null
 		? ''
-		: `, catalog added ${result.cells.catalogDiff.added.length} / removed ${result.cells.catalogDiff.removed.length}`}`)
+		: `, catalog added ${result.cells.catalogDiff.added.length} / removed ${result.cells.catalogDiff.removed.length}`
+			+ ` / regrouped ${(result.cells.catalogDiff.changed ?? []).length}`}`)
 if (options.failOnRegression && result.verdict === 'regression')
 	process.exitCode = 1

@@ -99,10 +99,42 @@ describe('diffing two revisions', () => {
 			.toEqual([['map/collect-every'], ['map/collect-all']])
 	})
 
+	it('sees a cell moved to another group under an unchanged id', () => {
+		// The audit `group` needs for the same structural reason deletions needed one: the apparatus
+		// comes from the candidate ref and supplies the group to *both* measured sides, so they agree
+		// on the new group by construction and no runtime comparison can recover the history. Moving
+		// `map/collect-all` out of `warm/failure/all` changes which aggregate it is judged in and
+		// that aggregate's denominator, while ids alone report nothing at all.
+		const head = staticCatalog([{ path: 'a.bench.ts', text: bench('map', [{ name: 'valid' }, { name: 'collect-all', group: 'warm/success' }]) }])
+		const diff = catalogIdDiff(base, head)
+		expect([diff.added, diff.removed])
+			.toEqual([[], []])
+		expect(diff.changed)
+			.toEqual([{ id: 'map/collect-all', baseGroup: 'warm/failure/all', headGroup: 'warm/success', gateEffect: null }])
+	})
+
+	it('names a baseline transition as the gate change it is', () => {
+		// A move into `baseline` takes the cell out of the gate and a move out puts it in, so each
+		// also shows in `removed`/`added`; naming the transition is what stops that reading as a cell
+		// appearing from nowhere.
+		const intoBaseline = staticCatalog([{ path: 'a.bench.ts', text: bench('map', [{ name: 'valid' }, { name: 'collect-all', group: 'baseline' }]) }])
+		const left = catalogIdDiff(base, intoBaseline)
+		expect(left.removed)
+			.toEqual(['map/collect-all'])
+		expect(left.changed[0])
+			.toEqual({ id: 'map/collect-all', baseGroup: 'warm/failure/all', headGroup: 'baseline', gateEffect: 'left' })
+
+		const entered = catalogIdDiff(intoBaseline, base)
+		expect(entered.added)
+			.toEqual(['map/collect-all'])
+		expect(entered.changed[0]!.gateEffect)
+			.toBe('entered')
+	})
+
 	it('says nothing moved when nothing moved', () => {
 		const diff = catalogIdDiff(base, base)
-		expect([diff.added, diff.removed, diff.problems])
-			.toEqual([[], [], []])
+		expect([diff.added, diff.removed, diff.changed, diff.problems])
+			.toEqual([[], [], [], []])
 	})
 
 	it('carries each side\'s unreadable cells into the diff, labelled by side', () => {
@@ -159,7 +191,7 @@ describe('diffing two revisions', () => {
 		])
 		expect(isLegacyBaselineOnly(partlyMigrated, 1))
 			.toBe(true)
-		expect(isLegacyBaselineOnly({ ids: ['map/valid'], problems: partlyMigrated.problems }, 1))
+		expect(isLegacyBaselineOnly({ ids: ['map/valid'], groups: { 'map/valid': 'warm/success' }, problems: partlyMigrated.problems }, 1))
 			.toBe(false)
 	})
 })

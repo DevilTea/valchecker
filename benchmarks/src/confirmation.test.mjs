@@ -294,7 +294,8 @@ test('a cell acknowledgement does not reach a group verdict', () => {
 	// "Did this cell regress?" and "did this affected group broadly regress?" are different
 	// questions, and an accepted answer to the first is not an answer to the second.
 	const screen = screenOf([['a', 'severe', -0.1467, -0.182]], { verdict: 'regression', severeGroups: ['warm/failure/all'] })
-	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.1159]]), { acceptedRegressions: accepted })
+	// With no entry naming the group: a cell acknowledgement must not reach it.
+	const result = resolveConfirmation(screen, confirmOf([['a', 'severe', -0.1159]]), { acceptedRegressions: accepted, acceptedGroupRegressions: [] })
 	assert.deepEqual(result.rows.map(row => row.resolution), ['acknowledged'])
 	assert.deepEqual(result.blocking, [])
 	assert.deepEqual(result.unacknowledgedSevereGroups, ['warm/failure/all'])
@@ -482,4 +483,68 @@ test('a group with no budget entry is described rather than crashed on', () => {
 	})
 	assert.match(lines.join('\n'), /group g: 1 cell\(s\) on one runner$/m)
 	assert.match(lines.join('\n'), /group h cannot be confirmed on one runner — it is review, not blocking/)
+})
+
+test('a cell whose bound cannot be judged does not fall back to the ordinary threshold', () => {
+	// The reviewer's case, with a 45% bound. The screen is `severe` at [-60%, -20%], which spans
+	// the bound; the confirmation is `severe` at [-35%, -25%], wholly inside it. No breach is
+	// reproduced, so the bound is `unassessed` — and the cell used to lose its exemption entirely,
+	// resolve as an ordinary reproduced severe row, and turn the gate red, although neither stage
+	// established that the 45% ceiling was breached. An acknowledgement raises the threshold to the
+	// bound, so falling back to 5% when the bound cannot be judged is the stricter rule, and having
+	// the entry was worse than not having it.
+	const screen = screenOf([['a', 'severe', -0.4, -0.6, -0.2]], { verdict: 'regression' })
+	const confirm = confirmOf([['a', 'severe', -0.3, -0.35, -0.25]])
+	const result = resolveConfirmation(screen, confirm, {
+		acceptedRegressions: [{ cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+		acceptedGroupRegressions: [],
+	})
+	assert.deepEqual(result.rows.map(row => row.resolution), ['acceptance-unassessed'])
+	assert.deepEqual([result.blocking, result.unresolved, result.reproduced], [[], [], []])
+	assert.deepEqual(result.acknowledgementProblems, [])
+	assert.match(result.unassessedAcknowledgements[0], /its bound cannot be judged/)
+	assert.notEqual(result.verdict, 'regression')
+})
+
+test('a group whose bound cannot be judged is not blocked by the ordinary group trigger', () => {
+	// The same interaction one level up: a cross-shard screen spanning the group bound while the
+	// trusted single-runner confirmation sits wholly inside it. The acceptance cannot be judged,
+	// and the group must not then be blocked by the 5% trigger the acceptance exists to relax.
+	const screen = groupScreen(['a', 'b'], { delta: -0.4, width: 0.2 })
+	const result = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.3, ['a', 'b'], { width: 0.05 }) },
+	})
+	assert.deepEqual(result.acknowledgedGroups, [])
+	assert.deepEqual(result.unacknowledgedSevereGroups, [], 'the entry exempts it even though its bound is unassessed')
+	assert.deepEqual([result.blockingGroups, result.acknowledgementProblems], [[], []])
+	assert.match(result.unassessedAcknowledgements[0], /its bound cannot be judged/)
+	assert.notEqual(result.verdict, 'regression')
+})
+
+test('a failed acceptance still blocks: the exemption is not unconditional', () => {
+	// The other side of modelling acceptance separately. An entry exempts a row from the ordinary
+	// rules, but the acceptance list itself can still fail on it — a reproduced breach here.
+	const screen = screenOf([['a', 'severe', -0.6, -0.65, -0.55]], { verdict: 'regression' })
+	const confirm = confirmOf([['a', 'severe', -0.58, -0.62, -0.54]])
+	const result = resolveConfirmation(screen, confirm, {
+		acceptedRegressions: [{ cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+		acceptedGroupRegressions: [],
+	})
+	assert.equal(result.verdict, 'regression')
+	assert.match(result.acknowledgementProblems[0], /breached its 45% bound/)
+})
+
+test('a batch is priced at the repetitions the run used, not at a default', () => {
+	// `workflow_dispatch` accepts a `runs` other than five, and `confirm-measure` executes that
+	// number. Pricing at five while running ten admits a job the planner never costed: 100 cells
+	// is about 40.8 min at five and about 79.7 min at ten, which is past the job's own timeout.
+	const cells = Array.from({ length: 100 }, (unused, index) => `cell-${index}`)
+	const screen = groupScreen(cells, { group: 'warm/success' })
+	assert.equal(confirmationPlan(screen, { repetitions: 5 }).groupBudgets[0].fitsOneRunner, true)
+	const atTen = confirmationPlan(screen, { repetitions: 10 })
+	assert.equal(atTen.groupBudgets[0].fitsOneRunner, false)
+	assert.equal(Number((atTen.groupBudgets[0].totalSeconds / 60).toFixed(1)), 79.7)
+	assert.deepEqual(atTen.unconfirmableGroups, ['warm/success'])
 })

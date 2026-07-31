@@ -555,7 +555,8 @@ function presenceLines(result) {
 		`Cells: **measured ${result.cells.measured}**`
 		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}`
 		+ `${result.cells.catalogHash == null ? '' : ` (catalog \`${result.cells.catalogHash}\`)`}, `
-		+ `**catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}**, `
+		+ `**catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}`
+		+ ` / regrouped ${diff == null ? 'n/a' : (diff.changed ?? []).length}**, `
 		+ `**candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}**.`,
 		'',
 		'Two different questions, deliberately not sharing a word. **Catalog** addition and removal come from a static comparison of what the two '
@@ -588,6 +589,17 @@ function presenceLines(result) {
 			'',
 		)
 	}
+	if (diff != null && (diff.changed ?? []).length > 0) {
+		lines.push(
+			`> **Regrouped.** ${nameList(diff.changed, change => `\`${change.id}\` ${change.baseGroup} → ${change.headGroup}`
+				+ `${change.gateEffect == null ? '' : ` (${change.gateEffect} the gate)`}`)}. `
+				+ 'A cell keeps its id and changes which aggregate it is judged in, so the severe-group contract and that group\'s denominator both move. '
+				+ 'No runtime comparison can see this: the apparatus comes from the candidate ref and supplies the group to both measured sides, so they '
+				+ 'agree on the new group by construction. Not a failure by itself — a move can be deliberate — but never an unchanged catalog.',
+			'',
+		)
+	}
+
 	if (diff != null && diff.added.length > 0) {
 		lines.push(
 			`> **Added to the catalog.** ${nameList(diff.added, id => `\`${id}\``)}. Declared by the candidate revision and not the base.`,
@@ -729,7 +741,8 @@ export function renderHtml(result) {
 	const diff = result.cells.catalogDiff
 	const presence = `<p>Cells: <strong>measured ${result.cells.measured}</strong>`
 		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}, `
-		+ `<strong>catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}</strong>, `
+		+ `<strong>catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}`
+		+ ` / regrouped ${diff == null ? 'n/a' : (diff.changed ?? []).length}</strong>, `
 		+ `<strong>candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}</strong>.`
 		+ `${diff == null || diff.removed.length === 0 ? '' : ` Removed from the catalog: ${htmlEscape(diff.removed.join(', '))}.`}`
 		+ `${diff == null || diff.added.length === 0 ? '' : ` Added to the catalog: ${htmlEscape(diff.added.join(', '))}.`}`

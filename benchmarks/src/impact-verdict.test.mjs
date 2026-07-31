@@ -245,7 +245,7 @@ test('the presence counts are reported whether or not anything moved', () => {
 	assert.match(markdown, /Cells: \*\*measured 2\*\* of the 8 the catalog declares/)
 	// `n/a`, not `0`: with no static diff supplied this run cannot see a deleted cell, and
 	// printing a zero would claim an audit it did not perform.
-	assert.match(markdown, /\*\*catalog added n\/a \/ removed n\/a\*\*/)
+	assert.match(markdown, /\*\*catalog added n\/a \/ removed n\/a \/ regrouped n\/a\*\*/)
 	assert.match(markdown, /No catalog diff was supplied/)
 })
 
@@ -275,7 +275,7 @@ test('a catalog deletion is reported from the static diff, which the runtime can
 	// is never collected, never measured, and can never appear in a baseline result. Every
 	// runtime count here is zero while a cell was in fact removed from the contract.
 	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
-	const catalogDiff = { added: ['c/new'], removed: ['map/collect-all'], baseCells: 3, headCells: 3, problems: [] }
+	const catalogDiff = { added: ['c/new'], removed: ['map/collect-all'], changed: [{ id: 'set/collect-all', baseGroup: 'warm/failure/all', headGroup: 'warm/success', gateEffect: null }], baseCells: 3, headCells: 3, problems: [] }
 	const result = compareResults(
 		aggregateRuns(sideOf(scenarios), 'baseline'),
 		aggregateRuns(sideOf(scenarios), 'candidate'),
@@ -284,7 +284,10 @@ test('a catalog deletion is reported from the static diff, which the runtime can
 	assert.deepEqual([result.cells.candidateOnly, result.cells.baselineOnly], [[], []], 'the runtime sees nothing')
 	assert.deepEqual(result.cells.catalogDiff.removed, ['map/collect-all'])
 	const markdown = renderMarkdown(result)
-	assert.match(markdown, /\*\*catalog added 1 \/ removed 1\*\*/)
+	assert.match(markdown, /\*\*catalog added 1 \/ removed 1 \/ regrouped 1\*\*/)
+	// A group move keeps the id and changes which aggregate judges the cell, so it must never read
+	// as an unchanged catalog.
+	assert.match(markdown, /\*\*Regrouped\.\*\* `set\/collect-all` warm\/failure\/all → warm\/success/)
 	assert.match(markdown, /\*\*Removed from the catalog\.\*\* `map\/collect-all`/)
 	assert.match(markdown, /coverage loss no runtime comparison can report/)
 })
