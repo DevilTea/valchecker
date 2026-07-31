@@ -19,6 +19,14 @@ export default defineConfig({
 				'**/coverage/**',
 				'**/*.bench.*',
 				'**/*.test.*',
+				// The step-benchmark declaration helper. It is excluded for the same reason
+				// `**/*.bench.*` is — nothing ships it and no test executes it — but it needs
+				// naming separately because it is the one piece of that harness that is not
+				// itself a `.bench.ts`. Its own validation is not unchecked: every
+				// `stepBench()` declaration in the repository runs through it on `pnpm bench`
+				// and again on `pnpm bench:cells`, which is a wider exercise than a unit test
+				// of it would be.
+				'**/test-utils/step-bench.ts',
 			],
 			reporter: [
 				['text', { skipFull: true }],

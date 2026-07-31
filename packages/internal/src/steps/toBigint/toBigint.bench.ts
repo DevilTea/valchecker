@@ -1,28 +1,25 @@
-import { bench, describe } from 'vitest'
-import { boolean, createValchecker, number, string, toBigint } from '../..'
+import { createValchecker, string, toBigint } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const v = createValchecker({ steps: [boolean, number, string, toBigint] })
-const stringSchema = v.string()
-	.toBigint()
-const numberSchema = v.number()
-	.toBigint()
-const booleanSchema = v.boolean()
+const v = createValchecker({ steps: [string, toBigint] })
+const schema = v.string()
 	.toBigint()
 
-describe('toBigint benchmarks', () => {
-	bench('valid numeric string', () => {
-		stringSchema.execute('42')
-	})
-
-	bench('invalid numeric string', () => {
-		stringSchema.execute('invalid')
-	})
-
-	bench('integer number', () => {
-		numberSchema.execute(42)
-	})
-
-	bench('boolean coercion', () => {
-		booleanSchema.execute(true)
-	})
-})
+stepBench('toBigint', [
+	{
+		name: 'numeric-string',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 50,
+		run: () => schema.execute('42'),
+	},
+	{
+		// Unlike `toNumber`, native `BigInt()` throws on an unparseable string rather than
+		// producing `NaN`, so a plain string does reach this step's own issue.
+		name: 'conversion-failed',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['toBigint:conversion_failed'] },
+		batch: 5,
+		run: () => schema.execute('invalid'),
+	},
+])

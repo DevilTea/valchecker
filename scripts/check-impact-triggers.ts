@@ -185,7 +185,14 @@ const mustNotTrigger = [
 	'type-performance/budget.json',
 ]
 
+// Line endings normalized at the read, because a checkout's are the platform's and the rules
+// below are about the file's content. This is the second time this check has been caught by
+// it: `readEventPaths` used to match `on:` positionally and failed on a CRLF checkout, and
+// the counterbalance rule below — which matches a shell block ending in `done` — failed the
+// same way on `windows-latest` while every other platform passed. One `replaceAll` at the
+// boundary is the fix for the class, not for either instance.
 const workflowText = fs.readFileSync(path.join(root, workflowPath), 'utf8')
+	.replaceAll('\r\n', '\n')
 const filters = [compileFilter(workflowText, 'pull_request'), compileFilter(workflowText, 'push')]
 const attribution: Attribution = buildAttribution(fileSystemTree(root))
 const errors: string[] = []
@@ -197,13 +204,28 @@ if (attribution.problems.length > 0) {
 
 const probes = [...new Set([...trackedFiles(), ...syntheticProbes, ...gateDefiningPaths])]
 let fullRunPaths = 0
+let measurementPaths = 0
 for (const probe of probes.sort()) {
-	if (classifyChange(probe, attribution).effect !== 'full')
+	const { effect } = classifyChange(probe, attribution)
+	if (effect === 'full') {
+		fullRunPaths++
+		for (const filter of filters) {
+			if (!triggers(filter, probe))
+				errors.push(`${probe}: forces a full impact run, but does not match the \`on.${filter.event}\` paths filter of ${workflowPath}, so the run never starts`)
+		}
 		continue
-	fullRunPaths++
-	for (const filter of filters) {
-		if (!triggers(filter, probe))
-			errors.push(`${probe}: forces a full impact run, but does not match the \`on.${filter.event}\` paths filter of ${workflowPath}, so the run never starts`)
+	}
+	// A step's bench file is the third thing that has to start this workflow, for a reason
+	// neither of the other two covers: it cannot change either build, so nothing it does
+	// reaches the bundle, but it declares the cells the gate measures. A rewritten cell that
+	// never starts the job is a measurement change nothing ever looks at, and the first run
+	// to include it would be some later diff's, which would attribute it to that diff.
+	if (effect === 'measurement') {
+		measurementPaths++
+		for (const filter of filters) {
+			if (!triggers(filter, probe))
+				errors.push(`${probe}: declares benchmark cells the gate measures, but does not match the \`on.${filter.event}\` paths filter of ${workflowPath}, so a change to what is measured never starts a run`)
+		}
 	}
 }
 
@@ -223,6 +245,44 @@ if (!triggers(pullRequest, 'benchmarks/src/compare.mjs'))
 if (triggers(push, 'benchmarks/src/compare.mjs'))
 	errors.push(`benchmarks/src/compare.mjs: must not start the post-merge run, which compares two revisions that build the same library and so has nothing to find`)
 
+// Counterbalancing, checked here because this file already reads the workflow and because
+// the property is the same kind as the ones above: something the gate's correctness rests on
+// that lives in shell rather than in a module a test can reach.
+//
+// Pairing cancels machine speed, which is what makes a paired ratio comparable across
+// runners. It does not cancel monotonic drift — temperature, allocator and GC state,
+// background load — and a run that always measured the baseline first would put every
+// repetition's drift on the candidate. The measurement loop therefore alternates the two
+// sides by repetition parity, and the four shards share the parity so a repetition is one
+// ordering everywhere. It survived the rewrite into four shard jobs; a rule is cheaper than
+// noticing that it did not survive the next one.
+// Every repetition loop, not the first: the screen batch and the confirmation batch are two
+// measurements, and the property has to hold for both.
+const loops = [...workflowText.matchAll(/for repetition in[^\n]*\n([\s\S]*?)\n[ \t]*done\n/g)]
+	.map(match => match[1]!)
+	.filter(body => body.includes('run_side '))
+if (loops.length === 0)
+	errors.push(`${workflowPath}: no \`for repetition in …\` loop calls \`run_side\`, so this check cannot see whether the two sides are counterbalanced`)
+for (const [index, loop] of loops.entries()) {
+	const label = `${workflowPath}: measurement loop ${index + 1} of ${loops.length}`
+	const branches = loop.split(/\n[ \t]*else[ \t]*\n/)
+	const sideOrder = (text: string): string[] => ['baseline', 'candidate']
+		.filter(side => text.includes(`run_side ${side}`))
+		.sort((left, right) => text.indexOf(`run_side ${left}`) - text.indexOf(`run_side ${right}`))
+	if (!/if \(\(\s*repetition % 2/.test(loop)) {
+		errors.push(`${label} does not branch on \`repetition % 2\`, so the two sides always run in one order and a monotonic drift over the job lands entirely on one of them`)
+	}
+	else if (branches.length !== 2) {
+		errors.push(`${label} has a parity branch with no \`else\`, so one parity measures nothing`)
+	}
+	else if (sideOrder(branches[0]!)
+		.join(',') === sideOrder(branches[1]!)
+		.join(',')) {
+		errors.push(`${label} measures the sides in the same order in both parity branches (${sideOrder(branches[0]!)
+			.join(' then ')}), which is not counterbalancing`)
+	}
+}
+
 if (errors.length > 0) {
 	console.error(`Performance Impact triggers disagree with scripts/impact-selection.ts (${errors.length} problem${errors.length === 1 ? '' : 's'}):`)
 	for (const error of errors)
@@ -230,5 +290,5 @@ if (errors.length > 0) {
 	process.exitCode = 1
 }
 else {
-	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run, and every one starts both the pull-request and post-merge jobs`)
+	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run and ${measurementPaths} select their own step's cells, and every one of them starts both the pull-request and post-merge jobs; every measurement loop counterbalances the two sides by repetition parity`)
 }

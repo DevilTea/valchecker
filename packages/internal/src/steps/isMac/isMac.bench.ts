@@ -1,16 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isMac, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isMac] })
-	.string()
+const v = createValchecker({ steps: [string, isMac] })
+const schema = v.string()
 	.isMac()
 
-describe('isMac benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('00:1A:2B:3C:4D:5E')
-	})
-
-	bench('invalid input', () => {
-		schema.execute('00:1A:2B:3C:4D')
-	})
-})
+stepBench('isMac', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('00:1A:2B:3C:4D:5E'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isMac:expected_mac'] },
+		batch: 100,
+		run: () => schema.execute('00:1A:2B:3C:4D'),
+	},
+])

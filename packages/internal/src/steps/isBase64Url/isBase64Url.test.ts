@@ -8,6 +8,14 @@ const valid = [
 	'Zm9vYmFy',
 	'ab',
 	'',
+	// The URL- and filename-safe alphabet: `-` and `_` in place of `+` and `/`.
+	// Without these the accepted set would be indistinguishable from base64's.
+	'a-b_',
+	'-_-_',
+	// Lengths of 0, 2 and 3 (mod 4) all encode a whole number of bytes.
+	'abc',
+	// Non-canonical trailing bits are accepted; see `base64url.ts`.
+	'aB',
 ]
 
 const invalid = [
@@ -15,6 +23,12 @@ const invalid = [
 	'abc=',
 	'****',
 	'x',
+	// 1 (mod 4) is rejected at every length, not only at length 1.
+	'abcde',
+	// Padding is never part of an unpadded base64url string, wherever it sits.
+	'a=b',
+	// `$` without the `m` flag is end-of-input, so a trailing newline fails.
+	'aGVsbG8\n',
 ]
 
 describe('isBase64Url step plugin', () => {

@@ -3,17 +3,6 @@ import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
-function canonicalPropertyKey(value: string | number | symbol): string | symbol {
-	return typeof value === 'symbol' ? value : String(value)
-}
-
-function isValcheckerSchema(value: unknown): value is Use<Valchecker> {
-	return (
-		typeof value === 'function'
-		|| (typeof value === 'object' && value !== null)
-	) && typeof Reflect.get(value, '~execute') === 'function'
-}
-
 declare namespace Internal {
 	export type Variants = Record<PropertyKey, Use<Valchecker>>
 	type Modes<V extends Variants> = ValueOf<{ [K in keyof V]: InferOperationMode<V[K]> }>
@@ -90,6 +79,17 @@ interface PluginDef extends TStepPluginDef {
 				: never
 			: never
 	>
+}
+
+function canonicalPropertyKey(value: string | number | symbol): string | symbol {
+	return typeof value === 'symbol' ? value : String(value)
+}
+
+function isValcheckerSchema(value: unknown): value is Use<Valchecker> {
+	return (
+		typeof value === 'function'
+		|| (typeof value === 'object' && value !== null)
+	) && typeof Reflect.get(value, '~execute') === 'function'
 }
 
 /* @__NO_SIDE_EFFECTS__ */

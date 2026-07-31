@@ -1,48 +1,50 @@
-/**
- * Benchmark plan for set:
- * - Operations benchmarked: schema construction and Set item execution
- * - Input scenarios: small/large success, recoverable failure, transformed-item collision
- * - Comparison baseline: native Set copy
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, set, string, transform } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [set, string, transform] })
-const schema = v.set(v.string())
+
+const item = v.string()
+const schema = v.set(item)
+const collecting = v.set(item, { collectAllIssues: true })
+// The transformed-item bookkeeping only decides anything once two items collapse onto
+// the same output, which is this step's second owned issue.
 const transformed = v.set(v.string()
-	.transform(value => value.toLowerCase()))
-const small = new Set(['a', 'b', 'c'])
-const large = new Set(Array.from({ length: 1000 }, (_, index) => `item-${index}`))
+	.transform((value: string) => value.toLowerCase()))
+const asyncSchema = v.set(v.string()
+	.transform((value: string) => Promise.resolve(value)))
 
-describe('set benchmarks', () => {
-	describe('schema construction', () => {
-		bench('construct set schema', () => {
-			v.set(v.string())
-		})
-	})
+const valid = new Set(['a', 'b', 'c', 'd', 'e', 'f'])
+const collides = new Set(['A', 'b', 'a'])
+const twoBadItems = new Set<unknown>(['a', 1, 'c', 2])
 
-	describe('execution', () => {
-		bench('valid input - small', () => {
-			schema.execute(small)
-		})
-
-		bench('valid input - large', () => {
-			schema.execute(large)
-		})
-
-		bench('recoverable item failures', () => {
-			schema.execute(new Set<unknown>(['ok', 1, 2]))
-		})
-
-		bench('transformed item collision', () => {
-			transformed.execute(new Set(['A', 'a']))
-		})
-	})
-
-	describe('baseline', () => {
-		bench('native Set copy', () => {
-			void new Set(small)
-		})
-	})
-})
+stepBench('set', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 10,
+		run: () => schema.execute(valid),
+	},
+	{
+		name: 'duplicate-transformed-item',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['set:duplicate_transformed_item'] },
+		batch: 10,
+		run: () => transformed.execute(collides),
+	},
+	{
+		name: 'collect-all',
+		group: 'warm/failure/all',
+		expect: { success: false, issues: ['string:expected_string'] },
+		batch: 10,
+		run: () => collecting.execute(twoBadItems),
+	},
+	{
+		name: 'async-valid',
+		group: 'warm/async/success',
+		async: true,
+		expect: { success: true },
+		batch: 2,
+		run: () => asyncSchema.execute(valid),
+	},
+])

@@ -13,7 +13,7 @@ Valchecker tests protect observable runtime behavior, state-aware TypeScript con
 
 Higher layers may assert fields relevant to composition but must not duplicate a lower layer's complete issue contract.
 
-Root-level cross-step tests under `packages/internal/src/steps/` import the source barrel through `../index`. Colocated tests under `steps/<name>/` may import `../..`, which resolves to that same source barrel from their directory. Published `dist` behavior belongs to package smoke tests.
+Root-level cross-step tests under `packages/internal/src/steps/` are named `<family>.<aspect>.test.ts` and import the source barrel through `../index`. Colocated tests under `steps/<name>/` are the step's single `<name>.test.ts` plus an optional `<name>.types.test.ts`, and may import `../..`, which resolves to that same source barrel from their directory. Which file a test belongs in, and what a step directory may hold at all, is [the step unit](./step-unit.md). Published `dist` behavior belongs to package smoke tests.
 
 ## Case design
 

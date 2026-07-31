@@ -32,7 +32,7 @@ describe('isMultipleOf step plugin', () => {
 			.isMultipleOf(2)
 			.execute(3))
 			.toMatchObject({
-				issues: [{ payload: { target: 'number', value: 3, divisor: 2 } }],
+				issues: [{ message: 'Expected a multiple of 2.', payload: { target: 'number', value: 3, divisor: 2 } }],
 			})
 		expect(v.number()
 			.isMultipleOf(0.1)
@@ -60,12 +60,32 @@ describe('isMultipleOf step plugin', () => {
 			})
 	})
 
+	it('includes the documented tolerance boundary and excludes the value past it', () => {
+		// The documented tolerance is Number.EPSILON * Math.max(1, |quotient|) * 8,
+		// which is exactly 2 ** -49 while |quotient| <= 1. A quotient of 1 - 2 ** -49
+		// therefore sits on the boundary, and the next representable step away from 1
+		// sits outside it.
+		expect(v.number()
+			.isMultipleOf(1)
+			.execute(1 - 2 ** -49))
+			.toEqual({ value: 1 - 2 ** -49 })
+		expect(v.number()
+			.isMultipleOf(1)
+			.execute(1 - 2 ** -49 - 2 ** -53))
+			.toMatchObject({
+				issues: [{ code: 'isMultipleOf:expected_multiple_of' }],
+			})
+	})
+
 	it('rejects invalid divisors at schema construction', () => {
 		expect(() => v.number()
 			.isMultipleOf(0))
 			.toThrow('finite and non-zero')
 		expect(() => v.number()
 			.isMultipleOf(Infinity))
+			.toThrow('finite and non-zero')
+		expect(() => v.number()
+			.isMultipleOf(Number.NaN))
 			.toThrow('finite and non-zero')
 		expect(() => v.bigint()
 			.isMultipleOf(0n))

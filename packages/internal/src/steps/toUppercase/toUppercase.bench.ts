@@ -1,35 +1,19 @@
-/**
- * Benchmark plan for toUppercase:
- * - Operations benchmarked: toUppercase validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, string, toUppercase } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
+// The step owns no issue: `value.toUpperCase()` on a string cannot fail. It therefore has
+// a success cell only — the failure cell this replaced passed a number, which failed in
+// `string` and never reached this step at all.
 const v = createValchecker({ steps: [string, toUppercase] })
+const schema = v.string()
+	.toUppercase()
 
-describe('toUppercase benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.string()
-				.toUppercase()
-				.execute('hello')
-		})
-
-		bench('valid input - large', () => {
-			v.string()
-				.toUppercase()
-				.execute('x'.repeat(1000))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.string()
-				.toUppercase()
-				.execute(123)
-		})
-	})
-})
+stepBench('toUppercase', [
+	{
+		name: 'mixed-case',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('Hello World'),
+	},
+])

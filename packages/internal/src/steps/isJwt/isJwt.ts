@@ -2,39 +2,6 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 import { isBase64UrlString } from '../isBase64Url/base64url'
 
-function decodeBase64Url(segment: string): string {
-	const normalized = segment.replace(/-/g, '+')
-		.replace(/_/g, '/')
-	const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=')
-	return atob(padded)
-}
-
-function isJwtValue(value: string): boolean {
-	const segments = value.split('.')
-	if (segments.length !== 3)
-		return false
-	const header = segments[0] ?? ''
-	const payload = segments[1] ?? ''
-	const signature = segments[2] ?? ''
-	// Segments are base64url, so they carry its length rule as well as its
-	// alphabet: a length of `1 (mod 4)` cannot encode any byte. The header and
-	// payload must also be non-empty, which the pattern alone does not require.
-	if (header === '' || payload === '')
-		return false
-	if (!isBase64UrlString(header) || !isBase64UrlString(payload) || !isBase64UrlString(signature))
-		return false
-	try {
-		const decoded: unknown = JSON.parse(decodeBase64Url(header))
-		return typeof decoded === 'object'
-			&& decoded !== null
-			&& 'alg' in decoded
-			&& typeof (decoded as { alg?: unknown }).alg === 'string'
-	}
-	catch {
-		return false
-	}
-}
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isJwt'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -73,6 +40,39 @@ interface PluginDef extends TStepPluginDef {
 				>
 			: never
 	>
+}
+
+function decodeBase64Url(segment: string): string {
+	const normalized = segment.replace(/-/g, '+')
+		.replace(/_/g, '/')
+	const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=')
+	return atob(padded)
+}
+
+function isJwtValue(value: string): boolean {
+	const segments = value.split('.')
+	if (segments.length !== 3)
+		return false
+	const header = segments[0] ?? ''
+	const payload = segments[1] ?? ''
+	const signature = segments[2] ?? ''
+	// Segments are base64url, so they carry its length rule as well as its
+	// alphabet: a length of `1 (mod 4)` cannot encode any byte. The header and
+	// payload must also be non-empty, which the pattern alone does not require.
+	if (header === '' || payload === '')
+		return false
+	if (!isBase64UrlString(header) || !isBase64UrlString(payload) || !isBase64UrlString(signature))
+		return false
+	try {
+		const decoded: unknown = JSON.parse(decodeBase64Url(header))
+		return typeof decoded === 'object'
+			&& decoded !== null
+			&& 'alg' in decoded
+			&& typeof (decoded as { alg?: unknown }).alg === 'string'
+	}
+	catch {
+		return false
+	}
 }
 
 /* @__NO_SIDE_EFFECTS__ */

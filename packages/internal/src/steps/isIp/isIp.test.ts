@@ -10,6 +10,17 @@ const valid = [
 	'::1',
 	'2001:db8::8a2e:370:7334',
 	'::ffff:192.168.0.1',
+	// Zero-compression edges. `::` is the unspecified address and a trailing `::`
+	// leaves the right half empty, so neither half may be required to be present.
+	'::',
+	'1::',
+	'1:2:3:4:5::',
+	// A compressed address stands for at least one omitted group, so seven
+	// explicit units is the largest it can carry — on either side of the `::`,
+	// and counting an embedded IPv4 suffix as the two units it occupies.
+	'1:2:3:4:5:6:7::',
+	'::1:2:3:4:5:6:7',
+	'1:2:3:4:5::1.2.3.4',
 	// The octet range lives in the pattern now, so each rule needs a case on both
 	// sides of its edge.
 	'9.99.199.255',
@@ -25,6 +36,10 @@ const invalid = [
 	'1.2.3.4.5',
 	'gggg::1',
 	'1::2::3',
+	// One unit past the compressed maximum, on either side of the `::`.
+	'1::2:3:4:5:6:7:8',
+	'1:2:3:4:5:6:7:8::',
+	'::gggg',
 	'hello',
 	'',
 	'255.255.255.256',

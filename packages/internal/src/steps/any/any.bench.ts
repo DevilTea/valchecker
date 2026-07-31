@@ -1,32 +1,17 @@
-/**
- * Benchmark plan for any:
- * - Operations benchmarked: any validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { any, createValchecker } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [any] })
+const schema = v.any()
 
-describe('any benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.any()
-				.execute(undefined)
-		})
-
-		bench('valid input - large', () => {
-			v.any()
-				.execute(undefined)
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.any()
-				.execute(undefined)
-		})
-	})
-})
+// `any` owns no issue code and passes for every value, so it has no failure cell to
+// write: the success cell is the whole contract.
+stepBench('any', [
+	{
+		name: 'passes',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute('hello'),
+	},
+])

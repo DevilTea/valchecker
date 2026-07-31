@@ -1,35 +1,22 @@
-/**
- * Benchmark plan for toLength:
- * - Operations benchmarked: toLength validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
+import { createValchecker, string, toLength } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-import { bench, describe } from 'vitest'
-import { any, array, createValchecker, toLength } from '../..'
+// The step owns no issue: it reads `value.length` off a value the previous step already
+// proved has one. It therefore has a success cell only.
+//
+// It sits on `string` rather than `array`, because the cells this replaced spent almost
+// all of their time in `array`'s child-execute loop — a 1,000-element cell measured
+// `array`, not this one-property read.
+const v = createValchecker({ steps: [string, toLength] })
+const schema = v.string()
+	.toLength()
 
-const v = createValchecker({ steps: [toLength, array, any] })
-
-describe('toLength benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.array(v.any())
-				.toLength()
-				.execute([1, 2, 3])
-		})
-
-		bench('valid input - large', () => {
-			v.array(v.any())
-				.toLength()
-				.execute(Array.from({ length: 1000 }, (_, i) => i))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.array(v.any())
-				.toLength()
-				.execute('string')
-		})
-	})
-})
+stepBench('toLength', [
+	{
+		name: 'string-length',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('hello'),
+	},
+])

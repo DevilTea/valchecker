@@ -125,7 +125,7 @@ export const check = implStepPlugin<PluginDef>({
 						code: 'check:failed',
 						payload: { reason: 'returned_false', value },
 						customMessage: options?.message,
-						defaultMessage: 'Check failed',
+						defaultMessage: 'Check failed.',
 					})
 					return failure(issues == null ? issue : [...issues, issue])
 				}

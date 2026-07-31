@@ -3,8 +3,6 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
-const nativeMapEntries = Map.prototype.entries
-
 declare namespace Internal {
 	type ResolveMode<M extends OperationMode> = IsEqual<M, 'sync'> extends true ? 'sync' : 'maybe-async'
 	export type OpMode<K extends Use<Valchecker>, V extends Use<Valchecker>> = ResolveMode<InferOperationMode<K> | InferOperationMode<V>>
@@ -75,6 +73,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const nativeMapEntries = Map.prototype.entries
 
 /* @__NO_SIDE_EFFECTS__ */
 export const map = implStepPlugin<PluginDef>({
@@ -319,6 +319,19 @@ export const map = implStepPlugin<PluginDef>({
 						else {
 							output.set(transformedKey, transformedValue)
 							firstKeyMeta!.set(transformedKey, { index, sourceKey })
+						}
+					}
+					// A buffered entry is recorded under its buffer position, which is its
+					// source index only while nothing has been skipped. Collecting past a
+					// failed entry skips one, so the buffer is materialized here, while the
+					// two still agree, rather than misreporting `firstIndex`.
+					else if (output == null) {
+						output = new Map()
+						firstKeyMeta = new Map()
+						for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
+							const bufferedKey = bufferKeys![bufferIndex]
+							output.set(bufferedKey, bufferValues![bufferIndex])
+							firstKeyMeta.set(bufferedKey, { index: bufferIndex, sourceKey: bufferedKey })
 						}
 					}
 					index++

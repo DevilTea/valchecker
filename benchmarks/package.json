@@ -8,13 +8,16 @@
 	},
 	"scripts": {
 		"bench": "node ./src/run.mjs",
+		"cells": "node ./src/cells/run.mjs",
+		"cells:catalog": "node ./src/cells/catalog.mjs",
 		"compare": "node ./src/compare.mjs",
+		"confirm": "node ./src/resolve-confirmation.mjs",
 		"merge": "node ./src/merge.mjs",
 		"report": "node ./src/report-all.mjs",
 		"summary": "node ./src/summary.mjs",
 		"treeshake": "node ./src/treeshake.mjs",
 		"smoke": "node ./src/run.mjs --mode smoke --output ../artifacts/benchmark-smoke/raw.json && node ./src/report-all.mjs --input ../artifacts/benchmark-smoke/raw.json --markdown ../artifacts/benchmark-smoke/report.md --html ../artifacts/benchmark-smoke/report.html",
-		"test": "node --test src/*.test.mjs",
+		"test": "node --test src/*.test.mjs src/cells/*.test.mjs",
 		"verify": "node ./src/verify.mjs && node ./src/step-audit.mjs"
 	},
 	"dependencies": {

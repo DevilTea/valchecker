@@ -14,7 +14,11 @@ describe('isDefined step plugin', () => {
 			.toEqual({ value: null })
 		expect(schema.execute(undefined))
 			.toMatchObject({
-				issues: [{ code: 'isDefined:expected_defined', payload: { value: undefined } }],
+				issues: [{
+					code: 'isDefined:expected_defined',
+					message: 'Expected a defined value.',
+					payload: { value: undefined },
+				}],
 			})
 	})
 

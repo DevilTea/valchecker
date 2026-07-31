@@ -8,6 +8,16 @@ const valid = [
 	'Zm9vYmFy',
 	'Zg==',
 	'',
+	// Both padded final groups: three characters plus one `=`, and two plus
+	// two. `Zg==` above covers the second; `aGk=` covers the first.
+	'aGk=',
+	// `+` and `/` are the standard alphabet's last two characters — the pair
+	// `isBase64Url()` replaces with `-` and `_`.
+	'a+/b',
+	// Non-canonical trailing bits are accepted: canonical base64 of one byte
+	// requires the second character in `[AQgw]`. RFC 4648 §3.5 permits either
+	// choice, and `isBase64Url()` is permissive the same way.
+	'aB==',
 ]
 
 const invalid = [
@@ -15,6 +25,17 @@ const invalid = [
 	'=abc',
 	'a===',
 	'****',
+	// The base64url alphabet is not the standard one.
+	'a-b_',
+	// Padding closes the string: it may not appear mid-way, and a full group of
+	// four cannot be followed by a stray `=`.
+	'ab==cd==',
+	'YWJj=',
+	'====',
+	// No whitespace is skipped, and `$` without the `m` flag is end-of-input,
+	// so a trailing newline fails.
+	'aGVs bG8=',
+	'aGVsbG8=\n',
 ]
 
 describe('isBase64 step plugin', () => {

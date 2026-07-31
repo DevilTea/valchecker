@@ -17,6 +17,23 @@ describe('isOneOf step plugin', () => {
 			.toMatchObject({ issues: [{ code: 'isOneOf:expected_one_of' }] })
 	})
 
+	it('rejects undefined when the configured values do not include it', () => {
+		// The candidate scan must stop at the last configured index. Reading one
+		// past the end yields `undefined`, which `Object.is` would then match
+		// against an `undefined` input that was never a candidate.
+		expect(v.unknown()
+			.isOneOf(['a', 'b'])
+			.execute(undefined))
+			.toMatchObject({
+				issues: [{
+					code: 'isOneOf:expected_one_of',
+					category: 'validation',
+					message: 'Expected one of the configured primitive values.',
+					payload: { value: undefined, expectedValues: ['a', 'b'] },
+				}],
+			})
+	})
+
 	it('narrows output and snapshots configured values', () => {
 		const values: ['draft', 'published'] = ['draft', 'published']
 		const schema = v.unknown()

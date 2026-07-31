@@ -48,6 +48,17 @@ export interface Attribution {
 	shipped: Set<string>
 	/** For each shipped file, the public names of the steps that transitively import it. */
 	stepsByFile: Map<string, Set<string>>
+	/**
+	 * Each step's own `<name>.bench.ts`, mapped to that step.
+	 *
+	 * A bench file is the third kind of changed file this gate has to place, and neither
+	 * of the first two fits. It cannot change either build — it is not reachable from the
+	 * build entry, so nothing in it reaches the bundle — but it *is* the measurement now,
+	 * so treating it as inert would let a rewritten cell go unmeasured, and treating it as
+	 * unplaceable would buy a full run for editing one step's benchmark. It selects its own
+	 * step's cells: neither nothing nor everything.
+	 */
+	cellStepsByFile: Map<string, string>
 	/** Shipped files that are nothing but re-export statements. */
 	barrels: Set<string>
 	/** Every TypeScript file present under a package's `src` directory, shipped or not. */
@@ -404,57 +415,65 @@ export function buildAttribution(tree: SourceTree): Attribution {
 	}
 
 	const stepNames = new Set([...stepEntries.values()].map(step => step.name))
-	return { shipped, stepsByFile, barrels, packageSourceFiles, stepNames, problems }
+	const cellStepsByFile = new Map<string, string>()
+	for (const [directory, step] of stepEntries) {
+		const bench = `${stepsRoot}/${directory}/${directory}.bench.ts`
+		if (tree.read(bench) != null)
+			cellStepsByFile.set(bench, step.name)
+	}
+	return { shipped, stepsByFile, barrels, packageSourceFiles, stepNames, cellStepsByFile, problems }
 }
 
 /**
  * The scenarios that run whatever the diff says.
  *
  * `construction` and `cold` are taken whole. Module initialisation, step registration,
- * and the shape of the prototype every schema shares are not attributable through a
- * scenario's `steps` at all — no scenario declares them — and construction is where
- * they show. Nineteen standard-tier scenarios, so the completeness is
- * cheap.
+ * and the shape of the prototype every schema shares are not attributable to a step
+ * through its execution cells at all — a cell builds its schema at module scope, so the
+ * timed region never sees that work — and the construction and cold cells are where it
+ * shows. There are five of them, so taking them whole is cheap.
  *
- * The named scenarios are the core execution machinery every other scenario is built
- * on: the string pipeline, the object walk, the per-call floor with nothing validated,
- * issue construction with and without a path, both explicit diagnostic policies, and
- * the asynchronous path. They exist so that a broad regression cannot hide behind a
- * mapping that missed it, and they give every benchmark group at least two scenarios,
- * which is what the severe-group trigger needs.
+ * The named cells are the core execution machinery every other cell is built on: the
+ * per-call floor, the string pipeline, the object walk, issue construction with and
+ * without a path, the deferred message chain, the collect-all traversal, and the
+ * asynchronous path. They exist so that a broad regression cannot hide behind a mapping
+ * that missed it, and they give every benchmark group at least two cells, which is what
+ * the severe-group trigger needs.
+ *
+ * They are listed rather than flagged in the bench files on purpose. A `canary: true` on
+ * a cell would be a claim each step's author makes about the core, and a core path
+ * nobody flagged would silently leave the canary — which is the failure mode this list
+ * exists to prevent. `selectImpactScenarios` throws when a name here is not in the
+ * catalog, so the list cannot rot into one that does not run.
  */
 export const canaryGroups = ['construction', 'cold']
 
 export const canaryScenarios = [
-	// warm/success — the two shapes every other success scenario extends, plus the
-	// floor that measures per-call overhead with no validation in front of it.
-	'primitive/valid',
-	'flat-object/valid',
-	'schema-kind/unknown-valid',
+	// warm/success — the per-call floor with nothing validated in front of it, the two
+	// shapes every other success cell extends, and the delegation layer.
+	'unknown/passes',
+	'string/valid',
+	'object/valid',
+	'array/valid',
 	// warm/failure/library-default — issue construction at the top level and inside a
-	// structure, where the path is built.
-	'primitive/invalid-type',
-	'flat-object/invalid-first',
-	// warm/failure/first and warm/failure/all — the two explicit diagnostic policies.
-	'issue-policy/object/invalid/first',
-	'issue-policy/array/invalid/first',
-	'issue-policy/object/invalid/all',
-	'issue-policy/array/invalid/all',
-	// warm/async/success — the promise machinery, reached from a callback and from a step.
-	'async/check-valid',
-	'async/wrapper-valid',
+	// structure, where the path is built, plus both halves of the deferred message chain.
+	'string/invalid',
+	'object/missing-key',
+	'string/custom-message',
+	'object/enclosing-message',
+	// warm/failure/all — the dual traversal policy the structures share.
+	'object/collect-all',
+	'array/collect-all',
+	// warm/async/success — the promise machinery, reached from a callback, from a
+	// structure's child, and from the step that forces it.
+	'check/async-passes',
+	'array/async-valid',
+	'toAsync/valid',
 ]
 
-/**
- * `compare.mjs` calls a group's geometric-mean regression severe only when at least two
- * of its scenarios were stable, so a group left with one scenario has no group trigger
- * and nothing says so. Selection cannot promise two *stable* scenarios — stability is
- * decided by the measurement — but it can promise two measured ones, and the gate
- * reports the groups where the trigger did not apply.
- */
 export const minimumScenariosPerGroup = 2
 
-export type ChangeEffect = 'full' | 'ignored' | 'attributed'
+export type ChangeEffect = 'full' | 'ignored' | 'attributed' | 'measurement'
 
 export interface ChangeClassification {
 	path: string
@@ -531,6 +550,14 @@ export function classifyChange(path: string, attribution: Attribution, inert: bo
 		return { path, effect: 'full', reason: 'it decides how this gate runs' }
 
 	if (isPackageSourcePath(path)) {
+		const benchStep = attribution.cellStepsByFile.get(path)
+		if (benchStep != null) {
+			return {
+				path,
+				effect: 'measurement',
+				reason: `the '${benchStep}' step's own bench file. It cannot change either build, but it declares what is measured, so it selects that step's cells`,
+			}
+		}
 		if (attribution.shipped.has(path)) {
 			const steps = attribution.stepsByFile.get(path)
 			if (steps != null && steps.size > 0) {
@@ -586,6 +613,13 @@ export function selectImpactScenarios({ changedFiles, attribution, catalog, cana
 			continue
 		for (const step of attribution.stepsByFile.get(path) ?? [])
 			steps.add(step)
+		// A changed bench file selects its own step's cells, through the same steps-to-cells
+		// mapping a changed source file uses. That is the whole of the replacement for
+		// `steps → scenarios whose declared steps name them`: a cell's step is the directory
+		// it lives in, so there is no declaration left to be wrong.
+		const benchStep = attribution.cellStepsByFile.get(path)
+		if (benchStep != null)
+			steps.add(benchStep)
 	}
 
 	const canarySet = new Set(canary.scenarios)

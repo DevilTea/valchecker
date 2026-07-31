@@ -103,6 +103,23 @@ describe('object step plugin', () => {
 			})
 	})
 
+	it('validates a declared key named "undefined" exactly once', () => {
+		// `'undefined'` is an ordinary string key. Collecting all issues is what
+		// makes a key validated twice visible: the first issue alone would look
+		// identical.
+		expect(v.object({ undefined: v.string() }, { collectAllIssues: true })
+			.execute({ undefined: 1 }))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: ['undefined'],
+					payload: { value: 1 },
+				}],
+			})
+	})
+
 	it('collects child and missing-key issues in struct order', () => {
 		expect(v.object({
 			name: v.string(),
@@ -258,6 +275,90 @@ describe('object step plugin', () => {
 				payload: { method: 'asyncInternalFailure' },
 			}],
 		})
+		expect(later).not.toHaveBeenCalled()
+	})
+})
+
+describe('object collectAllIssues', () => {
+	const fixture = structuralFixture
+
+	const v = createValchecker({ steps: [fixture, number, object, string, transform, unknown] })
+
+	it('retains object classification before field traversal', () => {
+		expect(v.object({}, { collectAllIssues: true })
+			.execute([]))
+			.toMatchObject({ issues: [{ code: 'object:expected_object' }] })
+	})
+
+	it('materializes optional and safe __proto__ fields', () => {
+		const ignored = Symbol('ignored')
+		const shape: Record<PropertyKey, any> = {
+			required: v.string(),
+			optional: [v.number()],
+		}
+		Object.defineProperty(shape, '__proto__', { enumerable: true, value: v.string() })
+		Object.defineProperty(shape, ignored, { enumerable: false, value: v.string() })
+		const input: Record<PropertyKey, unknown> = { required: 'ok' }
+		Object.defineProperty(input, '__proto__', { enumerable: true, value: 'safe' })
+
+		const result = v.object(shape, { collectAllIssues: true })
+			.execute(input)
+		expect(result)
+			.toMatchObject({ value: { required: 'ok', optional: undefined } })
+		expect(Object.hasOwn((result as any).value, '__proto__'))
+			.toBe(true)
+		// eslint-disable-next-line no-proto, no-restricted-properties -- asserting an own __proto__ data property survives as plain data; reading it via the accessor is the behavior under test
+		expect((result as any).value.__proto__)
+			.toBe('safe')
+	})
+
+	it('collects missing and invalid fields before a synchronous internal issue', () => {
+		const later = vi.fn()
+		const result = (v as any).object({
+			missing: v.string(),
+			invalid: v.number(),
+			internal: (v as any).unknown()
+				.internalFailure(),
+			later: (v as any).unknown()
+				.observe(later),
+		}, { collectAllIssues: true })
+			.execute({ invalid: 'bad', internal: 'value', later: 'later' })
+
+		expect(result)
+			.toMatchObject({ issues: [
+				{ code: 'object:missing_key', path: ['missing'] },
+				{ code: 'number:expected_number', path: ['invalid'] },
+				{ code: 'core:unknown_exception', path: ['internal'] },
+			] })
+		expect(later).not.toHaveBeenCalled()
+	})
+
+	it('continues after an asynchronous recoverable issue and stops after an internal issue', async () => {
+		await expect(v.object({
+			first: v.string()
+				.transform(async () => {
+					throw new Error('recoverable')
+				}),
+			optional: [v.number()],
+			last: v.string()
+				.transform(value => value.toUpperCase()),
+			missing: v.string(),
+		}, { collectAllIssues: true })
+			.execute({ first: 'bad', last: 'ok' }))
+			.resolves.toMatchObject({ issues: [
+				{ code: 'transform:callback_failed', path: ['first'] },
+				{ code: 'object:missing_key', path: ['missing'] },
+			] })
+
+		const later = vi.fn()
+		await expect((v as any).object({
+			first: (v as any).unknown()
+				.asyncInternalFailure(),
+			later: (v as any).unknown()
+				.observe(later),
+		}, { collectAllIssues: true })
+			.execute({ first: 'bad', later: 'later' }))
+			.resolves.toMatchObject({ issues: [{ code: 'core:unknown_exception', path: ['first'] }] })
 		expect(later).not.toHaveBeenCalled()
 	})
 })

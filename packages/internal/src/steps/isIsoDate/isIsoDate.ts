@@ -2,8 +2,6 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 import { isoCalendarDateSource } from './iso-calendar-date'
 
-const isoDatePattern = new RegExp(String.raw`^${isoCalendarDateSource}$`)
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoDate'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -43,6 +41,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const isoDatePattern = new RegExp(String.raw`^${isoCalendarDateSource}$`)
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isIsoDate = implStepPlugin<PluginDef>({

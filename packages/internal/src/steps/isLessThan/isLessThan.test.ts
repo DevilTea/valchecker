@@ -17,7 +17,7 @@ describe('isLessThan step plugin', () => {
 		expect(v.number()
 			.isLessThan(2)
 			.execute(2))
-			.toMatchObject({ issues: [{ code: 'isLessThan:expected_less_than', payload: { target: 'number', value: 2, maximum: 2 } }] })
+			.toMatchObject({ issues: [{ code: 'isLessThan:expected_less_than', message: 'Expected a value less than 2.', payload: { target: 'number', value: 2, maximum: 2 } }] })
 		expect(v.bigint()
 			.isLessThan(2n, { message: 'Too large' })
 			.execute(3n))
@@ -26,5 +26,17 @@ describe('isLessThan step plugin', () => {
 			.isLessThan(0)
 			.execute(Number.NaN))
 			.toMatchObject({ issues: [{ code: 'isLessThan:expected_less_than' }] })
+	})
+	it('accepts a NaN bound and simply never matches', () => {
+		// The bound families carry no hidden operand policy: unlike isMultipleOf(),
+		// a NaN bound constructs, and every comparison against it is false.
+		expect(() => v.number()
+			.isLessThan(Number.NaN))
+			.not
+			.toThrow()
+		expect(v.number()
+			.isLessThan(Number.NaN)
+			.execute(1))
+			.toMatchObject({ issues: [{ code: 'isLessThan:expected_less_than', payload: { maximum: Number.NaN } }] })
 	})
 })

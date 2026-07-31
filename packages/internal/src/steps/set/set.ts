@@ -3,8 +3,6 @@ import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { isPromiseLike } from '../../shared'
 
-const nativeSetValues = Set.prototype.values
-
 declare namespace Internal {
 	export type OpMode<I extends Use<Valchecker>> = IsEqual<InferOperationMode<I>, 'sync'> extends true ? 'sync' : 'maybe-async'
 	export type ExpectedIssue = ExecutionIssue<'set:expected_set', { value: unknown }>
@@ -73,6 +71,8 @@ interface FirstItemMetadata {
 	firstIndex: number
 	firstItem: unknown
 }
+
+const nativeSetValues = Set.prototype.values
 
 /* @__NO_SIDE_EFFECTS__ */
 export const set = implStepPlugin<PluginDef>({
@@ -234,6 +234,19 @@ export const set = implStepPlugin<PluginDef>({
 						issues = appended.issues
 						if (appended.hasInternal || !collectAllIssues)
 							return failure(issues)
+						// A buffered item is recorded under its buffer position, which is
+						// its source index only while nothing has been skipped. Collecting
+						// past a failure skips one, so the buffer is materialized here,
+						// while the two still agree, rather than misreporting `firstIndex`.
+						if (output == null) {
+							output = new Set()
+							firstItemMeta = new Map()
+							for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
+								const bufferedItem = buffer![bufferIndex]
+								output.add(bufferedItem)
+								firstItemMeta.set(bufferedItem, { firstIndex: bufferIndex, firstItem: bufferedItem })
+							}
+						}
 						index++
 						continue
 					}

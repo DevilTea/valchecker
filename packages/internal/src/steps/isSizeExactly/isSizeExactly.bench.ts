@@ -1,17 +1,26 @@
-import { bench, describe } from 'vitest'
-import { createValchecker, isSizeExactly, map, number, string } from '../..'
+import { createValchecker, isSizeExactly, set, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const v = createValchecker({ steps: [isSizeExactly, map, number, string] })
-const schema = v.map({ key: v.string(), value: v.number() })
-	.isSizeExactly(1)
-const valid = new Map([['value', 1]])
-const invalid = new Map<string, number>()
+const v = createValchecker({ steps: [isSizeExactly, set, string] })
+const expectedSize = 3
+const schema = v.set(v.string())
+	.isSizeExactly(expectedSize)
+const members = new Set(['alpha', 'beta', 'gamma'])
+const fewerMembers = new Set(['alpha'])
 
-describe('isSizeExactly benchmarks', () => {
-	bench('success', () => {
-		schema.execute(valid)
-	})
-	bench('failure', () => {
-		schema.execute(invalid)
-	})
-})
+stepBench('isSizeExactly', [
+	{
+		name: 'expected-size',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 50,
+		run: () => schema.execute(members),
+	},
+	{
+		name: 'other-size',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isSizeExactly:expected_size_exactly'] },
+		batch: 50,
+		run: () => schema.execute(fewerMembers),
+	},
+])

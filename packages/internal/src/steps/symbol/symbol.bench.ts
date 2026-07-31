@@ -1,32 +1,25 @@
-/**
- * Benchmark plan for symbol:
- * - Operations benchmarked: symbol validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, symbol } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [symbol] })
+const schema = v.symbol()
+// Hoisted, because allocating a symbol inside `run` would measure the allocation rather
+// than the check.
+const valid = Symbol('x')
 
-describe('symbol benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.symbol()
-				.execute(undefined)
-		})
-
-		bench('valid input - large', () => {
-			v.symbol()
-				.execute(undefined)
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.symbol()
-				.execute(undefined)
-		})
-	})
-})
+stepBench('symbol', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute(valid),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['symbol:expected_symbol'] },
+		batch: 100,
+		run: () => schema.execute('x'),
+	},
+])

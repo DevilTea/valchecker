@@ -1,7 +1,9 @@
 import type { Canary, CatalogEntry } from './impact-selection'
 import type { SourceTree } from './source-tree'
+import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { buildAttribution, classifyChange, defaultCanary, gateDefiningPaths, isNonShippingSourcePath, selectImpactScenarios } from './impact-selection'
@@ -326,10 +328,9 @@ describe('scenario selection', () => {
 			.toEqual(catalog.map(scenario => scenario.id))
 	})
 
-	it('a test, benchmark, or fixture change measures only the canary', () => {
+	it('a test or fixture change measures only the canary', () => {
 		for (const path of [
 			'packages/internal/src/steps/alpha/alpha.test.ts',
-			'packages/internal/src/steps/alpha/alpha.bench.ts',
 			'packages/internal/src/test-utils/fixtures.ts',
 		]) {
 			const selection = select([path])
@@ -340,6 +341,35 @@ describe('scenario selection', () => {
 			expect(selection.scenarioIds, path)
 				.toEqual(canaryIds)
 		}
+	})
+
+	it('a bench change measures its own step, because it changed the measurement', () => {
+		// The third classification. A bench file cannot reach either bundle, so it is not a
+		// build change and must not force a full run; but it declares the cells, so treating
+		// it as inert would let a rewritten cell go unmeasured. It selects its own step's,
+		// and nothing else's.
+		const selection = select(['packages/internal/src/steps/alpha/alpha.bench.ts'])
+		expect(selection.full)
+			.toBe(false)
+		expect(selection.steps)
+			.toEqual(['alpha'])
+		expect(selection.classifications[0]!.effect)
+			.toBe('measurement')
+		expect(selection.classifications[0]!.reason)
+			.toContain('declares what is measured')
+		expect(selection.attributedIds)
+			.toEqual(['construct/alpha', 'warm/alpha', 'fail/alpha'])
+	})
+
+	it('a bench change proved inert selects nothing', () => {
+		// The same rule as everywhere else: a revision pair that means the same thing cannot
+		// have changed the measurement either.
+		const path = 'packages/internal/src/steps/alpha/alpha.bench.ts'
+		const selection = select([path], repository, canary, new Set([path]))
+		expect(selection.steps)
+			.toEqual([])
+		expect(selection.scenarioIds)
+			.toEqual(canaryIds)
 	})
 
 	it('a deleted test file is still recognised without a tree entry', () => {
@@ -588,10 +618,18 @@ describe('the repository this gate runs in', () => {
 		// does the same: a static specifier would pull the whole benchmark module graph
 		// into this project's TypeScript program, and those `.mjs` files are not
 		// type-checked under it.
-		const { getScenarioCatalog } = await import(new URL('../benchmarks/src/scenarios/index.mjs', import.meta.url).href) as {
-			getScenarioCatalog: (mode: string) => CatalogEntry[]
-		}
-		const standard = getScenarioCatalog('standard')
+		// Spawned rather than imported. Collecting cells needs the resolution hooks in
+		// `benchmarks/src/cells/`, and those apply to Node's own ESM resolution only: inside
+		// this vitest worker `vitest` resolves to the real runner, and a bench file would try
+		// to register a suite from inside a test. The child produces the catalog the runner
+		// measures. It needs `pnpm build` to have run, the same precondition
+		// `check-docs-examples.ts` has for compiling against the built declarations.
+		const distUrl = new URL('../packages/valchecker/dist/index.mjs', import.meta.url).href
+		const standard = JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL('../benchmarks/src/cells/catalog.mjs', import.meta.url))], {
+			encoding: 'utf8',
+			maxBuffer: 32 * 1024 * 1024,
+			env: { ...process.env, VALCHECKER_DIST_URL: distUrl },
+		})).cells as CatalogEntry[]
 		const selection = selectImpactScenarios({ changedFiles: [], attribution, catalog: standard })
 		expect(selection.full)
 			.toBe(false)

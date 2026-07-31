@@ -2,8 +2,6 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import { implStepPlugin } from '../../core'
 import { isoTimeSource } from './iso-time-source'
 
-const isoTimePattern = new RegExp(String.raw`^${isoTimeSource}$`)
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoTime'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -42,6 +40,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const isoTimePattern = new RegExp(String.raw`^${isoTimeSource}$`)
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isIsoTime = implStepPlugin<PluginDef>({

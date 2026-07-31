@@ -44,6 +44,25 @@ describe('toMapped step plugin', () => {
 			})
 	})
 
+	it('reports the default message when the first array item mapper throws', () => {
+		const error = new Error('first item')
+		const input = [1, 2]
+		expect(v.array(v.number())
+			.toMapped(() => {
+				throw error
+			})
+			.execute(input))
+			.toEqual({
+				issues: [{
+					code: 'toMapped:callback_failed',
+					category: 'operation',
+					message: 'Map callback failed.',
+					path: [],
+					payload: { value: input, item: 1, index: 0, error },
+				}],
+			})
+	})
+
 	it('preserves mapper promises as array items instead of awaiting them', async () => {
 		const result = v.array(v.number())
 			.toMapped(async item => item + 1)

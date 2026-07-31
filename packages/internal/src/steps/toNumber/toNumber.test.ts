@@ -8,8 +8,13 @@ describe('toNumber step plugin', () => {
 	it.each([
 		['42', 42],
 		['abc', Number.NaN],
+		// An empty or whitespace-only string coerces to 0; a parser would reject both.
 		['', 0],
+		['   ', 0],
 		['Infinity', Infinity],
+		// Radix prefixes are part of the numeric grammar `Number()` accepts.
+		['0x10', 16],
+		['1e3', 1000],
 	] as const)('applies Number() to string %j', (value, expected) => {
 		expect(v.string()
 			.toNumber()
@@ -39,9 +44,14 @@ describe('toNumber step plugin', () => {
 	})
 
 	it.each([
+		// `null` coerces to 0 while `undefined` coerces to NaN, and an array is
+		// coerced through its joined string: `[]` is 0 and `['1']` is 1.
 		[null, 0],
 		[undefined, Number.NaN],
 		[{}, Number.NaN],
+		[[], 0],
+		[['1'], 1],
+		[['1', '2'], Number.NaN],
 	] as const)('applies Number() to non-number value %j', (value, expected) => {
 		expect(v.unknown()
 			.toNumber()

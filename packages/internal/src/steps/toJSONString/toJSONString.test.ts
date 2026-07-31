@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import type { InferOutput } from '../..'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createValchecker, toJSONString } from '../..'
 
 const v = createValchecker({ steps: [toJSONString] })
@@ -19,12 +20,53 @@ describe('toJSONString step plugin', () => {
 			.toEqual({ value: output })
 	})
 
-	it.each([
-		[() => undefined],
-		[{ value: () => undefined }],
-		[1n],
-		[new Object(1n)],
-	])('rejects unserializable value %p', (value) => {
+	it('serializes NaN and the infinities as null, like JSON.stringify', () => {
+		expect(v.toJSONString()
+			.execute({ nan: Number.NaN, positive: Infinity, negative: -Infinity }))
+			.toEqual({ value: '{"nan":null,"positive":null,"negative":null}' })
+	})
+
+	it('ignores symbol-keyed properties during preflight', () => {
+		// An unsupported value behind a symbol key would fail if symbol keys were
+		// walked, so this distinguishes dropping them from serializing them.
+		const value = { [Symbol('dropped')]: 1n, own: 1 }
+		expect(v.toJSONString()
+			.execute(value))
+			.toEqual({ value: '{"own":1}' })
+	})
+
+	it('reads a getter and calls a toJSON method exactly once', () => {
+		let getterReads = 0
+		let toJSONCalls = 0
+		const value = {
+			get counted() {
+				getterReads++
+				return 1
+			},
+			nested: {
+				toJSON() {
+					toJSONCalls++
+					return { ok: true }
+				},
+			},
+		}
+		expect(v.toJSONString()
+			.execute(value))
+			.toEqual({ value: '{"counted":1,"nested":{"ok":true}}' })
+		expect(getterReads)
+			.toBe(1)
+		expect(toJSONCalls)
+			.toBe(1)
+	})
+
+	it.each<[label: string, value: unknown, expected: Record<string, unknown>]>([
+		['a function', () => undefined, { reason: 'unsupported_type', at: [], valueType: 'function' }],
+		['a function under a property', { value: () => undefined }, { reason: 'unsupported_type', at: ['value'], valueType: 'function' }],
+		['a bigint', 1n, { reason: 'unsupported_type', at: [], valueType: 'bigint' }],
+		['a boxed bigint', new Object(1n), { reason: 'unsupported_type', at: [], valueType: 'bigint' }],
+		['a symbol', Symbol('value'), { reason: 'unsupported_type', at: [], valueType: 'symbol' }],
+		['undefined', undefined, { reason: 'undefined_result', at: [] }],
+	])('rejects %s with its own reason', (_label, value, expected) => {
 		expect(v.toJSONString()
 			.execute(value))
 			.toMatchObject({
@@ -33,12 +75,12 @@ describe('toJSONString step plugin', () => {
 					category: 'validation',
 					message: 'Value cannot be serialized to JSON.',
 					path: [],
-					payload: { value },
+					payload: { value, ...expected },
 				}],
 			})
 	})
 
-	it('rejects a JSON.stringify result of undefined', () => {
+	it('rejects a toJSON method that returns undefined', () => {
 		const value = Object.defineProperty({}, 'toJSON', {
 			value: () => undefined,
 		})
@@ -50,12 +92,12 @@ describe('toJSONString step plugin', () => {
 					category: 'validation',
 					message: 'Value cannot be serialized to JSON.',
 					path: [],
-					payload: { value },
+					payload: { reason: 'undefined_result', value, at: [] },
 				}],
 			})
 	})
 
-	it('reports circular structures', () => {
+	it('reports a circular structure rather than recursing', () => {
 		const value: Record<string, unknown> = {}
 		value.self = value
 		expect(v.toJSONString()
@@ -66,7 +108,7 @@ describe('toJSONString step plugin', () => {
 					category: 'validation',
 					message: 'Value cannot be serialized to JSON.',
 					path: [],
-					payload: { value },
+					payload: { reason: 'circular_reference', value, at: ['self'] },
 				}],
 			})
 	})
@@ -215,5 +257,11 @@ describe('toJSONString step plugin', () => {
 			.toMatchObject({
 				issues: [{ message: 'Custom stringify' }],
 			})
+	})
+
+	it('infers a string output', () => {
+		const _schema = v.toJSONString()
+		expectTypeOf<InferOutput<typeof _schema>>()
+			.toEqualTypeOf<string>()
 	})
 })

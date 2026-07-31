@@ -15,22 +15,28 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 #     source: a dependency bump or a compiler-configuration change is the class most
 #     able to move every number at once, and it is the class the scoped run cannot
 #     narrow.
-#   - workflow_dispatch: manual comparison of two arbitrary refs, with optional
-#     competitor adapters and scenario selection.
+#   - workflow_dispatch: manual comparison of two arbitrary refs, with an optional
+#     cell selection. Competitor adapters are not an option here: this gate measures one
+#     library against itself, and the cross-library ranking is Performance Comparison's.
 #
-# Scenario scoping (pull requests only). Measuring every standard-tier scenario is
-# 55 minutes against a 90-minute timeout, and neither of the two decisions behind that
-# can be reverted: five paired repetitions are what make a scenario classifiable at
-# all (#124), and one process per cell is what makes a subset measure the same numbers
-# as the whole suite (#127). So the run is scoped instead, by mapping each changed file
-# through the internal import graph to the steps that import it and then to the
-# scenarios whose declared `steps` name them. `scripts/impact-selection.ts` holds the
-# mapping and everything it refuses to decide; anything it cannot place is a full run,
-# and a canary set — every construction and cold scenario plus the core execution paths
-# — runs whatever the diff says, because module initialisation is not attributable
-# through a scenario's `steps` at all. The `paths` filters below therefore have to
-# admit every path that module can call a full run, or the rule cannot fire;
-# `scripts/check-impact-triggers.ts` fails when they do not.
+# What is measured: each step's own `<name>.bench.ts` cells, not the cross-library
+# scenarios. A cell declares the group it aggregates into, what executing it must
+# produce, and how many iterations make one measured unit; `pnpm bench:cells` verifies
+# every one by running it. The scenarios remain the unit of Performance Comparison and
+# of `check-benchmark-coverage.ts`, which is what they are good at — a competitor
+# spelling of the same work cannot live inside a step's own bench file.
+#
+# Cell scoping (pull requests only). The run is scoped by mapping each changed file
+# through the internal import graph to the steps that import it, and then to those
+# steps' own cells. `scripts/impact-selection.ts` holds the mapping and everything it
+# refuses to decide; anything it cannot place is a full run, a `*.bench.ts` selects its
+# own step's cells because it changes the measurement without changing either build,
+# and a canary set — every construction and cold cell plus the named core cells — runs
+# whatever the diff says, because module initialisation is not attributable to a step
+# through cells that build their schema at module scope. The `paths` filters below
+# therefore have to admit every path that module can call a full run or a measurement
+# change, or the rule cannot fire; `scripts/check-impact-triggers.ts` fails when they
+# do not.
 #
 # Every rule there is about what a changed file *means*, not about whether its bytes
 # moved. `scripts/inert-change.ts` compares the two revisions of each changed path — a
@@ -43,22 +49,42 @@ run-name: Performance impact ${{ inputs.before || github.event.pull_request.base
 # The comparison *scripts* always come from the checked-out ref (PR merge ref, or
 # the dispatched ref), so the compare tooling and scenario selection are fixed;
 # `before` and `after` are only two valchecker builds the fixed scripts point at
-# via VALCHECKER_DIST_URL. valchecker before/after is measured with the rigorous
-# paired process comparison; selected competitor adapters are shown as standing
-# vs peers in each build via the ranking report.
+# via VALCHECKER_DIST_URL. The cell definitions come from the checked-out ref for the
+# same reason: they are part of the apparatus, and a cell that cannot execute against
+# the baseline build is reported as unmeasurable rather than dropped.
 #
-# This gate is deliberately NOT sharded, unlike Performance Comparison. Scenario
-# sharding would preserve the per-scenario classifier — all repetitions of both
-# sides for one scenario would still be adjacent on one machine, and a paired ratio
-# cancels machine speed — but it would turn the severe-GROUP trigger (5% geometric
-# mean across two or more stable scenarios) into an aggregate over several runners,
-# and that trigger is the one that catches broad moderate regressions the 10%
-# per-scenario threshold misses. Every shard job would also have to install and
-# build both revisions, a fixed cost that does not shard, so the wall-time saving is
-# well under 1/N while runner minutes multiply and 5 repetitions x 2 sides x N
-# shards of artefacts have to be fanned out, merged, and paired. `compare` refuses
-# to pair runs whose shard count or isolation differs, so a future attempt to shard
-# one side fails loudly instead of comparing across machines silently.
+# This gate IS sharded, four ways. It used to say it was deliberately not, and both
+# of that comment's objections were checked and did not survive.
+#
+# The first was that the severe-GROUP trigger would become a cross-runner aggregate.
+# That objection was right, and the answer this comment used to give was wrong. It
+# said every input to the aggregate is a machine-cancelled paired ratio so no
+# between-machine term can enter the statistic. Pairing does cancel machine *speed*
+# per cell; it does not make that cell's candidate/base ratio invariant across
+# microarchitectures. And because a cell keeps its shard for all five repetitions, any
+# such effect is a FIXED effect across repetitions: it shifts every `G_r` by the same
+# amount and contributes no variance, so the group's Student-t interval cannot widen
+# for it. The interval can be tight and displaced at once — bias, not noise. Run
+# 30547023911 drew an AMD EPYC 9V74 for shard 2 and 7763s for the rest.
+#
+# So a group trigger no longer blocks on the sharded screen alone. `confirm-measure`
+# remeasures the whole triggered group on ONE runner and the group blocks only if that
+# batch agrees; where the group does not fit one runner inside the budget, the trigger
+# is reported as `review` rather than blocking. The merge still happens before the
+# verdict, so the screen's group aggregate is computed once over the complete cell set.
+#
+# The second was that the fixed cost does not shard, so the saving is well under
+# 1/N. Measured against run 30357171722's predecessor 30353267140: the compare job
+# spent 55m12s measuring and about 40s on everything that does not shard — checkout
+# 1s, setup 10s, building both revisions 25s, scoping 2s. Wall time is therefore
+# 40s + measurement/N, and four shards is about 28.5 minutes. That is 1/N in all but
+# name. The original claim appears to have been estimated rather than measured.
+#
+# Sharding is also the only answer that scales, because the cell count grows with
+# every step added while a timeout is a constant that gets consumed.
+#
+# `compare` still refuses to pair runs whose shard count or isolation differs, so
+# sharding one side only fails loudly instead of comparing across machines silently.
 
 on:
   workflow_dispatch:
@@ -72,13 +98,8 @@ on:
         required: false
         default: ''
         type: string
-      adapters:
-        description: Competitor adapters to show alongside valchecker, comma-separated (e.g. valibot,zod3). Empty = valchecker only.
-        required: false
-        default: ''
-        type: string
       scenarios:
-        description: Scenario ids or group names to run, comma-separated (e.g. primitive/valid,warm/failure/first). Empty = all scenarios for the profile.
+        description: Cell ids to run, comma-separated (e.g. isEmail/valid,object/collect-all). Empty = every cell every step declares.
         required: false
         default: ''
         type: string
@@ -96,11 +117,6 @@ on:
         required: false
         default: '5'
         type: string
-      fail_on_regression:
-        description: Fail the job when the impact verdict is a regression
-        required: false
-        default: false
-        type: boolean
   pull_request:
     branches:
       - main
@@ -229,11 +245,27 @@ jobs:
       - name: Benchmark Harness Tests
         run: pnpm --dir benchmarks test
 
-  compare:
+  # One job per shard. Each resolves the same parameters and computes the same scope
+  # from the same diff — positional round-robin is deterministic from the selection and
+  # the count alone — so no scope has to be passed between jobs, and a shard that
+  # somehow disagreed would be refused by `merge` rather than silently reordered.
+  measure:
     needs: preflight
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    # Written by all four shards, which is safe only because every shard computes the same
+    # values from the same diff — the same property that lets no scope be passed between
+    # jobs. The confirmation stage reads them instead of resolving the parameters again.
+    outputs:
+      before_sha: ${{ steps.builds.outputs.before_sha }}
+      after_sha: ${{ steps.builds.outputs.after_sha }}
+      profile: ${{ steps.params.outputs.profile }}
+      runs: ${{ steps.params.outputs.runs }}
     steps:
       - name: Checkout comparison tooling
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -257,34 +289,28 @@ jobs:
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           INPUT_BEFORE: ${{ inputs.before }}
           INPUT_AFTER: ${{ inputs.after }}
-          INPUT_ADAPTERS: ${{ inputs.adapters }}
           INPUT_SCENARIOS: ${{ inputs.scenarios }}
           INPUT_PROFILE: ${{ inputs.profile }}
           INPUT_RUNS: ${{ inputs.runs }}
-          INPUT_FAIL: ${{ inputs.fail_on_regression }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            # Five repetitions, not three. A scenario is only classified when its
-            # paired ratio is stable, and at three repetitions the interval is so
-            # wide that most scenarios are not: across four historical runs, 27 to
-            # 44 of 80 could be judged, so the gate was blind to more than half of
-            # what it was watching. The interval narrows with both the wider t
-            # quantile and the extra samples, which puts 56 to 68 of the same 80
-            # inside the threshold. It costs about ten minutes, and the gate can
-            # only ever pass a scenario it cannot judge.
+            # Five repetitions, not three. A row is judged by whether its whole 95%
+            # interval sits on one side of a threshold, and at three repetitions that
+            # interval is so wide that almost nothing is decided — the gate reports what
+            # it could not judge rather than passing it, so an imprecise run costs
+            # coverage rather than correctness. Five is where the interval starts
+            # settling most cells, and it costs about ten minutes.
             {
               echo "before=$PR_BASE_SHA"
               echo "after=$PR_HEAD_SHA"
-              echo "adapters="
-              echo "scenarios="
+              echo "cells="
               echo "profile=standard"
               echo "runs=5"
-              echo "fail_on_regression=true"
             } >> "$GITHUB_OUTPUT"
           elif [[ "$EVENT_NAME" == "push" ]]; then
-            # The unscoped comparison of one merge. `github.event.before` is the tip
-            # main pointed at before this push, so the diff measured here is exactly the
+            # The unscoped comparison of one merge. `github.event.before` is the tip main
+            # pointed at before this push, so the diff measured here is exactly the
             # merge's own; it is the all-zero sha only for a branch's first push, where
             # the parent is the honest baseline.
             before="$PUSH_BEFORE_SHA"
@@ -294,11 +320,9 @@ jobs:
             {
               echo "before=$before"
               echo "after=$GITHUB_SHA"
-              echo "adapters="
-              echo "scenarios="
+              echo "cells="
               echo "profile=standard"
               echo "runs=5"
-              echo "fail_on_regression=true"
             } >> "$GITHUB_OUTPUT"
           else
             runs="$INPUT_RUNS"
@@ -308,11 +332,9 @@ jobs:
             {
               echo "before=$INPUT_BEFORE"
               echo "after=${INPUT_AFTER:-$GITHUB_SHA}"
-              echo "adapters=$INPUT_ADAPTERS"
-              echo "scenarios=$INPUT_SCENARIOS"
+              echo "cells=$INPUT_SCENARIOS"
               echo "profile=$INPUT_PROFILE"
               echo "runs=$runs"
-              echo "fail_on_regression=$INPUT_FAIL"
             } >> "$GITHUB_OUTPUT"
           fi
 
@@ -344,13 +366,33 @@ jobs:
             echo "after_dist=$(dist_url ../valchecker-after/packages/valchecker/dist/index.mjs)"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Scope the run to the scenarios the diff can move
+      # The catalog comparison the runtime cannot perform. The apparatus comes from the
+      # candidate ref, so a cell deleted there is never collected and can never appear in a
+      # baseline result — `removed 0` for exactly the coverage loss that matters. This reads
+      # what each revision *declares*, by parsing it: no build, no dist, no loader. It runs
+      # here because this is the job checked out with `fetch-depth: 0`, so both revisions are
+      # present; every shard writes the same file from the same two shas.
+      - name: Diff the declared cell catalogs
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
+          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact
+          pnpm bench:catalog-diff \
+            --base "$BEFORE_SHA" \
+            --head "$AFTER_SHA" \
+            --output artifacts/performance-impact/catalog-diff.json
+
+      - name: Scope the run to the cells the diff can move
         id: scope
         if: ${{ github.event_name == 'pull_request' }}
         shell: bash
         env:
           BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
           AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/performance-impact
@@ -360,46 +402,60 @@ jobs:
           # whether a changed file means anything different is a question about the pair:
           # a file whose two revisions differ only in comments or formatting cannot move a
           # number and does not select anything.
+          #
+          # The cell catalog is read by executing each step's declaration against the
+          # candidate build, which is why this runs after the builds.
           git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > artifacts/performance-impact/changed-files.txt
-          pnpm bench:impact-scope \
+          VALCHECKER_DIST_URL="$AFTER_DIST" pnpm bench:impact-scope \
             --changed-files artifacts/performance-impact/changed-files.txt \
             --base "$BEFORE_SHA" \
             --head "$AFTER_SHA" \
             --tree ../valchecker-after \
             --markdown artifacts/performance-impact/selection.md \
-            --summary "$GITHUB_STEP_SUMMARY" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Run interleaved paired benchmarks
         shell: bash
         env:
           PROFILE: ${{ steps.params.outputs.profile }}
-          SCENARIOS: ${{ steps.scope.outputs.scenarios || steps.params.outputs.scenarios }}
+          CELLS: ${{ steps.scope.outputs.scenarios || steps.params.outputs.cells }}
           RUNS: ${{ steps.params.outputs.runs }}
           BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
           AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
           BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
           AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
+          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/performance-impact
 
-          scenario_args=()
-          if [[ -n "$SCENARIOS" ]]; then
-            scenario_args=(--scenarios "$SCENARIOS")
+          cell_args=()
+          if [[ -n "$CELLS" ]]; then
+            cell_args=(--cells "$CELLS")
           fi
           seed="compare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
+          # The cell *definitions* always come from this checked-out ref, whichever build
+          # they are pointed at. The apparatus is fixed and `before`/`after` are two
+          # builds it measures; if each side read its own cells, editing a bench file
+          # would be editing the measurement.
+          # `--catalog-output` persists the cell catalog this shard measured against, hash
+          # included. That file is what `compare` reads: the reporting stage must not collect
+          # cells itself, because collecting them means importing every bench file through a
+          # loader pointed at a build under test. Each repetition writes the same catalog from
+          # the same checked-out ref, so the last write is the same as the first.
           run_side() {
             local side="$1" dist="$2" repetition="$3" sha="$4"
             VALCHECKER_DIST_URL="$dist" \
             BENCHMARK_COMMIT="$sha" \
-            pnpm --dir benchmarks bench \
+            pnpm --dir benchmarks cells \
               --mode "$PROFILE" \
-              --adapters valchecker \
               --seed "$seed-$repetition-$side" \
-              --output "../artifacts/performance-impact/$side-$repetition.json" \
-              "${scenario_args[@]}"
+              --shard-index "$SHARD" \
+              --shard-count 4 \
+              --output "../artifacts/performance-impact/$side-$repetition-shard$SHARD.json" \
+              --catalog-output "../artifacts/performance-impact/cell-catalog.json" \
+              "${cell_args[@]}"
           }
 
           for repetition in $(seq 1 "$RUNS"); do
@@ -412,118 +468,167 @@ jobs:
             fi
           done
 
-      - name: Compare benchmark impact
+      - name: Upload shard measurements
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-impact-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: artifacts/performance-impact
+          if-no-files-found: error
+          retention-days: 30
+
+  # The **screen** stage: the merge happens here, before any verdict, so every group
+  # aggregate is computed once over the complete cell set rather than four times over
+  # quarters of it.
+  #
+  # It no longer carries the exit code. A row that could block is measured a second time by
+  # `confirm-measure`, and `verdict` combines the two — so this job reports and the last job
+  # decides. See the comment on `verdict` for why the second batch is independent rather
+  # than pooled with this one.
+  compare:
+    needs: measure
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      confirm_plan: ${{ steps.confirm.outputs.plan }}
+      confirm_batches: ${{ steps.confirm.outputs.batches }}
+      confirm_any: ${{ steps.confirm.outputs.any }}
+    steps:
+      - name: Checkout comparison tooling
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # Not built, and that is the point of this job's shape rather than an economy. The
+      # coverage denominators come from the cell catalog the measuring shards persisted, so
+      # this stage reads JSON; it used to collect the cells itself, which imports every bench
+      # file through a loader that resolves the library to a build under test, and the first
+      # sharded run measured all 245 cells and then failed here for want of
+      # `VALCHECKER_DIST_URL`. A job with no build cannot regain that coupling quietly.
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+          benchmarks: 'true'
+
+      - name: Download shard measurements
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: performance-impact-shard-*-${{ github.run_attempt }}
+          path: artifacts/shards
+
+      - name: Merge shards and compare
+        id: verdict
         shell: bash
         env:
-          RUNS: ${{ steps.params.outputs.runs }}
-          FAIL_ON_REGRESSION: ${{ steps.params.outputs.fail_on_regression }}
+          RUNS: ${{ github.event_name == 'workflow_dispatch' && inputs.runs || '5' }}
         run: |
           set -euo pipefail
+          mkdir -p artifacts/performance-impact
+          runs="$RUNS"
+          if ! [[ "$runs" =~ ^[0-9]+$ ]] || [ "$runs" -lt 3 ]; then
+            runs=3
+          fi
+
+          # One merged file per (side, repetition), from the four shards of that
+          # repetition. `merge` refuses an incomplete set, a shard shape no positional
+          # round-robin could produce, and shards built from different commits, so a
+          # missing or mismatched shard fails here rather than producing a partial run
+          # the report would present as a whole one.
+          for side in baseline candidate; do
+            for repetition in $(seq 1 "$runs"); do
+              inputs=()
+              for shard in 0 1 2 3; do
+                inputs+=(--input "../artifacts/shards/performance-impact-shard-$shard-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard$shard.json")
+              done
+              pnpm --dir benchmarks merge \
+                "${inputs[@]}" \
+                --output "../artifacts/performance-impact/$side-$repetition.json"
+            done
+          done
+
           compare_args=()
-          for repetition in $(seq 1 "$RUNS"); do
+          for repetition in $(seq 1 "$runs"); do
             compare_args+=(--baseline "../artifacts/performance-impact/baseline-$repetition.json")
           done
-          for repetition in $(seq 1 "$RUNS"); do
+          for repetition in $(seq 1 "$runs"); do
             compare_args+=(--candidate "../artifacts/performance-impact/candidate-$repetition.json")
           done
-          fail_flag=()
-          if [[ "$FAIL_ON_REGRESSION" == "true" ]]; then
-            fail_flag=(--fail-on-regression)
-          fi
+
+          cp -f artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/selection.md artifacts/performance-impact/selection.md 2> /dev/null || true
+
+          # Any shard's catalog will do and shard 0's is the one taken: the four shards are
+          # four quarters of one catalog, `merge` refuses shards whose recorded catalog hash
+          # differs, and `compare` refuses a catalog file that is not the one the runs were
+          # measured against. So a stale or foreign artifact fails here rather than silently
+          # supplying the denominators.
+          cp -f "artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/cell-catalog.json" artifacts/performance-impact/cell-catalog.json
+          cp -f "artifacts/shards/performance-impact-shard-0-${GITHUB_RUN_ATTEMPT}/catalog-diff.json" artifacts/performance-impact/catalog-diff.json
+
           pnpm --dir benchmarks compare \
             "${compare_args[@]}" \
+            --catalog cells \
+            --cell-catalog ../artifacts/performance-impact/cell-catalog.json \
+            --catalog-diff ../artifacts/performance-impact/catalog-diff.json \
+            --require-catalog-diff \
             --markdown ../artifacts/performance-impact/impact.md \
             --json ../artifacts/performance-impact/impact.json \
-            --html ../artifacts/performance-impact/impact.html \
-            "${fail_flag[@]}"
+            --html ../artifacts/performance-impact/impact.html
 
-      - name: Benchmark standing versus competitors
-        if: ${{ steps.params.outputs.adapters != '' }}
+      # Which cells earn an independent second batch: every candidate regression, and every
+      # inconclusive row whose interval reaches −5%. `confirmation.mjs` decides it and this
+      # only shapes the answer into a matrix. The shard count is capped at the number of
+      # cells, because a shard with no cells is an error rather than an empty run.
+      # Which cells earn an independent second batch, over how many shards, and for which
+      # groups the batch can support a blocking verdict. `confirmation.mjs` decides all three
+      # and prints them as JSON; this only lifts them into job outputs. The shard count is 1
+      # whenever a group is at stake, because a group aggregate mixed across runners is the
+      # defect being corrected.
+      # The confirmation stage as a set of independent batches: the ordinary rows sharded up to
+      # four ways, and one single-runner batch per group being confirmed. `confirmation.mjs`
+      # decides the batches and sizes each group's by that group's own cells, so a group's
+      # confirmability never depends on how much unrelated work the second stage happens to have.
+      # This step only lifts the plan into job outputs; the matrix is a list of batch indices and
+      # each job reads its own batch out of the plan.
+      - name: Plan the confirmation batches
+        id: confirm
         shell: bash
-        env:
-          PROFILE: ${{ steps.params.outputs.profile }}
-          SCENARIOS: ${{ steps.params.outputs.scenarios }}
-          ADAPTERS: ${{ steps.params.outputs.adapters }}
-          BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
-          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
-          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
-          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
         run: |
           set -euo pipefail
-          scenario_args=()
-          if [[ -n "$SCENARIOS" ]]; then
-            scenario_args=(--scenarios "$SCENARIOS")
-          fi
-          seed="compare-context-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-
-          # Each build reports into its own directory so report-all's sibling
-          # summary.md files (dirname(markdown)/summary.md) do not collide.
-          context() {
-            local side="$1" dist="$2" sha="$3"
-            mkdir -p "artifacts/performance-impact/$side-context"
-            VALCHECKER_DIST_URL="$dist" \
-            BENCHMARK_COMMIT="$sha" \
-            pnpm --dir benchmarks bench \
-              --mode "$PROFILE" \
-              --adapters "valchecker,$ADAPTERS" \
-              --seed "$seed-$side" \
-              --output "../artifacts/performance-impact/$side-context/raw.json" \
-              "${scenario_args[@]}"
-            pnpm --dir benchmarks report \
-              --input "../artifacts/performance-impact/$side-context/raw.json" \
-              --markdown "../artifacts/performance-impact/$side-context/report.md" \
-              --html "../artifacts/performance-impact/$side-context/report.html"
-          }
-
-          context before "$BEFORE_DIST" "$BEFORE_SHA"
-          context after "$AFTER_DIST" "$AFTER_SHA"
+          plan="$(pnpm --silent --dir benchmarks confirm \
+            --screen ../artifacts/performance-impact/impact.json \
+            --plan)"
+          batches="$(node -e '
+            const plan = JSON.parse(process.argv[1])
+            process.stdout.write(JSON.stringify(plan.batches.map((unused, index) => index)))
+          ' "$plan")"
+          any="$(node -e '
+            const plan = JSON.parse(process.argv[1])
+            process.stdout.write(plan.batches.length > 0 ? "yes" : "")
+          ' "$plan")"
+          {
+            echo "plan=$plan"
+            echo "batches=${batches:-[0]}"
+            echo "any=$any"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publish comparison summary
         if: always()
         shell: bash
-        env:
-          BEFORE_REF: ${{ steps.params.outputs.before }}
-          AFTER_REF: ${{ steps.params.outputs.after }}
-          BEFORE_SHA: ${{ steps.builds.outputs.before_sha }}
-          AFTER_SHA: ${{ steps.builds.outputs.after_sha }}
-          ADAPTERS: ${{ steps.params.outputs.adapters }}
-          SCENARIOS: ${{ steps.params.outputs.scenarios }}
-          SCOPE_COUNT: ${{ steps.scope.outputs.count }}
-          PROFILE: ${{ steps.params.outputs.profile }}
         run: |
           set -euo pipefail
-          # A reader of a passing gate has to see how much was measured, so the count
-          # replaces the word "all" whenever the run was scoped.
-          scenarios_cell="${SCENARIOS:-all}"
-          if [[ -n "$SCOPE_COUNT" ]]; then
-            scenarios_cell="${SCOPE_COUNT} selected — see **Scenario scope** above"
-          fi
           {
             echo "# Performance impact"
             echo
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo "| Before | \`${BEFORE_REF}\` (${BEFORE_SHA:-unresolved}) |"
-            echo "| After | \`${AFTER_REF}\` (${AFTER_SHA:-unresolved}) |"
-            echo "| Profile | ${PROFILE} |"
-            echo "| Scenarios | ${scenarios_cell} |"
-            echo "| Competitors | ${ADAPTERS:-none} |"
-            echo
           } >> "$GITHUB_STEP_SUMMARY"
-
+          if [[ -f artifacts/performance-impact/selection.md ]]; then
+            cat artifacts/performance-impact/selection.md >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [[ -f artifacts/performance-impact/impact.md ]]; then
             cat artifacts/performance-impact/impact.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo "> Impact report was not produced; see the job logs." >> "$GITHUB_STEP_SUMMARY"
           fi
-
-          for side in after before; do
-            summary="artifacts/performance-impact/${side}-context/summary.md"
-            if [[ -f "$summary" ]]; then
-              printf '\n## Standing versus competitors — %s build\n\n' "$side" >> "$GITHUB_STEP_SUMMARY"
-              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
 
       - name: Upload benchmark comparison
         if: always() && hashFiles('artifacts/performance-impact/**') != ''
@@ -531,5 +636,291 @@ jobs:
         with:
           name: performance-impact-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
           path: artifacts/performance-impact
+          if-no-files-found: error
+          retention-days: 30
+
+  # The **confirm** stage: a second, independent fixed batch over the rows the screen says
+  # could block.
+  #
+  # Fixed and independent are both load-bearing. The plan this replaces re-ran every
+  # inconclusive cell for k more repetitions and pooled them with the first pass — which is
+  # optional stopping however carefully the rule is pre-declared, because the set being
+  # extended is chosen by the first result. Two fixed batches, each judged by the same rule
+  # with no knowledge of the other, have no such property: this batch is five paired
+  # repetitions whatever it finds, and `verdict` combines two verdicts rather than one
+  # lengthened sample. The seed differs from the screen's, so the two are separate samples.
+  #
+  # It measures the cells `confirmation.mjs` selected and no others, so it costs what is at
+  # stake rather than what the run measured: 6 of 170 cells in the quieter of the two hosted
+  # null runs, 47 in the noisier. The shard count is capped at the cell count, because a
+  # shard with no cells is an error rather than an empty run.
+  confirm-measure:
+    needs: [measure, compare]
+    if: needs.compare.outputs.confirm_any != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        batch: ${{ fromJSON(needs.compare.outputs.confirm_batches) }}
+    steps:
+      - name: Checkout comparison tooling
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+          benchmarks: 'true'
+
+      # The same two revisions the screen measured, read from `measure`'s outputs rather than
+      # re-derived from the event: every shard of that job resolved the same pair, and
+      # resolving the parameters twice is how the two stages would come to measure two
+      # different commits.
+      - name: Build before and after revisions
+        id: builds
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ needs.measure.outputs.before_sha }}
+          AFTER_SHA: ${{ needs.measure.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --all --tags --quiet || true
+
+          git worktree add ../valchecker-before "$BEFORE_SHA"
+          pnpm --dir ../valchecker-before install --frozen-lockfile
+          pnpm --dir ../valchecker-before build
+
+          git worktree add ../valchecker-after "$AFTER_SHA"
+          pnpm --dir ../valchecker-after install --frozen-lockfile
+          pnpm --dir ../valchecker-after build
+
+          dist_url() { node -e "console.log(require('node:url').pathToFileURL(require('node:path').resolve(process.argv[1])).href)" "$1"; }
+          {
+            echo "before_dist=$(dist_url ../valchecker-before/packages/valchecker/dist/index.mjs)"
+            echo "after_dist=$(dist_url ../valchecker-after/packages/valchecker/dist/index.mjs)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run the confirmation batch
+        id: batch
+        shell: bash
+        env:
+          PROFILE: ${{ needs.measure.outputs.profile }}
+          PLAN: ${{ needs.compare.outputs.confirm_plan }}
+          BATCH: ${{ matrix.batch }}
+          RUNS: ${{ needs.measure.outputs.runs }}
+          BEFORE_DIST: ${{ steps.builds.outputs.before_dist }}
+          AFTER_DIST: ${{ steps.builds.outputs.after_dist }}
+          BEFORE_SHA: ${{ needs.measure.outputs.before_sha }}
+          AFTER_SHA: ${{ needs.measure.outputs.after_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact-confirm
+          seed="confirm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          # This job's own batch, read from the plan rather than passed field by field.
+          read -r BATCH_ID CELLS SHARD SHARD_COUNT <<< "$(node -e '
+            const plan = JSON.parse(process.argv[1])
+            const batch = plan.batches[Number(process.argv[2])]
+            process.stdout.write([batch.id, batch.cells.join(","), batch.shardIndex, batch.shardCount].join(" "))
+          ' "$PLAN" "$BATCH")"
+          echo "id=$BATCH_ID" >> "$GITHUB_OUTPUT"
+          echo "[confirm] batch $BATCH_ID: shard $SHARD of $SHARD_COUNT"
+
+          run_side() {
+            local side="$1" dist="$2" repetition="$3" sha="$4"
+            VALCHECKER_DIST_URL="$dist" \
+            BENCHMARK_COMMIT="$sha" \
+            pnpm --dir benchmarks cells \
+              --mode "$PROFILE" \
+              --seed "$seed-$repetition-$side" \
+              --shard-index "$SHARD" \
+              --shard-count "$SHARD_COUNT" \
+              --cells "$CELLS" \
+              --output "../artifacts/performance-impact-confirm/$side-$repetition-shard$SHARD.json" \
+              --catalog-output "../artifacts/performance-impact-confirm/cell-catalog.json"
+          }
+
+          # Counterbalanced by repetition parity, for the reason the screen batch is: pairing
+          # cancels machine speed and not a monotonic drift over the job.
+          for repetition in $(seq 1 "$RUNS"); do
+            if (( repetition % 2 == 0 )); then
+              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
+              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
+            else
+              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
+              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
+            fi
+          done
+
+      - name: Upload confirmation measurements
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-impact-confirm-${{ steps.batch.outputs.id }}-${{ github.run_attempt }}
+          path: artifacts/performance-impact-confirm
+          if-no-files-found: error
+          retention-days: 30
+
+  # The job that decides, and the only one carrying the exit code.
+  #
+  # `resolveConfirmation` combines the two stages: a severe screen row reproduced by the
+  # second batch fails, one the second batch could not judge is `unresolved` and not a pass,
+  # and one the second batch cleared passes with the screen's own noise named. A severe row
+  # with no second batch at all is `unconfirmed`, which still blocks — a missing confirmation
+  # must never read as a clearing one, which is why this job runs even when `confirm-measure`
+  # failed, and why it fails when the screen's severe rows arrive unconfirmed.
+  verdict:
+    needs: [measure, compare, confirm-measure]
+    if: always() && needs.compare.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout comparison tooling
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # No build here either: by the time a stage reaches this job it is an `impact.json`,
+      # and the catalog is the artifact the measurement wrote.
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+          benchmarks: 'true'
+
+      - name: Download the screen comparison
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: performance-impact-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/screen
+
+      - name: Download the confirmation measurements
+        if: needs.confirm-measure.result == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: performance-impact-confirm-*-${{ github.run_attempt }}
+          path: artifacts/confirm-batches
+
+      - name: Resolve the two stages
+        shell: bash
+        env:
+          RUNS: ${{ needs.measure.outputs.runs }}
+          CONFIRM_RESULT: ${{ needs.confirm-measure.result }}
+          PLAN: ${{ needs.compare.outputs.confirm_plan }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance-impact-verdict
+          runs="$RUNS"
+          if ! [[ "$runs" =~ ^[0-9]+$ ]] || [ "$runs" -lt 3 ]; then
+            runs=3
+          fi
+
+          # One comparison per batch, and the batches are independent by design: the ordinary rows
+          # are one sharded comparison, and each group is its own single-runner comparison. A
+          # group's evidence therefore never depends on how much unrelated work the second stage
+          # had — which is what let a nine-cell group lose its blocking confirmation because
+          # unrelated boundary rows pushed a shared budget over the limit.
+          confirm_args=()
+          if [[ "$CONFIRM_RESULT" == "success" && -d artifacts/confirm-batches ]]; then
+            # `<id> <kind> <group> <shardCount>` per batch, from the plan the compare job emitted,
+            # through a file rather than `mapfile`: that builtin needs bash 4, so a snippet using
+            # it cannot be run on a macOS bash 3.2 before being pushed. This is the same mistake as
+            # depending on GNU `seq -s,`, and the point of avoiding it is that the loop below can
+            # be rehearsed locally against a real plan.
+            batches_file=artifacts/performance-impact-verdict/batches.txt
+            node -e '
+              const plan = JSON.parse(process.argv[1])
+              for (const batch of plan.batches)
+                process.stdout.write(`${batch.id} ${batch.kind} ${batch.group ?? "-"} ${batch.shardCount}\n`)
+            ' "$PLAN" > "$batches_file"
+
+            # The row batch: merge its shards per (side, repetition), then compare once.
+            row_shards="$(awk '$2 == "rows" { print $4 }' "$batches_file" | head -1)"
+            if [[ -n "$row_shards" ]]; then
+              for side in baseline candidate; do
+                for repetition in $(seq 1 "$runs"); do
+                  inputs=()
+                  for (( shard = 0; shard < row_shards; shard++ )); do
+                    inputs+=(--input "../artifacts/confirm-batches/performance-impact-confirm-rows-$shard-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard$shard.json")
+                  done
+                  pnpm --dir benchmarks merge \
+                    "${inputs[@]}" \
+                    --output "../artifacts/performance-impact-verdict/confirm-$side-$repetition.json"
+                done
+              done
+
+              compare_args=()
+              for repetition in $(seq 1 "$runs"); do
+                compare_args+=(--baseline "../artifacts/performance-impact-verdict/confirm-baseline-$repetition.json")
+              done
+              for repetition in $(seq 1 "$runs"); do
+                compare_args+=(--candidate "../artifacts/performance-impact-verdict/confirm-candidate-$repetition.json")
+              done
+
+              # Judged by the same rule as the screen, with the same catalog, over its own cells
+              # only. Its group aggregates are over an outcome-selected subset and are deliberately
+              # not read: `resolveConfirmation` uses its rows, and reads each group's aggregate from
+              # that group's own single-runner comparison below.
+              pnpm --dir benchmarks compare \
+                "${compare_args[@]}" \
+                --catalog cells \
+                --cell-catalog ../artifacts/screen/cell-catalog.json \
+                --markdown ../artifacts/performance-impact-verdict/confirm-impact.md \
+                --json ../artifacts/performance-impact-verdict/confirm-impact.json \
+                --html ../artifacts/performance-impact-verdict/confirm-impact.html
+              confirm_args+=(--confirm ../artifacts/performance-impact-verdict/confirm-impact.json)
+            fi
+
+            # Each group batch: one runner, so no merge — one file per (side, repetition) already.
+            while read -r id kind group shard_count; do
+              [[ "$kind" == "group" ]] || continue
+              group_args=()
+              for side in baseline candidate; do
+                for repetition in $(seq 1 "$runs"); do
+                  group_args+=("--$side" "../artifacts/confirm-batches/performance-impact-confirm-$id-${GITHUB_RUN_ATTEMPT}/$side-$repetition-shard0.json")
+                done
+              done
+              pnpm --dir benchmarks compare \
+                "${group_args[@]}" \
+                --catalog cells \
+                --cell-catalog ../artifacts/screen/cell-catalog.json \
+                --markdown "../artifacts/performance-impact-verdict/$id.md" \
+                --json "../artifacts/performance-impact-verdict/$id.json" \
+                --html "../artifacts/performance-impact-verdict/$id.html"
+              confirm_args+=(--group-confirm "$group=../artifacts/performance-impact-verdict/$id.json")
+            done < "$batches_file"
+          fi
+
+          pnpm --dir benchmarks confirm \
+            --screen ../artifacts/screen/impact.json \
+            "${confirm_args[@]}" \
+            --markdown ../artifacts/performance-impact-verdict/confirmation.md \
+            --json ../artifacts/performance-impact-verdict/confirmation.json \
+            --fail-on-regression
+
+      - name: Publish the verdict
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "# Performance impact verdict"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f artifacts/performance-impact-verdict/confirmation.md ]]; then
+            cat artifacts/performance-impact-verdict/confirmation.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "> The confirmation stage did not produce a report; see the job logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the verdict
+        if: always() && hashFiles('artifacts/performance-impact-verdict/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-impact-verdict-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/performance-impact-verdict
           if-no-files-found: error
           retention-days: 30

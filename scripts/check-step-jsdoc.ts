@@ -14,9 +14,13 @@ const errors: string[] = []
 
 function pluginDefBlock(source: string): string | undefined {
 	// Match any `*PluginDef` interface name, not only the bare `PluginDef`
-	// identifier: several steps prefix it (e.g. `AtLeastPluginDef`,
-	// `LengthAtLeastPluginDef`). A literal `indexOf('interface PluginDef')`
-	// silently skipped those files and let their JSDoc regress unchecked.
+	// identifier. Four steps used to prefix it (`AtLeastPluginDef`,
+	// `LengthAtLeastPluginDef`, …), and a literal `indexOf('interface PluginDef')`
+	// silently skipped those files and let their JSDoc regress unchecked. The name
+	// is now fixed at `PluginDef` and `check-step-completeness` enforces that, so
+	// this pattern is deliberately no longer load-bearing: it stays permissive so
+	// that a step reintroducing a prefix is caught by the naming rule that owns it
+	// rather than dropping out of this scan the way it used to.
 	const match = /interface\s+\w*PluginDef\b/.exec(source)
 	if (match == null)
 		return undefined

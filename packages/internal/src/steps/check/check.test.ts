@@ -1,6 +1,6 @@
 import type { ExecutionIssue } from '../../core'
 import { describe, expect, it } from 'vitest'
-import { check, createValchecker } from '../..'
+import { check, createValchecker, unknown } from '../..'
 
 const v = createValchecker({ steps: [check] })
 
@@ -30,7 +30,7 @@ describe('check step plugin', () => {
 				issues: [{
 					code: 'check:failed',
 					category: 'validation',
-					message: 'Check failed',
+					message: 'Check failed.',
 					path: [],
 					payload: { reason: 'returned_false', value: 'fail' },
 				}],
@@ -109,6 +109,45 @@ describe('check step plugin', () => {
 			})
 	})
 
+	it('passes when the callback returns nothing at all', () => {
+		expect(v.check((): void => {})
+			.execute('value'))
+			.toEqual({ value: 'value' })
+	})
+
+	it('keeps explicitly added issues and appends the callback failure when the callback throws', () => {
+		const error = new Error('Thrown after adding')
+		expect(v.check<DomainIssue>((value, { addIssue }) => {
+			addDomainIssue(value, addIssue)
+			throw error
+		})
+			.execute('blocked'))
+			.toMatchObject({
+				issues: [
+					{ code: 'domain:blocked', payload: { value: 'blocked' } },
+					{
+						code: 'check:callback_failed',
+						category: 'operation',
+						payload: { phase: 'throw', value: 'blocked', error },
+					},
+				],
+			})
+	})
+
+	it('resolves an added issue through the step message option as its enclosing scope', () => {
+		expect(v.check<DomainIssue>((value, { addIssue }) => {
+			addDomainIssue(value, addIssue)
+			return true
+		}, { message: 'Enclosing check message' })
+			.execute('blocked'))
+			.toMatchObject({
+				issues: [{
+					code: 'domain:blocked',
+					message: 'Enclosing check message',
+				}],
+			})
+	})
+
 	it('supports asynchronous predicate success and failure', async () => {
 		await expect(v.check(async value => value === 'pass')
 			.execute('pass'))
@@ -164,6 +203,27 @@ describe('check step plugin', () => {
 				issues: [{
 					code: 'check:failed',
 					message: 'Custom: value',
+				}],
+			})
+	})
+})
+
+describe('check narrowing runtime contract', () => {
+	const v = createValchecker({ steps: [check, unknown] })
+
+	it('treats the narrowing utility result as a successful predicate result', () => {
+		const schema = v.unknown()
+			.check((value, { narrow }) => (
+				typeof value === 'string' ? narrow<string>() : false
+			))
+
+		expect(schema.execute('value'))
+			.toEqual({ value: 'value' })
+		expect(schema.execute(42))
+			.toMatchObject({
+				issues: [{
+					code: 'check:failed',
+					payload: { reason: 'returned_false', value: 42 },
 				}],
 			})
 	})

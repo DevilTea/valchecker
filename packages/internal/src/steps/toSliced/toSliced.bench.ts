@@ -1,35 +1,27 @@
-/**
- * Benchmark plan for toSliced:
- * - Operations benchmarked: toSliced validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
+import { as, createValchecker, toSliced } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-import { bench, describe } from 'vitest'
-import { any, array, createValchecker, toSliced } from '../..'
+const v = createValchecker({ steps: [as, toSliced] })
 
-const v = createValchecker({ steps: [toSliced, array, any] })
+// `as` rather than `array(v.any())`: the enclosing structural walk would be most of the
+// unit and an `array` regression would fire here. `as` is type-only and installs no
+// runtime step, so the unit is `execute()` plus this step, which is one `value.slice()`
+// call with the stored parameters.
+const schema = v.as<number[]>()
+	.toSliced(1, 4)
 
-describe('toSliced benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.array(v.any())
-				.toSliced(0, 2)
-				.execute([1, 2, 3, 4])
-		})
+const value = [1, 2, 3, 4, 5, 6]
 
-		bench('valid input - large', () => {
-			v.array(v.any())
-				.toSliced(0, 100)
-				.execute(Array.from({ length: 1000 }, (_, i) => i))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.array(v.any())
-				.toSliced(0, 2)
-				.execute('string')
-		})
-	})
-})
+// `toSliced` owns no issue code — no `SelfIssue` in its `Meta`, and the implementation is
+// a single `success(value.slice(...params))` — so the success cell is its whole contract.
+// The step's own signature is whatever the current value's `slice` accepts, so there is
+// no second algorithm behind an option either.
+stepBench('toSliced', [
+	{
+		name: 'array-sliced',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute(value),
+	},
+])

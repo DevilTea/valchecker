@@ -87,6 +87,38 @@ describe('array step plugin', () => {
 			})
 	})
 
+	it('snapshots the length once, so a child appending to the input cannot extend an asynchronous traversal', async () => {
+		const input = [1, 2]
+		let appended = 0
+		const item = v.unknown()
+			.transform(async (value) => {
+				if (appended < 5) {
+					appended++
+					input.push(100 + appended)
+				}
+				return value
+			})
+
+		await expect(v.array(item)
+			.execute(input))
+			.resolves.toEqual({ value: [1, 2] })
+		expect(input.length)
+			.toBe(4)
+	})
+
+	it('snapshots the length once, so a child shortening the input still yields one output per original index', async () => {
+		const input = [1, 2, 3]
+		const item = v.unknown()
+			.transform(async (value) => {
+				input.length = 1
+				return value
+			})
+
+		await expect(v.array(item)
+			.execute(input))
+			.resolves.toEqual({ value: [1, undefined, undefined] })
+	})
+
 	it('continues remaining items after a recoverable asynchronous child failure', async () => {
 		const later = vi.fn((value: string) => value.toUpperCase())
 		let index = 0
@@ -184,6 +216,44 @@ describe('array step plugin', () => {
 					payload: { method: 'asyncInternalFailure' },
 				}],
 			})
+		expect(later).not.toHaveBeenCalled()
+	})
+})
+
+describe('array collectAllIssues', () => {
+	const fixture = structuralFixture
+
+	const v = createValchecker({ steps: [array, fixture, string, transform, unknown] })
+
+	it('retains array classification before item traversal', () => {
+		expect(v.array(v.string(), { collectAllIssues: true })
+			.execute({}))
+			.toMatchObject({ issues: [{ code: 'array:expected_array' }] })
+	})
+
+	it('returns ordered outputs after asynchronous item validation', async () => {
+		const item = v.string()
+			.transform(async value => value.toUpperCase())
+		await expect(v.array(item, { collectAllIssues: true })
+			.execute(['a', 'b']))
+			.resolves.toEqual({ value: ['A', 'B'] })
+	})
+
+	it('stops later items after an asynchronous internal issue', async () => {
+		const later = vi.fn()
+		const internal = (v as any).unknown()
+			.asyncInternalFailure()
+		const observed = (v as any).unknown()
+			.observe(later)
+		const item = {
+			'~execute': (value: unknown) => value === 'internal'
+				? internal['~execute'](value)
+				: observed['~execute'](value),
+		} as any
+
+		await expect((v as any).array(item, { collectAllIssues: true })
+			.execute(['internal', 'later']))
+			.resolves.toMatchObject({ issues: [{ category: 'internal', path: [0] }] })
 		expect(later).not.toHaveBeenCalled()
 	})
 })

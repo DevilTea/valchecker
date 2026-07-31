@@ -6,6 +6,11 @@ const v = createValchecker({ steps: [string, isMac] })
 const valid = [
 	'00:1A:2B:3C:4D:5E',
 	'aa-bb-cc-dd-ee-ff',
+	// Each separator position is independent, so a mixed form is accepted. This
+	// is the documented looseness of the current pattern.
+	'00:1A-2B:3C-4D:5E',
+	// Case-insensitive, and either case may be mixed within an octet.
+	'Aa:bB:cC:dD:eE:fF',
 ]
 
 const invalid = [
@@ -14,6 +19,19 @@ const invalid = [
 	'gg:11:22:33:44:55',
 	'00:1A:2B:3C:4D:5E:6F',
 	'',
+	// EUI-64 is eight octets, not six, so it is not a MAC address here.
+	'00:1A:2B:3C:4D:5E:6F:70',
+	// Only `:` and `-` separate octets: the Cisco dotted-triple form is not
+	// accepted, and neither is a dot in place of a colon.
+	'0011.2233.4455',
+	'00.1A.2B.3C.4D.5E',
+	// Every octet is exactly two hexadecimal digits, never one or three.
+	'0:1:2:3:4:5',
+	'000:1A:2B:3C:4D:5E',
+	// A separator may not close the string, and `$` without the `m` flag is
+	// end-of-input.
+	'00:1A:2B:3C:4D:5E:',
+	'00:1A:2B:3C:4D:5E\n',
 ]
 
 describe('isMac step plugin', () => {

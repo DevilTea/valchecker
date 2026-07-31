@@ -1,54 +1,23 @@
-/**
- * Benchmark plan for toAsync:
- * - Operations benchmarked: toAsync validation with various input types and sizes
- * - Input scenarios: sync/maybe-async valid inputs, failure results
- * - Comparison baselines: Native Promise.resolve where applicable
- */
+import { createValchecker, string, toAsync } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-import { bench, describe } from 'vitest'
-import { createValchecker, string, toAsync, transform } from '../..'
+const v = createValchecker({ steps: [string, toAsync] })
 
-const v = createValchecker({ steps: [string, transform, toAsync] })
+// `toAsync` wraps the last result in `Promise.resolve` and declares the pipeline async,
+// so every execution returns a promise and the cell must be awaited inside the timed
+// region. It owns no issue code, so there is no failure of its own to measure.
+const schema = v.string()
+	.toAsync()
 
-describe('toAsync benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - sync transform', async () => {
-			await v.string()
-				.transform((x: string) => x.toUpperCase())
-				.toAsync()
-				.execute('hello')
-		})
+const valid = 'hello'
 
-		bench('valid input - maybe-async transform', async () => {
-			await v.string()
-				.transform((x: string): string | Promise<string> => Promise.resolve(x.toUpperCase()))
-				.toAsync()
-				.execute('hello')
-		})
-
-		bench('valid input - large string', async () => {
-			await v.string()
-				.transform((x: string) => x.toUpperCase())
-				.toAsync()
-				.execute('a'.repeat(1000))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input - type error', async () => {
-			await v.string()
-				.toAsync()
-				.execute(123)
-		})
-	})
-
-	describe('baseline comparison', () => {
-		bench('baseline - native Promise.resolve with sync', async () => {
-			await Promise.resolve({ value: 'HELLO' })
-		})
-
-		bench('baseline - native Promise.resolve with async', async () => {
-			await Promise.resolve(Promise.resolve({ value: 'HELLO' }))
-		})
-	})
-})
+stepBench('toAsync', [
+	{
+		name: 'valid',
+		group: 'warm/async/success',
+		async: true,
+		expect: { success: true },
+		batch: 10,
+		run: () => schema.execute(valid),
+	},
+])

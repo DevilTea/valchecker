@@ -14,7 +14,11 @@ describe('isNonNull step plugin', () => {
 			.toEqual({ value: undefined })
 		expect(schema.execute(null))
 			.toMatchObject({
-				issues: [{ code: 'isNonNull:expected_non_null', payload: { value: null } }],
+				issues: [{
+					code: 'isNonNull:expected_non_null',
+					message: 'Expected a non-null value.',
+					payload: { value: null },
+				}],
 			})
 	})
 

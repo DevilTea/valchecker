@@ -1,35 +1,19 @@
-/**
- * Benchmark plan for toLowercase:
- * - Operations benchmarked: toLowercase validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, string, toLowercase } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const v = createValchecker({ steps: [toLowercase, string] })
+// The step owns no issue: `value.toLowerCase()` on a string cannot fail. It therefore has
+// a success cell only — the failure cell this replaced passed a number, which failed in
+// `string` and never reached this step at all.
+const v = createValchecker({ steps: [string, toLowercase] })
+const schema = v.string()
+	.toLowercase()
 
-describe('toLowercase benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.string()
-				.toLowercase()
-				.execute('HELLO')
-		})
-
-		bench('valid input - large', () => {
-			v.string()
-				.toLowercase()
-				.execute('A'.repeat(1000))
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.string()
-				.toLowercase()
-				.execute(123)
-		})
-	})
-})
+stepBench('toLowercase', [
+	{
+		name: 'mixed-case',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('Hello World'),
+	},
+])

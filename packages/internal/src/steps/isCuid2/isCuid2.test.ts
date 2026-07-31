@@ -6,6 +6,9 @@ const v = createValchecker({ steps: [string, isCuid2] })
 const valid = [
 	'tz4a98xxat96iws9zmbrgj3a',
 	'abc123',
+	// The shortest and longest accepted lengths: 2 and the 32-character cap.
+	'ab',
+	`a${'b'.repeat(31)}`,
 ]
 
 const invalid = [
@@ -14,6 +17,16 @@ const invalid = [
 	'a',
 	'a_b',
 	'',
+	// One character past the cap. A cuid2 configured longer than 32 is not
+	// accepted, which is the pattern's stated pragmatic limit.
+	`a${'b'.repeat(32)}`,
+	// Lowercase only, with no `i` flag: a single uppercase character anywhere
+	// disqualifies the string.
+	'abcD',
+	// Hyphens are not part of base 36, so a Nano ID is not a CUID2.
+	'a-b',
+	// `$` without the `m` flag is end-of-input.
+	'abc123\n',
 ]
 
 describe('isCuid2 step plugin', () => {

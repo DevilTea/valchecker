@@ -1,16 +1,24 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isAtMost, number } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [number, isAtMost] })
-	.number()
+const v = createValchecker({ steps: [number, isAtMost] })
+const schema = v.number()
 	.isAtMost(100)
 
-describe('isAtMost benchmarks', () => {
-	bench('numeric success', () => {
-		schema.execute(5)
-	})
-
-	bench('numeric failure', () => {
-		schema.execute(101)
-	})
-})
+stepBench('isAtMost', [
+	{
+		name: 'satisfied',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute(5),
+	},
+	{
+		// A number, so it clears `number` and the comparison is what fails.
+		name: 'above-maximum',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isAtMost:expected_at_most'] },
+		batch: 100,
+		run: () => schema.execute(101),
+	},
+])

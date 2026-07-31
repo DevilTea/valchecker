@@ -165,6 +165,68 @@ describe('record step plugin — non-finite (open) key domain', () => {
 			.toMatchObject({ issues: [{ code: 'number:expected_number', path: ['a'] }] })
 	})
 
+	it('stops at a key failure before reporting that entry\'s value', async () => {
+		expect(v.record({ key: v.symbol(), value: v.number() })
+			.execute({ a: 'x' }))
+			.toMatchObject({ issues: [{ code: 'symbol:expected_symbol', path: ['a'] }] })
+
+		await expect(v.record({ key: v.symbol()
+			.toAsync(), value: v.number() })
+			.execute({ a: 'x' })).resolves
+			.toMatchObject({ issues: [{ code: 'symbol:expected_symbol', path: ['a'] }] })
+	})
+
+	it('stops at the first failing entry after an asynchronous one when collection is off', async () => {
+		const first = Symbol('first')
+		const second = Symbol('second')
+
+		await expect(v.record({ key: v.string()
+			.toAsync(), value: v.number() })
+			.execute({ a: 1, [first]: 2, [second]: 3 })).resolves
+			.toMatchObject({ issues: [{ code: 'string:expected_string', path: [first] }] })
+
+		await expect(v.record({ key: v.string(), value: v.number()
+			.toAsync() })
+			.execute({ a: 1, b: 'x', c: 'y' })).resolves
+			.toMatchObject({ issues: [{ code: 'number:expected_number', path: ['b'] }] })
+	})
+
+	it('never lets a failed entry claim a transformed key', async () => {
+		// A failed entry that still reserved its transformed key would make a
+		// later entry look like a duplicate that the input does not contain.
+		expect(v.record({ key: v.symbol(), value: v.number(), collectAllIssues: true })
+			.execute({ a: 1, b: 2 }))
+			.toMatchObject({
+				issues: [
+					{ code: 'symbol:expected_symbol', path: ['a'] },
+					{ code: 'symbol:expected_symbol', path: ['b'] },
+				],
+			})
+
+		await expect(v.record({ key: v.symbol()
+			.toAsync(), value: v.number(), collectAllIssues: true })
+			.execute({ a: 1, b: 2, c: 3 })).resolves
+			.toMatchObject({
+				issues: [
+					{ code: 'symbol:expected_symbol', path: ['a'] },
+					{ code: 'symbol:expected_symbol', path: ['b'] },
+					{ code: 'symbol:expected_symbol', path: ['c'] },
+				],
+			})
+
+		// The first entry's value fails, so the second entry is the only one that
+		// claims `'K'` and nothing is duplicated.
+		await expect(v.record({
+			key: v.string()
+				.transform((): string => 'K'),
+			value: v.number()
+				.toAsync(),
+			collectAllIssues: true,
+		})
+			.execute({ a: 'x', b: 2 })).resolves
+			.toMatchObject({ issues: [{ code: 'number:expected_number', path: ['a'] }] })
+	})
+
 	it('throws at construction when advertised members are not valid property keys', () => {
 		const fakeKey = { '~execute': () => ({ value: true }), '~core': { operationMode: 'sync', metadata: { [literalMembersMarker]: [true] } } }
 		// Bypass the compile-time key gate to exercise the runtime canonicalization guard.
@@ -174,6 +236,77 @@ describe('record step plugin — non-finite (open) key domain', () => {
 })
 
 describe('record step plugin — finite (closed, exhaustive) key domain', () => {
+	it.each([
+		['null', null],
+		['undefined', undefined],
+		['number', 0],
+		['string', 'x'],
+		['boolean', true],
+		['array', []],
+		['non-empty array', [1]],
+	] as const)('rejects %s as a non-object', (_kind, value) => {
+		expect(v.record({ key: v.union(['a', 'b']), value: v.number() })
+			.execute(value))
+			.toEqual({
+				issues: [{
+					code: 'record:expected_object',
+					category: 'validation',
+					message: 'Expected an object.',
+					path: [],
+					payload: { value },
+				}],
+			})
+	})
+
+	it('stays synchronous when a maybe-async member schema resolves synchronously', () => {
+		const schema = v.record({
+			key: v.union(['a', 'b']),
+			value: v.union([v.number(), v.string()
+				.toAsync()]),
+		})
+
+		expect(schema.execute({ a: 1, b: 2 }))
+			.not
+			.toBeInstanceOf(Promise)
+		expect(schema.execute({ a: 1, b: 2 }))
+			.toEqual({ value: { a: 1, b: 2 } })
+	})
+
+	it('keeps an earlier recoverable issue but stops at an internal member issue', async () => {
+		// Nothing is collected after the internal issue: with both members
+		// present it is the only issue reported, and the missing-key case shows
+		// the one issue that precedes it is the one raised before it.
+		expect(v.record({ key: v.union(['a', 'b']), value: v.number()
+			.internalFailure(), collectAllIssues: true })
+			.execute({ a: 1, b: 2 }))
+			.toMatchObject({ issues: [{ category: 'internal', path: ['a'] }] })
+
+		expect(v.record({ key: v.union(['a', 'b']), value: v.number()
+			.internalFailure(), collectAllIssues: true })
+			.execute({ b: 1 }))
+			.toMatchObject({
+				issues: [
+					{ code: 'record:missing_key', path: ['a'] },
+					{ category: 'internal', path: ['b'] },
+				],
+			})
+
+		await expect(v.record({ key: v.union(['a', 'b']), value: v.number()
+			.asyncInternalFailure(), collectAllIssues: true })
+			.execute({ a: 1, b: 2 })).resolves
+			.toMatchObject({ issues: [{ category: 'internal', path: ['a'] }] })
+
+		await expect(v.record({ key: v.union(['a', 'b', 'c']), value: v.number()
+			.asyncInternalFailure(), collectAllIssues: true })
+			.execute({ b: 1, c: 2 })).resolves
+			.toMatchObject({
+				issues: [
+					{ code: 'record:missing_key', path: ['a'] },
+					{ category: 'internal', path: ['b'] },
+				],
+			})
+	})
+
 	it('requires every member key and reports the full missing-key payload', () => {
 		const schema = v.record({ key: v.union(['a', 'b']), value: v.number() })
 		expect(schema.execute({ a: 1, b: 2 }))

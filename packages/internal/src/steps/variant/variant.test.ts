@@ -50,6 +50,7 @@ describe('variant step plugin', () => {
 		'circle',
 		1,
 	] as const)('rejects non-object input %j', (input) => {
+		expect(input).not.toBeUndefined()
 		expect(v.variant({
 			discriminator: 'type',
 			variants: { circle: v.object({ type: v.literal('circle') }) },
@@ -215,6 +216,36 @@ describe('variant step plugin', () => {
 			.toEqualTypeOf<'maybe-async'>()
 	})
 
+	it('scopes an asynchronously produced branch failure like a synchronous one', async () => {
+		const schema = v.variant({
+			discriminator: 'type',
+			variants: {
+				circle: v.object({ type: v.literal('circle'), radius: v.number() })
+					.transform(async () => {
+						throw new Error('recoverable')
+					}),
+			},
+			message: 'Invalid selected variant.',
+		})
+
+		const result = schema.execute({ type: 'circle', radius: 1 })
+		expect(result)
+			.toBeInstanceOf(Promise)
+		await expect(result).resolves.toMatchObject({
+			issues: [{
+				code: 'transform:callback_failed',
+				category: 'operation',
+				message: 'Invalid selected variant.',
+				path: [],
+				context: [{
+					type: 'variant',
+					discriminator: 'type',
+					discriminatorValue: 'circle',
+				}],
+			}],
+		})
+	})
+
 	it('infers owned and selected child issues without widening payload relationships', () => {
 		const _schema = v.variant({
 			discriminator: 'type',
@@ -238,6 +269,10 @@ describe('variant step plugin', () => {
 
 	it('rejects invalid JavaScript construction arguments', () => {
 		expect(() => (v.variant as any)())
+			.toThrow('configuration object')
+		expect(() => (v.variant as any)(null))
+			.toThrow('configuration object')
+		expect(() => (v.variant as any)([]))
 			.toThrow('configuration object')
 		expect(() => (v.variant as any)({ discriminator: true, variants: { a: v.string() } }))
 			.toThrow('property key')

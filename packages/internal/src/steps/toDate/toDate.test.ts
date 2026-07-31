@@ -69,10 +69,14 @@ describe('toDate step plugin', () => {
 			.toMatchObject({ issues: [{ message: 'Custom date conversion' }] })
 	})
 
-	it('infers a Date output', () => {
+	it('infers a Date output and is unavailable outside a string or number output', () => {
 		const _schema = v.string()
 			.toDate()
 		expectTypeOf<InferOutput<typeof _schema>>()
 			.toEqualTypeOf<Date>()
+		if (false) {
+			// @ts-expect-error toDate is unavailable when the output is not string | number
+			v.unknown().toDate() // eslint-disable-line style/newline-per-chained-call -- single line keeps the directive covering the whole unreachable negative-type expression
+		}
 	})
 })

@@ -1,26 +1,23 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isIsoTime, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isIsoTime] })
-	.string()
+const v = createValchecker({ steps: [string, isIsoTime] })
+const schema = v.string()
 	.isIsoTime()
 
-describe('isIsoTime benchmarks', () => {
-	bench('valid input', () => {
-		schema.execute('12:30:45')
-	})
-
-	bench('valid input with fractional seconds', () => {
-		schema.execute('12:30:45.500')
-	})
-
-	// An out-of-range field fails inside the pattern, while a malformed string
-	// fails at the first position; they are different costs.
-	bench('invalid input', () => {
-		schema.execute('24:00:00')
-	})
-
-	bench('malformed input', () => {
-		schema.execute('not-a-time')
-	})
-})
+stepBench('isIsoTime', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 100,
+		run: () => schema.execute('12:30:45'),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isIsoTime:expected_iso_time'] },
+		batch: 100,
+		run: () => schema.execute('24:00:00'),
+	},
+])

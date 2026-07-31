@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, TStepPluginDef } from '../../core'
 import { describe, expect, it, vi } from 'vitest'
-import { createValchecker, fallback, implStepPlugin, number, string, union } from '../..'
+import { check, createValchecker, fallback, implStepPlugin, number, string, union } from '../..'
 import { syncResult } from '../../test-utils/helpers'
 
 type FatalIssue = ExecutionIssue<'fatal:failed', { value: unknown }, 'internal'>
@@ -28,7 +28,7 @@ const fatal = implStepPlugin<FatalPluginDef>({
 	},
 })
 
-const v = createValchecker({ steps: [fallback, string, number, union, fatal] })
+const v = createValchecker({ steps: [check, fallback, string, number, union, fatal] })
 
 function expectedNumberIssue(value: unknown) {
 	return {
@@ -60,6 +60,26 @@ describe('fallback plugin', () => {
 			.toEqual({ value: 42 })
 		expect(captured)
 			.toEqual([expectedNumberIssue('bad')])
+	})
+
+	it('recovers an operation failure and passes its issues to the callback', () => {
+		const error = new Error('Check callback error')
+		let captured: unknown
+		const result = v.string()
+			.check(() => { throw error })
+			.fallback((issues) => {
+				captured = issues
+				return 'recovered'
+			})
+			.execute('input')
+		expect(result)
+			.toEqual({ value: 'recovered' })
+		expect(captured)
+			.toMatchObject([{
+				code: 'check:callback_failed',
+				category: 'operation',
+				payload: { phase: 'throw', value: 'input', error },
+			}])
 	})
 
 	it('supports asynchronous recovery', async () => {

@@ -1,16 +1,24 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isEndingWith, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
-const schema = createValchecker({ steps: [string, isEndingWith] })
-	.string()
-	.isEndingWith('.txt')
+const v = createValchecker({ steps: [string, isEndingWith] })
+const suffix = '.txt'
+const schema = v.string()
+	.isEndingWith(suffix)
 
-describe('isEndingWith benchmarks', () => {
-	bench('matching suffix', () => {
-		schema.execute('file.txt')
-	})
-
-	bench('non-matching suffix', () => {
-		schema.execute('file.md')
-	})
-})
+stepBench('isEndingWith', [
+	{
+		name: 'matching-suffix',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute('release-notes.txt'),
+	},
+	{
+		name: 'other-suffix',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isEndingWith:expected_ending_with'] },
+		batch: 100,
+		run: () => schema.execute('release-notes.md'),
+	},
+])

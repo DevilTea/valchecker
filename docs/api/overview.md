@@ -1,10 +1,16 @@
+<!-- Generated file. Do not edit it: `pnpm docs:api` fails when it stops matching its sources,
+and `pnpm docs:api:update` rewrites it.
+
+Each step's entry comes from `packages/internal/src/steps/<name>/<name>.doc.md`. The prose
+around them, and the order the sections appear in, come from `scripts/docs-api-templates/<page>.md`. -->
+
 # API Overview
 
 This reference summarizes Valchecker's public schema API. The normative compatibility and semantic definition is the [Valchecker 1.0 Contract](/guide/v1-contract).
 
 <!-- typecheck-prelude
 declare const input: unknown
-declare const schema: { execute: (input: unknown) => unknown }
+declare const schema: ReturnType<typeof import('valchecker').v.string>
 -->
 
 ## Import strategies
@@ -47,131 +53,225 @@ const v = createValchecker({
 
 Message-bearing steps place their message and optional configuration in a trailing options object. A single required semantic operand remains positional. For example, use `isAtLeast(0, { message })`, `isFinite({ message })`, and `toFiltered(predicate, { thisArg, message })`.
 
-## Primitive validators
+## Primitives
 
-- `string()` — string values
-- `number()` — all JavaScript number values, including `NaN` and positive or negative infinity
-- `boolean()` — boolean values
-- `bigint()` — bigint values
-- `symbol()` — symbol values
-- `date()` — `Date` instances, rejecting an Invalid Date
-- `literal(value)` — exact literal match
-- `null()` — `null`
-- `undefined()` — `undefined`
-- `unknown()` — passthrough typed as `unknown`
-- `any()` — passthrough typed as `any`
-- `never()` — always fails
+Every built-in step, linked to its entry on [Primitives](/api/primitives).
 
-Use `number().isFinite()` when the application requires finite numbers.
+### Initial schemas
 
-## Loose primitives
+- [`any()`](/api/primitives#any) — passthrough typed as `any`
+- [`bigint()`](/api/primitives#bigint) — `typeof value === 'bigint'`
+- [`boolean()`](/api/primitives#boolean) — `typeof value === 'boolean'`
+- [`literal()`](/api/primitives#literal) — exact literal match with `Object.is`
+- [`never()`](/api/primitives#never) — never succeeds
+- [`null()`](/api/primitives#null) — the value `null`
+- [`number()`](/api/primitives#number) — every JavaScript number, including `NaN` and the infinities
+- [`string()`](/api/primitives#string) — `typeof value === 'string'`
+- [`symbol()`](/api/primitives#symbol) — `typeof value === 'symbol'`
+- [`undefined()`](/api/primitives#undefined) — the value `undefined`
+- [`unknown()`](/api/primitives#unknown) — passthrough typed as `unknown`
 
-Loose primitives accept the primitive or its corresponding TypeScript template-literal string representation, then produce the canonical primitive:
+### Loose primitives
 
-- `looseNumber()` — ``number | `${number}``` to `number`
-- `looseBoolean()` — ``boolean | `${boolean}``` to `boolean`
-- `looseBigint()` — ``bigint | `${bigint}``` to `bigint`
+- [`looseBigint()`](/api/primitives#looseBigint) — a `bigint` or a `${bigint}` string, normalized to `bigint`
+- [`looseBoolean()`](/api/primitives#looseBoolean) — a `boolean` or `"true"`/`"false"`, normalized to `boolean`
+- [`looseNumber()`](/api/primitives#looseNumber) — a `number` or a `${number}` string, normalized to `number`
 
-They do not perform unrestricted JavaScript coercion. In accordance with TypeScript's ```${number}``` behavior, a non-empty whitespace-only string is accepted by `looseNumber()` and normalized to `0`; the empty string is rejected.
+### Template literals
 
-## Template literals
+- [`templateLiteral()`](/api/primitives#templateLiteral) — an assembled TypeScript template-literal type, matched as the checker matches it
 
-- `templateLiteral(parts)` — validates a string against an assembled TypeScript template-literal type and infers that exact output type, with cross-product union expansion. Parts are interpolatable literals or bare initial schemas (`string()`, `number()`, `bigint()`, `boolean()`, `literal()`, `null()`, `undefined()`, `union()`, nested `templateLiteral()`). Matching mirrors the TypeScript checker's split rule, not a regex.
+### Numeric validation
 
-## Structure validators
+- [`isAtLeast()`](/api/primitives#isAtLeast) — inclusive lower bound on a number or bigint
+- [`isAtMost()`](/api/primitives#isAtMost) — inclusive upper bound on a number or bigint
+- [`isFinite()`](/api/primitives#isFinite) — finite numbers, through `Number.isFinite`
+- [`isGreaterThan()`](/api/primitives#isGreaterThan) — strict lower bound on a number or bigint
+- [`isInteger()`](/api/primitives#isInteger) — integers, through `Number.isInteger`
+- [`isLessThan()`](/api/primitives#isLessThan) — strict upper bound on a number or bigint
+- [`isMultipleOf()`](/api/primitives#isMultipleOf) — divisibility by a number or bigint divisor
+- [`isNaN()`](/api/primitives#isNaN) — `NaN`, through `Number.isNaN`
+- [`isSafeInteger()`](/api/primitives#isSafeInteger) — safe integers, through `Number.isSafeInteger`
 
-- `object(shape)` — validates declared own properties and omits unknown properties from output
-- `strictObject(shape)` — validates declared own properties and rejects unknown enumerable own string and symbol keys
-- `looseObject(shape)` — validates declared own properties and preserves unknown own properties
-- `array(elementSchema)` — validates and transforms each array element
-- `tuple(elements)` — validates positional arrays with an optional rest region
-- `set(itemSchema)` — validates and transforms Set items
-- `map({ key, value })` — validates and transforms Map keys and values
-- `record({ key, value })` — validates and transforms every own enumerable entry (`Record<K, V>`); finite literal-union keys become an all-required, exhaustive object
-- `union(schemas)` — returns the first successful branch's transformed output
-- `variant({ discriminator, variants })` — directly selects one configured branch
-- `intersection(schemas)` — composes compatible branch outputs
-- `instance(constructor)` — validates a class instance
-- `file()` / `blob()` — validate a `File` or `Blob`, with feature-detected globals
+### Date validation
 
-A one-element tuple marks an object property as optional:
+- [`date()`](/api/primitives#date) — `Date` instances, rejecting an Invalid Date
+- [`isAfter()`](/api/primitives#isAfter) — strictly after a `Date` bound
+- [`isBefore()`](/api/primitives#isBefore) — strictly before a `Date` bound
 
-```ts
-const schema = v.object({
-	required: v.string(),
-	optional: [v.number()],
-})
-```
+### Length, emptiness, and inclusion
 
-## Validation steps
+- [`isEmpty()`](/api/primitives#isEmpty) — an observed `length` or `size` of zero
+- [`isEndingWith()`](/api/primitives#isEndingWith) — native `String.prototype.endsWith`
+- [`isIncluding()`](/api/primitives#isIncluding) — native string, array, or Set inclusion semantics
+- [`isLengthAtLeast()`](/api/primitives#isLengthAtLeast) — inclusive lower bound on the observed `length`
+- [`isLengthAtMost()`](/api/primitives#isLengthAtMost) — inclusive upper bound on the observed `length`
+- [`isLengthExactly()`](/api/primitives#isLengthExactly) — an exact observed `length`
+- [`isMatching()`](/api/primitives#isMatching) — regular-expression matching with deterministic state reset
+- [`isNotEmpty()`](/api/primitives#isNotEmpty) — an observed `length` or `size` greater than zero
+- [`isStartingWith()`](/api/primitives#isStartingWith) — native `String.prototype.startsWith`
 
-- `isAtLeast(value)` / `isAtMost(value)` — inclusive number or bigint bounds
-- `isGreaterThan(value)` / `isLessThan(value)` — strict number or bigint bounds
-- `isAfter(bound)` / `isBefore(bound)` — strict `Date` bounds
-- `isMultipleOf(divisor)` — number or bigint divisibility
-- `isInteger()` / `isSafeInteger()` / `isFinite()` / `isNaN()` — explicit number policies
-- `isLengthAtLeast(length)` / `isLengthAtMost(length)` / `isLengthExactly(length)` — length constraints
-- `isEmpty()` / `isNotEmpty()` — empty and non-empty values exposing numeric `length` or `size`
-- `isStartingWith(prefix)` / `isEndingWith(suffix)` — string prefix and suffix
-- `isIncluding(value, options?)` — native string, array, or Set inclusion semantics
-- `isIncludingKey(value)` / `isIncludingValue(value)` — Map membership
-- `isSizeAtLeast(size)` / `isSizeAtMost(size)` / `isSizeExactly(size)` — collection/file/blob size constraints
-- `isMatching(pattern)` — regular-expression matching with deterministic state reset
-- `isMimeType(types)` — matches a value's `type` against allowed MIME types, with `image/*` wildcards
-- string-format validators — `isEmail()`, `isUrl()`, `isUuid()`, `isIp()`, `isIsoDate()` / `isIsoTime()` / `isIsoDateTime()`, `isJwt()`, `isEmoji()`, `isHex()`, `isMac()`, `isHostname()`, `isBase64()` / `isBase64Url()`, `isCuid2()`, `isUlid()`, `isNanoid()` (see [String formats](./formats.md))
-- `isEqualTo(value)` / `isOneOf(values)` — primitive `Object.is` checks with output narrowing
-- `isDefined()` / `isNonNull()` / `isNonNullish()` — nullish output narrowing
-- `json(options?)` — validate that the current string is parseable JSON while preserving the string
-- `check(predicate, options?)` — generic custom validation escape hatch
+### Equality and nullish narrowing
 
-Each validation step checks only the condition expressed by its name. For example, `isGreaterThan(0)` accepts positive infinity; use `isFinite().isGreaterThan(0)` when both constraints are required.
+- [`isDefined()`](/api/primitives#isDefined) — rejects `undefined` and removes it from the output, preserving `null`
+- [`isEqualTo()`](/api/primitives#isEqualTo) — `Object.is` equality with one primitive expectation, narrowing the output to it
+- [`isNonNull()`](/api/primitives#isNonNull) — rejects `null` and removes it from the output, preserving `undefined`
+- [`isNonNullish()`](/api/primitives#isNonNullish) — rejects `null` and `undefined` and removes both from the output
+- [`isOneOf()`](/api/primitives#isOneOf) — `Object.is` equality against a non-empty tuple of primitives, narrowing to their union
 
-`isMultipleOf()` checks bigint remainder exactly. Number inputs use a small floating-point tolerance so ordinary decimal expressions such as `0.3` being a multiple of `0.1` are accepted. Non-finite number inputs fail, while zero and non-finite number divisors are rejected when the schema is constructed.
+### JSON strings
 
-`isEqualTo()` and `isOneOf()` accept primitive expectations only. They use `Object.is`, so `NaN` equals `NaN` and positive zero differs from negative zero. `isOneOf()` requires a non-empty tuple and snapshots its configured values.
+- [`json()`](/api/primitives#json) — a string that parses as JSON, preserving the string
 
-## Transformations
+Each validation step enforces only the condition its name expresses, and preserves the successful value. For example `isGreaterThan(0)` accepts positive infinity; compose `isFinite().isGreaterThan(0)` when both constraints are required.
 
-- `transform(fn)` — generic custom output transformation escape hatch
-- `toTrimmed()` — trim both ends
-- `toTrimmedStart()` — trim the start
-- `toTrimmedEnd()` — trim the end
-- `toUppercase()` — uppercase string
-- `toLowercase()` — lowercase string
-- `toNormalized(options?)` — Unicode normalization
-- `toNumber(options?)` — native `Number(value)` conversion after any non-number output
-- `toBoolean()` — native `Boolean(value)` conversion after any non-boolean output
-- `toBigint(options?)` — native `BigInt(value)` conversion after any non-bigint output
-- `toSafeNumber(options?)` — bigint to number only within the safe integer range
-- `toDate(options?)` — `Date` from epoch milliseconds or any string accepted by `new Date(value)`, after a `string | number` output
-- `toMappedBoolean(options)` — explicit true/false value mappings for string, number, or bigint
-- `toString(options?)` — convert a supported value through its `toString` method
-- `toSorted(options?)` — sorted array output
-- `toFiltered(predicate, options?)` — filtered array or Set output
-- `toMapped(mapper, options?)` — mapped array or Set output with structured callback failures; Set outputs remain unique
-- `toSliced(start, end?)` — sliced output
-- `toSplit(separator, limit?)` — split string output
-- `toLength()` — length output
-- `toJSONValue(options?)` — parse a JSON string
-- `toJSONString(options?)` — stringify a supported value
-- `toSize()` — extract a `size` value
-- `toArray()` — convert a Set to an item array
-- `toKeys()` / `toValues()` / `toEntries()` — explicit Map representations
-- `toMappedKeys()` / `toMappedValues()` — Map callback transforms
-- `toAsync()` — force the complete schema to return a native promise
+## String formats
 
-Native coercion steps deliberately follow JavaScript semantics. For example, `string().toNumber()` may produce `NaN`, and `string().toBoolean()` converts the non-empty string `'false'` to `true`. Native exceptions from `Number()` and `BigInt()` become structured issues. Use explicit validation or policy conversions when a narrower contract is required.
+Value-preserving format validators, on [String formats](/api/formats).
+
+### Parsed formats
+
+- [`isEmail()`](/api/formats#isEmail) — pragmatic WHATWG `<input type="email">` pattern
+- [`isEmoji()`](/api/formats#isEmoji) — the UTS #51 emoji sequence grammar, or Unicode's RGI set on request
+- [`isIp()`](/api/formats#isIp) — IPv4 or IPv6, with range-checked octets and `::` compression
+- [`isIsoDate()`](/api/formats#isIsoDate) — `YYYY-MM-DD` calendar date, with impossible dates rejected
+- [`isIsoDateTime()`](/api/formats#isIsoDateTime) — a date and time joined by `T`, with an optional offset
+- [`isIsoTime()`](/api/formats#isIsoTime) — `HH:MM:SS` time of day, with no time-zone
+- [`isJwt()`](/api/formats#isJwt) — three base64url segments with a decodable JOSE header
+- [`isUrl()`](/api/formats#isUrl) — WHATWG `URL` parse with a scheme allow-list
+
+### Pattern formats
+
+- [`isBase64()`](/api/formats#isBase64) — standard RFC 4648 base64 with canonical padding
+- [`isBase64Url()`](/api/formats#isBase64Url) — unpadded RFC 4648 §5 base64url
+- [`isCuid2()`](/api/formats#isCuid2) — CUID2 as `@paralleldrive/cuid2` produces it, capped at 32 characters
+- [`isHex()`](/api/formats#isHex) — one or more hexadecimal digits, with no `0x` prefix
+- [`isHostname()`](/api/formats#isHostname) — RFC 1123 hostname, labels of 1–63 characters within 253
+- [`isMac()`](/api/formats#isMac) — EUI-48 MAC address with `:` or `-` separators
+- [`isNanoid()`](/api/formats#isNanoid) — one or more characters of the default Nano ID alphabet
+- [`isUlid()`](/api/formats#isUlid) — 26 characters of Crockford base32
+- [`isUuid()`](/api/formats#isUuid) — RFC 9562 / RFC 4122 UUID, versions 1–8 plus nil and max
+
+## Structures
+
+Composite and collection schemas, on [Structures](/api/structures).
+
+### Object schemas
+
+- [`looseObject()`](/api/structures#looseObject) — declared own properties validated, unknown own properties preserved
+- [`object()`](/api/structures#object) — declared own properties validated, unknown properties omitted from the output
+- [`strictObject()`](/api/structures#strictObject) — declared own properties validated, unknown own string and symbol keys rejected
+
+### Collections
+
+- [`array()`](/api/structures#array) — every element validated and transformed in index order
+- [`map()`](/api/structures#map) — Map keys and values validated and transformed, with transformed keys kept unique
+- [`record()`](/api/structures#record) — every own enumerable entry, open or exhaustively closed by the key schema's domain
+- [`set()`](/api/structures#set) — Set items validated and transformed in insertion order, with transformed items kept unique
+- [`tuple()`](/api/structures#tuple) — fixed-shape array with per-position schemas and one optional rest region
+
+### Composition
+
+- [`intersection()`](/api/structures#intersection) — executes every branch and composes compatible outputs
+- [`union()`](/api/structures#union) — the first successful branch's transformed output, with registration-aware shorthand
+- [`variant()`](/api/structures#variant) — direct discriminator lookup that executes only the selected branch
+
+### Class and binary instances
+
+- [`blob()`](/api/structures#blob) — a `Blob`, through a feature-detected global
+- [`file()`](/api/structures#file) — a `File`, through a feature-detected global
+- [`instance()`](/api/structures#instance) — an `instanceof` check against a class
+
+### Collection size and membership
+
+- [`isIncludingKey()`](/api/structures#isIncludingKey) — Map key membership
+- [`isIncludingValue()`](/api/structures#isIncludingValue) — Map value membership
+- [`isSizeAtLeast()`](/api/structures#isSizeAtLeast) — inclusive lower bound on a numeric `size`
+- [`isSizeAtMost()`](/api/structures#isSizeAtMost) — inclusive upper bound on a numeric `size`
+- [`isSizeExactly()`](/api/structures#isSizeExactly) — an exact numeric `size`
+
+### Media types
+
+- [`isMimeType()`](/api/structures#isMimeType) — a value's `type` string against allowed MIME types, with `image/*` wildcards
+
+A one-element tuple marks an object property as optional — see [Optional fields](/api/structures#optional-fields).
+
+## Transforms
+
+Output transformations, on [Transforms](/api/transforms).
+
+### String transforms
+
+- [`toLowercase()`](/api/transforms#toLowercase) — lowercase string
+- [`toNormalized()`](/api/transforms#toNormalized) — Unicode normalization
+- [`toSplit()`](/api/transforms#toSplit) — split string output
+- [`toTrimmed()`](/api/transforms#toTrimmed) — trim both ends
+- [`toTrimmedEnd()`](/api/transforms#toTrimmedEnd) — trim the end
+- [`toTrimmedStart()`](/api/transforms#toTrimmedStart) — trim the start
+- [`toUppercase()`](/api/transforms#toUppercase) — uppercase string
+
+### Array transforms
+
+- [`toFiltered()`](/api/transforms#toFiltered) — filtered array or Set output
+- [`toLength()`](/api/transforms#toLength) — length output
+- [`toMapped()`](/api/transforms#toMapped) — mapped array or Set output with structured callback failures; Set outputs remain unique
+- [`toSliced()`](/api/transforms#toSliced) — sliced output
+- [`toSorted()`](/api/transforms#toSorted) — sorted array output
+
+### Collection transforms
+
+- [`toArray()`](/api/transforms#toArray) — convert a Set to an item array
+- [`toEntries()`](/api/transforms#toEntries) — Map entries as mutable `[key, value]` tuples
+- [`toKeys()`](/api/transforms#toKeys) — Map keys as an array
+- [`toMappedKeys()`](/api/transforms#toMappedKeys) — Map key callback transform whose mapped keys stay unique
+- [`toMappedValues()`](/api/transforms#toMappedValues) — Map value callback transform
+- [`toSize()`](/api/transforms#toSize) — extract a `size` value
+- [`toValues()`](/api/transforms#toValues) — Map values as an array
+
+### JSON transforms
+
+- [`toJSONString()`](/api/transforms#toJSONString) — stringify a supported value with JSON semantics
+- [`toJSONValue()`](/api/transforms#toJSONValue) — parse a JSON string with `JSON.parse`
+
+### Primitive conversions
+
+- [`toBigint()`](/api/transforms#toBigint) — native `BigInt(value)` conversion
+- [`toBoolean()`](/api/transforms#toBoolean) — native `Boolean(value)` truthiness conversion
+- [`toDate()`](/api/transforms#toDate) — `Date` from epoch milliseconds or any string accepted by `new Date(value)`
+- [`toMappedBoolean()`](/api/transforms#toMappedBoolean) — explicit true/false value mappings for string, number, or bigint
+- [`toNumber()`](/api/transforms#toNumber) — native `Number(value)` conversion
+- [`toSafeNumber()`](/api/transforms#toSafeNumber) — bigint to number, only within the safe integer range
+
+### General conversion
+
+- [`toString()`](/api/transforms#toString) — convert a value through its own `toString` method
+
+Native conversion steps deliberately follow JavaScript semantics rather than adding hidden policy: `string().toNumber()` may produce `NaN`, and `string().toBoolean()` converts the non-empty string `'false'` to `true`. Native exceptions from `Number()` and `BigInt()` become structured issues. Reach for explicit validation, or for a policy conversion such as `toSafeNumber()` or `toMappedBoolean()`, when a narrower contract is required.
 
 Identity conversions are not exposed: `number().toNumber()`, `boolean().toBoolean()`, and `bigint().toBigint()` are unavailable through the state-aware API. A union or unknown output remains convertible when it is not already entirely the target primitive type.
 
-For arrays, `toMapped()` follows synchronous `Array.prototype.map` semantics. A mapper's returned promise remains an array item and is not awaited. The Set variant is also synchronous, preserves returned values as Set items, and rejects SameValueZero collisions. Mapper exceptions become `toMapped:callback_failed` operation issues, while failures outside the mapper remain core internal failures.
+## Helpers and utilities
 
-## Flow control and type utilities
+Flow control, escape hatches, and type-level utilities, on [Helpers & Utilities](/api/helpers).
 
-- `fallback(getValue, options?)` — recover earlier validation and operation failures; internal issues are fatal
-- `use(schema)` — delegate to another schema
-- `as<T>()` — compile-time assertion with no runtime validation
-- `generic<T>(factory)` — lazy or recursive schema construction
+### Escape hatches
+
+- [`check()`](/api/helpers#check) — generic custom validation escape hatch
+- [`transform()`](/api/helpers#transform) — generic custom output transformation escape hatch
+
+### Flow control
+
+- [`fallback()`](/api/helpers#fallback) — recover earlier validation and operation failures; internal issues are fatal
+- [`use()`](/api/helpers#use) — delegate to another schema
+
+### Type-level utilities
+
+- [`as()`](/api/helpers#as) — compile-time assertion with no runtime validation
+- [`generic()`](/api/helpers#generic) — lazy or recursive schema construction
+
+### Execution mode
+
+- [`toAsync()`](/api/helpers#toAsync) — force the complete schema to return a native promise
 
 Callback-driven steps may return direct or `PromiseLike` values according to their individual contract.
 
@@ -229,7 +329,7 @@ Append `.toAsync()` when every invocation must return a native promise.
 Every step returns a new immutable schema:
 
 ```ts
-const schema = v.string()
+const normalizedName = v.string()
 	.toTrimmed()
 	.isNotEmpty({ message: 'Required' })
 	.toNormalized()
@@ -240,6 +340,7 @@ const schema = v.string()
 
 - **[Valchecker 1.0 Contract](/guide/v1-contract)** — normative behavior and compatibility
 - **[Primitives](/api/primitives)** — primitive, numeric, string, and narrowing validators
+- **[String formats](/api/formats)** — value-preserving string-format validators
 - **[Structures](/api/structures)** — object, array, union and intersection
 - **[Transforms](/api/transforms)** — output transformations
-- **[Helpers](/api/helpers)** — flow control and utilities
+- **[Helpers & Utilities](/api/helpers)** — flow control and utilities

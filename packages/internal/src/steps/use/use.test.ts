@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
-import { check, createValchecker, number, string, toLowercase, toTrimmed, transform, unknown, use } from '../..'
+import type { InferOperationMode } from '../../core'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { check, createValchecker, number, string, toAsync, toLowercase, toTrimmed, transform, unknown, use } from '../..'
 
 const v = createValchecker({
-	steps: [check, number, string, toLowercase, toTrimmed, transform, unknown, use],
+	steps: [check, number, string, toAsync, toLowercase, toTrimmed, transform, unknown, use],
 })
 
 describe('use step plugin', () => {
@@ -90,6 +91,25 @@ describe('use step plugin', () => {
 				},
 			}],
 		})
+	})
+
+	it('reports an always-async delegate as maybe-async and still fails synchronously before it', () => {
+		const alwaysAsync = v.number()
+			.toAsync()
+		const schema = v.string()
+			.use(alwaysAsync)
+
+		expectTypeOf<InferOperationMode<typeof alwaysAsync>>()
+			.toEqualTypeOf<'async'>()
+		expectTypeOf<InferOperationMode<typeof schema>>()
+			.toEqualTypeOf<'maybe-async'>()
+		expect(schema['~core'].operationMode)
+			.toBe('maybe-async')
+
+		const earlyFailure = schema.execute(42)
+		expect(earlyFailure).not.toBeInstanceOf(Promise)
+		expect(earlyFailure)
+			.toMatchObject({ issues: [{ code: 'string:expected_string' }] })
 	})
 
 	it('does not execute the delegated schema after an earlier failure', () => {

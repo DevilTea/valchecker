@@ -183,9 +183,30 @@ describe('tuple step plugin — rest region', () => {
 
 	it('short-circuits on an internal rest issue even with collectAllIssues', () => {
 		const schema = v.tuple([v.string(), '...', v.array(v.number()
-			.internalFailure())], { collectAllIssues: true })
-		expect(schema.execute(['a', 1, 2]))
+			.internalFailure()), v.boolean()], { collectAllIssues: true })
+		expect(schema.execute(['a', 1, 'not a boolean']))
 			.toMatchObject({ issues: [{ category: 'internal' }] })
+	})
+
+	it('stops at a recoverable rest issue without validating the suffix', () => {
+		expect(v.tuple([v.string(), '...', v.array(v.number()), v.boolean()])
+			.execute(['a', 'x', 'not a boolean']))
+			.toMatchObject({
+				issues: [
+					{ code: 'number:expected_number', path: [1], context: [{ type: 'tuple', part: 'rest' }] },
+				],
+			})
+	})
+
+	it('collects a rest issue together with a later suffix issue', () => {
+		expect(v.tuple([v.string(), '...', v.array(v.number()), v.boolean()], { collectAllIssues: true })
+			.execute(['a', 'x', 'not a boolean']))
+			.toMatchObject({
+				issues: [
+					{ code: 'number:expected_number', path: [1], context: [{ type: 'tuple', part: 'rest' }] },
+					{ code: 'boolean:expected_boolean', path: [2] },
+				],
+			})
 	})
 })
 
@@ -204,20 +225,82 @@ describe('tuple step plugin — asynchronous', () => {
 			.execute([true, 5]))
 			.resolves.toEqual({ value: [true, 5] })
 	})
+
+	it('validates the rest region against the input slice after an asynchronous prefix element', async () => {
+		await expect(v.tuple([v.string()
+			.toAsync(), '...', v.array(v.number())])
+			.execute(['a', 1, 2]))
+			.resolves.toEqual({ value: ['a', 1, 2] })
+	})
+
+	it('validates a suffix element after an asynchronous rest region', async () => {
+		await expect(v.tuple(['...', v.array(v.number()
+			.toAsync()), v.boolean()])
+			.execute([1, 2, true]))
+			.resolves.toEqual({ value: [1, 2, true] })
+	})
+
+	it('validates the remaining suffix elements after the first one suspends', async () => {
+		await expect(v.tuple(['...', v.array(v.number()), v.string()
+			.toAsync(), v.boolean()])
+			.execute([1, 'x', true]))
+			.resolves.toEqual({ value: [1, 'x', true] })
+	})
+
+	it('resumes the suffix at the element that suspended, without repeating earlier ones', async () => {
+		await expect(v.tuple(['...', v.array(v.number()), v.string(), v.boolean()
+			.toAsync()])
+			.execute([1, 'x', true]))
+			.resolves.toEqual({ value: [1, 'x', true] })
+	})
+
+	it('stays synchronous when a maybe-async suffix element resolves synchronously', () => {
+		const result = v.tuple([v.string(), '...', v.array(v.boolean()), v.number()
+			.transform(n => n * 2)])
+			.execute(['a', true, 5])
+
+		expect(result).not.toBeInstanceOf(Promise)
+		expect(result)
+			.toEqual({ value: ['a', true, 10] })
+	})
+
+	it('traverses the length the input had when validation started, synchronously and asynchronously', async () => {
+		const syncInput: unknown[] = ['a', true, 5]
+		expect(v.tuple([v.string()
+			.transform((value) => {
+				syncInput.push(false)
+				return value
+			}), '...', v.array(v.boolean()), v.number()])
+			.execute(syncInput))
+			.toEqual({ value: ['a', true, 5] })
+
+		const asyncInput: unknown[] = ['a', true, 5]
+		await expect(v.tuple([v.string()
+			.transform((value) => {
+				asyncInput.push(false)
+				return Promise.resolve(value)
+			}), '...', v.array(v.boolean()), v.number()])
+			.execute(asyncInput))
+			.resolves.toEqual({ value: ['a', true, 5] })
+	})
 })
 
 describe('tuple step plugin — construction validation', () => {
 	it.each([
-		['two rest markers', [v.string(), '...', v.array(v.number()), '...', v.array(v.boolean())]],
-		['trailing marker', [v.string(), '...']],
-		['adjacent markers', ['...', '...', v.array(v.number())]],
-		['non-schema element', [v.string(), 42]],
-		['plain object element', [{}]],
-		['null element', [null]],
-		['optional-shorthand element array', [[v.number()]]],
-	] as const)('throws a TypeError for %s', (_kind, elements) => {
+		['two rest markers', [v.string(), '...', v.array(v.number()), '...', v.array(v.boolean())], 'tuple() allows at most one "..." rest marker.'],
+		['trailing marker', [v.string(), '...'], 'tuple() "..." must be followed by a rest schema.'],
+		['adjacent markers', ['...', '...', v.array(v.number())], 'tuple() "..." must be followed by a rest schema.'],
+		['a rest marker followed by a primitive', ['...', 42], 'tuple() "..." must be followed by a rest schema.'],
+		['a rest marker followed by a plain object', ['...', {}], 'tuple() "..." must be followed by a rest schema.'],
+		['non-schema element', [v.string(), 42], 'tuple() element at index 1 must be a Valchecker schema.'],
+		['plain object element', [{}], 'tuple() element at index 0 must be a Valchecker schema.'],
+		['null element', [null], 'tuple() element at index 0 must be a Valchecker schema.'],
+		['optional-shorthand element array', [[v.number()]], 'tuple() element at index 0 must be a Valchecker schema.'],
+	] as const)('throws a TypeError naming the arrangement for %s', (_kind, elements, message) => {
 		expect(() => v.tuple(elements as any))
 			.toThrow(TypeError)
+		expect(() => v.tuple(elements as any))
+			.toThrow(message)
 	})
 
 	it('does not collide with the object optional-field shorthand: a single-element array is a 1-tuple', () => {
@@ -228,7 +311,29 @@ describe('tuple step plugin — construction validation', () => {
 
 	it('requires an element array', () => {
 		expect(() => v.tuple(42 as any))
-			.toThrow(TypeError)
+			.toThrow(new TypeError('tuple() requires an element array.'))
+	})
+
+	it('reports a rest schema that succeeds with a non-array as a fatal internal issue', () => {
+		// The type gate rejects this rest schema, so reaching the guard needs `any`:
+		// a rest region has nothing to spread when its schema transforms the slice
+		// into something that is not an array. The guard throws a TypeError, which
+		// the core converts into an internal issue rather than letting it escape.
+		const schema = v.tuple([v.string(), '...', (v.array(v.number()) as any)
+			.transform((items: number[]) => items.length)] as any)
+
+		expect(schema.execute(['a', 1, 2]))
+			.toMatchObject({
+				issues: [{
+					code: 'core:unknown_exception',
+					category: 'internal',
+					path: [],
+					payload: {
+						method: 'tuple',
+						error: new TypeError('tuple() rest schema must output an array.'),
+					},
+				}],
+			})
 	})
 })
 

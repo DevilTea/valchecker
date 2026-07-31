@@ -1,39 +1,37 @@
-import { bench, describe } from 'vitest'
 import { createValchecker, isEmoji, string } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [string, isEmoji] })
-
 const schema = v.string()
 	.isEmoji()
-const registeredSchema = v.string()
+// `{ registered: true }` is a second algorithm, not a narrower option on the
+// first: the default tests the UTS #51 sequence grammar, while the registered set
+// is a `v`-flag property-of-strings class consumed by an unanchored `replace`.
+const registered = v.string()
 	.isEmoji({ registered: true })
 
-// The two accepted sets are measured on the same inputs, because they are two
-// semantics rather than two implementations of one: the grammar accepts every
-// structurally valid sequence and `{ registered: true }` only the RGI set. The
-// inputs are the ones #128's cost table used, so a run here is comparable with it.
-const inputs = {
-	bare: '😀',
-	toned: '👍🏽',
-	family: '👨\u{200D}👩\u{200D}👧\u{200D}👦',
-	flag: '🇹🇼',
-	invalid: '👍a',
-	nonEmoji: '123',
-	// A long valid prefix that fails at its last character: the shape an anchored
-	// alternation backtracks on.
-	longFailure: `${'👨\u{200D}👩\u{200D}👧\u{200D}👦'.repeat(64)}a`,
-}
+const family = '👨\u{200D}👩\u{200D}👧\u{200D}👦'
 
-describe('isEmoji benchmarks', () => {
-	for (const [label, input] of Object.entries(inputs)) {
-		bench(`${label} input`, () => {
-			schema.execute(input)
-		})
-	}
-
-	for (const [label, input] of Object.entries(inputs)) {
-		bench(`${label} input, registered set`, () => {
-			registeredSchema.execute(input)
-		})
-	}
-})
+stepBench('isEmoji', [
+	{
+		name: 'valid',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 50,
+		run: () => schema.execute(family),
+	},
+	{
+		name: 'invalid',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['isEmoji:expected_emoji'] },
+		batch: 50,
+		run: () => schema.execute('👍a'),
+	},
+	{
+		name: 'valid-registered',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 20,
+		run: () => registered.execute(family),
+	},
+])

@@ -1,8 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 
-const pattern = /^[\w-]+$/
-
 type Meta = DefineStepMethodMeta<{
 	Name: 'isNanoid'
 	ExpectedCurrentValchecker: DefineExpectedValchecker<{ output: string }>
@@ -12,9 +10,9 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the string uses only the default Nano ID alphabet
-	 * (`A-Za-z0-9_-`). Length is not constrained because Nano ID size is
-	 * configurable at generation time.
+	 * Checks that the string is one or more characters of the default Nano ID
+	 * alphabet (`A-Za-z0-9_-`). No maximum length is imposed, because Nano ID
+	 * size is configurable at generation time; the empty string is rejected.
 	 *
 	 * ---
 	 *
@@ -41,6 +39,8 @@ interface PluginDef extends TStepPluginDef {
 			: never
 	>
 }
+
+const pattern = /^[\w-]+$/
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isNanoid = implStepPlugin<PluginDef>({

@@ -55,6 +55,20 @@ describe('toFiltered step plugin', () => {
 			})
 	})
 
+	it('publishes its default failure message from both the array and the Set path', () => {
+		const throwing = () => {
+			throw new Error('predicate')
+		}
+		expect(v.array(v.any())
+			.toFiltered(throwing)
+			.execute([1]))
+			.toMatchObject({ issues: [{ code: 'toFiltered:callback_failed', message: 'Filter callback failed.' }] })
+		expect(v.set(v.any())
+			.toFiltered(throwing)
+			.execute(new Set([1])))
+			.toMatchObject({ issues: [{ code: 'toFiltered:callback_failed', message: 'Filter callback failed.' }] })
+	})
+
 	it('leaves failures outside the array predicate callback to the core boundary', () => {
 		const error = new Error('filter method')
 		const value = [] as any[] & { filter: typeof Array.prototype.filter }

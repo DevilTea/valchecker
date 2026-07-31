@@ -13,4 +13,10 @@ describe('isSafeInteger step plugin', () => {
 			.execute(value))
 			.toMatchObject({ issues: [{ code: 'isSafeInteger:expected_safe_integer', message: 'Safe integer required', payload: { value } }] })
 	})
+	it('publishes its default failure message', () => {
+		expect(v.number()
+			.isSafeInteger()
+			.execute(1.5))
+			.toMatchObject({ issues: [{ code: 'isSafeInteger:expected_safe_integer', message: 'Expected a safe integer.' }] })
+	})
 })

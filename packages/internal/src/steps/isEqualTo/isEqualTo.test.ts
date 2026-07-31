@@ -7,15 +7,51 @@ const v = createValchecker({
 })
 
 describe('isEqualTo step plugin', () => {
-	it('uses Object.is semantics', () => {
+	it('matches NaN against NaN, unlike ===', () => {
 		expect(v.number()
 			.isEqualTo(Number.NaN)
 			.execute(Number.NaN))
 			.toEqual({ value: Number.NaN })
+	})
+
+	it('distinguishes negative zero from positive zero, unlike SameValueZero', () => {
 		expect(v.number()
 			.isEqualTo(-0)
 			.execute(0))
 			.toMatchObject({ issues: [{ code: 'isEqualTo:expected_equal_to' }] })
+		expect(v.number()
+			.isEqualTo(0)
+			.execute(-0))
+			.toMatchObject({ issues: [{ code: 'isEqualTo:expected_equal_to' }] })
+		expect(v.number()
+			.isEqualTo(-0)
+			.execute(-0))
+			.toEqual({ value: -0 })
+	})
+
+	it('reports the complete unequal issue with the interpolated default message', () => {
+		expect(v.number()
+			.isEqualTo(42)
+			.execute(1))
+			.toEqual({
+				issues: [{
+					code: 'isEqualTo:expected_equal_to',
+					category: 'validation',
+					message: 'Expected a value equal to 42.',
+					path: [],
+					payload: { value: 1, expected: 42 },
+				}],
+			})
+	})
+
+	it('renders a symbol expectation in the default message without throwing', () => {
+		const token = Symbol('token')
+		expect(v.symbol()
+			.isEqualTo(token)
+			.execute(Symbol('other')))
+			.toMatchObject({
+				issues: [{ message: 'Expected a value equal to Symbol(token).', payload: { expected: token } }],
+			})
 	})
 
 	it('is available after every primitive initial schema', () => {

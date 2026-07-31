@@ -30,13 +30,18 @@ export default defineConfig({
 			},
 			{
 				text: 'API Reference',
+				// The reference is generated from each step's `<name>.doc.md`, so its pages and their
+				// order are declared once, in `apiPages` in `scripts/docs-api.ts`. `pnpm docs:api`
+				// fails when these entries stop matching; `pnpm docs:api:update` rewrites them.
 				items: [
+					// #region generated-api-sidebar
 					{ text: 'Overview', link: '/api/overview' },
 					{ text: 'Primitives', link: '/api/primitives' },
 					{ text: 'String Formats', link: '/api/formats' },
 					{ text: 'Structures', link: '/api/structures' },
 					{ text: 'Transforms', link: '/api/transforms' },
 					{ text: 'Helpers & Utilities', link: '/api/helpers' },
+					// #endregion generated-api-sidebar
 				],
 			},
 			{

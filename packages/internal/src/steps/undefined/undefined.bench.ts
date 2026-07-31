@@ -1,32 +1,22 @@
-/**
- * Benchmark plan for undefined:
- * - Operations benchmarked: undefined validation with various input types and sizes
- * - Input scenarios: small/large valid inputs, invalid inputs
- * - Comparison baselines: Native checks where applicable
- */
-
-import { bench, describe } from 'vitest'
 import { createValchecker, undefined_ } from '../..'
+import { stepBench } from '../../test-utils/step-bench'
 
 const v = createValchecker({ steps: [undefined_] })
+const schema = v.undefined()
 
-describe('undefined benchmarks', () => {
-	describe('valid inputs', () => {
-		bench('valid input - small', () => {
-			v.undefined()
-				.execute(undefined)
-		})
-
-		bench('valid input - large', () => {
-			v.undefined()
-				.execute(undefined)
-		})
-	})
-
-	describe('invalid inputs', () => {
-		bench('invalid input', () => {
-			v.undefined()
-				.execute(null)
-		})
-	})
-})
+stepBench('undefined', [
+	{
+		name: 'undefined-value',
+		group: 'warm/success',
+		expect: { success: true },
+		batch: 200,
+		run: () => schema.execute(undefined),
+	},
+	{
+		name: 'defined',
+		group: 'warm/failure/library-default',
+		expect: { success: false, issues: ['undefined:expected_undefined'] },
+		batch: 100,
+		run: () => schema.execute(null),
+	},
+])

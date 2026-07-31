@@ -142,6 +142,32 @@ describe('union step plugin', () => {
 			.toHaveBeenCalledOnce()
 	})
 
+	it('aggregates every branch when an asynchronous union exhausts all of them', async () => {
+		const result = v.union([
+			v.string()
+				.transform(async () => {
+					throw new Error('recoverable')
+				}),
+			v.number(),
+		])
+			.execute('hello')
+
+		expect(result)
+			.toBeInstanceOf(Promise)
+		await expect(result).resolves.toMatchObject({
+			issues: [
+				{
+					code: 'transform:callback_failed',
+					context: [{ type: 'union', branchIndex: 0 }],
+				},
+				{
+					code: 'number:expected_number',
+					context: [{ type: 'union', branchIndex: 1 }],
+				},
+			],
+		})
+	})
+
 	it('does not evaluate later branches after a synchronous internal failure', () => {
 		const later = vi.fn()
 		const schema = (v as any).union([

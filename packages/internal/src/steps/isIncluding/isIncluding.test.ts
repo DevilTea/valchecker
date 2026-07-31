@@ -12,7 +12,12 @@ describe('isIncluding step plugin', () => {
 		expect(v.string()
 			.isIncluding('ab', { position: 3 })
 			.execute('xxab'))
-			.toMatchObject({ issues: [{ payload: { target: 'string', expected: 'ab', position: 3 } }] })
+			.toMatchObject({
+				issues: [{
+					message: 'Expected the string to include "ab".',
+					payload: { target: 'string', expected: 'ab', position: 3 },
+				}],
+			})
 	})
 
 	it('uses SameValueZero array inclusion with fromIndex', () => {
@@ -53,5 +58,16 @@ describe('isIncluding step plugin', () => {
 					payload: { target: 'set', value, expected: 2 },
 				}],
 			})
+	})
+
+	it('publishes a container-specific default message for the array and Set targets', () => {
+		expect(v.array(v.number())
+			.isIncluding(3)
+			.execute([1, 2]))
+			.toMatchObject({ issues: [{ message: 'Expected the array to include the configured value.' }] })
+		expect(v.set(v.number())
+			.isIncluding(2)
+			.execute(new Set([1])))
+			.toMatchObject({ issues: [{ message: 'Expected the Set to include the configured value.' }] })
 	})
 })

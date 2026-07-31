@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { createValchecker, number, strictObject, string, transform } from '../..'
+import { describe, expect, it, vi } from 'vitest'
+import { createValchecker, number, strictObject, string, transform, unknown } from '../..'
+import { structuralFixture } from '../../test-utils/fixtures'
 
 const v = createValchecker({ steps: [number, strictObject, string, transform] })
 
@@ -104,6 +105,23 @@ describe('strictObject step plugin', () => {
 					code: 'string:expected_string',
 					path: ['value'],
 					payload: { value: undefined },
+				}],
+			})
+	})
+
+	it('validates a declared key named "undefined" exactly once and does not call it unexpected', () => {
+		// `'undefined'` is an ordinary string key on both sides: in the struct that
+		// declares it and in the value whose own keys are checked against the
+		// declared set. Collecting all issues is what makes a duplicate visible.
+		expect(v.strictObject({ undefined: v.string() }, { collectAllIssues: true })
+			.execute({ undefined: 1 }))
+			.toEqual({
+				issues: [{
+					code: 'string:expected_string',
+					category: 'validation',
+					message: 'Expected a string.',
+					path: ['undefined'],
+					payload: { value: 1 },
 				}],
 			})
 	})
@@ -216,5 +234,139 @@ describe('strictObject step plugin', () => {
 			.toMatchObject({
 				issues: [{ message: 'Custom: strictObject:unexpected_keys' }],
 			})
+	})
+})
+
+describe('strictObject asynchronous missing-key contracts', () => {
+	it('materializes a missing optional key after an earlier child becomes asynchronous', async () => {
+		const schema = v.strictObject({
+			first: v.string()
+				.transform(async value => value.toUpperCase()),
+			optional: [v.number()],
+			last: v.string(),
+		})
+
+		await expect(schema.execute({
+			first: 'ada',
+			last: 'present',
+		})).resolves.toEqual({
+			value: {
+				first: 'ADA',
+				optional: undefined,
+				last: 'present',
+			},
+		})
+	})
+
+	it('reports a missing required key after an earlier child becomes asynchronous', async () => {
+		const schema = v.strictObject({
+			first: v.string()
+				.transform(async value => value.toUpperCase()),
+			required: v.number(),
+			last: v.string(),
+		})
+
+		await expect(schema.execute({
+			first: 'ada',
+			last: 'still validated',
+		})).resolves.toEqual({
+			issues: [{
+				code: 'strictObject:missing_key',
+				category: 'validation',
+				message: 'Missing required object key.',
+				path: ['required'],
+				payload: { key: 'required' },
+			}],
+		})
+	})
+})
+
+describe('strictObject collectAllIssues', () => {
+	const fixture = structuralFixture
+
+	const v = createValchecker({ steps: [fixture, number, strictObject, string, transform, unknown] })
+
+	it('retains object classification before key validation', () => {
+		expect(v.strictObject({}, { collectAllIssues: true })
+			.execute(null))
+			.toMatchObject({ issues: [{ code: 'strictObject:expected_object' }] })
+	})
+
+	it('materializes optional and safe __proto__ fields', () => {
+		const ignored = Symbol('ignored')
+		const shape: Record<PropertyKey, any> = {
+			required: v.string(),
+			optional: [v.number()],
+		}
+		Object.defineProperty(shape, '__proto__', { enumerable: true, value: v.string() })
+		Object.defineProperty(shape, ignored, { enumerable: false, value: v.string() })
+		const input: Record<PropertyKey, unknown> = { required: 'ok' }
+		Object.defineProperty(input, '__proto__', { enumerable: true, value: 'safe' })
+
+		const result = v.strictObject(shape, { collectAllIssues: true })
+			.execute(input)
+		expect(result)
+			.toMatchObject({ value: { required: 'ok', optional: undefined } })
+		expect(Object.hasOwn((result as any).value, '__proto__'))
+			.toBe(true)
+		// eslint-disable-next-line no-proto, no-restricted-properties -- asserting an own __proto__ data property survives as plain data; reading it via the accessor is the behavior under test
+		expect((result as any).value.__proto__)
+			.toBe('safe')
+	})
+
+	it('collects unexpected, missing, and invalid fields before an internal issue', () => {
+		const later = vi.fn()
+		const result = (v as any).strictObject({
+			missing: v.string(),
+			invalid: v.number(),
+			internal: (v as any).unknown()
+				.internalFailure(),
+			later: (v as any).unknown()
+				.observe(later),
+		}, { collectAllIssues: true })
+			.execute({
+				invalid: 'bad',
+				internal: 'value',
+				later: 'later',
+				extra: true,
+			})
+
+		expect(result)
+			.toMatchObject({ issues: [
+				{ code: 'strictObject:unexpected_keys' },
+				{ code: 'strictObject:missing_key', path: ['missing'] },
+				{ code: 'number:expected_number', path: ['invalid'] },
+				{ code: 'core:unknown_exception', path: ['internal'] },
+			] })
+		expect(later).not.toHaveBeenCalled()
+	})
+
+	it('continues after an asynchronous recoverable issue and stops after an internal issue', async () => {
+		await expect(v.strictObject({
+			first: v.string()
+				.transform(async () => {
+					throw new Error('recoverable')
+				}),
+			optional: [v.number()],
+			last: v.string()
+				.transform(value => value.toUpperCase()),
+			missing: v.string(),
+		}, { collectAllIssues: true })
+			.execute({ first: 'bad', last: 'ok' }))
+			.resolves.toMatchObject({ issues: [
+				{ code: 'transform:callback_failed', path: ['first'] },
+				{ code: 'strictObject:missing_key', path: ['missing'] },
+			] })
+
+		const later = vi.fn()
+		await expect((v as any).strictObject({
+			first: (v as any).unknown()
+				.asyncInternalFailure(),
+			later: (v as any).unknown()
+				.observe(later),
+		}, { collectAllIssues: true })
+			.execute({ first: 'bad', later: 'later' }))
+			.resolves.toMatchObject({ issues: [{ code: 'core:unknown_exception', path: ['first'] }] })
+		expect(later).not.toHaveBeenCalled()
 	})
 })

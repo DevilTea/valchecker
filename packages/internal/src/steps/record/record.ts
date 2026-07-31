@@ -93,7 +93,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'record:expected_object'`: The value is not a plain object.
+	 * - `'record:expected_object'`: The value is not a non-null, non-array object.
 	 * - `'record:missing_key'`: A required finite-domain key is not present.
 	 * - `'record:unexpected_keys'`: The value carries keys outside the finite domain.
 	 * - `'record:duplicate_transformed_key'`: Two source keys produced the same transformed key.
