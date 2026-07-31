@@ -470,7 +470,7 @@ describe('intersection plugin', () => {
 		}
 	})
 
-	it('should not re-run accessors while locating a three-branch conflict source', () => {
+	it('should blame the adjacent branch rather than invoke an accessor to locate the conflict source', () => {
 		let leftReads = 0
 		let rightReads = 0
 		const left = Object.defineProperty({}, 'nested', {
@@ -496,6 +496,11 @@ describe('intersection plugin', () => {
 				.transform(() => right),
 		])
 			.execute(null)
+		// Locating the contributing branch walks own property descriptors, and an
+		// accessor-valued intermediate segment is declined rather than invoked. No branch
+		// can therefore be shown to carry `nested.value`, so attribution falls back to the
+		// branch immediately before the conflicting one. `leftBranch` is that fallback here,
+		// not a located branch — the discriminating attribution case is the next one.
 		expect(result)
 			.toMatchObject({
 				issues: [{
@@ -507,6 +512,37 @@ describe('intersection plugin', () => {
 			.toBe(1)
 		expect(rightReads)
 			.toBe(1)
+	})
+
+	it('should locate a non-adjacent branch as the conflict source', () => {
+		// Two branches without the conflicting path separate the contributor from the
+		// conflicting branch, so the expected `leftBranch` differs from `rightBranch - 1`
+		// and the answer cannot come from the adjacency fallback.
+		const result = v.intersection([
+			v.unknown()
+				.transform(() => ({ nested: { value: 'left' } })),
+			v.unknown()
+				.transform(() => ({ unrelated: true })),
+			v.unknown()
+				.transform(() => ({ alsoUnrelated: 1 })),
+			v.unknown()
+				.transform(() => ({ nested: { value: 'right' } })),
+		])
+			.execute(null)
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'intersection:conflicting_outputs',
+					payload: {
+						path: ['nested', 'value'],
+						leftBranch: 0,
+						rightBranch: 3,
+						leftValue: 'left',
+						rightValue: 'right',
+						reason: 'different_values',
+					},
+				}],
+			})
 	})
 
 	it('should preserve the same non-plain object reference', () => {

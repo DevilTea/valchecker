@@ -519,16 +519,13 @@ function mergeValues(
 		return mergePlainObjects(left, right, context, path)
 	if (Object.is(left, right))
 		return { ok: true, value: left }
-	if (isObject(left) && isObject(right)) {
-		return createConflict(
-			path,
-			left,
-			right,
-			Object.getPrototypeOf(left) === Object.getPrototypeOf(right)
-				? 'different_references'
-				: 'incompatible_prototype',
-		)
-	}
+	// Unreachable by construction. `discoverCompatibility` walks the same pairs to
+	// completion before any merge starts and rejects everything that is neither
+	// `Object.is`-equal nor two plain objects with one prototype, so every
+	// `different_references`, `incompatible_prototype` and `different_values` a consumer
+	// sees is reported there. Kept as a conflict rather than dropped or thrown so that a
+	// future change weakening that invariant degrades into a reported conflict instead of
+	// silently discarding the right branch's value.
 	return createConflict(path, left, right, 'different_values')
 }
 

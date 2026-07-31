@@ -61,10 +61,14 @@ Use `execute()`; there is no `runAsync()` API.
 
 ## Structures and combinators
 
-Cover nested paths, own versus inherited properties, string and symbol keys, missing versus present-`undefined`, optional output materialization, extra-key policy, sparse arrays, duplicate transformed collection entries, live iteration, first versus collect-all traversal, async children, internal-failure short-circuiting, branch order, provenance context, and output reference topology where applicable.
+Cover nested paths, own versus inherited properties, string and symbol keys, missing versus present-`undefined`, optional output materialization, extra-key policy, sparse arrays, duplicate transformed collection entries, lazy consumption of a native iterator, first versus collect-all traversal, async children, internal-failure short-circuiting, branch order, provenance context, and output reference topology where applicable.
+
+Do not write a test that pins what happens when a child mutates the collection it is being validated against. `map` and `set` document that as unsupported, and the identity-buffer and materialized paths deliberately disagree about a re-yielded entry — see the `limit:` comments in `set.ts` and `map.ts`. A test there would pin an accident and block the buffer optimisation it rests on.
 
 ## Coverage policy
 
 `scripts/coverage-policy.ts` is the single source of threshold values. Vitest aggregate thresholds and `scripts/check-coverage.ts` per-file floors consume that policy. Do not lower thresholds solely to pass CI, and do not add coverage-only fixtures or implementation-branch tests.
+
+Coverage is the weaker of the two signals, and the answer to a mutation finding is never to raise a coverage threshold. Coverage says execution reached the code; [mutation](./mutation.md) says a broken version of it would be noticed. Point 5 of the case-design list above is exactly the mutation question, asked while writing the test instead of afterwards.
 
 Use focused Vitest runs (`pnpm test <path>`) while working; `pnpm verify` covers the rest.
