@@ -3,11 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { performanceVerdictWorkflowProblems } from './performance-workflow-contract'
 
 const workflow = readFileSync(new URL('../.github/workflows/performance-impact.yml', import.meta.url), 'utf8')
+	.replaceAll('\r\n', '\n')
 const githubExpression = (expression: string): string => '$' + `{{ ${expression} }}`
 
 describe('performance Impact verdict workflow contract', () => {
 	it('accepts the current executable verdict authority path', () => {
 		expect(performanceVerdictWorkflowProblems(workflow))
+			.toEqual([])
+	})
+
+	it('accepts the same executable contract with CRLF line endings', () => {
+		expect(performanceVerdictWorkflowProblems(workflow.replaceAll('\n', '\r\n')))
 			.toEqual([])
 	})
 
