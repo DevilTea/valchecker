@@ -754,8 +754,9 @@ jobs:
   # The job that decides, and the only one carrying the exit code.
   #
   # `resolveConfirmation` combines the two stages: a severe screen row reproduced by the
-  # second batch fails, one the second batch could not judge is `unresolved` and not a pass,
-  # and one the second batch cleared passes with the screen's own noise named. A severe row
+  # second batch fails, one the second batch could not judge remains `unresolved` and blocks
+  # this required check as indeterminate without being relabelled a regression, and one the
+  # second batch cleared passes with the screen's own noise named. A severe row
   # with no second batch at all is `unconfirmed`, which still blocks — a missing confirmation
   # must never read as a clearing one, which is why this job runs even when `confirm-measure`
   # failed, and why it fails when the screen's severe rows arrive unconfirmed.
@@ -886,7 +887,8 @@ jobs:
             "${confirm_args[@]}" \
             --markdown ../artifacts/performance-impact-verdict/confirmation.md \
             --json ../artifacts/performance-impact-verdict/confirmation.json \
-            --fail-on-regression
+            --fail-on-regression \
+            --require-resolved
 
       - name: Publish the verdict
         if: always()

@@ -20,7 +20,7 @@ import { confirmationPlan, planSummaryLines, renderConfirmationMarkdown, resolve
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 
 function parseArguments(argv) {
-	const options = { screen: null, confirm: null, groupConfirm: [], plan: false, markdown: null, json: null, failOnRegression: false }
+	const options = { screen: null, confirm: null, groupConfirm: [], plan: false, markdown: null, json: null, failOnRegression: false, requireResolved: false }
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
 		const value = argv[index + 1]
@@ -54,6 +54,9 @@ function parseArguments(argv) {
 		}
 		else if (argument === '--fail-on-regression') {
 			options.failOnRegression = true
+		}
+		else if (argument === '--require-resolved') {
+			options.requireResolved = true
 		}
 		else {
 			throw new Error(`Unknown or incomplete argument: ${argument}`)
@@ -148,6 +151,11 @@ else {
 		console.error(`[confirm] severe group${result.unacknowledgedSevereGroups.length === 1 ? '' : 's'} from the screen, not confirmed here: ${
 			result.unacknowledgedSevereGroups.join(', ')}`)
 	}
-	if (options.failOnRegression && result.verdict === 'regression')
+	if (options.failOnRegression && result.verdict === 'regression') {
 		process.exitCode = 1
+	}
+	else if (options.requireResolved && (result.verdict === 'unresolved' || result.verdict === 'inconclusive')) {
+		console.error(`[confirm] required check has no resolved answer: ${result.verdict}`)
+		process.exitCode = 2
+	}
 }

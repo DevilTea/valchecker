@@ -440,7 +440,8 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 					// an unsettled row fail the build would turn a runner's noise — 54 of 170
 					// cells moved across the old precision threshold between two identical
 					// hosted-runner runs — into a red gate on pull requests that changed nothing.
-					// Not a pass and not a failure: an answer the gate does not have yet.
+					// Not a regression verdict: an answer the gate does not have yet. The final
+					// resolver may require an answer and refuse required-check success until it has one.
 					: inconclusiveScenarios.length > 0
 						? 'inconclusive'
 						: 'neutral'

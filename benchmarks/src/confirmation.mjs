@@ -25,15 +25,16 @@
  * | screen | confirm | resolution | effect |
  * | --- | --- | --- | --- |
  * | severe or regression | severe or regression | `reproduced` | fails the gate when either side is severe |
- * | severe | inconclusive | `unresolved` | not a pass, and not a failure |
- * | inconclusive | severe | `unresolved` | not a pass, and not a failure |
+ * | severe | inconclusive | `unresolved` | not a regression verdict; a required check must not pass without an answer |
+ * | inconclusive | severe | `unresolved` | not a regression verdict; a required check must not pass without an answer |
  * | severe or regression | cleared or improvement | `not-reproduced` | passes, with a noise diagnostic |
  * | inconclusive | inconclusive | `unresolved` | reported; the screen's own verdict already says the run is unsettled |
  * | severe | no confirmation measured it | `unconfirmed` or `unmeasured` | still blocks |
  *
- * Only a **severe** claim fails the build, reproduced or unconfirmed, which is the one rule
- * that failed it before this stage existed. A plain regression reproduced is a `review`, as
- * it was.
+ * Only a **severe** claim produces a regression failure, reproduced or unconfirmed, which is
+ * the one product rule that failed it before this stage existed. A plain regression reproduced
+ * is a `review`, as it was; an `unresolved` result is separately non-success when the caller
+ * requires a resolved answer.
  *
  * **Groups are confirmed too, and on one runner.** A severe group verdict blocks, so it is
  * held to the same standard as a severe cell: the whole triggered group is remeasured in a
@@ -660,7 +661,7 @@ export function renderConfirmationMarkdown(result) {
 			'',
 			`> **Unresolved.** ${result.unresolved.map(scenario => `\`${scenario}\``)
 				.join(', ')}: one batch calls ${result.unresolved.length === 1 ? 'it' : 'them'} a severe regression and the other cannot judge `
-				+ `${result.unresolved.length === 1 ? 'it' : 'them'}. Not a pass and not a failure, and the direction does not matter: `
+				+ `${result.unresolved.length === 1 ? 'it' : 'them'}. This is not relabelled a regression, but a required check must not pass without an answer; the direction does not matter: `
 				+ 'one severe judgement against one non-judgement is the same evidence whichever stage produced which. '
 				+ 'Re-running until one of them settles is the thing this stage is built to avoid.',
 		)

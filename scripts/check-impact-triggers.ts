@@ -197,6 +197,28 @@ const filters = [compileFilter(workflowText, 'pull_request'), compileFilter(work
 const attribution: Attribution = buildAttribution(fileSystemTree(root))
 const errors: string[] = []
 
+// The last job is the only one allowed to turn measurements into a required-check result.
+// Read the executable step through the YAML document rather than searching the workflow text:
+// a required flag left in a comment is the same false green as a path filter this checker
+// cannot reach.
+const workflowDocument = YAML.parse(workflowText) as { jobs?: Record<string, { steps?: Array<Record<string, unknown>> }> } | null
+const verdictSteps = workflowDocument?.jobs?.verdict?.steps
+const resolveStep = Array.isArray(verdictSteps)
+	? verdictSteps.find(step => step.name === 'Resolve the two stages')
+	: undefined
+const resolveRun = typeof resolveStep?.run === 'string' ? resolveStep.run : null
+if (resolveRun == null) {
+	errors.push(`${workflowPath}: verdict job has no executable 'Resolve the two stages' run step`)
+}
+else {
+	for (const required of ['pnpm --dir benchmarks confirm', '--fail-on-regression', '--require-resolved']) {
+		if (!resolveRun.includes(required))
+			errors.push(`${workflowPath}: verdict resolution step does not execute ${required}`)
+	}
+	if (resolveStep?.['continue-on-error'] === true)
+		errors.push(`${workflowPath}: verdict resolution step may not continue on error`)
+}
+
 if (attribution.problems.length > 0) {
 	for (const problem of attribution.problems)
 		errors.push(`the import graph this check classifies with is incomplete: ${problem}`)
