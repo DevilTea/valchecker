@@ -5,6 +5,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { YAML } from 'zx'
 import { buildAttribution, classifyChange, gateDefiningPaths } from './impact-selection'
+import { performanceVerdictWorkflowProblems } from './performance-workflow-contract'
 
 // The Performance Impact workflow's `paths` filters and `scripts/impact-selection.ts`
 // have to agree, and nothing but this check makes them.
@@ -198,26 +199,10 @@ const attribution: Attribution = buildAttribution(fileSystemTree(root))
 const errors: string[] = []
 
 // The last job is the only one allowed to turn measurements into a required-check result.
-// Read the executable step through the YAML document rather than searching the workflow text:
-// a required flag left in a comment is the same false green as a path filter this checker
-// cannot reach.
-const workflowDocument = YAML.parse(workflowText) as { jobs?: Record<string, { steps?: Array<Record<string, unknown>> }> } | null
-const verdictSteps = workflowDocument?.jobs?.verdict?.steps
-const resolveStep = Array.isArray(verdictSteps)
-	? verdictSteps.find(step => step.name === 'Resolve the two stages')
-	: undefined
-const resolveRun = typeof resolveStep?.run === 'string' ? resolveStep.run : null
-if (resolveRun == null) {
-	errors.push(`${workflowPath}: verdict job has no executable 'Resolve the two stages' run step`)
-}
-else {
-	for (const required of ['pnpm --dir benchmarks confirm', '--fail-on-regression', '--require-resolved']) {
-		if (!resolveRun.includes(required))
-			errors.push(`${workflowPath}: verdict resolution step does not execute ${required}`)
-	}
-	if (resolveStep?.['continue-on-error'] === true)
-		errors.push(`${workflowPath}: verdict resolution step may not continue on error`)
-}
+// Its executable shape is a fail-closed contract: comments, `if: false`, or a permissive
+// `continue-on-error` cannot satisfy it merely by leaving the expected words in the YAML.
+for (const problem of performanceVerdictWorkflowProblems(workflowText))
+	errors.push(`${workflowPath}: ${problem}`)
 
 if (attribution.problems.length > 0) {
 	for (const problem of attribution.problems)
