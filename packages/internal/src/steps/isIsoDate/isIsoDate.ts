@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isoCalendarDateSource } from './iso-calendar-date'
 
 type Meta = DefineStepMethodMeta<{
@@ -51,14 +51,14 @@ export const isIsoDate = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => isoDatePattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isIsoDate:expected_iso_date',
 						payload: { value },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a supported ISO 8601 calendar date.',
 					}),
 				))

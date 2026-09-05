@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export interface PatternSnapshot { readonly source: string, readonly flags: string }
@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isMatching = implStepPlugin<PluginDef>({
 	isMatching: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [pattern, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		if (!(pattern instanceof RegExp))
 			throw new TypeError('isMatching() requires a RegExp pattern.')
 
@@ -65,7 +65,7 @@ export const isMatching = implStepPlugin<PluginDef>({
 							{ value, pattern: patternSnapshot },
 							{ pattern: 'container' },
 						),
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected the string to match /${patternSnapshot.source}/${patternSnapshot.flags}.`,
 					}))
 		})

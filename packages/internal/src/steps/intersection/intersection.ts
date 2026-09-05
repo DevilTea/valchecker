@@ -2,7 +2,7 @@ import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, Def
 import type { IsEqual, UnionToIntersection } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -629,7 +629,7 @@ export const intersection = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, failure, isFailure, createIssue, prependIssuePath },
 		params: [branches, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const branchExecutors = branches.map(branch => branch['~execute'])
 		const operationMode: OperationMode = branches.every(branch => branch['~core']?.operationMode === 'sync')
 			? 'sync'
@@ -642,7 +642,7 @@ export const intersection = implStepPlugin<PluginDef>({
 			const issues: AnyExecutionIssue[] = []
 			if (isFailure(result)) {
 				for (const issue of result.issues)
-					issues.push(prependIssuePath(issue, [], message))
+					issues.push(prependIssuePath(issue, [], messageOptions?.message))
 			}
 			return issues
 		}
@@ -667,7 +667,7 @@ export const intersection = implStepPlugin<PluginDef>({
 							rightValue,
 							reason,
 						}, { path: 'container' }),
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Intersection branch outputs conflict.',
 					}))
 				}
@@ -721,7 +721,7 @@ export const intersection = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, [], message))
+					target.push(prependIssuePath(issue, [], messageOptions?.message))
 				}
 				return hasInternal
 			}

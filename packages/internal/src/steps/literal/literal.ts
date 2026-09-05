@@ -2,7 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import type { UnionShorthandProvider } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 import { unionShorthandCapability } from '../union/union-shorthand'
 import { declareLiteralMembers } from './literal-members'
@@ -70,7 +70,7 @@ export const literal = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [literalValue, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		declareLiteralMembers(setMetadata, [literalValue])
 		// A symbol literal has no template-literal representation, so it never
 		// becomes a `templateLiteral` part (the descriptor is simply not attached).
@@ -81,7 +81,7 @@ export const literal = implStepPlugin<PluginDef>({
 			: failure(createIssue({
 					code: 'literal:expected_literal',
 					payload: { value, expected: literalValue },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected literal value "${String(literalValue)}".`,
 				})))
 	},

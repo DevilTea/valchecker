@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -83,7 +83,7 @@ export const map = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const keyExecute = options.key['~execute']
 		const valueExecute = options.value['~execute']
 		const operationMode = options.key['~core']?.operationMode === 'sync'
@@ -105,7 +105,7 @@ export const map = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, path, message))
+					target.push(prependIssuePath(issue, path, messageOptions?.message))
 				}
 			}
 			return { issues: target, hasInternal }
@@ -129,7 +129,7 @@ export const map = implStepPlugin<PluginDef>({
 				index,
 			},
 			path: [index, 'key'],
-			customMessage: message,
+			customMessage: messageOptions?.message,
 			defaultMessage: 'Expected transformed Map keys to be unique.',
 		})
 
@@ -241,7 +241,7 @@ export const map = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'map:expected_map',
 					payload: { value },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected a Map.',
 				}))
 			}

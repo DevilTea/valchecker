@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type NumberIssue = ExecutionIssue<'isLessThan:expected_less_than', { target: 'number', value: number, maximum: number }>
@@ -47,13 +47,13 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isLessThan = implStepPlugin<PluginDef>({
 	isLessThan: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [maximum, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => value < maximum
 			? success(value)
 			: failure(createIssue({
 					code: 'isLessThan:expected_less_than',
 					payload: { target: typeof value === 'bigint' ? 'bigint' : 'number', value, maximum } as any,
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected a value less than ${maximum}.`,
 				})))
 	},

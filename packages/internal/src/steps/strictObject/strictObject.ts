@@ -2,7 +2,7 @@ import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, Def
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -126,7 +126,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [struct, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const keys: PropertyKey[] = Object.keys(struct)
 		const symbols = Object.getOwnPropertySymbols(struct)
 		for (let i = 0; i < symbols.length; i++) {
@@ -178,7 +178,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 				code: 'strictObject:missing_key',
 				payload: { key },
 				path: [key],
-				customMessage: message,
+				customMessage: messageOptions?.message,
 				defaultMessage: 'Missing required object key.',
 			}))
 			return target
@@ -196,7 +196,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, [key], message))
+					target.push(prependIssuePath(issue, [key], messageOptions?.message))
 				}
 			}
 			return { issues: target, hasInternal }
@@ -251,7 +251,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'strictObject:expected_object',
 					payload: { value },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected an object.',
 				}))
 			}
@@ -266,7 +266,7 @@ export const strictObject = implStepPlugin<PluginDef>({
 						{ keys: unknownKeys, expectedKeys: [...keys] },
 						{ keys: 'container', expectedKeys: 'container' },
 					),
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Unexpected object keys found.',
 				})]
 				output = undefined

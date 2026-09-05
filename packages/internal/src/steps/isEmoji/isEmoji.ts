@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type SelfIssue
@@ -250,13 +250,13 @@ export const isEmoji = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const registered = options?.registered === true
 		const expectedEmoji = (value: string) => failure(
 			createIssue({
 				code: 'isEmoji:expected_emoji',
 				payload: { value, registered },
-				customMessage: message,
+				customMessage: messageOptions?.message,
 				defaultMessage: 'Expected an emoji.',
 			}),
 		)
@@ -278,7 +278,7 @@ export const isEmoji = implStepPlugin<PluginDef>({
 					code: 'isEmoji:unsupported_registered_set',
 					category: 'operation',
 					payload: { value, error },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected a registered emoji, but this runtime cannot express the registered set: the regular-expression `v` flag is unavailable.',
 				}),
 			))

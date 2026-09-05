@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<T extends { length: number } = { length: number }> = ExecutionIssue<
@@ -58,7 +58,7 @@ export const isLengthAtLeast = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [minimum, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			const length = value.length
 			return length >= minimum
@@ -66,7 +66,7 @@ export const isLengthAtLeast = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isLengthAtLeast:expected_length_at_least',
 						payload: { value, minimumLength: minimum, length },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected a length of at least ${minimum}.`,
 					}))
 		})

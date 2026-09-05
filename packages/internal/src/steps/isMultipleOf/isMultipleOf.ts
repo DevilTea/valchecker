@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type NumberIssue = ExecutionIssue<'isMultipleOf:expected_multiple_of', { target: 'number', value: number, divisor: number }>
@@ -72,7 +72,7 @@ function isNumberMultipleOf(value: number, divisor: number): boolean {
 /* @__NO_SIDE_EFFECTS__ */
 export const isMultipleOf = implStepPlugin<PluginDef>({
 	isMultipleOf: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [divisor, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		// Deliberate asymmetry: a zero or non-finite divisor makes "multiple of" meaningless, so it throws at
 		// construction. Bound/length/size families intentionally do NOT guard NaN operands (a NaN bound simply never
 		// matches), because the naming contract forbids hidden operand policy on those steps.
@@ -93,7 +93,7 @@ export const isMultipleOf = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isMultipleOf:expected_multiple_of',
 						payload: { target: typeof value === 'bigint' ? 'bigint' : 'number', value, divisor } as any,
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected a multiple of ${divisor}.`,
 					}))
 		})

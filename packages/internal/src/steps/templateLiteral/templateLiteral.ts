@@ -2,7 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import type { TemplateLiteralPartDescriptor } from './template-literal-part'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { expandDescriptors, matchesMember, renderTemplate, templateLiteralPartMarker } from './template-literal-part'
 
 declare namespace Internal {
@@ -124,7 +124,7 @@ export const templateLiteral = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [parts, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		if (!Array.isArray(parts))
 			throw new TypeError('templateLiteral() requires an array of parts.')
 
@@ -141,7 +141,7 @@ export const templateLiteral = implStepPlugin<PluginDef>({
 			: failure(createIssue({
 					code: 'templateLiteral:expected_template_literal',
 					payload: { value, template },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected a string matching ${template}.`,
 				})))
 	},

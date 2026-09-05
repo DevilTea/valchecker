@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<Input extends Map<any, any> = Map<any, any>> = ExecutionIssue<
@@ -49,13 +49,13 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isIncludingKey = implStepPlugin<PluginDef>({
 	isIncludingKey: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [expectedKey, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => value.has(expectedKey)
 			? success(value)
 			: failure(createIssue({
 					code: 'isIncludingKey:expected_including_key',
 					payload: { value, expectedKey },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected the Map to include the configured key.',
 				})))
 	},

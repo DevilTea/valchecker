@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<T extends { type: string } = { type: string }> = ExecutionIssue<'isMimeType:unexpected_mime_type', { value: T, expected: string | string[], actual: string }>
@@ -95,7 +95,7 @@ function matchesMimeType(actual: string, pattern: string): boolean {
 /* @__NO_SIDE_EFFECTS__ */
 export const isMimeType = implStepPlugin<PluginDef>({
 	isMimeType: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [types, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const configuredAsList = Array.isArray(types)
 		const patterns = configuredAsList ? [...types] : [types]
 		if (patterns.length === 0)
@@ -114,7 +114,7 @@ export const isMimeType = implStepPlugin<PluginDef>({
 									{ expected: 'container' },
 								)
 							: { value, expected: expectedSingle!, actual },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage,
 					}))
 		})

@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferExecutionContext, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue = ExecutionIssue<'isNonNullish:expected_non_nullish', { value: null | undefined }>
@@ -68,13 +68,13 @@ export const isNonNullish = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => value !== null && value !== undefined
 			? success(value as any)
 			: failure(createIssue({
 					code: 'isNonNullish:expected_non_nullish',
 					payload: { value: value as null | undefined },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected a non-nullish value.',
 				})))
 	},

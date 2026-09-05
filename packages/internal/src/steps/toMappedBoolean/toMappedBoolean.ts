@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<T = unknown> = ExecutionIssue<
@@ -69,7 +69,7 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		if (options.trueValues.length === 0 && options.falseValues.length === 0)
 			throw new TypeError('toMappedBoolean() requires at least one configured value.')
 
@@ -93,7 +93,7 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 					{ value, trueValues: trueValuesSnapshot, falseValues: falseValuesSnapshot },
 					{ trueValues: 'container', falseValues: 'container' },
 				),
-				customMessage: message,
+				customMessage: messageOptions?.message,
 				defaultMessage: 'Expected the value to match a configured boolean mapping.',
 			}))
 		})

@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type ExpectedIssue = ExecutionIssue<'date:expected_date', { value: unknown }>
@@ -63,14 +63,14 @@ export const date = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			if (!(value instanceof Date)) {
 				return failure(
 					createIssue({
 						code: 'date:expected_date',
 						payload: { value },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a Date.',
 					}),
 				)
@@ -81,7 +81,7 @@ export const date = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'date:invalid_date',
 						payload: { value },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a valid Date.',
 					}),
 				)

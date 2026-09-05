@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<T extends { size: number } = { size: number }> = ExecutionIssue<'isSizeExactly:expected_size_exactly', { value: T, expectedSize: number, size: number }>
@@ -45,7 +45,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isSizeExactly = implStepPlugin<PluginDef>({
 	isSizeExactly: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [expectedSize, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			const size = value.size
 			return size === expectedSize
@@ -53,7 +53,7 @@ export const isSizeExactly = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isSizeExactly:expected_size_exactly',
 						payload: { value, expectedSize, size },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected a size of exactly ${expectedSize}.`,
 					}))
 		})

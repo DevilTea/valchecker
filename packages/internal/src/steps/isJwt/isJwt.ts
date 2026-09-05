@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isBase64UrlString } from '../isBase64Url/base64url'
 
 type Meta = DefineStepMethodMeta<{
@@ -102,14 +102,14 @@ export const isJwt = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => isJwtValue(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isJwt:expected_jwt',
 						payload: { value },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a valid JWT.',
 					}),
 				))

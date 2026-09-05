@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue = ExecutionIssue<'isUrl:expected_url', { value: string, protocols: readonly string[] }>
@@ -68,7 +68,7 @@ export const isUrl = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const protocols = (options?.protocols ?? ['http', 'https'])
 			.map(protocol => protocol.toLowerCase())
 		addSuccessStep(value => isUrlValue(value, protocols)
@@ -80,7 +80,7 @@ export const isUrl = implStepPlugin<PluginDef>({
 							{ value, protocols },
 							{ protocols: 'container' },
 						),
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a valid URL.',
 					}),
 				))

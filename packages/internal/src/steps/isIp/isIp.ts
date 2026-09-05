@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue = ExecutionIssue<'isIp:expected_ip', { value: string, version: 4 | 6 | undefined }>
@@ -105,7 +105,7 @@ export const isIp = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const version = options?.version
 		addSuccessStep(value => isIpValue(value, version)
 			? success(value)
@@ -113,7 +113,7 @@ export const isIp = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'isIp:expected_ip',
 						payload: { value, version },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a valid IP address.',
 					}),
 				))

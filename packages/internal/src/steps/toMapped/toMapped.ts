@@ -1,6 +1,6 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callback-error-sentinel'
 
 declare namespace Internal {
@@ -100,7 +100,7 @@ export const toMapped = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [mapper, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const thisArg = options?.thisArg
 		addSuccessStep((value) => {
 			if (Array.isArray(value)) {
@@ -117,7 +117,7 @@ export const toMapped = implStepPlugin<PluginDef>({
 						code: 'toMapped:callback_failed',
 						category: 'operation',
 						payload: { value, item: context.item, index: context.index, error },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Map callback failed.',
 					})),
 				)
@@ -137,7 +137,7 @@ export const toMapped = implStepPlugin<PluginDef>({
 						code: 'toMapped:callback_failed',
 						category: 'operation',
 						payload: { value, item, index, error },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Map callback failed.',
 					}))
 				}
@@ -157,7 +157,7 @@ export const toMapped = implStepPlugin<PluginDef>({
 						// The impl-level `options` type collapses the Set overload's
 						// message union down to the callback issue; the runtime value is
 						// the caller's handler for the full union, so retarget it here.
-						customMessage: message as StepOptions<Internal.DuplicateMappedItemIssue>['message'],
+						customMessage: messageOptions?.message as StepOptions<Internal.DuplicateMappedItemIssue>['message'],
 						defaultMessage: 'Expected mapped Set items to be unique.',
 					}))
 				}

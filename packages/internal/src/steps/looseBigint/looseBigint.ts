@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { bigintLiteralPattern } from './bigint-literal'
 
 type Meta = DefineStepMethodMeta<{
@@ -65,7 +65,7 @@ export const looseBigint = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			const parsed = parseLooseBigint(value)
 			return parsed !== undefined
@@ -74,7 +74,7 @@ export const looseBigint = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'looseBigint:expected_bigint',
 							payload: { value },
-							customMessage: message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected a bigint or bigint string.',
 						}),
 					)

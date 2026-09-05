@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -73,14 +73,14 @@ export const transform = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [run, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => failure(
 				createIssue({
 					code: 'transform:callback_failed',
 					category: 'operation',
 					payload: { phase, value, error },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Transform callback failed.',
 				}),
 			)

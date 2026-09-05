@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 type Meta = DefineStepMethodMeta<{
@@ -53,7 +53,7 @@ export const string = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		setMetadata(templateLiteralPartMarker, { kind: 'string' })
 		addSuccessStep(
 			value => typeof value === 'string'
@@ -62,7 +62,7 @@ export const string = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'string:expected_string',
 							payload: { value },
-							customMessage: message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected a string.',
 						}),
 					),

@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isStartingWith'
@@ -46,14 +46,14 @@ export const isStartingWith = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [prefix, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => value.startsWith(prefix)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isStartingWith:expected_starting_with',
 						payload: { value, prefix },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected the string to start with "${prefix}".`,
 					}),
 				))

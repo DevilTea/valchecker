@@ -27,3 +27,14 @@ export function snapshotMessage<Message extends MessageHandler<any> | undefined>
 	}
 	return snapshot as Message
 }
+
+/**
+ * Captures only the message-bearing surface of step options while preserving an
+ * options-shaped closure for the execution hot path. Returning `undefined` for
+ * omitted options keeps the common no-options path allocation-free.
+ */
+export function snapshotMessageOptions(
+	options: { readonly message?: MessageHandler<any> | undefined } | undefined,
+): { readonly message: MessageHandler<any> | undefined } | undefined {
+	return options == null ? undefined : { message: snapshotMessage(options.message) }
+}

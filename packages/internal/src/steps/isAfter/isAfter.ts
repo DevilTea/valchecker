@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue = ExecutionIssue<'isAfter:expected_after', { value: Date, bound: Date }>
@@ -47,7 +47,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isAfter = implStepPlugin<PluginDef>({
 	isAfter: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [bound, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const boundTime = bound.getTime()
 		const boundText = Number.isNaN(boundTime)
 			? 'Invalid Date'
@@ -57,7 +57,7 @@ export const isAfter = implStepPlugin<PluginDef>({
 			: failure(createIssue({
 					code: 'isAfter:expected_after',
 					payload: { value, bound: new Date(boundTime) },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected a date after ${boundText}.`,
 				})))
 	},

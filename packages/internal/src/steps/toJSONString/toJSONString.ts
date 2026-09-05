@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type UnserializableIssue<Input = unknown> = ExecutionIssue<
@@ -67,7 +67,7 @@ export const toJSONString = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			try {
 				const json = JSON.stringify(value)
@@ -79,7 +79,7 @@ export const toJSONString = implStepPlugin<PluginDef>({
 						{ reason: 'undefined_result', value, at: [] },
 						{ at: 'container' },
 					),
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Value cannot be serialized to JSON.',
 				}))
 			}
@@ -91,7 +91,7 @@ export const toJSONString = implStepPlugin<PluginDef>({
 						{ value, at: [], error },
 						{ at: 'container' },
 					),
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'JSON serialization failed.',
 				}))
 			}

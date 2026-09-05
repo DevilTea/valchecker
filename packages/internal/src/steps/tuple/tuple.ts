@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -147,7 +147,7 @@ export const tuple = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath, replaceIssuePath, appendIssueContext },
 		params: [elements, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		if (!Array.isArray(elements))
 			throw new TypeError('tuple() requires an element array.')
 
@@ -202,7 +202,7 @@ export const tuple = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, [index], message))
+					target.push(prependIssuePath(issue, [index], messageOptions?.message))
 				}
 			}
 			return { issues: target, hasInternal }
@@ -223,7 +223,7 @@ export const tuple = implStepPlugin<PluginDef>({
 						? [p + head, ...issue.path.slice(1)]
 						: issue.path
 					target.push(appendIssueContext(
-						replaceIssuePath(issue, newPath, message),
+						replaceIssuePath(issue, newPath, messageOptions?.message),
 						{ type: 'tuple', part: 'rest' },
 					))
 				}
@@ -321,7 +321,7 @@ export const tuple = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'tuple:expected_array',
 					payload: { value },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected an array.',
 				}))
 			}
@@ -332,7 +332,7 @@ export const tuple = implStepPlugin<PluginDef>({
 					return failure(createIssue({
 						code: 'tuple:unexpected_length',
 						payload: { value, expectedLength: p, length },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: unexpectedLengthMessage,
 					}))
 				}
@@ -341,7 +341,7 @@ export const tuple = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'tuple:expected_length_at_least',
 					payload: { value, minimumLength: p + s, length },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: atLeastMessage,
 				}))
 			}

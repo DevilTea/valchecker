@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferExecutionContext, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Primitive = bigint | boolean | null | number | string | symbol | undefined
@@ -66,13 +66,13 @@ export const isEqualTo = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [expected, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => Object.is(value, expected)
 			? success(value as any)
 			: failure(createIssue({
 					code: 'isEqualTo:expected_equal_to',
 					payload: { value, expected } as any,
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected a value equal to ${String(expected)}.`,
 				})))
 	},

@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type StringIssue = ExecutionIssue<'isIncluding:expected_including', { target: 'string', value: string, expected: string, position: number | undefined }>
@@ -65,7 +65,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isIncluding = implStepPlugin<PluginDef>({
 	isIncluding: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [search, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const position = (options as Internal.StringOptions | undefined)?.position
 		const fromIndex = (options as Internal.ArrayOptions<any[]> | undefined)?.fromIndex
 		addSuccessStep((value) => {
@@ -75,7 +75,7 @@ export const isIncluding = implStepPlugin<PluginDef>({
 					: failure(createIssue({
 							code: 'isIncluding:expected_including',
 							payload: { target: 'string', value, expected: search, position },
-							customMessage: message,
+							customMessage: messageOptions?.message,
 							defaultMessage: `Expected the string to include "${search}".`,
 						}))
 			}
@@ -86,7 +86,7 @@ export const isIncluding = implStepPlugin<PluginDef>({
 					: failure(createIssue({
 							code: 'isIncluding:expected_including',
 							payload: { target: 'array', value, expected: search, fromIndex },
-							customMessage: message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected the array to include the configured value.',
 						}))
 			}
@@ -96,7 +96,7 @@ export const isIncluding = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isIncluding:expected_including',
 						payload: { target: 'set', value, expected: search },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected the Set to include the configured value.',
 					}))
 		})

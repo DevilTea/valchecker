@@ -1,7 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type UnsupportedType = 'bigint' | 'function' | 'symbol'
@@ -227,7 +227,7 @@ export const toStrictJSONString = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			const prepared = prepareJSON(value)
 			if (!prepared.ok) {
@@ -239,7 +239,7 @@ export const toStrictJSONString = implStepPlugin<PluginDef>({
 							{ value, at: prepared.at, error: prepared.error },
 							{ at: 'container' },
 						),
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'JSON serialization failed.',
 					}))
 				}
@@ -255,7 +255,7 @@ export const toStrictJSONString = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'toStrictJSONString:unserializable',
 					payload,
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Value cannot be serialized to JSON.',
 				}))
 			}
@@ -270,7 +270,7 @@ export const toStrictJSONString = implStepPlugin<PluginDef>({
 						{ reason: 'undefined_result', value, at: [] },
 						{ at: 'container' },
 					),
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Value cannot be serialized to JSON.',
 				}))
 			}
@@ -282,7 +282,7 @@ export const toStrictJSONString = implStepPlugin<PluginDef>({
 						{ value, at: [], error },
 						{ at: 'container' },
 					),
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'JSON serialization failed.',
 				}))
 			}

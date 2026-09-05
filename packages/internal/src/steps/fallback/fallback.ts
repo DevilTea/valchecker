@@ -2,7 +2,7 @@ import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, Def
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { hasInternalIssue, markIssueSnapshotPayload, snapshotIssuesForConsumer } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -75,7 +75,7 @@ export const fallback = implStepPlugin<PluginDef>({
 		utils: { addFailureStep, success, createIssue, failure },
 		params: [run, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addFailureStep((issues) => {
 			if (hasInternalIssue(issues))
 				return failure(issues)
@@ -90,7 +90,7 @@ export const fallback = implStepPlugin<PluginDef>({
 						{ receivedIssues: snapshotIssuesForConsumer(issues), error },
 						{ receivedIssues: 'issues' },
 					),
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Fallback failed.',
 				})
 				return failure([...issues, fallbackIssue])

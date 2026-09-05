@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callback-error-sentinel'
 
 declare namespace Internal {
@@ -109,7 +109,7 @@ export const toFiltered = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [predicate, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const thisArg = options?.thisArg
 		addSuccessStep((value) => {
 			if (Array.isArray(value)) {
@@ -126,7 +126,7 @@ export const toFiltered = implStepPlugin<PluginDef>({
 						code: 'toFiltered:callback_failed',
 						category: 'operation',
 						payload: { value, item: context.item, index: context.index, error },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Filter callback failed.',
 					})),
 				)
@@ -145,7 +145,7 @@ export const toFiltered = implStepPlugin<PluginDef>({
 						code: 'toFiltered:callback_failed',
 						category: 'operation',
 						payload: { value, item, index, error },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Filter callback failed.',
 					}))
 				}

@@ -2,7 +2,7 @@ import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, Def
 import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
 import { markIssueSnapshotPayload } from '../../core/core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -104,7 +104,7 @@ export const variant = implStepPlugin<PluginDef>({
 			throw new TypeError('variant() requires a configuration object.')
 
 		const { discriminator, variants } = options
-		const message = snapshotMessage(options.message)
+		const messageOptions = snapshotMessageOptions(options)
 		const discriminatorType = typeof discriminator
 		if (discriminatorType !== 'string' && discriminatorType !== 'number' && discriminatorType !== 'symbol')
 			throw new TypeError('variant() discriminator must be a property key.')
@@ -136,7 +136,7 @@ export const variant = implStepPlugin<PluginDef>({
 			const issues: AnyExecutionIssue[] = Array.from({ length: result.issues.length })
 			// Deliberately duplicated per-file inline loop: V8 inlines this per-schema loop but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 			for (let index = 0; index < result.issues.length; index++) {
-				const scoped = prependIssuePath(result.issues[index]!, [], message)
+				const scoped = prependIssuePath(result.issues[index]!, [], messageOptions?.message)
 				issues[index] = appendIssueContext(scoped, {
 					type: 'variant',
 					discriminator,
@@ -151,7 +151,7 @@ export const variant = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'variant:expected_object',
 					payload: { value },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected an object for variant validation.',
 				}))
 			}
@@ -172,7 +172,7 @@ export const variant = implStepPlugin<PluginDef>({
 						{ expected: 'container' },
 					),
 					path: [discriminator],
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected discriminator "${String(discriminator)}" to match a configured variant.`,
 				}))
 			}

@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<Input extends Map<any, any> = Map<any, any>> = ExecutionIssue<
@@ -55,7 +55,7 @@ function isSameValueZero(left: unknown, right: unknown): boolean {
 /* @__NO_SIDE_EFFECTS__ */
 export const isIncludingValue = implStepPlugin<PluginDef>({
 	isIncludingValue: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [expectedValue, options] }) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			for (const entryValue of value.values()) {
 				if (isSameValueZero(entryValue, expectedValue))
@@ -64,7 +64,7 @@ export const isIncludingValue = implStepPlugin<PluginDef>({
 			return failure(createIssue({
 				code: 'isIncludingValue:expected_including_value',
 				payload: { value, expectedValue },
-				customMessage: message,
+				customMessage: messageOptions?.message,
 				defaultMessage: 'Expected the Map to include the configured value.',
 			}))
 		})

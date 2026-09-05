@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type NumberIssue = ExecutionIssue<'isAtLeast:expected_at_least', { target: 'number', value: number, minimum: number }>
@@ -61,7 +61,7 @@ export const isAtLeast = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [minimum, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			if (value >= minimum) {
 				return success(value)
@@ -71,7 +71,7 @@ export const isAtLeast = implStepPlugin<PluginDef>({
 				createIssue({
 					code: 'isAtLeast:expected_at_least',
 					payload: { target, value: value as any, minimum: minimum as any },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected a value of at least ${minimum}.`,
 				}),
 			)

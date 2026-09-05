@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { snapshotMessage } from '../../core/message'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike, returnTrue } from '../../shared'
 
 declare namespace Internal {
@@ -105,18 +105,18 @@ export const check = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, prependIssuePath },
 		params: [run, options],
 	}) => {
-		const message = snapshotMessage(options?.message)
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			let issues: AnyExecutionIssue[] | undefined
 			const addIssue = (issue: AnyExecutionIssue) => {
-				(issues ??= []).push(prependIssuePath(issue, [], message))
+				(issues ??= []).push(prependIssuePath(issue, [], messageOptions?.message))
 			}
 			const callbackFailure = (phase: 'throw' | 'reject', error: unknown) => {
 				const issue = createIssue({
 					code: 'check:callback_failed',
 					category: 'operation',
 					payload: { phase, value, error },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Check callback failed.',
 				})
 				return failure(issues == null ? issue : [...issues, issue])
@@ -126,7 +126,7 @@ export const check = implStepPlugin<PluginDef>({
 					const issue = createIssue({
 						code: 'check:failed',
 						payload: { reason: 'returned_false', value },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Check failed.',
 					})
 					return failure(issues == null ? issue : [...issues, issue])
@@ -135,7 +135,7 @@ export const check = implStepPlugin<PluginDef>({
 					const issue = createIssue({
 						code: 'check:failed',
 						payload: { reason: 'returned_message', value, returnedMessage: result },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: result,
 					})
 					return failure(issues == null ? issue : [...issues, issue])
