@@ -5,10 +5,12 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os'
 import { delimiter, resolve } from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const root = resolve(import.meta.dirname, '..')
 const releaseRoot = resolve(root, 'artifacts/release')
+const tsxCli = fileURLToPath(import.meta.resolve('tsx/cli'))
 const cleanupPaths: string[] = []
 
 function checksum(contents: Buffer, algorithm: 'sha256' | 'sha512'): string {
@@ -37,7 +39,9 @@ afterEach(async () => {
 })
 
 describe('publish release registry preflight', () => {
-	it('detects a later conflicting artifact before publishing any missing package', async () => {
+	// The production Trusted Publishing workflow runs on Ubuntu; this process-level
+	// test uses a POSIX fake npm executable. Pure release-contract tests still run on Windows.
+	it.skipIf(process.platform === 'win32')('detects a later conflicting artifact before publishing any missing package', async () => {
 		await mkdir(releaseRoot, { recursive: true })
 		const fixtureDirectory = await mkdtemp(resolve(releaseRoot, 'publish-test-'))
 		cleanupPaths.push(fixtureDirectory)
@@ -102,7 +106,7 @@ process.exit(2)
 			GITHUB_SHA: 'review-sha',
 		})
 
-		const result = await run('pnpm', ['exec', 'tsx', './scripts/publish-release.ts', '--manifest', manifest.slice(root.length + 1)], env)
+		const result = await run(process.execPath, [tsxCli, './scripts/publish-release.ts', '--manifest', manifest.slice(root.length + 1)], env)
 		expect(result.code)
 			.toBe(1)
 		expect(`${result.stdout}\n${result.stderr}`)
