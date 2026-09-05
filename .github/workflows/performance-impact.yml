@@ -758,11 +758,12 @@ jobs:
   # this required check as indeterminate without being relabelled a regression, and one the
   # second batch cleared passes with the screen's own noise named. A severe row
   # with no second batch at all is `unconfirmed`, which still blocks — a missing confirmation
-  # must never read as a clearing one, which is why this job runs even when `confirm-measure`
-  # failed, and why it fails when the screen's severe rows arrive unconfirmed.
+  # must never read as a clearing one. This job therefore always runs: failed screen evidence
+  # is an infrastructure failure, and a planned confirmation batch that did not complete is
+  # rejected before resolution rather than being reinterpreted as "no confirmation needed".
   verdict:
     needs: [measure, compare, confirm-measure]
-    if: always() && needs.compare.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -796,10 +797,22 @@ jobs:
         shell: bash
         env:
           RUNS: ${{ needs.measure.outputs.runs }}
+          MEASURE_RESULT: ${{ needs.measure.result }}
+          COMPARE_RESULT: ${{ needs.compare.result }}
           CONFIRM_RESULT: ${{ needs.confirm-measure.result }}
           PLAN: ${{ needs.compare.outputs.confirm_plan }}
         run: |
           set -euo pipefail
+          if [[ "$MEASURE_RESULT" != "success" || "$COMPARE_RESULT" != "success" ]]; then
+            echo "[confirm] upstream evidence unavailable: measure=$MEASURE_RESULT compare=$COMPARE_RESULT" >&2
+            exit 2
+          fi
+          planned_batches="$(node -e 'const plan = JSON.parse(process.argv[1]); process.stdout.write(String(plan.batches.length))' "$PLAN")"
+          if [[ "$planned_batches" -gt 0 && "$CONFIRM_RESULT" != "success" ]]; then
+            echo "[confirm] $planned_batches confirmation batch(es) were planned but confirm-measure=$CONFIRM_RESULT" >&2
+            exit 2
+          fi
+
           mkdir -p artifacts/performance-impact-verdict
           runs="$RUNS"
           if ! [[ "$runs" =~ ^[0-9]+$ ]] || [ "$runs" -lt 3 ]; then

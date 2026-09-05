@@ -4,10 +4,25 @@ const resolutionStepName = 'Resolve the two stages'
 const allowedStepKeys = ['env', 'name', 'run', 'shell']
 const githubExpression = (expression: string): string => '$' + `{{ ${expression} }}`
 const expectedEnvironment = {
+	COMPARE_RESULT: githubExpression('needs.compare.result'),
 	CONFIRM_RESULT: githubExpression('needs.confirm-measure.result'),
+	MEASURE_RESULT: githubExpression('needs.measure.result'),
 	PLAN: githubExpression('needs.compare.outputs.confirm_plan'),
 	RUNS: githubExpression('needs.measure.outputs.runs'),
 }
+const expectedNeeds = ['measure', 'compare', 'confirm-measure']
+const expectedGuardPreamble = [
+	'set -euo pipefail',
+	'if [[ "$MEASURE_RESULT" != "success" || "$COMPARE_RESULT" != "success" ]]; then',
+	'echo "[confirm] upstream evidence unavailable: measure=$MEASURE_RESULT compare=$COMPARE_RESULT" >&2',
+	'exit 2',
+	'fi',
+	'planned_batches="$(node -e \'const plan = JSON.parse(process.argv[1]); process.stdout.write(String(plan.batches.length))\' "$PLAN")"',
+	'if [[ "$planned_batches" -gt 0 && "$CONFIRM_RESULT" != "success" ]]; then',
+	'echo "[confirm] $planned_batches confirmation batch(es) were planned but confirm-measure=$CONFIRM_RESULT" >&2',
+	'exit 2',
+	'fi',
+]
 const expectedCommandTail = [
 	'pnpm --dir benchmarks confirm \\',
 	'  --screen ../artifacts/screen/impact.json \\',
@@ -26,8 +41,15 @@ function sameRecord(actual: Record<string, unknown>, expected: Record<string, un
 
 export function performanceVerdictWorkflowProblems(workflow: string): string[] {
 	const problems: string[] = []
-	const document = YAML.parse(workflow) as { jobs?: Record<string, { steps?: unknown }> } | null
-	const steps = document?.jobs?.verdict?.steps
+	const document = YAML.parse(workflow) as { jobs?: Record<string, { if?: unknown, needs?: unknown, steps?: unknown }> } | null
+	const verdict = document?.jobs?.verdict
+	if (verdict == null)
+		return ['workflow has no verdict job']
+	if (JSON.stringify(verdict.needs) !== JSON.stringify(expectedNeeds))
+		problems.push(`verdict job needs must equal ${JSON.stringify(expectedNeeds)}`)
+	if (verdict.if !== 'always()')
+		problems.push('verdict job must run with `if: always()` so upstream failures cannot skip the final gate')
+	const steps = verdict.steps
 	if (!Array.isArray(steps))
 		return ['verdict job has no steps array']
 
@@ -62,9 +84,16 @@ export function performanceVerdictWorkflowProblems(workflow: string): string[] {
 	if (typeof run !== 'string') {
 		problems.push(`${resolutionStepName} step must have an executable run block`)
 	}
-	else if (!run.trimEnd()
-		.endsWith(expectedCommandTail)) {
-		problems.push(`${resolutionStepName} step must end with the exact gated confirmation command`)
+	else {
+		const executableLines = run.split(/\r?\n/)
+			.map(line => line.trim())
+			.filter(line => line.length > 0 && !line.startsWith('#'))
+		if (JSON.stringify(executableLines.slice(0, expectedGuardPreamble.length)) !== JSON.stringify(expectedGuardPreamble))
+			problems.push(`${resolutionStepName} step must fail closed before reading incomplete upstream evidence`)
+		if (!run.trimEnd()
+			.endsWith(expectedCommandTail)) {
+			problems.push(`${resolutionStepName} step must end with the exact gated confirmation command`)
+		}
 	}
 
 	return problems

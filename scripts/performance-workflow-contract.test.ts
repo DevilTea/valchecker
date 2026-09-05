@@ -54,4 +54,39 @@ describe('performance Impact verdict workflow contract', () => {
 			.some(problem => problem.includes('step env must equal')))
 			.toBe(true)
 	})
+
+	it('requires the verdict job to run even when an upstream job fails', () => {
+		const mutated = workflow.replace(
+			'  verdict:\n    needs: [measure, compare, confirm-measure]\n    if: always()',
+			'  verdict:\n    needs: [measure, compare, confirm-measure]\n    if: always() && needs.compare.result == \'success\'',
+		)
+		expect(performanceVerdictWorkflowProblems(mutated))
+			.toContain('verdict job must run with `if: always()` so upstream failures cannot skip the final gate')
+	})
+
+	it('pins measure and compare job results as verdict evidence', () => {
+		const mutated = workflow.replace(
+			`          MEASURE_RESULT: ${githubExpression('needs.measure.result')}\n`,
+			'',
+		)
+		expect(performanceVerdictWorkflowProblems(mutated)
+			.some(problem => problem.includes('step env must equal')))
+			.toBe(true)
+	})
+
+	it('rejects an upstream-evidence guard that survives only as a shell comment', () => {
+		const target = '          if [[ "$MEASURE_RESULT" != "success" || "$COMPARE_RESULT" != "success" ]]; then'
+		const mutated = workflow.replace(target, `          # ${target.trim()}`)
+		expect(performanceVerdictWorkflowProblems(mutated))
+			.toContain('Resolve the two stages step must fail closed before reading incomplete upstream evidence')
+	})
+
+	it('requires a planned confirmation batch to succeed before resolution', () => {
+		const mutated = workflow.replace(
+			'          if [[ "$planned_batches" -gt 0 && "$CONFIRM_RESULT" != "success" ]]; then',
+			'          if false; then',
+		)
+		expect(performanceVerdictWorkflowProblems(mutated))
+			.toContain('Resolve the two stages step must fail closed before reading incomplete upstream evidence')
+	})
 })
