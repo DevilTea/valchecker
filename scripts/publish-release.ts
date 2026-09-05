@@ -6,10 +6,10 @@ import process from 'node:process'
 import {
 	npmTagForVersion,
 	parseNpmVersions,
-	publishedArtifactAction,
 	releasePackages,
 	releaseTagForVersion,
 } from './release-contract'
+import { publishWithRegistryPreflight } from './release-publication'
 
 const root = resolve(import.meta.dirname, '..')
 const releaseDirectory = resolve(root, 'artifacts/release')
@@ -219,45 +219,29 @@ async function main(): Promise<void> {
 		return
 	}
 
-	const publicationActions = new Map<string, 'publish' | 'skip'>()
-	for (const packageItem of packages) {
-		publicationActions.set(
-			packageItem.name,
-			publishedArtifactAction(
-				packageItem.name,
-				version,
-				packageItem.integrity,
-				await publishedIntegrity(packageItem.name, version),
-			),
-		)
-	}
-
 	console.log(`Publishing ${version} to npm tag ${npmTag} from annotated tag ${releaseTag}.`)
-	for (const packageItem of packages) {
-		const tarballPath = tarballs.get(packageItem.name)
-		if (!tarballPath)
-			throw new Error(`Missing verified tarball for ${packageItem.name}`)
-
-		const action = publicationActions.get(packageItem.name)
-		if (!action)
-			throw new Error(`Missing registry preflight result for ${packageItem.name}`)
-		if (action === 'skip') {
-			console.log(`Skipping ${packageItem.name}@${version}: npm already holds the identical artifact.`)
-			continue
-		}
-
-		console.log(`Publishing ${packageItem.name} from ${packageItem.tarball}`)
-		await run('npm', [
-			'publish',
-			tarballPath,
-			'--access',
-			'public',
-			'--tag',
-			npmTag,
-			'--provenance',
-			'--ignore-scripts',
-		])
-	}
+	await publishWithRegistryPreflight(
+		packages,
+		version,
+		publishedIntegrity,
+		async (packageItem) => {
+			const tarballPath = tarballs.get(packageItem.name)
+			if (!tarballPath)
+				throw new Error(`Missing verified tarball for ${packageItem.name}`)
+			console.log(`Publishing ${packageItem.name} from ${packageItem.tarball}`)
+			await run('npm', [
+				'publish',
+				tarballPath,
+				'--access',
+				'public',
+				'--tag',
+				npmTag,
+				'--provenance',
+				'--ignore-scripts',
+			])
+		},
+		packageItem => console.log(`Skipping ${packageItem.name}@${version}: npm already holds the identical artifact.`),
+	)
 }
 
 try {
