@@ -2,12 +2,14 @@
 //
 // `toJSONValue` remains a compatible-subset comparison because Valchecker exposes
 // the native parse as a built-in while Zod reaches the same call through a transform
-// closure. `toJSONString` is different after the native-compatibility split: its
-// successful behavior is exactly `JSON.stringify(value)`, so the valid row is an
-// `equivalent` comparison. The cyclic failure is `library-defaults`: Valchecker
-// and Valibot both catch the native `TypeError` and report their own library issue,
-// while both Zod pins let that exception escape `safeParse` and are capability-gated
-// out of the invalid row.
+// closure. `toJSONString` follows the native `JSON.stringify(value)` success semantics,
+// but the schema as a whole is not cross-library equivalent: on a cyclic input Valchecker
+// and Valibot catch the native `TypeError` and report their own library issue, while both
+// Zod pins let that exception escape `safeParse`. D7's executable conformance contract
+// deliberately checks a representative success and failure for an `equivalent` schema,
+// so the valid timing row is `compatible-subset` even though its fixture itself produces
+// the same string everywhere. The cyclic failure remains `library-defaults` and
+// capability-gated for the Zod pins.
 //
 // Loss-preventing preflight is intentionally not represented by these rows. It now
 // belongs to `toStrictJSONString()`, for which no pinned competitor exposes the same
@@ -49,6 +51,6 @@ export const serializationScenarios = [
 	warm('serialization/json-value-valid', 'standard', 'jsonValue', inputs.text, { success: true, output: inputs.value }, { comparisonScope: subset, steps: jsonValueSteps }),
 	warm('serialization/json-value-invalid', 'full', 'jsonValue', inputs.invalidText, { success: false }, { comparisonScope: subset, requiredFeatures: failureReporting, steps: jsonValueSteps }),
 
-	warm('serialization/json-string-valid', 'standard', 'jsonString', inputs.value, { success: true, output: inputs.text }, { steps: jsonStringSteps }),
+	warm('serialization/json-string-valid', 'standard', 'jsonString', inputs.value, { success: true, output: inputs.text }, { comparisonScope: subset, steps: jsonStringSteps }),
 	warm('serialization/json-string-invalid', 'full', 'jsonString', inputs.cyclic, { success: false }, { requiredFeatures: failureReporting, steps: jsonStringSteps }),
 ]

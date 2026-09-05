@@ -57,6 +57,21 @@ function localScript(name: string, file: string): Gate {
 }
 
 /**
+ * A package-script gate whose evidence executes the built Valchecker artifact.
+ *
+ * `bench:coverage` records the exact steps reached by the published entry point, so a source-only
+ * checkout is not enough evidence. `pnpm verify` happens to build before quality gates, but the
+ * required CI preflights also run `pnpm test:quality` directly. Keep the command self-sufficient
+ * instead of relying on whichever caller happened to build first.
+ */
+function builtPackageScript(name: string, script: string): Gate {
+	return {
+		...packageScript(name, script),
+		prepare: { command: 'pnpm', args: ['build'] },
+	}
+}
+
+/**
  * A gate that lives in the deliberately isolated `benchmarks` package.
  *
  * The benchmark package is not a pnpm-workspace member: its pinned competitor/tooling
@@ -85,7 +100,7 @@ const gates: Gate[] = [
 	localScript('issue codes', 'check-issue-codes.ts'),
 	packageScript('step completeness', 'steps:complete'),
 	packageScript('generated API reference', 'docs:api'),
-	packageScript('benchmark step coverage', 'bench:coverage'),
+	builtPackageScript('benchmark step coverage', 'bench:coverage'),
 	// The harness that decides the Performance Impact verdict. It was reachable only from that
 	// workflow's preflight job, so a change to the code that classifies a regression could break
 	// its own tests and `pnpm verify` would not notice — which is the wrong shape for a suite the

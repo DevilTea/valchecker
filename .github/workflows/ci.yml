@@ -29,6 +29,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Setup Workspace
+        uses: ./.github/actions/setup
+        with:
+          build: 'false'
+
       - name: Require Changelog Entry
         shell: bash
         env:
@@ -97,7 +102,7 @@ jobs:
         run: pnpm api:surface
 
       - name: Upload API Surface Diff
-        if: failure()
+        if: failure() && hashFiles('artifacts/**') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: api-surface-actual
