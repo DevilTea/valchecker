@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
 const root = resolve(import.meta.dirname, '..')
@@ -16,19 +16,21 @@ const packages = {
 	'valchecker': resolve(root, 'packages/valchecker/dist/index'),
 } as const
 
-interface PackageSurface {
+export interface PackageSurface {
 	runtime: string[]
 	declaredValues: string[]
 	typeOnly: string[]
+	/** The declaration text owned by each public export, including its signature. */
+	declarationSignatures: Record<string, string>
 }
 
-type ApiSurface = Record<keyof typeof packages, PackageSurface>
+export type ApiSurface = Record<keyof typeof packages, PackageSurface>
 
 function sortNames(names: Iterable<string>): string[] {
 	return [...names].sort((a, b) => a.localeCompare(b))
 }
 
-function getDeclarationSurface(declarationPath: string): Pick<PackageSurface, 'declaredValues' | 'typeOnly'> {
+export function getDeclarationSurface(declarationPath: string): Pick<PackageSurface, 'declaredValues' | 'typeOnly' | 'declarationSignatures'> {
 	const program = ts.createProgram({
 		rootNames: [declarationPath],
 		options: {
@@ -46,6 +48,7 @@ function getDeclarationSurface(declarationPath: string): Pick<PackageSurface, 'd
 
 	const values = new Set<string>()
 	const typeOnly = new Set<string>()
+	const declarationSignatures: Record<string, string> = {}
 
 	for (const exported of checker.getExportsOfModule(moduleSymbol)) {
 		const symbol = exported.flags & ts.SymbolFlags.Alias
@@ -56,12 +59,47 @@ function getDeclarationSurface(declarationPath: string): Pick<PackageSurface, 'd
 			values.add(name)
 		else
 			typeOnly.add(name)
+		const declarations = symbol.declarations
+		if (declarations == null || declarations.length === 0)
+			throw new Error(`Unable to load declaration for public export '${name}' from ${declarationPath}`)
+		declarationSignatures[name] = declarations
+			.map(declaration => declaration.getText(declaration.getSourceFile()))
+			.join('\n')
 	}
 
 	return {
 		declaredValues: sortNames(values),
 		typeOnly: sortNames(typeOnly),
+		declarationSignatures: Object.fromEntries(Object.entries(declarationSignatures)
+			.sort(([left], [right]) => left.localeCompare(right))),
 	}
+}
+
+/** Compare the checked-in API artifact without reducing a declaration change to an export rename. */
+export function apiSurfaceDifferences(expected: ApiSurface, actual: ApiSurface): string[] {
+	const differences: string[] = []
+	for (const name of Object.keys(packages) as (keyof typeof packages)[]) {
+		const expectedPackage = expected[name]
+		const actualPackage = actual[name]
+		if (expectedPackage == null || actualPackage == null) {
+			differences.push(`${name} package surface is missing`)
+			continue
+		}
+		if (JSON.stringify(expectedPackage.runtime) !== JSON.stringify(actualPackage.runtime))
+			differences.push(`${name} runtime exports changed`)
+		if (JSON.stringify(expectedPackage.declaredValues) !== JSON.stringify(actualPackage.declaredValues))
+			differences.push(`${name} declared value exports changed`)
+		if (JSON.stringify(expectedPackage.typeOnly) !== JSON.stringify(actualPackage.typeOnly))
+			differences.push(`${name} type-only exports changed`)
+		for (const exportName of new Set([
+			...Object.keys(expectedPackage.declarationSignatures),
+			...Object.keys(actualPackage.declarationSignatures),
+		])) {
+			if (expectedPackage.declarationSignatures[exportName] !== actualPackage.declarationSignatures[exportName])
+				differences.push(`${name} declaration signature changed for '${exportName}'`)
+		}
+	}
+	return differences
 }
 
 async function getApiSurface(): Promise<ApiSurface> {
@@ -104,8 +142,10 @@ async function main(): Promise<void> {
 	}
 
 	const expected = JSON.parse(await readFile(expectedPath, 'utf8')) as ApiSurface
-	if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+	const differences = apiSurfaceDifferences(expected, actual)
+	if (differences.length > 0) {
 		console.error(`Public API surface changed. Review ${actualPath} and run \`pnpm api:surface:update\` when the change is intentional.`)
+		console.error(differences.join('\n'))
 		process.exitCode = 1
 	}
 	else {
@@ -113,12 +153,14 @@ async function main(): Promise<void> {
 	}
 }
 
-try {
-	await main()
-}
-catch (error) {
-	await mkdir(dirname(errorPath), { recursive: true })
-	const diagnostic = error instanceof Error ? error.stack ?? error.message : String(error)
-	await writeFile(errorPath, `${diagnostic}\n`)
-	throw error
+if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+	try {
+		await main()
+	}
+	catch (error) {
+		await mkdir(dirname(errorPath), { recursive: true })
+		const diagnostic = error instanceof Error ? error.stack ?? error.message : String(error)
+		await writeFile(errorPath, `${diagnostic}\n`)
+		throw error
+	}
 }

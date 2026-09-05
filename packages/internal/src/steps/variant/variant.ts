@@ -1,6 +1,8 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { markIssueSnapshotPayload } from '../../core/core'
+import { snapshotMessage } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -101,7 +103,8 @@ export const variant = implStepPlugin<PluginDef>({
 		if (typeof options !== 'object' || options === null || Array.isArray(options))
 			throw new TypeError('variant() requires a configuration object.')
 
-		const { discriminator, variants, message } = options
+		const { discriminator, variants } = options
+		const message = snapshotMessage(options.message)
 		const discriminatorType = typeof discriminator
 		if (discriminatorType !== 'string' && discriminatorType !== 'number' && discriminatorType !== 'symbol')
 			throw new TypeError('variant() discriminator must be a property key.')
@@ -112,7 +115,7 @@ export const variant = implStepPlugin<PluginDef>({
 		if (variantKeys.length === 0)
 			throw new TypeError('variant() requires at least one variant.')
 
-		const expected = Object.freeze([...variantKeys])
+		const expected: readonly (string | symbol)[] = variantKeys
 		const executors = new Map<string | symbol, Use<Valchecker>['~execute']>()
 		let operationMode: OperationMode = 'sync'
 		for (const key of variantKeys) {
@@ -164,7 +167,10 @@ export const variant = implStepPlugin<PluginDef>({
 			if (execute === undefined) {
 				return failure(createIssue({
 					code: 'variant:invalid_discriminator',
-					payload: { value, discriminator, received, expected },
+					payload: markIssueSnapshotPayload(
+						{ value, discriminator, received, expected },
+						{ expected: 'container' },
+					),
 					path: [discriminator],
 					customMessage: message,
 					defaultMessage: `Expected discriminator "${String(discriminator)}" to match a configured variant.`,

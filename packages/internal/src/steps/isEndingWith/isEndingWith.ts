@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isEndingWith'
@@ -45,13 +46,14 @@ export const isEndingWith = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [suffix, options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(value => value.endsWith(suffix)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isEndingWith:expected_ending_with',
 						payload: { value, suffix },
-						customMessage: options?.message,
+						customMessage: message,
 						defaultMessage: `Expected the string to end with "${suffix}".`,
 					}),
 				))

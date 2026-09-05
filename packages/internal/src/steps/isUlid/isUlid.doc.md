@@ -1,13 +1,13 @@
 <!-- step-doc
 category: formats
 section: pattern
-summary: 26 characters of Crockford base32
+summary: canonical 128-bit ULIDs in Crockford base32
 -->
 
 ### `isUlid(options?)`
 
-A ULID: 26 characters of Crockford base32 (digits and uppercase letters excluding I, L, O, U).
-Case-insensitive.
+A canonical ULID: 26 characters of Crockford base32 (digits and uppercase letters excluding I, L,
+O, U), with a first character from `0` through `7` so the value fits in 128 bits. Case-insensitive.
 
 ```ts
 v.string()

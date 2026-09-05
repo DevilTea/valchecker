@@ -137,7 +137,7 @@ export function mergeShardResults(raws) {
 	// apparatus, not the machine: four shards of one run are four quarters of one catalog, and
 	// a shard that measured a different one assigned `p % 4` over a different list. It is
 	// absent from a cross-library scenario run, where `null` agrees with `null`.
-	for (const field of ['schemaVersion', 'mode', 'seed', 'scenarioFilter', 'isolation', 'profile', 'order', 'cellCatalogHash'])
+	for (const field of ['schemaVersion', 'mode', 'seed', 'scenarioFilter', 'scenarioRoles', 'isolation', 'temporalPairing', 'profile', 'order', 'cellCatalogHash'])
 		assertSameAcrossShards(raws, raw => raw[field], field)
 	// The build and the runtime, which the machine is explicitly allowed to differ in and
 	// these are not. The workflow can rerun one failed shard, which is exactly how a merge
@@ -226,6 +226,8 @@ export function mergeShardResults(raws) {
 		seed: first.seed,
 		scenarioFilter: first.scenarioFilter,
 		isolation: first.isolation,
+		temporalPairing: first.temporalPairing,
+		scenarioRoles: first.scenarioRoles,
 		...cellFields,
 		startedAt,
 		completedAt,

@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toDate'
@@ -53,6 +54,7 @@ export const toDate = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep((value) => {
 			try {
 				const date = new Date(value as string | number)
@@ -61,7 +63,7 @@ export const toDate = implStepPlugin<PluginDef>({
 						code: 'toDate:conversion_failed',
 						category: 'operation',
 						payload: { value, error: undefined },
-						customMessage: options?.message,
+						customMessage: message,
 						defaultMessage: 'Expected a value convertible to a valid Date.',
 					}))
 				}
@@ -73,7 +75,7 @@ export const toDate = implStepPlugin<PluginDef>({
 					code: 'toDate:conversion_failed',
 					category: 'operation',
 					payload: { value, error },
-					customMessage: options?.message,
+					customMessage: message,
 					defaultMessage: 'Expected a value convertible to a valid Date.',
 				}))
 			}

@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'never'
@@ -48,12 +49,13 @@ export const never = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(
 			value => failure(
 				createIssue({
 					code: 'never:expected_never',
 					payload: { value },
-					customMessage: options?.message,
+					customMessage: message,
 					defaultMessage: 'Expected never.',
 				}),
 			),

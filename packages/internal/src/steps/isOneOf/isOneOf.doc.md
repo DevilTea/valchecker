@@ -13,8 +13,8 @@ an output with no primitive member.
 
 A non-empty tuple is required: an empty array is rejected by the type, and a JavaScript caller
 passing one gets a `TypeError` while the schema is constructed. The configured values are
-snapshotted into a frozen array at construction, so mutating the caller's array afterwards does not
-change what the schema accepts, and the failure payload exposes that same frozen snapshot.
+snapshotted into an owned array at construction, so mutating the caller's array afterwards does not
+change what the schema accepts, and the failure payload exposes that same construction snapshot.
 Successful output narrows to the union of the members, which is part of the public contract. The
 step also advertises its candidates as a finite member set, which is what lets `record()` treat such
 a key schema's domain as closed and exhaustive — see [Structures](/api/structures).

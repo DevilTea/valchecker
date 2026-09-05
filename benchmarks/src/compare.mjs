@@ -177,6 +177,6 @@ console.error(`[benchmark] cells measured ${result.cells.measured}, `
 	+ `${result.cells.catalogDiff == null
 		? ''
 		: `, catalog added ${result.cells.catalogDiff.added.length} / removed ${result.cells.catalogDiff.removed.length}`
-			+ ` / regrouped ${(result.cells.catalogDiff.changed ?? []).length}`}`)
+			+ ` / contract changed ${(result.cells.catalogDiff.changed ?? []).length}`}`)
 if (options.failOnRegression && result.verdict === 'regression')
 	process.exitCode = 1

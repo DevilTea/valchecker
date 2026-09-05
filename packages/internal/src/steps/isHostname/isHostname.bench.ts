@@ -18,6 +18,6 @@ stepBench('isHostname', [
 		group: 'warm/failure/library-default',
 		expect: { success: false, issues: ['isHostname:expected_hostname'] },
 		batch: 100,
-		run: () => schema.execute('-bad.example.com'),
+		run: () => schema.execute('api.example.123'),
 	},
 ])

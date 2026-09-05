@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toBigint'
@@ -52,6 +53,7 @@ export const toBigint = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep((value) => {
 			try {
 				// `value` is `unknown`; delegate directly to native `BigInt()`.
@@ -64,7 +66,7 @@ export const toBigint = implStepPlugin<PluginDef>({
 					code: 'toBigint:conversion_failed',
 					category: 'operation',
 					payload: { value, error },
-					customMessage: options?.message,
+					customMessage: message,
 					defaultMessage: 'Expected a value convertible to bigint.',
 				}))
 			}

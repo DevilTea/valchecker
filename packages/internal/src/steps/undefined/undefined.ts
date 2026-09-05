@@ -2,6 +2,7 @@ import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, 
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import type { TUnionShorthandDef, UnionShorthandProvider } from '../union/union-shorthand'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 import { unionShorthandCapability } from '../union/union-shorthand'
 
@@ -63,6 +64,7 @@ export const undefined_ = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		setMetadata(templateLiteralPartMarker, { kind: 'literal', value: undefined })
 		addSuccessStep(
 			value => value === void 0
@@ -71,7 +73,7 @@ export const undefined_ = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'undefined:expected_undefined',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: message,
 							defaultMessage: 'Expected undefined.',
 						}),
 					),

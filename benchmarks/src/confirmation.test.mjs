@@ -335,7 +335,7 @@ test('a triggered group blocks only when its own single-runner batch agrees', ()
 	})
 	assert.deepEqual(blocked.blockingGroups, ['warm/failure/all'])
 	assert.equal(blocked.verdict, 'regression')
-	assert.match(blocked.groupVerdicts[0].why, /independent single-runner batch measured the whole group and agreed/)
+	assert.match(blocked.groupVerdicts[0].why, /independent single-runner batch measured the whole affected estimator set and agreed/)
 })
 
 test('a group whose own batch ran sharded is review, not blocking', () => {
@@ -363,7 +363,7 @@ test('a group whose batch missed a cell cannot block', () => {
 		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.065, ['a']) },
 	})
 	assert.deepEqual(result.blockingGroups, [])
-	assert.match(result.groupVerdicts[0].why, /did not measure every cell of the group/)
+	assert.match(result.groupVerdicts[0].why, /did not measure every affected cell of the group/)
 })
 
 test('a single-runner batch that clears the group turns the trigger into review', () => {
@@ -376,6 +376,27 @@ test('a single-runner batch that clears the group turns the trigger into review'
 	assert.deepEqual(result.blockingGroups, [])
 	assert.notEqual(result.verdict, 'regression')
 	assert.match(result.groupVerdicts[0].why, /reported it cleared/)
+})
+
+test('group confirmation remeasures only the affected estimator members, not health controls', () => {
+	const screen = groupScreen(['affected-a', 'affected-b', 'canary-a', 'canary-b'])
+	for (const row of screen.rows) {
+		row.measurementRole = row.scenario.startsWith('affected-') ? 'affected' : 'health-canary'
+	}
+	// The screen's group estimator contains two affected rows, so mirror its post-B4 shape.
+	screen.groups[0].scenarios = 2
+	const plan = confirmationPlan(screen)
+	const groupBatch = plan.batches.find(batch => batch.kind === 'group')
+	assert.deepEqual(groupBatch.cells, ['affected-a', 'affected-b'])
+
+	const evidence = resolveConfirmation(screen, null, {
+		acceptedRegressions: [],
+		acceptedGroupRegressions: [],
+		groupConfirmations: {
+			'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.065, ['affected-a', 'affected-b']),
+		},
+	})
+	assert.deepEqual(evidence.blockingGroups, ['warm/failure/all'])
 })
 
 test('a group is scheduled in its own batch, on one runner, sized by its own cells', () => {

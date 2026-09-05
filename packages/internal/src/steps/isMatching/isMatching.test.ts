@@ -88,7 +88,7 @@ describe('isMatching step plugin', () => {
 			})
 	})
 
-	it('reports immutable schema-time pattern metadata and custom messages', () => {
+	it('reports the schema-time pattern snapshot and custom messages', () => {
 		const failure = v.string()
 			.isMatching(/^foo$/, { message: 'Pattern required' })
 			.execute('bar') as any
@@ -99,10 +99,6 @@ describe('isMatching step plugin', () => {
 					payload: { value: 'bar', pattern: { source: '^foo$', flags: '' } },
 				}],
 			})
-		expect(() => {
-			failure.issues[0].payload.pattern.source = 'changed'
-		})
-			.toThrow()
 	})
 
 	it('rejects non-RegExp patterns for JavaScript callers', () => {

@@ -1,4 +1,4 @@
-import type { ExecutionIssue, ExecutionResult, StepPluginImpl, TStepPluginDef } from './types'
+import type { ExecutionIssue, ExecutionResult, StepPlugin, StepPluginImpl, TStepPluginDef } from './types'
 import { describe, expect, it, vi } from 'vitest'
 import { runtimeExecutionStepDefMarker } from '../shared'
 import {
@@ -93,7 +93,7 @@ const flowPlugin = implStepPlugin({
 		utils.setMetadata(metaKeyA, ['a', 'b'])
 		utils.setMetadata(metaKeyB, { tag: 'meta' })
 	},
-} as any) as StepPluginImpl<TStepPluginDef>
+} as any) as StepPlugin<TStepPluginDef>
 
 describe('core result contracts', () => {
 	it.each([
@@ -351,19 +351,19 @@ describe('valchecker instance contracts', () => {
 			{ provide: ({ utils }: any) => utils.addSuccessStep(utils.success) } as any,
 			'sync',
 			{ [shorthand]: 'first', [annotation]: 'annotated' },
-		) as StepPluginImpl<TStepPluginDef>
+		) as StepPlugin<TStepPluginDef>
 		const secondProvider = implStepPlugin(
 			{ provideMore: ({ utils }: any) => utils.addSuccessStep(utils.success) } as any,
 			'sync',
 			{ [shorthand]: 'second' },
-		) as StepPluginImpl<TStepPluginDef>
+		) as StepPlugin<TStepPluginDef>
 
 		const consumer = implStepPlugin({
 			consume: ({ utils, context }: any) => {
 				seen.push(context.getCapabilities(shorthand), context.getCapabilities(annotation), context.getCapabilities(Symbol('absent')))
 				utils.addSuccessStep(utils.success)
 			},
-		} as any, 'sync') as StepPluginImpl<TStepPluginDef>
+		} as any, 'sync') as StepPlugin<TStepPluginDef>
 
 		const w = createValchecker({ steps: [provider, secondProvider, consumer] }) as any
 		w.consume()

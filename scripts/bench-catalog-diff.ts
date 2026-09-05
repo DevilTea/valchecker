@@ -76,7 +76,7 @@ function readRevision(ref: string): { path: string, text: string }[] {
 const options = parseArguments(process.argv.slice(2))
 const baseFiles = readRevision(options.base!)
 const diff = catalogIdDiff(staticCatalog(baseFiles), staticCatalog(readRevision(options.head!)), baseFiles.length)
-const result = { schemaVersion: 2, base: options.base, head: options.head, ...diff }
+const result = { schemaVersion: 3, base: options.base, head: options.head, ...diff }
 
 if (options.output != null) {
 	fs.mkdirSync(path.dirname(options.output), { recursive: true })
@@ -84,13 +84,18 @@ if (options.output != null) {
 }
 
 console.error(`[catalog-diff] ${diff.baseCells} cells at ${options.base} → ${diff.headCells} at ${options.head}: `
-	+ `${diff.added.length} added, ${diff.removed.length} removed, ${diff.changed.length} regrouped`)
+	+ `${diff.added.length} added, ${diff.removed.length} removed, ${diff.changed.length} measurement-contract changed`)
 for (const id of diff.added)
 	console.error(`[catalog-diff] added: ${id}`)
 for (const id of diff.removed)
 	console.error(`[catalog-diff] removed: ${id}`)
 for (const change of diff.changed) {
-	console.error(`[catalog-diff] regrouped: ${change.id} ${change.baseGroup} -> ${change.headGroup}`
+	const details = change.fields.map((field) => {
+		const before = change.base[field]
+		const after = change.head[field]
+		return `${field} ${String(before)} -> ${String(after)}`
+	})
+	console.error(`[catalog-diff] contract changed: ${change.id} — ${details.join(', ')}`
 		+ `${change.gateEffect == null ? '' : ` (${change.gateEffect} the gate)`}`)
 }
 for (const problem of diff.problems)

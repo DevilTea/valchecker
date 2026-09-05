@@ -1,0 +1,125 @@
+{
+	"schemaVersion": 1,
+	"acknowledgements": [
+		{
+			"advisory": "GHSA-3jxr-9vmj-r5cp",
+			"dependency": "brace-expansion",
+			"maxSeverity": "high",
+			"allowedRoots": ["eslint"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Reachable only through the root ESLint dev tool; `pnpm audit --prod` is clean and this path does not enter published packages or release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. Upstream toolchain remediation currently crosses the ESLint 9 to 10 major boundary and needs a separate lint-contract compatibility review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-mh99-v99m-4gvg",
+			"dependency": "brace-expansion",
+			"maxSeverity": "high",
+			"allowedRoots": ["@deviltea/eslint-config", "eslint"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Both observed paths are lint-only dev-tool chains rooted at ESLint or @deviltea/eslint-config; production audit is clean and neither root participates in release authorization/publishing.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The visible direct-tool upgrades are ESLint 10.10.0 and @deviltea/eslint-config 9.0.0, both major migrations requiring separate lint-contract review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-rgw5-rvv9-x895",
+			"dependency": "brace-expansion",
+			"maxSeverity": "high",
+			"allowedRoots": ["@deviltea/eslint-config", "eslint"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Both observed paths are lint-only dev-tool chains rooted at ESLint or @deviltea/eslint-config; production audit is clean and neither root participates in release authorization/publishing.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The visible direct-tool upgrades are ESLint 10.10.0 and @deviltea/eslint-config 9.0.0, both major migrations requiring separate lint-contract review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-5p4m-2wfm-xmqj",
+			"dependency": "js-yaml",
+			"maxSeverity": "high",
+			"allowedRoots": ["eslint"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Reachable only through ESLint configuration loading in the repository toolchain; production audit is clean and the path is outside release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. Moving the direct ESLint toolchain to the currently published 10.x line is a major migration and needs separate lint-contract review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-fxqj-rqcc-2cmp",
+			"dependency": "postcss",
+			"maxSeverity": "moderate",
+			"allowedRoots": ["@deviltea/eslint-config"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Observed only under the Vue-block lint processor reached from @deviltea/eslint-config; production audit is clean and the path is not part of release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The currently published @deviltea/eslint-config 9.0.0 is a major tooling migration and needs a separate lint-contract review before adoption.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-r28c-9q8g-f849",
+			"dependency": "postcss",
+			"maxSeverity": "high",
+			"allowedRoots": ["@deviltea/eslint-config"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Observed only under the Vue-block lint processor reached from @deviltea/eslint-config; production audit is clean and the path is not part of release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The currently published @deviltea/eslint-config 9.0.0 is a major tooling migration and needs a separate lint-contract review before adoption.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-28wg-ghj8-5hjv",
+			"dependency": "nanoid",
+			"maxSeverity": "high",
+			"allowedRoots": ["@deviltea/eslint-config"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Observed only below PostCSS in the Vue-block lint processor reached from @deviltea/eslint-config; production audit is clean and the path is outside release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The upstream lint stack upgrade crosses the @deviltea/eslint-config 8 to 9 major boundary and needs separate compatibility review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-2v37-7h3g-55p8",
+			"dependency": "nanoid",
+			"maxSeverity": "high",
+			"allowedRoots": ["@deviltea/eslint-config"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Observed only below PostCSS in the Vue-block lint processor reached from @deviltea/eslint-config; production audit is clean and the path is outside release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The upstream lint stack upgrade crosses the @deviltea/eslint-config 8 to 9 major boundary and needs separate compatibility review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-c83g-rgw3-j3cx",
+			"dependency": "browserslist",
+			"maxSeverity": "high",
+			"allowedRoots": ["@deviltea/eslint-config"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Observed only through eslint-plugin-unicorn under @deviltea/eslint-config; production audit is clean and this dependency path does not participate in release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The available @deviltea/eslint-config 9.0.0 / newer lint stack is a major tooling migration requiring separate rule/peer-compatibility review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		},
+		{
+			"advisory": "GHSA-73wf-gq98-2v4g",
+			"dependency": "browserslist",
+			"maxSeverity": "high",
+			"allowedRoots": ["@deviltea/eslint-config"],
+			"exposure": "development-tooling",
+			"exposureRationale": "Observed only through eslint-plugin-unicorn under @deviltea/eslint-config; production audit is clean and this dependency path does not participate in release/publish authorization tooling.",
+			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. The available @deviltea/eslint-config 9.0.0 / newer lint stack is a major tooling migration requiring separate rule/peer-compatibility review.",
+			"acknowledgedOn": "2026-09-05",
+			"expiresOn": "2026-10-05",
+			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
+		}
+	]
+}

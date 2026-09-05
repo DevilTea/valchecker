@@ -233,11 +233,13 @@ const environment = {
 	runnerImageVersion: process.env.ImageVersion ?? null,
 }
 const result = {
-	schemaVersion: 4,
+	schemaVersion: 5,
 	mode: options.mode,
 	seed: options.seed,
 	scenarioFilter: options.scenarios.length > 0 ? options.scenarios : null,
 	isolation: options.isolation,
+	temporalPairing: 'none',
+	scenarioRoles: null,
 	startedAt,
 	completedAt,
 	profile: getProfile(options.mode),

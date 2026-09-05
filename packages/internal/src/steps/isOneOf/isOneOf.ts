@@ -1,6 +1,8 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferExecutionContext, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { markIssueSnapshotPayload } from '../../core/core'
+import { snapshotMessage } from '../../core/message'
 import { declareLiteralMembers } from '../literal/literal-members'
 
 declare namespace Internal {
@@ -68,9 +70,10 @@ export const isOneOf = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [values, options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		if (values.length === 0)
 			throw new TypeError('isOneOf() requires at least one expected value.')
-		const expectedValues: readonly (typeof values)[number][] = Object.freeze([...values])
+		const expectedValues: readonly (typeof values)[number][] = [...values]
 		declareLiteralMembers(setMetadata, expectedValues)
 		addSuccessStep((value) => {
 			for (let index = 0; index < expectedValues.length; index++) {
@@ -79,8 +82,11 @@ export const isOneOf = implStepPlugin<PluginDef>({
 			}
 			return failure(createIssue({
 				code: 'isOneOf:expected_one_of',
-				payload: { value, expectedValues },
-				customMessage: options?.message,
+				payload: markIssueSnapshotPayload(
+					{ value, expectedValues },
+					{ expectedValues: 'container' },
+				),
+				customMessage: message,
 				defaultMessage: 'Expected one of the configured primitive values.',
 			}))
 		})

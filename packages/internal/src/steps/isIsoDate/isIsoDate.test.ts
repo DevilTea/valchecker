@@ -14,6 +14,7 @@ const valid = [
 	'2024-02-29',
 	'0004-02-29',
 	'0000-02-28',
+	'0000-02-29', // year zero is divisible by 400 in the proleptic Gregorian calendar
 	'2026-02-28',
 	'2026-01-31',
 	'2026-04-30',
@@ -27,14 +28,14 @@ const invalid = [
 	'2023-02-29',
 	'',
 	'1900-02-29',
-	// `0000` is a leap year in the proleptic Gregorian calendar, but the previous
-	// implementation rejected this date through a `Date.UTC` roll-over and the
-	// accepted set is deliberately unchanged.
-	'0000-02-29',
 	'2026-04-31', // day 31 in a 30-day month
 	'2026-01-32', // day beyond every month's length
 	'2026-07-00',
-	'20260723',
+	'20260723', // basic format is outside this bounded extended profile
+	'2026-204', // ordinal date is outside the profile
+	'2026-W30-4', // week date is outside the profile
+	'2026-07', // reduced precision is outside the profile
+	'+02026-07-23', // expanded/signed years are outside the profile
 	// `$` is end of input, not end of line.
 	'2026-07-23\nbad',
 	'bad\n2026-07-23',
@@ -63,7 +64,7 @@ describe('isIsoDate step plugin', () => {
 				issues: [{
 					code: 'isIsoDate:expected_iso_date',
 					category: 'validation',
-					message: 'Expected a valid ISO 8601 date.',
+					message: 'Expected a supported ISO 8601 calendar date.',
 					path: [],
 					payload: { value: '2026-02-30' },
 				}],

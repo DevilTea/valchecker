@@ -26,10 +26,14 @@ import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
-interface Gate {
-	name: string
+interface GateCommand {
 	command: string
 	args: string[]
+}
+
+interface Gate extends GateCommand {
+	name: string
+	prepare?: GateCommand
 }
 
 const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as { scripts?: Record<string, string> }
@@ -53,19 +57,25 @@ function localScript(name: string, file: string): Gate {
 }
 
 /**
- * A gate that lives in the separately-installed `benchmarks` workspace.
+ * A gate that lives in the deliberately isolated `benchmarks` package.
  *
- * Run through `pnpm --dir`, not as `tsx <path>`, because the script is `node --test` over a
- * glob and pnpm's own shell is what expands it — and because this is the exact command CI's
- * preflight job runs, so the two cannot measure different files.
- *
- * It needs no `benchmarks/node_modules`: the suite is Node's own test runner over modules
- * whose graphs contain no bare specifier, the same property `check-benchmark-coverage.ts`
- * relies on. A gate here that required the separate install would make `pnpm verify` fail for
- * anyone who had not run it.
+ * The benchmark package is not a pnpm-workspace member: its pinned competitor/tooling
+ * dependencies are installed separately with `--ignore-workspace --lockfile=false`, exactly as
+ * the benchmark workflows and contributor docs prescribe. Keep that isolation, but make the
+ * repository-owned quality gate self-sufficient on a clean checkout. A harness test may import
+ * benchmark-only dependencies (for example the manifest `sideEffects` matcher), so relying on a
+ * developer's pre-existing `benchmarks/node_modules` would make `pnpm verify` state-dependent.
  */
 function benchmarksScript(name: string): Gate {
-	return { name, command: 'pnpm', args: ['--dir', 'benchmarks', 'test'] }
+	return {
+		name,
+		prepare: {
+			command: 'pnpm',
+			args: ['--dir', 'benchmarks', 'install', '--ignore-workspace', '--lockfile=false', '--ignore-scripts'],
+		},
+		command: 'pnpm',
+		args: ['--dir', 'benchmarks', 'test'],
+	}
 }
 
 const gates: Gate[] = [
@@ -86,7 +96,17 @@ const gates: Gate[] = [
 ]
 
 const failed: string[] = []
-for (const { name, command, args } of gates) {
+for (const { name, prepare, command, args } of gates) {
+	if (prepare != null) {
+		const prepared = spawnSync(prepare.command, prepare.args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' })
+		if (prepared.error != null || prepared.status !== 0 || prepared.signal != null) {
+			const detail = prepared.error?.message ?? `exit ${String(prepared.status)}${prepared.signal == null ? '' : ` / signal ${prepared.signal}`}`
+			console.error(`\n${name}: prerequisite failed — ${detail}`)
+			failed.push(name)
+			continue
+		}
+	}
+
 	const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' })
 	if (result.error != null) {
 		console.error(`\n${name}: could not run — ${result.error.message}`)

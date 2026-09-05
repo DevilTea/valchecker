@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'symbol'
@@ -51,6 +52,7 @@ export const symbol = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(
 			value => typeof value === 'symbol'
 				?	success(value)
@@ -58,7 +60,7 @@ export const symbol = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'symbol:expected_symbol',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: message,
 							defaultMessage: 'Expected a symbol.',
 						}),
 					),

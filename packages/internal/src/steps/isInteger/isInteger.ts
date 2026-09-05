@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isInteger'
@@ -45,6 +46,7 @@ export const isInteger = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(
 			value => Number.isInteger(value)
 				? success(value)
@@ -52,7 +54,7 @@ export const isInteger = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'isInteger:expected_integer',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: message,
 							defaultMessage: 'Expected an integer.',
 						}),
 					),

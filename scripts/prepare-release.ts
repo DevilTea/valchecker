@@ -37,11 +37,12 @@ interface PreparedPackage {
 	directory: string
 	tarball: string
 	sha256: string
+	integrity: string
 	size: number
 }
 
 interface ReleaseManifest {
-	schemaVersion: 1
+	schemaVersion: 2
 	version: string
 	commit: string | null
 	packages: PreparedPackage[]
@@ -186,6 +187,12 @@ async function sha256(path: string): Promise<string> {
 		.digest('hex')
 }
 
+async function sriSha512(path: string): Promise<string> {
+	return `sha512-${createHash('sha512')
+		.update(await readFile(path))
+		.digest('base64')}`
+}
+
 async function packPackage(definition: PackageDefinition, output: string): Promise<string> {
 	const before = new Set(await readdir(output))
 	await run(pnpm, [
@@ -268,12 +275,13 @@ async function main(): Promise<void> {
 				.split(sep)
 				.join('/'),
 			sha256: await sha256(tarball),
+			integrity: await sriSha512(tarball),
 			size: (await stat(tarball)).size,
 		})
 	}
 
 	const releaseManifest: ReleaseManifest = {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		version,
 		commit: process.env.GITHUB_SHA ?? null,
 		packages: prepared,

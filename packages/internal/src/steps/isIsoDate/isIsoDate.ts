@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 import { isoCalendarDateSource } from './iso-calendar-date'
 
 type Meta = DefineStepMethodMeta<{
@@ -11,10 +12,10 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the string is an ISO 8601 calendar date in `YYYY-MM-DD`
-	 * form. Month lengths and the leap-year rule are part of the accepted
-	 * shape, so impossible dates such as `2026-02-30` and `2023-02-29` are
-	 * rejected.
+	 * Checks the bounded ISO 8601 extended-calendar date profile: exactly
+	 * `YYYY-MM-DD`. Month lengths and the proleptic Gregorian leap-year rule
+	 * are enforced, including year `0000`. Basic, week, ordinal, reduced-
+	 * precision, and expanded-year representations are outside this API shape.
 	 *
 	 * ---
 	 *
@@ -29,7 +30,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'isIsoDate:expected_iso_date'`: The string is not a valid ISO 8601 date.
+	 * - `'isIsoDate:expected_iso_date'`: The string does not match the supported ISO 8601 calendar-date profile.
 	 */
 	isIsoDate: DefineStepMethod<
 		Meta,
@@ -50,14 +51,15 @@ export const isIsoDate = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(value => isoDatePattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isIsoDate:expected_iso_date',
 						payload: { value },
-						customMessage: options?.message,
-						defaultMessage: 'Expected a valid ISO 8601 date.',
+						customMessage: message,
+						defaultMessage: 'Expected a supported ISO 8601 calendar date.',
 					}),
 				))
 	},

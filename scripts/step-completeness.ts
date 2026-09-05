@@ -1,6 +1,7 @@
 import type { SourceTree } from './source-tree'
 import type { DiscoveredStep } from './step-inventory'
 import ts from 'typescript'
+import { declaredIssueCodes } from './issue-code-analysis'
 import { discoverSteps, stepsBarrel, stepsRoot } from './step-inventory'
 
 // What a built-in step must ship with, as a pure function of a source tree.
@@ -135,12 +136,8 @@ function checkedSource(source: string): { sourceFile: ts.SourceFile, checker: ts
 	return { sourceFile, checker: program.getTypeChecker() }
 }
 
-/**
- * Every issue code declared through `ExecutionIssue<'…'>`, the way `check-issue-codes` reads them.
- */
-export function declaredCodes(source: string): string[] {
-	return [...new Set([...source.matchAll(/ExecutionIssue<\s*'([^']+)'/g)].map(match => match[1]!))]
-}
+/** Every issue code declared through `ExecutionIssue<…>`, shared with `check-issue-codes`. */
+export const declaredCodes = declaredIssueCodes
 
 /**
  * The text of every string in the file, from the parsed AST.

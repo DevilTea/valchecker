@@ -20,7 +20,7 @@ v.string()
 ```
 
 Mappings use SameValueZero equality, so `NaN` matches `NaN` and `-0` matches `0`. Configuration
-arrays are immutable schema-time snapshots: mutating an array afterwards does not change the schema,
+arrays are schema-time snapshots: mutating an array afterwards does not change the schema,
 and the snapshot is what the failure payload reports. Supplying two empty mappings, or a value that
 appears in both, throws a `TypeError` while the schema is constructed; a one-sided mapping is
 allowed.

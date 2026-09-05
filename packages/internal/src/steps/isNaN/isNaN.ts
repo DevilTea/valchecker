@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isNaN'
@@ -44,13 +45,14 @@ export const isNaN = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(value => Number.isNaN(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isNaN:expected_nan',
 						payload: { value },
-						customMessage: options?.message,
+						customMessage: message,
 						defaultMessage: 'Expected NaN.',
 					}),
 				))

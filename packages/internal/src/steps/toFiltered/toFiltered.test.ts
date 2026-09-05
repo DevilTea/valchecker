@@ -21,6 +21,22 @@ describe('toFiltered step plugin', () => {
 			.toEqualTypeOf<any[]>()
 	})
 
+	it('captures the thisArg reference while retaining pointee mutation', () => {
+		const context = { minimum: 2 }
+		const replacement = { minimum: 100 }
+		const options = { thisArg: context }
+		const schema = v.array(v.any())
+			.toFiltered(function (this: typeof context, item: number) {
+				return item >= this.minimum
+			}, options)
+
+		options.thisArg = replacement
+		context.minimum = 3
+
+		expect(schema.execute([2, 3]))
+			.toEqual({ value: [3] })
+	})
+
 	it.each([
 		['empty', [], []],
 		['none', [1, 2, 3], []],

@@ -245,42 +245,34 @@ if (!triggers(pullRequest, 'benchmarks/src/compare.mjs'))
 if (triggers(push, 'benchmarks/src/compare.mjs'))
 	errors.push(`benchmarks/src/compare.mjs: must not start the post-merge run, which compares two revisions that build the same library and so has nothing to find`)
 
-// Counterbalancing, checked here because this file already reads the workflow and because
-// the property is the same kind as the ones above: something the gate's correctness rests on
-// that lives in shell rather than in a module a test can reach.
-//
-// Pairing cancels machine speed, which is what makes a paired ratio comparable across
-// runners. It does not cancel monotonic drift — temperature, allocator and GC state,
-// background load — and a run that always measured the baseline first would put every
-// repetition's drift on the candidate. The measurement loop therefore alternates the two
-// sides by repetition parity, and the four shards share the parity so a repetition is one
-// ordering everywhere. It survived the rewrite into four shard jobs; a rule is cheaper than
-// noticing that it did not survive the next one.
-// Every repetition loop, not the first: the screen batch and the confirmation batch are two
-// measurements, and the property has to hold for both.
+// Temporal pairing is implemented in `benchmarks/src/cells/pairing.mjs`, where unit tests
+// pin the exact per-cell order. This workflow check therefore verifies the other half of the
+// contract: **every** repetition loop used for screen or confirmation delegates both builds to
+// that paired runner in one invocation. Two independent `cells` calls, even with AB/BA parity,
+// are whole-side ordering and can separate one cell's observations by the rest of the shard.
 const loops = [...workflowText.matchAll(/for repetition in[^\n]*\n([\s\S]*?)\n[ \t]*done\n/g)]
 	.map(match => match[1]!)
-	.filter(body => body.includes('run_side '))
-if (loops.length === 0)
-	errors.push(`${workflowPath}: no \`for repetition in …\` loop calls \`run_side\`, so this check cannot see whether the two sides are counterbalanced`)
+	.filter(body => body.includes('pnpm --dir benchmarks cells'))
+if (loops.length < 2)
+	errors.push(`${workflowPath}: expected paired cell measurement loops for both screen and confirmation; found ${loops.length}`)
 for (const [index, loop] of loops.entries()) {
-	const label = `${workflowPath}: measurement loop ${index + 1} of ${loops.length}`
-	const branches = loop.split(/\n[ \t]*else[ \t]*\n/)
-	const sideOrder = (text: string): string[] => ['baseline', 'candidate']
-		.filter(side => text.includes(`run_side ${side}`))
-		.sort((left, right) => text.indexOf(`run_side ${left}`) - text.indexOf(`run_side ${right}`))
-	if (!/if \(\(\s*repetition % 2/.test(loop)) {
-		errors.push(`${label} does not branch on \`repetition % 2\`, so the two sides always run in one order and a monotonic drift over the job lands entirely on one of them`)
+	const label = `${workflowPath}: paired measurement loop ${index + 1} of ${loops.length}`
+	for (const required of [
+		'--repetition "$repetition"',
+		'--baseline-dist "$BEFORE_DIST"',
+		'--candidate-dist "$AFTER_DIST"',
+		'--baseline-output',
+		'--candidate-output',
+		// Only the screen loop has the scope artifact; confirmation already selects exactly the
+		// affected group members from the screen plan and may omit this input.
+	]) {
+		if (!loop.includes(required))
+			errors.push(`${label} does not pass ${required} to the paired cell runner`)
 	}
-	else if (branches.length !== 2) {
-		errors.push(`${label} has a parity branch with no \`else\`, so one parity measures nothing`)
-	}
-	else if (sideOrder(branches[0]!)
-		.join(',') === sideOrder(branches[1]!)
-		.join(',')) {
-		errors.push(`${label} measures the sides in the same order in both parity branches (${sideOrder(branches[0]!)
-			.join(' then ')}), which is not counterbalancing`)
-	}
+	if (loop.includes('run_side baseline') || loop.includes('run_side candidate'))
+		errors.push(`${label} still invokes whole sides separately; one cell's baseline/candidate observations are not adjacent`)
+	if (index === 0 && !loop.includes('--selection-roles "../artifacts/performance-impact/selection.json"'))
+		errors.push(`${label} does not pass the machine-readable affected/canary role map, so health cells can be mixed back into the product group estimator`)
 }
 
 if (errors.length > 0) {
@@ -290,5 +282,5 @@ if (errors.length > 0) {
 	process.exitCode = 1
 }
 else {
-	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run and ${measurementPaths} select their own step's cells, and every one of them starts both the pull-request and post-merge jobs; every measurement loop counterbalances the two sides by repetition parity`)
+	console.log(`[impact-triggers] ${fullRunPaths} of ${probes.length} probed paths force a full run and ${measurementPaths} select their own step's cells, and every one of them starts both the pull-request and post-merge jobs; every screen/confirmation repetition delegates both builds to the tested adjacent-cell paired runner`)
 }

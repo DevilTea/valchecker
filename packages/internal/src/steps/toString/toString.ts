@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<Input = unknown> = ExecutionIssue<'toString:conversion_failed', { value: Input, error: unknown }, 'operation'>
@@ -61,6 +62,7 @@ export const toString = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		const radix = options?.radix
 		addSuccessStep((value) => {
 			try {
@@ -71,7 +73,7 @@ export const toString = implStepPlugin<PluginDef>({
 					code: 'toString:conversion_failed',
 					category: 'operation',
 					payload: { value, error },
-					customMessage: options?.message,
+					customMessage: message,
 					defaultMessage: 'String conversion failed.',
 				}))
 			}

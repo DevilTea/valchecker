@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
-import { buildAttribution, selectImpactScenarios } from './impact-selection'
+import { buildAttribution, measurementSelectionOf, selectImpactScenarios } from './impact-selection'
 import { inertChangedPaths } from './inert-change'
 import { fileSystemTree } from './source-tree'
 
@@ -37,6 +37,7 @@ interface Options {
 	/** The candidate revision, or `null` to read the candidate from `--tree`. */
 	head: string | null
 	markdown: string | null
+	selectionJson: string | null
 	githubOutput: string | null
 	summary: string | null
 }
@@ -69,7 +70,7 @@ function gitText(ref: string, filePath: string): string | null {
 }
 
 function parseArguments(argv: string[]): Options {
-	const options: Options = { tree: root, changedFiles: [], base: null, head: null, markdown: null, githubOutput: null, summary: null }
+	const options: Options = { tree: root, changedFiles: [], base: null, head: null, markdown: null, selectionJson: null, githubOutput: null, summary: null }
 	let changedFrom: string | null = null
 
 	for (let index = 0; index < argv.length; index++) {
@@ -93,6 +94,10 @@ function parseArguments(argv: string[]): Options {
 		}
 		else if (argument === '--markdown' && value != null) {
 			options.markdown = path.resolve(root, value)
+			index++
+		}
+		else if (argument === '--selection-json' && value != null) {
+			options.selectionJson = path.resolve(root, value)
 			index++
 		}
 		else if (argument === '--github-output' && value != null) {
@@ -145,8 +150,7 @@ function renderMarkdown(selection: Selection): string {
 		const canaryOnly = selection.canaryIds.filter(id => !attributed.has(id))
 		lines.push(
 			`Measuring **${selection.scenarioIds.length} of ${selection.totalScenarios}** cells: `
-			+ `${selection.attributedIds.length} the diff can move, ${canaryOnly.length} more from the canary set`
-			+ `${selection.topUpIds.length > 0 ? `, ${selection.topUpIds.length} to keep a group's severe-group trigger possible` : ''}.`,
+			+ `${selection.attributedIds.length} the diff can move, ${canaryOnly.length} more health checks from the canary set.`,
 			'',
 			selection.steps.length > 0
 				? `Steps the diff reaches: ${selection.steps.map(step => `\`${step}\``)
@@ -165,21 +169,16 @@ function renderMarkdown(selection: Selection): string {
 
 	lines.push(
 		'',
-		'| Benchmark group | Cells measured | Severe-group trigger |',
-		'| --- | ---: | --- |',
+		'| Benchmark group | Cells measured | Affected in estimator | Severe-group trigger |',
+		'| --- | ---: | ---: | --- |',
 	)
 	for (const coverage of selection.groups) {
-		// "possible" alone reads as coverage of the group, which 5 of 113 is not. The
-		// trigger really is possible there — the scenarios left out are the ones the diff
-		// cannot move — but the aggregate is over what ran, and the reader has to be told
-		// which of the two they are looking at. `impact.md` repeats the same denominator
-		// beside the geometric mean it actually computed.
 		const trigger = !coverage.triggerPossible
-			? 'not possible — fewer than two scenarios measured'
-			: coverage.selected === coverage.total
+			? `not possible — ${coverage.affected} affected row${coverage.affected === 1 ? '' : 's'}; health controls do not count`
+			: coverage.affected === coverage.total
 				? 'possible, over the whole group'
-				: `possible, over the ${coverage.selected} measured of ${coverage.total}`
-		lines.push(`| ${markdownCell(coverage.group)} | ${coverage.selected}/${coverage.total} | ${trigger} |`)
+				: `possible, over ${coverage.affected} affected of ${coverage.total}`
+		lines.push(`| ${markdownCell(coverage.group)} | ${coverage.selected}/${coverage.total} | ${coverage.affected} | ${trigger} |`)
 	}
 
 	lines.push(
@@ -234,6 +233,10 @@ if (options.markdown != null) {
 	fs.mkdirSync(path.dirname(options.markdown), { recursive: true })
 	fs.writeFileSync(options.markdown, markdown)
 }
+if (options.selectionJson != null) {
+	fs.mkdirSync(path.dirname(options.selectionJson), { recursive: true })
+	fs.writeFileSync(options.selectionJson, `${JSON.stringify(measurementSelectionOf(selection), null, 2)}\n`)
+}
 if (options.summary != null)
 	fs.appendFileSync(options.summary, markdown)
 if (options.githubOutput != null) {
@@ -250,7 +253,7 @@ if (options.githubOutput != null) {
 console.error(selection.full
 	? `[impact-scope] full run: ${selection.totalScenarios} scenarios`
 	: `[impact-scope] ${selection.scenarioIds.length} of ${selection.totalScenarios} scenarios `
-		+ `(${selection.attributedIds.length} attributed, ${selection.canaryIds.filter(id => !selection.attributedIds.includes(id)).length} canary-only, ${selection.topUpIds.length} top-up)`)
+		+ `(${selection.attributedIds.length} affected, ${selection.canaryIds.filter(id => !selection.attributedIds.includes(id)).length} health-canary)`)
 if (revisions == null) {
 	console.error('[impact-scope] no --base revision, so no change can be shown to be inert; every path is classified from its path alone')
 }

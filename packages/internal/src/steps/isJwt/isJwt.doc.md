@@ -1,16 +1,20 @@
 <!-- step-doc
 category: formats
 section: parsed
-summary: three base64url segments with a decodable JOSE header
+summary: structurally strict JWTs using JWS Compact Serialization
 -->
 
 ### `isJwt(options?)`
 
-Checks a JSON Web Token: three base64url segments separated by dots. The header is
-base64url-decoded, parsed as JSON, and required to be an object carrying a string `alg`. The header
-and payload segments must be non-empty; the signature segment may be empty (an unsecured JWS). The
-segments are checked against the same base64url definition `isBase64Url()` uses, so one library does
-not answer "is this base64url?" two ways.
+Checks a JWT carried in JWS Compact Serialization (`header.payload.signature`). Header and payload are
+non-empty base64url segments that must decode as valid UTF-8 JSON objects: the JOSE header must contain
+a non-empty string `alg`, and the payload is the JWT Claims Set. `alg: "none"` requires an empty
+signature segment; every other algorithm name requires a non-empty base64url signature. The step does
+not restrict algorithms to a known list and does not cryptographically verify a signature. `typ:
+"JWT"` is not required. Five-segment JWE compact serialization is outside this step's contract.
+
+The segments use the same unpadded base64url definition as `isBase64Url()`, so one library does not
+answer "is this base64url?" two ways.
 
 ```ts
 v.string()

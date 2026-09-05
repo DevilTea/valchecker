@@ -1,28 +1,29 @@
 /**
- * The ISO 8601 time-of-day grammar as pattern sources, shared by `isIsoTime`
- * and by the time and offset halves of `isIsoDateTime`.
+ * Pattern sources for the bounded ISO 8601 extended time profile shared by
+ * `isIsoTime()` and `isIsoDateTime()`.
  *
- * Field ranges are part of the accepted shape rather than numeric comparisons
- * made after a shape match, so validating allocates nothing and parses nothing.
- * Extracting them also removes a second encoding of the same rule: `isIsoTime`
- * range-checked `Number(match[1]) <= 23` while `isIsoDateTime` already spelled
- * the identical rule as an alternation, and a change to the accepted shape had
- * to be made twice, in two styles, with nothing failing if only one was updated.
+ * Time of day and UTC-offset grammars are deliberately separate. End-of-day
+ * notation permits hour `24` only as `24:00:00` (optionally followed by an
+ * all-zero decimal fraction), while an offset must never become `+24:00` just
+ * because time-of-day gains that special representation.
  *
- * `isoHourMinuteSource` is separate because the date-time offset (`±HH:MM`)
- * uses exactly the hour and minute rules and nothing else.
+ * The ordinary time branch keeps the existing complete extended shape:
+ * `HH:MM:SS` with hour 00-23, minute/second 00-59, and an optional fractional
+ * second. Either ISO decimal sign (`.` or `,`) is accepted. Leap-second `:60`
+ * remains outside this bounded profile by contract.
  *
- * That sharing is a coincidence of range, not of meaning, and it comes with a
- * condition: a time of day and a UTC offset both happen to run `00`-`23` and
- * `00`-`59` today. ISO 8601 also allows `24:00:00` as an end-of-day time, and
- * accepting it here would silently start accepting `+24:00` as an offset, which
- * is not valid. Split the two sources at that point rather than widening this
- * one.
- *
- * Neither source wraps itself in a group, so a call site that needs to quantify
- * one — `${isoTimeSource}?` and the like — must add its own `(?:…)`.
+ * Neither source wraps itself for quantification at call sites.
  */
-export const isoHourMinuteSource = String.raw`(?:[01]\d|2[0-3]):[0-5]\d`
+const isoClockHourSource = String.raw`(?:[01]\d|2[0-3])`
+const isoMinuteSource = String.raw`[0-5]\d`
+const isoSecondSource = String.raw`[0-5]\d`
+const isoFractionSource = String.raw`[.,]\d+`
 
-/** `HH:MM:SS` with optional fractional seconds and no time-zone. */
-export const isoTimeSource = String.raw`${isoHourMinuteSource}:[0-5]\d(?:\.\d+)?`
+/** `±HH:MM` offset body; hour remains 00-23 and minute 00-59. */
+export const isoUtcOffsetSource = String.raw`${isoClockHourSource}:${isoMinuteSource}`
+
+/**
+ * `HH:MM:SS` time of day with optional fractional seconds, plus ISO's special
+ * end-of-day representation `24:00:00` whose optional fraction must be zero.
+ */
+export const isoTimeSource = String.raw`(?:${isoClockHourSource}:${isoMinuteSource}:${isoSecondSource}(?:${isoFractionSource})?|24:00:00(?:[.,]0+)?)`

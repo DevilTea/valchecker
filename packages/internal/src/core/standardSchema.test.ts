@@ -29,6 +29,31 @@ describe('standard Schema V1 contract', () => {
 			.toBe(schema.execute)
 	})
 
+	it('uses the exact upstream V1.1 props contract', () => {
+		const schema = v.string()
+
+		expectTypeOf(schema['~standard'])
+			.toEqualTypeOf<StandardSchemaV1.Props<unknown, string>>()
+
+		const result = schema['~standard'].validate('Ada', {
+			libraryOptions: { trace: true },
+		})
+		expect(result)
+			.toEqual({ value: 'Ada' })
+
+		const attemptMutation = (props: typeof schema['~standard']): void => {
+			// @ts-expect-error Standard Schema V1.1 props are readonly.
+			props.version = 1
+			// @ts-expect-error Standard Schema V1.1 props are readonly.
+			props.vendor = 'valchecker'
+			// @ts-expect-error Standard Schema V1.1 props are readonly.
+			props.validate = () => ({ value: 'bypassed' })
+			// @ts-expect-error Standard Schema V1.1 props are readonly.
+			props.types = undefined
+		}
+		void attemptMutation
+	})
+
 	it('carries the schema types through the specification inference entrypoints', () => {
 		// `~standard.types` is a type-only phantom the specification uses for
 		// `InferInput`/`InferOutput`; it has no runtime backing, and a consumer

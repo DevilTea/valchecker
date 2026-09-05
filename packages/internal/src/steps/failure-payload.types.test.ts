@@ -12,6 +12,7 @@ import {
 	toJSONString,
 	toMappedBoolean,
 	toSorted,
+	toStrictJSONString,
 } from '../index'
 
 const v = createValchecker({
@@ -26,6 +27,7 @@ const v = createValchecker({
 		toJSONString,
 		toMappedBoolean,
 		toSorted,
+		toStrictJSONString,
 	],
 })
 
@@ -107,6 +109,17 @@ describe('step failure payload type contracts', () => {
 			} })
 		v.toJSONString({ message: (issue) => {
 			if (issue.code === 'toJSONString:unserializable') {
+				expectTypeOf(issue.payload.reason)
+					.toEqualTypeOf<'undefined_result'>()
+			}
+			else {
+				expectTypeOf(issue.payload.error)
+					.toEqualTypeOf<unknown>()
+			}
+			return undefined
+		} })
+		v.toStrictJSONString({ message: (issue) => {
+			if (issue.code === 'toStrictJSONString:unserializable') {
 				expectTypeOf(issue.payload.reason)
 					.toEqualTypeOf<'unsupported_type' | 'circular_reference' | 'undefined_result'>()
 				if (issue.payload.reason === 'unsupported_type') {

@@ -3,6 +3,13 @@ import { createHash } from 'node:crypto'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
 import process from 'node:process'
+import {
+	npmTagForVersion,
+	parseNpmVersions,
+	publishedArtifactAction,
+	releasePackages,
+	releaseTagForVersion,
+} from './release-contract'
 
 const root = resolve(import.meta.dirname, '..')
 const releaseDirectory = resolve(root, 'artifacts/release')
@@ -14,6 +21,7 @@ interface PreparedPackage {
 	directory: string
 	tarball: string
 	sha256: string
+	integrity: string
 	size: number
 }
 
@@ -24,21 +32,14 @@ interface ReleaseManifest {
 	packages: unknown
 }
 
-const expectedPackages = [
-	{ name: '@valchecker/internal', directory: 'packages/internal' },
-	{ name: '@valchecker/all-steps', directory: 'packages/all-steps' },
-	{ name: 'valchecker', directory: 'packages/valchecker' },
-] as const
-
 function parseArguments(argv: string[]): { manifest: string, verifyOnly: boolean } {
 	let manifest = resolve(releaseDirectory, 'release-manifest.json')
 	let verifyOnly = false
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
 		const value = argv[index + 1]
-		if (argument === '--') {
+		if (argument === '--')
 			continue
-		}
 		if (argument === '--manifest' && value) {
 			manifest = resolve(root, value)
 			index++
@@ -108,26 +109,21 @@ function isAtLeast(actual: number[], minimum: readonly number[]): boolean {
 	return true
 }
 
-function isPrereleaseVersion(version: string): boolean {
-	const withoutBuildMetadata = version.split('+', 1)[0]!
-	return withoutBuildMetadata.includes('-')
-}
-
 function assertPreparedPackages(value: unknown, version: string): PreparedPackage[] {
-	if (!Array.isArray(value) || value.length !== expectedPackages.length)
-		throw new Error(`Release manifest must contain exactly ${expectedPackages.length} packages`)
+	if (!Array.isArray(value) || value.length !== releasePackages.length)
+		throw new Error(`Release manifest must contain exactly ${releasePackages.length} packages`)
 	return value.map((item, index) => {
 		if (!item || typeof item !== 'object')
 			throw new TypeError(`packages[${index}] must be an object`)
 		const packageItem = item as Record<string, unknown>
-		const expected = expectedPackages[index]!
+		const expected = releasePackages[index]!
 		if (packageItem.name !== expected.name)
 			throw new Error(`packages[${index}].name must be ${expected.name}`)
 		if (packageItem.directory !== expected.directory)
 			throw new Error(`${expected.name}.directory must be ${expected.directory}`)
 		if (packageItem.version !== version)
 			throw new Error(`${expected.name} version does not match ${version}`)
-		for (const field of ['tarball', 'sha256']) {
+		for (const field of ['tarball', 'sha256', 'integrity']) {
 			if (typeof packageItem[field] !== 'string' || packageItem[field].length === 0)
 				throw new Error(`${expected.name}.${field} must be a non-empty string`)
 		}
@@ -153,43 +149,57 @@ async function sha256(path: string): Promise<string> {
 		.digest('hex')
 }
 
+async function sriSha512(path: string): Promise<string> {
+	return `sha512-${createHash('sha512')
+		.update(await readFile(path))
+		.digest('base64')}`
+}
+
+async function publishedIntegrity(packageName: string, version: string): Promise<string | null> {
+	const versions = parseNpmVersions(await run('npm', ['view', packageName, 'versions', '--json'], { capture: true }))
+	if (!versions.includes(version))
+		return null
+	const raw = await run('npm', ['view', `${packageName}@${version}`, 'dist.integrity', '--json'], { capture: true })
+	const integrity = JSON.parse(raw) as unknown
+	if (typeof integrity !== 'string' || integrity.length === 0)
+		throw new Error(`npm registry returned no artifact integrity for ${packageName}@${version}`)
+	return integrity
+}
+
 async function main(): Promise<void> {
 	const { manifest: manifestPath, verifyOnly } = parseArguments(process.argv.slice(2))
+	const raw = JSON.parse(await readFile(manifestPath, 'utf8')) as ReleaseManifest
+	if (raw.schemaVersion !== 2)
+		throw new Error(`Unsupported release manifest schema: ${String(raw.schemaVersion)}`)
+	if (typeof raw.version !== 'string')
+		throw new Error('Release manifest version must be a string')
+	const version = raw.version
+	const npmTag = npmTagForVersion(version)
+	const releaseTag = releaseTagForVersion(version)
+
 	if (!verifyOnly) {
 		if (process.env.GITHUB_ACTIONS !== 'true')
 			throw new Error('Publishing is restricted to GitHub Actions')
-		if (process.env.GITHUB_EVENT_NAME !== 'workflow_dispatch')
-			throw new Error('Publishing requires a manually dispatched workflow')
-		if (process.env.GITHUB_REF !== 'refs/heads/main')
-			throw new Error(`Publishing requires refs/heads/main, received ${String(process.env.GITHUB_REF)}`)
+		if (process.env.GITHUB_EVENT_NAME !== 'push')
+			throw new Error('Publishing requires a tag push event')
+		if (requireEnvironment('GITHUB_REF_TYPE') !== 'tag')
+			throw new Error('Publishing requires GITHUB_REF_TYPE=tag')
+		if (requireEnvironment('GITHUB_REF_NAME') !== releaseTag)
+			throw new Error(`Publishing requires tag ${releaseTag}`)
+		if (requireEnvironment('GITHUB_REF') !== `refs/tags/${releaseTag}`)
+			throw new Error(`Publishing requires refs/tags/${releaseTag}`)
 		if (process.env.NODE_AUTH_TOKEN || process.env.NPM_TOKEN)
 			throw new Error('Long-lived npm tokens are not allowed; use npm trusted publishing through OIDC')
 	}
-
-	const requestedVersion = requireEnvironment('RELEASE_VERSION')
-	const npmTag = requireEnvironment('NPM_TAG')
-	const confirmation = requireEnvironment('PUBLISH_CONFIRMATION')
-	if (confirmation !== `publish ${requestedVersion} to ${npmTag}`)
-		throw new Error(`Confirmation must exactly equal: publish ${requestedVersion} to ${npmTag}`)
-	const isPrerelease = isPrereleaseVersion(requestedVersion)
-	if (isPrerelease && npmTag !== 'next')
-		throw new Error('Prerelease versions must use the next npm tag')
-	if (!isPrerelease && npmTag !== 'latest')
-		throw new Error('Stable versions must use the latest npm tag')
 
 	const npmVersionText = await run('npm', ['--version'], { capture: true })
 	if (!isAtLeast(parseVersion(npmVersionText), minimumNpmVersion))
 		throw new Error(`npm ${npmVersionText} is too old for trusted publishing; require >=${minimumNpmVersion.join('.')}`)
 
-	const raw = JSON.parse(await readFile(manifestPath, 'utf8')) as ReleaseManifest
-	if (raw.schemaVersion !== 1)
-		throw new Error(`Unsupported release manifest schema: ${String(raw.schemaVersion)}`)
-	if (raw.version !== requestedVersion)
-		throw new Error(`Requested version ${requestedVersion} does not match prepared version ${String(raw.version)}`)
 	const expectedCommit = process.env.GITHUB_SHA ?? null
 	if (raw.commit !== expectedCommit)
 		throw new Error(`Prepared commit ${String(raw.commit)} does not match current commit ${String(expectedCommit)}`)
-	const packages = assertPreparedPackages(raw.packages, requestedVersion)
+	const packages = assertPreparedPackages(raw.packages, version)
 
 	const tarballs = new Map<string, string>()
 	for (const packageItem of packages) {
@@ -199,19 +209,33 @@ async function main(): Promise<void> {
 			throw new Error(`${packageItem.name} tarball size changed after preparation`)
 		if (await sha256(tarballPath) !== packageItem.sha256)
 			throw new Error(`${packageItem.name} tarball checksum changed after preparation`)
+		if (await sriSha512(tarballPath) !== packageItem.integrity)
+			throw new Error(`${packageItem.name} tarball integrity changed after preparation`)
 		tarballs.set(packageItem.name, tarballPath)
 	}
 
 	if (verifyOnly) {
-		console.log(`Verified ${packages.length} prepared tarballs for ${requestedVersion} with npm ${npmVersionText}; nothing was published.`)
+		console.log(`Verified ${packages.length} prepared tarballs for ${version}; npm tag ${npmTag} is derived from semver. Nothing was published.`)
 		return
 	}
 
-	console.log(`Publishing ${requestedVersion} to npm tag ${npmTag} with npm ${npmVersionText}.`)
+	console.log(`Publishing ${version} to npm tag ${npmTag} from annotated tag ${releaseTag}.`)
 	for (const packageItem of packages) {
 		const tarballPath = tarballs.get(packageItem.name)
 		if (!tarballPath)
 			throw new Error(`Missing verified tarball for ${packageItem.name}`)
+
+		const action = publishedArtifactAction(
+			packageItem.name,
+			version,
+			packageItem.integrity,
+			await publishedIntegrity(packageItem.name, version),
+		)
+		if (action === 'skip') {
+			console.log(`Skipping ${packageItem.name}@${version}: npm already holds the identical artifact.`)
+			continue
+		}
+
 		console.log(`Publishing ${packageItem.name} from ${packageItem.tarball}`)
 		await run('npm', [
 			'publish',
@@ -220,6 +244,7 @@ async function main(): Promise<void> {
 			'public',
 			'--tag',
 			npmTag,
+			'--provenance',
 			'--ignore-scripts',
 		])
 	}

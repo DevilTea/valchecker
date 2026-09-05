@@ -29,6 +29,8 @@ A normal plugin has three layers:
 2. `PluginDef` declares the state-aware TypeScript signature and public JSDoc.
 3. `implStepPlugin()` registers construction-time behavior and the default operation mode.
 
+`StepPluginImpl<PluginDef>` describes the implementation object passed into `implStepPlugin()`. The returned `StepPlugin<PluginDef>` promotes the existing type-state `~def` phantom from optional to required, and that registered structural type is the boundary used by `createValchecker({ steps })` and `AllSteps`. Construct third-party plugins through `implStepPlugin()` rather than hand-casting an implementation object: this preserves the plugin definition/inference and makes the value statically registrable. `~def` remains type-only; runtime discovery continues to use Valchecker's symbol protocol, so this adds no runtime property or hardening branch.
+
 ## Synchronous validation example
 
 <!-- typecheck-isolate -->
@@ -271,6 +273,8 @@ export const dateBranch = implStepPlugin<PluginDef>({
 ```
 
 A step implementation reads every registered entry with `context.getCapabilities(symbol)`, in registration order. Declaring the same capability from several plugins is normal — that is how `union` collects its shorthand providers.
+
+If a capability or metadata key is intended to work when producer and consumer come from different physical copies, its symbol identity is a versioned interoperability contract. Use an explicitly namespaced registry key such as `Symbol.for('your-package.protocol.feature.v1')`; a module-local `Symbol()` is appropriate only when the value cannot cross that boundary. Version the key when the payload/meaning becomes incompatible rather than silently reusing one identity for a different protocol shape.
 
 Declare capabilities inside the `implStepPlugin` call, never as a separate statement afterwards. This package is bundled with `moduleSideEffects: false`, so a top-level `declare(plugin, …)` call is eliminated as an unused side effect and the capability silently disappears from the published build.
 

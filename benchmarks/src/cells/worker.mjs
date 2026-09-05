@@ -58,7 +58,9 @@ async function main() {
 			executionMode: cell.async ? 'async' : 'sync',
 			entry: 'native',
 			batch: cell.batch,
-			...(cell.async ? await measureAsync(cell.measuredUnit, mode) : measure(cell.measuredUnit, mode)),
+			...(cell.async
+				? await measureAsync(cell.measuredUnit, mode, cell.batch)
+				: measure(cell.measuredUnit, mode, cell.batch)),
 		},
 	}
 }

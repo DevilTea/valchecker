@@ -50,8 +50,6 @@ describe('isOneOf step plugin', () => {
 			.toMatchObject({
 				issues: [{ payload: { expectedValues: ['draft', 'published'] } }],
 			})
-		expect(() => failure.issues[0].payload.expectedValues.push('other'))
-			.toThrow()
 	})
 
 	it('reports custom messages and enforces non-empty primitive tuples', () => {
@@ -77,12 +75,10 @@ describe('isOneOf step plugin', () => {
 		}
 	})
 
-	it('advertises its candidates as a frozen member set', () => {
+	it('advertises its candidates as an owned member snapshot', () => {
 		const schema = v.string()
 			.isOneOf(['x', 'y'])
 		expect(getLiteralMembers(schema))
 			.toEqual(['x', 'y'])
-		expect(Object.isFrozen(getLiteralMembers(schema)))
-			.toBe(true)
 	})
 })

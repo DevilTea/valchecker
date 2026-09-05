@@ -20,17 +20,20 @@ export const flatObjectPool = Array.from({ length: 64 }, (_, index) => ({
 // field is `object`'s own optional handling rather than a `union` branch — an
 // instance registering only `object` and `string` accepts it — so `union` is
 // deliberately absent here.
+const flatObjectComparisonNote = 'Valchecker expresses the email predicate with a user `check()` closure while the competitors use built-in regex actions; executable conformance establishes the same observable object contract.'
+const nestedObjectComparisonNote = 'Valchecker expresses the nested email and country constraints with `check()` callbacks while the competitors use built-in regex/length actions; executable conformance, not internal operation shape, establishes equivalence.'
+
 const flatObjectSteps = ['object', 'string', 'number', 'isInteger', 'isAtLeast', 'boolean', 'literal', 'check']
 const strictFlatObjectSteps = ['strictObject', 'string', 'number', 'isInteger', 'isAtLeast', 'boolean', 'literal', 'check']
 const nestedObjectSteps = ['object', 'string', 'check', 'array']
 
 export const objectScenarios = [
-	warm('flat-object/valid', 'smoke', 'flatObject', flatObject.valid, { success: true }, { steps: flatObjectSteps }),
-	warmPool('flat-object/valid-rotating', 'standard', 'flatObject', flatObjectPool, { success: true }, { steps: flatObjectSteps }),
-	warm('flat-object/invalid-first', 'standard', 'flatObject', flatObject.invalidFirst, { success: false }, { steps: flatObjectSteps }),
-	warm('flat-object/invalid-last', 'standard', 'flatObject', flatObject.invalidLast, { success: false }, { steps: flatObjectSteps }),
+	warm('flat-object/valid', 'smoke', 'flatObject', flatObject.valid, { success: true, output: flatObject.valid }, { comparisonNote: flatObjectComparisonNote, steps: flatObjectSteps }),
+	warmPool('flat-object/valid-rotating', 'standard', 'flatObject', flatObjectPool, { success: true }, { comparisonNote: flatObjectComparisonNote, steps: flatObjectSteps }),
+	warm('flat-object/invalid-first', 'standard', 'flatObject', flatObject.invalidFirst, { success: false }, { comparisonNote: flatObjectComparisonNote, steps: flatObjectSteps }),
+	warm('flat-object/invalid-last', 'standard', 'flatObject', flatObject.invalidLast, { success: false }, { comparisonNote: flatObjectComparisonNote, steps: flatObjectSteps }),
 	warm('flat-object/strict-extra', 'standard', 'strictFlatObject', flatObject.extra, { success: false }, { steps: strictFlatObjectSteps }),
 
-	warm('nested-object/valid', 'standard', 'nestedObject', nestedObject.valid, { success: true }, { steps: nestedObjectSteps }),
-	warm('nested-object/invalid-deep', 'standard', 'nestedObject', nestedObject.invalidDeep, { success: false }, { steps: nestedObjectSteps }),
+	warm('nested-object/valid', 'standard', 'nestedObject', nestedObject.valid, { success: true, output: nestedObject.valid }, { comparisonNote: nestedObjectComparisonNote, steps: nestedObjectSteps }),
+	warm('nested-object/invalid-deep', 'standard', 'nestedObject', nestedObject.invalidDeep, { success: false }, { comparisonNote: nestedObjectComparisonNote, steps: nestedObjectSteps }),
 ]

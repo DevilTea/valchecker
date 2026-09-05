@@ -13,7 +13,7 @@ import { parseNumberLiteral } from '../looseNumber/number-literal'
  * `templateLiteral`, etc. as a usable part.
  */
 /* @__NO_SIDE_EFFECTS__ */
-export const templateLiteralPartMarker = Symbol.for('valchecker:templateLiteralPartMarker')
+export const templateLiteralPartMarker = Symbol.for('valchecker.protocol.templateLiteralPart.v1')
 
 /** Interpolatable literal value carried by a `literal` descriptor. */
 export type TemplateLiteralLiteralValue = string | number | bigint | boolean | null | undefined

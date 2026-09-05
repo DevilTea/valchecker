@@ -78,7 +78,7 @@ export interface TExecutionContext {
 	issue: AnyExecutionIssue
 	/**
 	 * Type-level mirror of the runtime literal-members metadata entry
-	 * (`~core.metadata[Symbol.for('valchecker:literalMembers')]`): the exact
+	 * (`~core.metadata[Symbol.for('valchecker.protocol.literalMembers.v1')]`): the exact
 	 * finite accepted and output value set advertised by the final step, if any.
 	 * Dropped by every step that does not redeclare it. Optional so external
 	 * `DefineExpectedValchecker` contexts stay valid.
@@ -233,13 +233,6 @@ export interface Valchecker<
 		CurrentExecutionContext['input'],
 		CurrentExecutionContext['output']
 	> {
-	readonly '~standard': {
-		version: 1
-		vendor: 'valchecker'
-		validate: (value: unknown) => MaybePromise<ExecutionResult<CurrentExecutionContext['output'], CurrentExecutionContext['issue']>>
-		types?: CurrentExecutionContext | undefined
-	}
-
 	readonly '~core': {
 		executionStepContext: CurrentExecutionContext
 		registeredExecutionStepPlugins: RegisteredStepPlugins
@@ -394,6 +387,10 @@ export type StepPluginImpl<StepPluginDef extends TStepPluginDef> = (UnionToInter
 		readonly '~def'?: StepPluginDef
 	}
 	: never
+
+export type StepPlugin<StepPluginDef extends TStepPluginDef = TStepPluginDef> = StepPluginImpl<StepPluginDef> & {
+	readonly '~def': StepPluginDef
+}
 
 export type DefineExpectedValchecker<ExpectedExecutionContext extends Partial<TExecutionContext> = TExecutionContext> = Valchecker<{
 	initial: ExpectedExecutionContext extends { initial: infer I extends boolean } ? I : TExecutionContext['initial']

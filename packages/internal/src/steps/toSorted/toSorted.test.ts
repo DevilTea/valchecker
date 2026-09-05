@@ -63,6 +63,28 @@ describe('toSorted step plugin', () => {
 			})
 	})
 
+	it('reports the exact operands passed to a throwing comparator', () => {
+		const left = { side: 'left' }
+		const right = { side: 'right' }
+		const error = new Error('comparator')
+		const value = [left, right] as any[] & { toSorted: (compareFn: (left: unknown, right: unknown) => number) => unknown[] }
+		value.toSorted = (compareFn) => {
+			compareFn!(right, left)
+			return []
+		}
+
+		const result = v.transform(() => value)
+			.toSorted({ compareFn: () => { throw error } })
+			.execute(null)
+		expect(result)
+			.toMatchObject({
+				issues: [{
+					code: 'toSorted:callback_failed',
+					payload: { value, left: right, right: left, error },
+				}],
+			})
+	})
+
 	it('publishes its default comparator failure message', () => {
 		expect(v.array(v.any())
 			.toSorted({ compareFn: () => {

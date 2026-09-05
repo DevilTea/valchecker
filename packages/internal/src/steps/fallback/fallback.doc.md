@@ -32,6 +32,10 @@ If the callback itself throws or rejects, the received issues are kept and one m
 appended.
 
 **Issue code:** `fallback:failed` (`operation`) — the fallback callback threw or rejected. Payload
-`{ receivedIssues, error }`, where `receivedIssues` is a defensive snapshot of the failure the
-callback was given and `error` is what it threw. Snapshot issues carry the unresolved step-default
-message rather than the finalized one; the issues returned to the caller finalize normally.
+`{ receivedIssues, error }`, where `receivedIssues` is a defensive structural snapshot of the
+failure the callback was given and `error` is what it threw. The snapshot detaches Valchecker-owned
+issue records, paths, context records, payload records, and nested diagnostic containers declared by
+their owning protocol. It is intentionally not a generic deep clone: opaque/user-owned payload
+values such as objects, arrays, `Error`, `Date`, collections, callbacks, proxies, and schema
+references keep their identity. Snapshot issues carry the unresolved step-default message rather
+than the finalized one; the issues returned to the caller finalize normally.

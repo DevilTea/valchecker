@@ -60,6 +60,6 @@ const sparseScope = 'compatible-subset'
 export const optionalHeavyScenarios = [
 	warm('optional-heavy/sparse', 'standard', 'optionalHeavy', optionalHeavy.sparse, { success: true }, { comparisonScope: sparseScope, steps: optionalHeavySteps }),
 	warmPool('optional-heavy/sparse-rotating', 'standard', 'optionalHeavy', optionalSparsePool, { success: true }, { comparisonScope: sparseScope, steps: optionalHeavySteps }),
-	warm('optional-heavy/full', 'standard', 'optionalHeavy', optionalHeavy.full, { success: true }, { steps: optionalHeavySteps }),
+	warm('optional-heavy/full', 'standard', 'optionalHeavy', optionalHeavy.full, { success: true, output: optionalHeavy.full }, { steps: optionalHeavySteps }),
 	warm('optional-heavy/invalid', 'standard', 'optionalHeavy', optionalHeavy.invalid, { success: false }, { steps: optionalHeavySteps }),
 ]

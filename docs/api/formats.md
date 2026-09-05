@@ -135,7 +135,8 @@ only with `registered: true`)
 ### `isIp(options?)` {#isIp}
 
 Checks an IPv4 or IPv6 address. IPv4 octets are range-checked (0–255, no leading zeros); IPv6
-supports `::` zero-compression and an embedded IPv4 suffix. Zone identifiers are not accepted.
+supports `::` zero-compression and an embedded IPv4 suffix as the final portion. When compression
+is used, the IPv4 suffix must follow the `::` marker. Zone identifiers are not accepted.
 Restrict to one family with `version` (`4` or `6`); by default both are accepted.
 
 ```ts
@@ -156,16 +157,20 @@ both families are accepted.
 
 ### `isIsoDate(options?)` {#isIsoDate}
 
-Validates the ISO 8601 calendar-date shape `YYYY-MM-DD` and rejects impossible values. Month lengths
-and the leap-year rule are part of the accepted shape, so `2026-02-30` and `2023-02-29` are both
-rejected. The calendar grammar has a single definition, shared with `isIsoDateTime`, so the two
-accepted shapes cannot drift apart.
+Validates Valchecker's bounded ISO 8601 extended-calendar date profile: exactly `YYYY-MM-DD` with
+four decimal year digits. Month lengths and the proleptic Gregorian leap-year rule are enforced,
+including year `0000`, so `0000-02-29` is valid while `1900-02-29`, `2023-02-29`, and
+`2026-02-30` are rejected. The calendar grammar is shared with `isIsoDateTime`.
+
+This method intentionally does **not** implement every ISO 8601 representation. Basic dates such as
+`20260723`, week dates, ordinal dates, reduced-precision dates, signed/expanded years, and other ISO
+profiles are outside this API shape.
 
 ```ts
 v.string()
 	.isIsoDate()
-	.execute('2026-07-23')
-// { value: '2026-07-23' }
+	.execute('0000-02-29')
+// { value: '0000-02-29' }
 
 v.string()
 	.isIsoDate()
@@ -173,62 +178,79 @@ v.string()
 // failure
 ```
 
-**Issue code:** `isIsoDate:expected_iso_date` — the string is not a valid ISO 8601 date. Payload
-`{ value }`.
+**Issue code:** `isIsoDate:expected_iso_date` — the string does not match the supported ISO 8601
+calendar-date profile. Payload `{ value }`.
 
 ### `isIsoDateTime(options?)` {#isIsoDateTime}
 
-Validates an ISO 8601 date and time joined by `T`, with optional fractional seconds and an optional
-`Z` or `±HH:MM` offset, and rejects impossible values. Month lengths and the leap-year rule are part
-of the accepted shape for the date portion, as are the field ranges for the time portion and the
-offset, so `2026-02-30`, `2023-02-29`, and `24:00:00` are all rejected. The date grammar comes from
-`isIsoDate` and the time and offset grammars from `isIsoTime`, each a single shared definition, so
-the accepted shapes cannot drift apart.
+Validates Valchecker's bounded ISO 8601 extended calendar date-time profile:
+`YYYY-MM-DDTHH:MM:SS`, with optional fractional seconds using either `.` or `,`, plus an optional `Z`
+or `±HH:MM` offset. The date uses the same proleptic Gregorian rules as `isIsoDate`, including valid
+year-zero leap day `0000-02-29`.
+
+The time portion also supports ISO's end-of-day instant `24:00:00`; if it has a fraction, every
+fractional digit must be zero. Time-of-day and UTC-offset grammars are deliberately separate, so this
+support never admits `+24:00` or `-24:00` offsets. Leap-second notation (`:60`) is intentionally
+excluded because validating it semantically would require UTC leap-second date and offset knowledge
+outside this lightweight format validator.
+
+The API intentionally stays within this extended-calendar shape. ISO basic forms, week dates,
+ordinal dates, reduced precision, signed/expanded years, timezone names, and other ISO 8601 profiles
+remain outside this method.
 
 ```ts
 v.string()
 	.isIsoDateTime()
-	.execute('2026-07-23T12:30:00Z')
-// { value: '2026-07-23T12:30:00Z' }
+	.execute('2026-07-23T12:30:00,5+08:00')
+// { value: '2026-07-23T12:30:00,5+08:00' }
 
 v.string()
 	.isIsoDateTime()
-	.execute('2026-07-23T12:30:00+08:00')
-// { value: '2026-07-23T12:30:00+08:00' }
+	.execute('2026-07-23T24:00:00Z')
+// { value: '2026-07-23T24:00:00Z' }
 ```
 
-**Issue code:** `isIsoDateTime:expected_iso_date_time` — the string is not a valid ISO 8601
-date-time. Payload `{ value }`.
+**Issue code:** `isIsoDateTime:expected_iso_date_time` — the string does not match the supported ISO
+8601 extended calendar date-time profile. Payload `{ value }`.
 
 ### `isIsoTime(options?)` {#isIsoTime}
 
-Validates the ISO 8601 time-of-day shape `HH:MM:SS`, with optional fractional seconds and no
-time-zone, and rejects impossible values. The field ranges (00–23, 00–59, 00–59) are part of the
-accepted shape, so `24:00:00` is rejected. The time grammar has a single definition, shared with the
-time portion of `isIsoDateTime`, so the two accepted shapes cannot drift apart.
+Validates Valchecker's bounded ISO 8601 extended time-of-day profile: `HH:MM:SS`, optional
+fractional seconds using either `.` or `,`, and no timezone. Ordinary clock times use hours `00`–`23`,
+minutes `00`–`59`, and seconds `00`–`59`.
+
+The ISO 8601 end-of-day instant is also supported as `24:00:00`. A fractional end-of-day expression
+is accepted only when every fractional digit is zero, such as `24:00:00.000` or `24:00:00,0`;
+`24:00:00.001` is not an end-of-day expression. Leap-second notation (`:60`) is intentionally outside
+this lightweight profile, as are basic and reduced-precision time forms. Timezones belong to
+`isIsoDateTime`.
 
 ```ts
 v.string()
 	.isIsoTime()
-	.execute('12:30:45.123')
-// { value: '12:30:45.123' }
+	.execute('12:30:45,125')
+// { value: '12:30:45,125' }
 
 v.string()
 	.isIsoTime()
 	.execute('24:00:00')
-// failure
+// { value: '24:00:00' }
 ```
 
-**Issue code:** `isIsoTime:expected_iso_time` — the string is not a valid ISO 8601 time. Payload
-`{ value }`.
+**Issue code:** `isIsoTime:expected_iso_time` — the string does not match the supported ISO 8601
+time-of-day profile. Payload `{ value }`.
 
 ### `isJwt(options?)` {#isJwt}
 
-Checks a JSON Web Token: three base64url segments separated by dots. The header is
-base64url-decoded, parsed as JSON, and required to be an object carrying a string `alg`. The header
-and payload segments must be non-empty; the signature segment may be empty (an unsecured JWS). The
-segments are checked against the same base64url definition `isBase64Url()` uses, so one library does
-not answer "is this base64url?" two ways.
+Checks a JWT carried in JWS Compact Serialization (`header.payload.signature`). Header and payload are
+non-empty base64url segments that must decode as valid UTF-8 JSON objects: the JOSE header must contain
+a non-empty string `alg`, and the payload is the JWT Claims Set. `alg: "none"` requires an empty
+signature segment; every other algorithm name requires a non-empty base64url signature. The step does
+not restrict algorithms to a known list and does not cryptographically verify a signature. `typ:
+"JWT"` is not required. Five-segment JWE compact serialization is outside this step's contract.
+
+The segments use the same unpadded base64url definition as `isBase64Url()`, so one library does not
+answer "is this base64url?" two ways.
 
 ```ts
 v.string()
@@ -349,7 +371,9 @@ v.string()
 ### `isHostname(options?)` {#isHostname}
 
 RFC 1123 hostname: dot-separated labels of 1–63 characters, each starting and ending with an
-alphanumeric character, with a total length of at most 253. Matching is case-insensitive.
+alphanumeric character, with a total length of at most 253. The final highest-level label cannot be
+entirely numeric, so dotted-decimal IPv4 text is not accepted as a hostname. Matching is
+case-insensitive.
 
 ```ts
 v.string()
@@ -402,8 +426,8 @@ v.string()
 
 ### `isUlid(options?)` {#isUlid}
 
-A ULID: 26 characters of Crockford base32 (digits and uppercase letters excluding I, L, O, U).
-Case-insensitive.
+A canonical ULID: 26 characters of Crockford base32 (digits and uppercase letters excluding I, L,
+O, U), with a first character from `0` through `7` so the value fits in 128 bits. Case-insensitive.
 
 ```ts
 v.string()

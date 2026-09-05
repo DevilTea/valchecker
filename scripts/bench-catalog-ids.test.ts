@@ -10,7 +10,7 @@ import { catalogIdDiff, cellsOfSource, isLegacyBaselineOnly, staticCatalog } fro
  * deletion it is supposed to surface.
  */
 
-function bench(step: string, cells: { name: string, group?: string }[]): string {
+function bench(step: string, cells: { name: string, group?: string, batch?: number, async?: boolean }[]): string {
 	return [
 		`import { string } from '../..'`,
 		`import { stepBench } from '../../test-utils/step-bench'`,
@@ -18,7 +18,7 @@ function bench(step: string, cells: { name: string, group?: string }[]): string 
 		`const schema = string()`,
 		'',
 		`stepBench('${step}', [`,
-		...cells.map(cell => `\t{ name: '${cell.name}', group: '${cell.group ?? 'warm/success'}', expect: { success: true }, batch: 100, run: () => schema.execute('a') },`),
+		...cells.map(cell => `\t{ name: '${cell.name}', group: '${cell.group ?? 'warm/success'}', expect: { success: true }, batch: ${cell.batch ?? 100},${cell.async == null ? '' : ` async: ${String(cell.async)},`} run: () => schema.execute('a') },`),
 		'])',
 		'',
 	].join('\n')
@@ -31,8 +31,8 @@ describe('reading a cell catalog from source', () => {
 			.toEqual([])
 		expect(cells)
 			.toEqual([
-				{ id: 'isEmail/valid', group: 'warm/success' },
-				{ id: 'isEmail/invalid', group: 'warm/failure/library-default' },
+				{ id: 'isEmail/valid', group: 'warm/success', batch: 100, async: false },
+				{ id: 'isEmail/invalid', group: 'warm/failure/library-default', batch: 100, async: false },
 			])
 	})
 
@@ -49,7 +49,7 @@ describe('reading a cell catalog from source', () => {
 			`import { stepBench } from '../../test-utils/step-bench'`,
 			`const suffix = 'valid'`,
 			`stepBench('string', [`,
-			`\t{ name: \`x-\${suffix}\`, group: 'warm/success', run: () => 1 },`,
+			`\t{ name: \`x-\${suffix}\`, group: 'warm/success', batch: 100, run: () => 1 },`,
 			'])',
 		].join('\n')
 		const { cells, problems } = cellsOfSource('string/string.bench.ts', computed)
@@ -126,7 +126,67 @@ describe('diffing two revisions', () => {
 		expect([diff.added, diff.removed])
 			.toEqual([[], []])
 		expect(diff.changed)
-			.toEqual([{ id: 'map/collect-all', baseGroup: 'warm/failure/all', headGroup: 'warm/success', gateEffect: null }])
+			.toEqual([{
+				id: 'map/collect-all',
+				fields: ['group'],
+				base: { group: 'warm/failure/all', batch: 100, async: false },
+				head: { group: 'warm/success', batch: 100, async: false },
+				gateEffect: null,
+			}])
+	})
+
+	it('sees a batch change under an unchanged id', () => {
+		const head = staticCatalog([{ path: 'a.bench.ts', text: bench('map', [
+			{ name: 'valid', batch: 200 },
+			{ name: 'collect-all', group: 'warm/failure/all' },
+		]) }])
+		const diff = catalogIdDiff(base, head)
+		expect([diff.added, diff.removed])
+			.toEqual([[], []])
+		expect(diff.changed)
+			.toEqual([{
+				id: 'map/valid',
+				fields: ['batch'],
+				base: { group: 'warm/success', batch: 100, async: false },
+				head: { group: 'warm/success', batch: 200, async: false },
+				gateEffect: null,
+			}])
+	})
+
+	it('sees an async-mode change under an unchanged id', () => {
+		const head = staticCatalog([{ path: 'a.bench.ts', text: bench('map', [
+			{ name: 'valid', async: true },
+			{ name: 'collect-all', group: 'warm/failure/all' },
+		]) }])
+		const diff = catalogIdDiff(base, head)
+		expect(diff.changed)
+			.toEqual([{
+				id: 'map/valid',
+				fields: ['async'],
+				base: { group: 'warm/success', batch: 100, async: false },
+				head: { group: 'warm/success', batch: 100, async: true },
+				gateEffect: null,
+			}])
+	})
+
+	it('fails closed when batch or async cannot be read statically', () => {
+		const dynamic = [
+			`import { stepBench } from '../../test-utils/step-bench'`,
+			`const batch = 100`,
+			`const isAsync = false`,
+			`stepBench('string', [`,
+			`\t{ name: 'batch', group: 'warm/success', batch, run: () => 1 },`,
+			`\t{ name: 'async', group: 'warm/success', batch: 100, async: isAsync, run: () => 1 },`,
+			'])',
+		].join('\n')
+		const { cells, problems } = cellsOfSource('string/string.bench.ts', dynamic)
+		expect(cells)
+			.toEqual([])
+		expect(problems)
+			.toEqual(expect.arrayContaining([
+				expect.stringContaining('batch that is not a positive integer literal'),
+				expect.stringContaining('async mode that is not a boolean literal'),
+			]))
 	})
 
 	it('names a baseline transition as the gate change it is', () => {
@@ -138,7 +198,13 @@ describe('diffing two revisions', () => {
 		expect(left.removed)
 			.toEqual(['map/collect-all'])
 		expect(left.changed[0])
-			.toEqual({ id: 'map/collect-all', baseGroup: 'warm/failure/all', headGroup: 'baseline', gateEffect: 'left' })
+			.toEqual({
+				id: 'map/collect-all',
+				fields: ['group'],
+				base: { group: 'warm/failure/all', batch: 100, async: false },
+				head: { group: 'baseline', batch: 100, async: false },
+				gateEffect: 'left',
+			})
 
 		const entered = catalogIdDiff(intoBaseline, base)
 		expect(entered.added)
@@ -193,7 +259,7 @@ describe('diffing two revisions', () => {
 		// A base that is only partly unreadable is an anomaly rather than that migration.
 		const mixed = staticCatalog([
 			{ path: 'a.bench.ts', text: legacyText },
-			{ path: 'b.bench.ts', text: 'import { stepBench } from \'x\'\nstepBench(\'map\', [{ name: \'valid\', group: \'warm/success\' }])\n' },
+			{ path: 'b.bench.ts', text: 'import { stepBench } from \'x\'\nstepBench(\'map\', [{ name: \'valid\', group: \'warm/success\', batch: 100 }])\n' },
 		])
 		expect(catalogIdDiff(mixed, base, 2).fatalProblems.length)
 			.toBeGreaterThan(0)
@@ -207,7 +273,7 @@ describe('diffing two revisions', () => {
 		])
 		expect(isLegacyBaselineOnly(partlyMigrated, 1))
 			.toBe(true)
-		expect(isLegacyBaselineOnly({ ids: ['map/valid'], groups: { 'map/valid': 'warm/success' }, problems: partlyMigrated.problems }, 1))
+		expect(isLegacyBaselineOnly({ ids: ['map/valid'], contracts: { 'map/valid': { group: 'warm/success', batch: 100, async: false } }, problems: partlyMigrated.problems }, 1))
 			.toBe(false)
 	})
 })

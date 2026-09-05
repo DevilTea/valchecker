@@ -6,7 +6,7 @@ import { basename, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { buildAttribution, classifyChange, defaultCanary, gateDefiningPaths, isNonShippingSourcePath, selectImpactScenarios } from './impact-selection'
+import { buildAttribution, classifyChange, defaultCanary, gateDefiningPaths, isNonShippingSourcePath, measurementSelectionOf, selectImpactScenarios } from './impact-selection'
 import { objectTree } from './source-tree'
 
 /**
@@ -255,6 +255,36 @@ describe('attribution over the import graph', () => {
 	})
 })
 
+describe('measurement selection roles', () => {
+	it('marks attributed cells as affected and canary-only cells as health signals', () => {
+		const selection = select(['packages/internal/src/steps/delta/delta.ts'])
+		const artifact = measurementSelectionOf(selection)
+		const roles = new Map(artifact.scenarios.map(entry => [entry.id, entry.role]))
+		expect(roles.get('warm/delta'))
+			.toBe('affected')
+		expect(roles.get('fail/delta'))
+			.toBe('affected')
+		expect(roles.get('warm/gamma'))
+			.toBe('health-canary')
+	})
+
+	it('gives an overlap to attribution rather than canary status', () => {
+		const selection = select(['packages/internal/src/steps/gamma/gamma.ts'])
+		const roles = new Map(measurementSelectionOf(selection).scenarios.map(entry => [entry.id, entry.role]))
+		expect(roles.get('warm/gamma'))
+			.toBe('affected')
+	})
+
+	it('marks every cell affected on a full run', () => {
+		const selection = select(['packages/internal/src/registry.ts'])
+		const artifact = measurementSelectionOf(selection)
+		expect(selection.full)
+			.toBe(true)
+		expect(new Set(artifact.scenarios.map(entry => entry.role)))
+			.toEqual(new Set(['affected']))
+	})
+})
+
 describe('scenario selection', () => {
 	it('a change to one step measures that step plus the canary', () => {
 		const selection = select(['packages/internal/src/steps/delta/delta.ts'])
@@ -458,18 +488,26 @@ describe('scenario selection', () => {
 			.toHaveLength(1)
 	})
 
-	it('tops a group up to two scenarios so its severe-group trigger stays possible', () => {
-		// A canary naming one `warm/failure` scenario leaves that group with a single
-		// measured scenario, which `compare.mjs` cannot call a severe group regression.
+	it('does not top a group up with unaffected rows to manufacture an aggregate sample size', () => {
+		// A thin canary plus one affected row in a group can make two rows *measured*, but
+		// only the affected row belongs to the product estimator. Adding another unaffected
+		// row would spend time without making a two-row product group estimate valid.
 		const thin: Canary = { groups: ['construction'], scenarios: ['warm/gamma'] }
 		const selection = select(['packages/internal/src/steps/delta/delta.ts'], repository, thin)
-		expect(selection.topUpIds)
-			.toEqual(['fail/alpha'])
+		expect(selection.scenarioIds)
+			.toEqual(['construct/alpha', 'construct/beta', 'warm/gamma', 'warm/delta', 'fail/delta'])
+		expect(selection.scenarioIds)
+			.not.toContain('fail/alpha')
+		const roles = new Map(measurementSelectionOf(selection).scenarios.map(entry => [entry.id, entry.role]))
+		expect(roles.get('warm/gamma'))
+			.toBe('health-canary')
+		expect(roles.get('warm/delta'))
+			.toBe('affected')
 		expect(selection.groups)
 			.toEqual([
-				{ group: 'construction', selected: 2, total: 2, triggerPossible: true },
-				{ group: 'warm/success', selected: 2, total: 5, triggerPossible: true },
-				{ group: 'warm/failure', selected: 2, total: 4, triggerPossible: true },
+				{ group: 'construction', selected: 2, affected: 0, total: 2, triggerPossible: false },
+				{ group: 'warm/success', selected: 2, affected: 1, total: 5, triggerPossible: false },
+				{ group: 'warm/failure', selected: 1, affected: 1, total: 4, triggerPossible: false },
 			])
 	})
 
@@ -613,7 +651,7 @@ describe('the repository this gate runs in', () => {
 			.toBe(false)
 	})
 
-	it('has a canary that exists and keeps every benchmark group triggerable', async () => {
+	it('has a canary that exists without counting health controls as affected group evidence', async () => {
 		// Imported through a computed URL for the reason `check-benchmark-coverage.ts`
 		// does the same: a static specifier would pull the whole benchmark module graph
 		// into this project's TypeScript program, and those `.mjs` files are not
@@ -636,9 +674,15 @@ describe('the repository this gate runs in', () => {
 		expect(selection.attributedIds)
 			.toEqual([])
 		for (const coverage of selection.groups) {
+			expect(coverage.selected, coverage.group)
+				.toBeGreaterThanOrEqual(2)
+			expect(coverage.affected, coverage.group)
+				.toBe(0)
 			expect(coverage.triggerPossible, coverage.group)
-				.toBe(true)
+				.toBe(false)
 		}
+		expect(new Set(measurementSelectionOf(selection).scenarios.map(entry => entry.role)))
+			.toEqual(new Set(['health-canary']))
 		expect(defaultCanary.scenarios.every(id => standard.some(scenario => scenario.id === id)))
 			.toBe(true)
 	})

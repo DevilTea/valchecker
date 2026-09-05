@@ -3,7 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import ts from 'typescript'
 
-// Compiles the TypeScript examples in `docs/` against the built declarations, so a rename or a
+// Compiles the TypeScript examples in `docs/` and public package READMEs against the built declarations, so a rename or a
 // signature change cannot leave the documentation quietly describing an API that no longer
 // exists. VitePress renders fenced code without type-checking it, and `docs/` does not depend on
 // `valchecker`, so nothing else covers this.
@@ -26,6 +26,7 @@ import ts from 'typescript'
 
 const root = process.cwd()
 const docsRoot = path.join(root, 'docs')
+const packagesRoot = path.join(root, 'packages')
 const outputRoot = path.join(root, 'artifacts/docs-examples')
 const distributions = {
 	'valchecker': 'packages/valchecker/dist/index.d.mts',
@@ -67,6 +68,14 @@ function markdownFiles(directory: string): string[] {
 			found.push(entryPath)
 	}
 	return found.sort()
+}
+
+/** README files shipped by the public packages use the same declarations as the documentation. */
+function packageReadmes(): string[] {
+	return fs.readdirSync(packagesRoot, { withFileTypes: true })
+		.filter(entry => entry.isDirectory())
+		.map(entry => path.join(packagesRoot, entry.name, 'README.md'))
+		.filter(filePath => fs.existsSync(filePath))
 }
 
 function readDirectivesAndFences(lines: string[]): { fences: Fence[], prelude: string[] } {
@@ -333,7 +342,7 @@ for (const [specifier, distribution] of Object.entries(distributions)) {
 }
 
 const pages: Page[] = []
-for (const filePath of markdownFiles(docsRoot))
+for (const filePath of [...markdownFiles(docsRoot), ...packageReadmes()])
 	pages.push(...buildPages(filePath))
 
 if (pages.length === 0)

@@ -35,6 +35,22 @@ describe('toMappedValues step plugin', () => {
 			.toEqualTypeOf<'sync'>()
 	})
 
+	it('captures the thisArg reference while retaining pointee mutation', () => {
+		const context = { offset: 10 }
+		const replacement = { offset: 100 }
+		const options = { thisArg: context }
+		const schema = v.map({ key: v.string(), value: v.number() })
+			.toMappedValues(function (this: typeof context, entryValue) {
+				return entryValue + this.offset
+			}, options)
+
+		options.thisArg = replacement
+		context.offset = 20
+
+		expect(schema.execute(new Map([['a', 1]])))
+			.toEqual({ value: new Map([['a', 21]]) })
+	})
+
 	it('converts callback exceptions into an operation issue', () => {
 		const error = new Error('value mapper')
 		const input = new Map([['a', 1], ['b', 2]])

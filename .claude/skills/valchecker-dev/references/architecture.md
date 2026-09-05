@@ -8,6 +8,8 @@ Every fluent call creates a new schema and a fresh construction utility object. 
 
 `allSteps` scans public exports for the runtime plugin marker. Adding a built-in plugin requires exporting it through the normal barrels; no second static list is maintained.
 
+The TypeScript boundary deliberately does not use the runtime discovery `unique symbol` as a brand: declaration bundling would give `valchecker` and `@valchecker/all-steps` distinct TypeScript symbol identities even though runtime uses the same global symbol. `StepPluginImpl<Def>` is the unregistered implementation shape accepted by `implStepPlugin()`. Its `StepPlugin<Def>` return type promotes the existing type-state `~def` phantom from optional to required; `createValchecker({ steps })` and `AllSteps` accept only that registered structural type. Do not weaken this back to `StepPluginImpl<any>` or filter only by optional `~def`, both of which admit unrelated values. This is a compile-time construction boundary; final D1 does not require generic runtime hardening for values that bypass it.
+
 ## The three plugin layers
 
 ### `Meta`
@@ -58,7 +60,7 @@ Map and Set schemas iterate captured native iterators lazily. They do not promis
 
 `utils.setMetadata(symbol, value)` writes a symbol-keyed entry to `~core.metadata` for the schema currently being built. Metadata describes only the final step and is dropped by the next fluent call unless that step redeclares it.
 
-Metadata keys are well-known symbols owned by the declaring step module and imported cross-step by direct relative path. Mutable metadata that can affect later validation must be snapshotted or frozen by its owner.
+Metadata keys are owned by the declaring step module. When metadata can be consumed through a public schema supplied by another physical Valchecker copy, the key is a cross-copy protocol identity and uses a namespaced, versioned registry symbol such as `Symbol.for('valchecker.protocol.literalMembers.v1')`; the package-private constant may remain unexported. Mutable caller-owned state stored behind metadata is snapshotted by its owner when supported typed use can retain and later mutate an alias.
 
 Type-level metadata is represented by explicit optional `TExecutionContext` fields only when a type-system consumer exists; it is not a generic symbol map.
 
@@ -69,6 +71,12 @@ A capability lets one step discover what another registered step can do without 
 Declare a capability inside the `implStepPlugin` call. A top-level declaration statement after it is dropped by the bundler as an unused side effect, and the capability then exists in source but not in the published build.
 
 The type-state half goes under the plugin def's `Capabilities` slot, never at the top level, where it would be read as a step method name and surface in `core:unknown_exception`'s `payload.method`.
+
+## Cross-copy protocol identity
+
+A marker is an interoperability protocol when it is attached to a public schema, issue/result, step-plugin object, capability record, or construction metadata and a compatible independently installed Valchecker copy can consume it. Those identities use `Symbol.for('valchecker.protocol.<name>.vN')` (or an equivalent stable versioned mechanism), not module-local `Symbol()`. The version names the payload/meaning contract: a shape change must remain backward-compatible, support both versions deliberately, or fail incompatibility safely. Do not export a protocol symbol merely because it is global; package-private protocol constants stay package-private unless another package genuinely needs the binding.
+
+Module-local `Symbol()` remains correct for caches, sentinels, memoization, and other state that cannot cross a public composition boundary. Package smoke owns the physical two-copy topology; source-level query-string imports are not sufficient evidence because two entry URLs can still resolve one shared internal module.
 
 ## Public-step integration
 

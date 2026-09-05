@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isCuid2'
@@ -49,13 +50,14 @@ export const isCuid2 = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(value => pattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isCuid2:expected_cuid2',
 						payload: { value },
-						customMessage: options?.message,
+						customMessage: message,
 						defaultMessage: 'Expected a valid CUID2.',
 					}),
 				))

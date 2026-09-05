@@ -155,7 +155,6 @@ on:
       - '!eslint.config.js'
       - '!vitest.config.ts'
       - '!api-surface.json'
-      - '!release-plan.json'
       - '!scripts/**'
       - '!.github/**'
       - scripts/impact-selection.ts
@@ -191,7 +190,6 @@ on:
       - '!eslint.config.js'
       - '!vitest.config.ts'
       - '!api-surface.json'
-      - '!release-plan.json'
       - '!scripts/**'
       - '!.github/**'
       - scripts/impact-selection.ts
@@ -412,6 +410,7 @@ jobs:
             --head "$AFTER_SHA" \
             --tree ../valchecker-after \
             --markdown artifacts/performance-impact/selection.md \
+            --selection-json artifacts/performance-impact/selection.json \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Run interleaved paired benchmarks
@@ -435,37 +434,32 @@ jobs:
           fi
           seed="compare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
-          # The cell *definitions* always come from this checked-out ref, whichever build
-          # they are pointed at. The apparatus is fixed and `before`/`after` are two
-          # builds it measures; if each side read its own cells, editing a bench file
-          # would be editing the measurement.
-          # `--catalog-output` persists the cell catalog this shard measured against, hash
-          # included. That file is what `compare` reads: the reporting stage must not collect
-          # cells itself, because collecting them means importing every bench file through a
-          # loader pointed at a build under test. Each repetition writes the same catalog from
-          # the same checked-out ref, so the last write is the same as the first.
-          run_side() {
-            local side="$1" dist="$2" repetition="$3" sha="$4"
-            VALCHECKER_DIST_URL="$dist" \
-            BENCHMARK_COMMIT="$sha" \
+          # The cell definitions always come from this checked-out candidate ref. Each
+          # repetition is one paired invocation: the runner walks the shard cell by cell and
+          # starts the baseline/candidate workers back-to-back for that cell, reversing the
+          # order by repetition parity. A whole candidate shard followed by a whole baseline
+          # shard is not temporal pairing; dozens of worker processes can sit between the two
+          # observations that form one ratio.
+          #
+          # `--catalog-output` persists the fixed apparatus. Both raw files produced by one
+          # invocation record `temporalPairing: adjacent-cell`, which comparison identity
+          # refuses to mix with an older whole-side/standalone run.
+          for repetition in $(seq 1 "$RUNS"); do
             pnpm --dir benchmarks cells \
               --mode "$PROFILE" \
-              --seed "$seed-$repetition-$side" \
+              --seed "$seed" \
+              --repetition "$repetition" \
               --shard-index "$SHARD" \
               --shard-count 4 \
-              --output "../artifacts/performance-impact/$side-$repetition-shard$SHARD.json" \
+              --baseline-dist "$BEFORE_DIST" \
+              --candidate-dist "$AFTER_DIST" \
+              --baseline-sha "$BEFORE_SHA" \
+              --candidate-sha "$AFTER_SHA" \
+              --baseline-output "../artifacts/performance-impact/baseline-$repetition-shard$SHARD.json" \
+              --candidate-output "../artifacts/performance-impact/candidate-$repetition-shard$SHARD.json" \
               --catalog-output "../artifacts/performance-impact/cell-catalog.json" \
+              --selection-roles "../artifacts/performance-impact/selection.json" \
               "${cell_args[@]}"
-          }
-
-          for repetition in $(seq 1 "$RUNS"); do
-            if (( repetition % 2 == 0 )); then
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-            else
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-            fi
           done
 
       - name: Upload shard measurements
@@ -730,30 +724,23 @@ jobs:
           echo "id=$BATCH_ID" >> "$GITHUB_OUTPUT"
           echo "[confirm] batch $BATCH_ID: shard $SHARD of $SHARD_COUNT"
 
-          run_side() {
-            local side="$1" dist="$2" repetition="$3" sha="$4"
-            VALCHECKER_DIST_URL="$dist" \
-            BENCHMARK_COMMIT="$sha" \
+          # Confirmation uses the same per-cell adjacent pairing as the screen. Its
+          # independent batch is independent evidence, not a weaker whole-side ordering.
+          for repetition in $(seq 1 "$RUNS"); do
             pnpm --dir benchmarks cells \
               --mode "$PROFILE" \
-              --seed "$seed-$repetition-$side" \
+              --seed "$seed" \
+              --repetition "$repetition" \
               --shard-index "$SHARD" \
               --shard-count "$SHARD_COUNT" \
               --cells "$CELLS" \
-              --output "../artifacts/performance-impact-confirm/$side-$repetition-shard$SHARD.json" \
+              --baseline-dist "$BEFORE_DIST" \
+              --candidate-dist "$AFTER_DIST" \
+              --baseline-sha "$BEFORE_SHA" \
+              --candidate-sha "$AFTER_SHA" \
+              --baseline-output "../artifacts/performance-impact-confirm/baseline-$repetition-shard$SHARD.json" \
+              --candidate-output "../artifacts/performance-impact-confirm/candidate-$repetition-shard$SHARD.json" \
               --catalog-output "../artifacts/performance-impact-confirm/cell-catalog.json"
-          }
-
-          # Counterbalanced by repetition parity, for the reason the screen batch is: pairing
-          # cancels machine speed and not a monotonic drift over the job.
-          for repetition in $(seq 1 "$RUNS"); do
-            if (( repetition % 2 == 0 )); then
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-            else
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-            fi
           done
 
       - name: Upload confirmation measurements

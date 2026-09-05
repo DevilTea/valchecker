@@ -37,17 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
-          if ! grep -qE '^packages/[^/]+/src/' <<< "$changed"; then
-            echo "No package source changed; changelog entry not required."
-            exit 0
-          fi
-          if grep -qx 'CHANGELOG.md' <<< "$changed"; then
-            echo "Package source and CHANGELOG.md both changed."
-            exit 0
-          fi
-          echo "::error::This pull request changes package source but not CHANGELOG.md."
-          echo "Add an entry under the unreleased section, or apply the 'skip-changelog' label."
-          exit 1
+          pnpm exec tsx ./scripts/check-changelog.ts <<< "$changed"
 
   Check:
     runs-on: ubuntu-latest
@@ -97,6 +87,11 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Check Benchmark Measurement Rules
+        # This semantic cell gate is a required preflight for the benchmark impact workflow;
+        # keep it in the required Check job so malformed or unreachable cells cannot go green.
+        run: pnpm bench:cells
 
       - name: API Surface
         run: pnpm api:surface
@@ -262,6 +257,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Security Audit Policy
+        run: pnpm security:audit
+
       - name: Release Readiness
         run: pnpm release:readiness
 
@@ -271,20 +269,8 @@ jobs:
       - name: Prepare Release Tarballs
         run: pnpm release:prepare
 
-      - name: Verify Publish Inputs
-        shell: bash
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          version_without_build="${version%%+*}"
-          if [[ "$version_without_build" == *-* ]]; then
-            tag="next"
-          else
-            tag="latest"
-          fi
-          RELEASE_VERSION="$version" \
-          NPM_TAG="$tag" \
-          PUBLISH_CONFIRMATION="publish $version to $tag" \
-          pnpm release:publish --verify-only
+      - name: Verify Prepared Release
+        run: pnpm release:publish --verify-only
 
       - name: Upload Release Tarballs
         if: always() && hashFiles('artifacts/release/**') != ''

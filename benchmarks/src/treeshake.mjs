@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { existsSync, readFileSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { cpus, platform, release } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -9,21 +9,31 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib'
 import { rollup, VERSION as rollupVersion } from 'rollup'
 import { minify } from 'terser'
+import { compareBundleImpact } from './bundle-impact.mjs'
+import { consumerResolver } from './consumer-resolver.mjs'
+import { createPackedValcheckerConsumer } from './packed-valchecker.mjs'
 
 const require = createRequire(import.meta.url)
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const aliases = new Map([
-	['valchecker', resolve(repoRoot, 'packages/valchecker/dist/index.mjs')],
-	['@valchecker/all-steps', resolve(repoRoot, 'packages/all-steps/dist/index.mjs')],
-	['@valchecker/internal', resolve(repoRoot, 'packages/internal/dist/index.mjs')],
-])
 const unrelatedMarkers = ['strictObject', 'intersection', 'toUppercase', 'toJSONValue', 'toSorted', 'record:', 'tuple:', 'templateLiteral:', 'date:expected_date', 'toDate:', 'isEmail:']
 
+function argumentValue(argv, name) {
+	const index = argv.indexOf(name)
+	return index >= 0 ? argv[index + 1] ?? null : null
+}
+
 function args(argv) {
-	const outputIndex = argv.indexOf('--output')
-	return { output: outputIndex >= 0 && argv[outputIndex + 1]
-		? resolve(process.cwd(), argv[outputIndex + 1])
-		: resolve(repoRoot, 'artifacts/tree-shaking') }
+	const output = argumentValue(argv, '--output')
+	const baseRoot = argumentValue(argv, '--base-root')
+	const candidateRoot = argumentValue(argv, '--candidate-root')
+	return {
+		output: output == null ? resolve(repoRoot, 'artifacts/tree-shaking') : resolve(process.cwd(), output),
+		baseRoot: baseRoot == null ? null : resolve(process.cwd(), baseRoot),
+		candidateRoot: candidateRoot == null ? repoRoot : resolve(process.cwd(), candidateRoot),
+		baseCommit: argumentValue(argv, '--base-commit'),
+		candidateCommit: argumentValue(argv, '--candidate-commit') ?? process.env.REPORT_COMMIT ?? process.env.GITHUB_SHA ?? null,
+		failOnRegression: argv.includes('--fail-on-regression'),
+	}
 }
 
 function packageVersion(specifier, expectedName = specifier) {
@@ -65,32 +75,6 @@ function html(value) {
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;')
 		.replaceAll('\'', '&#039;')
-}
-
-function resolver(entryCode) {
-	return {
-		name: 'tree-shaking-benchmark-resolver',
-		resolveId(source) {
-			if (source === 'virtual:entry')
-				return '\0virtual:entry'
-			if (aliases.has(source))
-				return { id: aliases.get(source), moduleSideEffects: false }
-			if (source.startsWith('.') || source.startsWith('/') || source.startsWith('\0'))
-				return null
-			try {
-				const url = import.meta.resolve(source)
-				return url.startsWith('file:')
-					? { id: fileURLToPath(url), moduleSideEffects: false }
-					: null
-			}
-			catch {
-				return null
-			}
-		},
-		load(id) {
-			return id === '\0virtual:entry' ? entryCode : null
-		},
-	}
 }
 
 function scenario(id, library, mode, group, code, { forbiddenMarkers = [], requiredMarkers = [] } = {}) {
@@ -376,11 +360,11 @@ function assertBundleSucceeded(id, value, path = 'result') {
 		throw new Error(`Generated bundle for ${id} exports no recognizable execution result`)
 }
 
-async function bundleScenario(item, output) {
+async function bundleScenario(item, output, consumer, side = 'candidate') {
 	const warnings = []
 	const bundle = await rollup({
 		input: 'virtual:entry',
-		plugins: [resolver(item.code)],
+		plugins: [consumerResolver(item.code, consumer)],
 		// `tryCatchDeoptimization` is left at Rollup's default `true` on purpose.
 		// Setting it to `false` hides a class of retention that a downstream Vite or
 		// Rollup consumer really pays: with the default, Rollup abandons analysis of
@@ -390,7 +374,10 @@ async function bundleScenario(item, output) {
 		// entry importing only `string` and `isEmail` — and this gate could not see
 		// it. A gate that measures a friendlier configuration than its consumers use
 		// is not a gate.
-		treeshake: { annotations: true, moduleSideEffects: false, propertyReadSideEffects: false },
+		// Primary consumer profile: package manifests decide module side effects, and Rollup's
+		// ordinary property-read semantics remain enabled. Aggressive theoretical assumptions
+		// are deliberately not part of the consumer gate.
+		treeshake: { annotations: true },
 		onwarn(warning) {
 			if (warning.code !== 'CIRCULAR_DEPENDENCY')
 				warnings.push(warning.message)
@@ -403,13 +390,14 @@ async function bundleScenario(item, output) {
 		throw new Error(`No JavaScript chunk generated for ${item.id}`)
 	const result = await minify(chunk.code, {
 		module: true,
-		compress: { passes: 2, pure_getters: true },
+		compress: { passes: 2 },
 		mangle: true,
 		format: { comments: false },
 	})
 	if (!result.code)
 		throw new Error(`Terser produced no code for ${item.id}`)
-	const bundlePath = join(output, 'bundles', `${item.id}.mjs`)
+	const bundlePath = join(output, 'bundles', side, `${item.id}.mjs`)
+	await mkdir(dirname(bundlePath), { recursive: true })
 	await writeFile(bundlePath, `${result.code}\n`)
 	if (item.group !== 'Full-library reference') {
 		const module = await import(`${pathToFileURL(bundlePath).href}?run=${Date.now()}`)
@@ -534,66 +522,122 @@ function table(results) {
 	return `| Library | API mode | Minified | Gzip | Brotli |\n| --- | --- | ---: | ---: | ---: |\n${rows}`
 }
 
+function signedPercent(value) {
+	return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`
+}
+
+function impactTable(impact) {
+	if (impact == null)
+		return 'No base artifact was supplied, so this run has structural tree-shaking evidence only and makes no impact claim.'
+	const rows = impact.rows.map(row => `| ${row.id} | ${bytes(row.baseBrotliBytes)} | ${bytes(row.candidateBrotliBytes)} | ${row.deltaBytes >= 0 ? '+' : ''}${row.deltaBytes} B | ${signedPercent(row.delta)} | ${row.classification} |`)
+		.join('\n')
+	return `Policy threshold: **>${percent(impact.threshold)} Brotli increase is a bundle regression**. Every byte delta is still reported; the threshold is a review/blocking policy, not measurement uncertainty.\n\n| Scenario | Base Brotli | Candidate Brotli | Bytes | Change | Classification |\n| --- | ---: | ---: | ---: | ---: | --- |\n${rows}`
+}
+
 function markdown(report, concise = false) {
 	const checks = report.analysis.checks.map(check => `- ${check.passed ? 'PASS' : 'WARN'} — ${check.name}: **${check.value}**`)
 		.join('\n')
 	const findings = report.analysis.findings.map(value => `- ${value}`)
 		.join('\n')
-	const headline = report.analysis.status === 'healthy'
-		? 'Selective Valchecker builds show a material tree-shaking benefit.'
-		: 'The current selective-build signal is weaker than the report thresholds and needs investigation.'
-	const context = `Generated with Rollup ${report.environment.rollup}, Terser ${report.environment.terser}, Node.js ${report.environment.node}. Brotli is the primary comparison metric.`
+	const headline = report.impact == null
+		? report.analysis.status === 'healthy'
+			? 'Packed consumer tree-shaking guardrails are healthy. No base artifact was supplied, so this run makes no impact verdict.'
+			: 'The current packed consumer tree-shaking guardrails need investigation. No base artifact was supplied, so this run makes no impact verdict.'
+		: report.status === 'healthy'
+			? 'Packed consumer tree-shaking is healthy and no meaningful bundle regression was measured.'
+			: report.impact.verdict === 'regression'
+				? 'The candidate has a meaningful Brotli regression against the packed base artifact.'
+				: 'The current packed consumer tree-shaking guardrails need investigation.'
+	const context = `Generated with Rollup ${report.environment.rollup}, Terser ${report.environment.terser}, Node.js ${report.environment.node}. Brotli is the primary impact metric. The primary profile respects packed package sideEffects metadata, Rollup property-read side effects, and ordinary Terser getter semantics.`
 	const body = concise
 		? table(report.results.filter(result => result.group === 'Minimal string pipeline'))
 		: ['Minimal string pipeline', 'Object schema', 'Union shorthand isolation', 'Variant isolation', 'Map and Set isolation', 'Record and tuple isolation', 'Collection capability isolation', 'Collection representation isolation', 'Collection callback isolation', 'String format isolation', 'Date and template-literal isolation', 'Full-library reference']
 				.map(group => `## ${group}\n\n${table(report.results.filter(result => result.group === group))}`)
 				.join('\n\n')
-	return `# Tree-shaking ${concise ? 'summary' : 'report'}\n\n**${headline}**\n\n${checks}\n\n## Key comparisons\n\n${findings}\n\n${body}\n\n${context}\n`
+	return `# Bundle size ${concise ? 'summary' : 'report'}\n\nStatus: **${report.status}**${report.impact == null ? '' : ` · impact: **${report.impact.verdict}**`} · structural tree-shaking: **${report.analysis.status}**\n\n**${headline}**\n\n## Base vs candidate impact\n\n${impactTable(report.impact)}\n\n## Current packed-artifact guardrails\n\n${checks}\n\n### Cross-library context\n\n${findings}\n\n${body}\n\n${context}\n`
 }
 
 function htmlReport(report) {
 	const rows = report.results.map(result => `<tr><td>${html(result.library)}</td><td>${html(result.mode)}</td><td>${bytes(result.rawBytes)}</td><td>${bytes(result.gzipBytes)}</td><td>${bytes(result.brotliBytes)}</td></tr>`)
 		.join('')
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Valchecker tree-shaking report</title></head><body><h1>Tree-shaking report</h1><p>Status: <strong>${html(report.analysis.status)}</strong></p><table><thead><tr><th>Library</th><th>API mode</th><th>Minified</th><th>Gzip</th><th>Brotli</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
+	const impactRows = report.impact?.rows.map(row => `<tr><td>${html(row.id)}</td><td>${bytes(row.baseBrotliBytes)}</td><td>${bytes(row.candidateBrotliBytes)}</td><td>${html(signedPercent(row.delta))}</td><td>${html(row.classification)}</td></tr>`)
+		.join('') ?? ''
+	const impact = report.impact == null
+		? '<p>No base artifact supplied; no impact claim.</p>'
+		: `<p>Impact: <strong>${html(report.impact.verdict)}</strong>; regression policy: &gt;${html(percent(report.impact.threshold))} Brotli.</p><table><thead><tr><th>Scenario</th><th>Base Brotli</th><th>Candidate Brotli</th><th>Change</th><th>Classification</th></tr></thead><tbody>${impactRows}</tbody></table>`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Bundle size impact</title></head><body><h1>Bundle size impact</h1><p>Status: <strong>${html(report.status)}</strong> · structural: <strong>${html(report.analysis.status)}</strong></p>${impact}<h2>Candidate packed-artifact sizes</h2><table><thead><tr><th>Library</th><th>API mode</th><th>Minified</th><th>Gzip</th><th>Brotli</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
 }
 
 async function main() {
-	const { output } = args(process.argv.slice(2))
-	await rm(output, { recursive: true, force: true })
-	await mkdir(join(output, 'bundles'), { recursive: true })
-	const results = []
-	for (const item of scenarios)
-		results.push(await bundleScenario(item, output))
-	const packageData = JSON.parse(await readFile(resolve(repoRoot, 'packages/valchecker/package.json'), 'utf8'))
-	const report = {
-		generatedAt: new Date()
-			.toISOString(),
-		commit: process.env.REPORT_COMMIT ?? process.env.GITHUB_SHA ?? null,
-		environment: {
-			node: process.version,
-			platform: `${platform()} ${release()}`,
-			cpu: cpus()[0]?.model ?? 'unknown',
-			rollup: rollupVersion,
-			terser: packageVersion('terser'),
-			versions: {
-				valchecker: packageData.version,
-				zod3: packageVersion('zod3', 'zod'),
-				zod4: packageVersion('zod4', 'zod'),
-				valibot: packageVersion('valibot'),
+	const options = args(process.argv.slice(2))
+	await rm(options.output, { recursive: true, force: true })
+	await mkdir(join(options.output, 'bundles'), { recursive: true })
+
+	const candidateConsumer = await createPackedValcheckerConsumer(options.candidateRoot)
+	const baseConsumer = options.baseRoot == null ? null : await createPackedValcheckerConsumer(options.baseRoot)
+	try {
+		const results = []
+		for (const item of scenarios)
+			results.push(await bundleScenario(item, options.output, candidateConsumer, 'candidate'))
+
+		let baseResults = null
+		let impact = null
+		if (baseConsumer != null) {
+			baseResults = []
+			for (const item of scenarios.filter(item => item.library === 'Valchecker'))
+				baseResults.push(await bundleScenario(item, options.output, baseConsumer, 'base'))
+			impact = compareBundleImpact(baseResults, results.filter(result => result.library === 'Valchecker'))
+		}
+
+		const analysis = analyze(results)
+		const status = analysis.status !== 'healthy' || impact?.verdict === 'regression' ? 'needs-attention' : 'healthy'
+		const report = {
+			schemaVersion: 2,
+			generatedAt: new Date()
+				.toISOString(),
+			status,
+			commits: { base: options.baseCommit, candidate: options.candidateCommit },
+			profile: {
+				name: 'packed-consumer',
+				packageSideEffects: 'manifest',
+				rollup: { annotations: true, propertyReadSideEffects: true },
+				terser: { passes: 2, pureGetters: false },
 			},
-		},
-		results,
-		analysis: analyze(results),
+			packedManifests: {
+				base: baseConsumer?.manifests ?? null,
+				candidate: candidateConsumer.manifests,
+			},
+			environment: {
+				node: process.version,
+				platform: `${platform()} ${release()}`,
+				cpu: cpus()[0]?.model ?? 'unknown',
+				rollup: rollupVersion,
+				terser: packageVersion('terser'),
+				versions: {
+					valchecker: candidateConsumer.manifests.valchecker.version,
+					zod3: packageVersion('zod3', 'zod'),
+					zod4: packageVersion('zod4', 'zod'),
+					valibot: packageVersion('valibot'),
+				},
+			},
+			baseResults,
+			results,
+			impact,
+			analysis,
+		}
+		await Promise.all([
+			writeFile(join(options.output, 'raw.json'), `${JSON.stringify(report, null, 2)}\n`),
+			writeFile(join(options.output, 'summary.md'), markdown(report, true)),
+			writeFile(join(options.output, 'report.md'), markdown(report)),
+			writeFile(join(options.output, 'report.html'), htmlReport(report)),
+		])
+		process.stdout.write(`${markdown(report, true)}\n`)
+		if (analysis.status !== 'healthy' || (options.failOnRegression && impact?.verdict === 'regression'))
+			process.exitCode = 1
 	}
-	await Promise.all([
-		writeFile(join(output, 'raw.json'), `${JSON.stringify(report, null, 2)}\n`),
-		writeFile(join(output, 'summary.md'), markdown(report, true)),
-		writeFile(join(output, 'report.md'), markdown(report)),
-		writeFile(join(output, 'report.html'), htmlReport(report)),
-	])
-	process.stdout.write(`${markdown(report, true)}\n`)
-	if (report.analysis.status !== 'healthy')
-		process.exitCode = 1
+	finally {
+		await Promise.all([candidateConsumer.cleanup(), baseConsumer?.cleanup()])
+	}
 }
 
 main()

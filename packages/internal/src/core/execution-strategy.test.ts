@@ -1,4 +1,4 @@
-import type { ExecutionIssue, ExecutionResult, StepPluginImpl, TStepPluginDef } from './types'
+import type { ExecutionIssue, ExecutionResult, StepPlugin, TStepPluginDef } from './types'
 import { describe, expect, it } from 'vitest'
 import { createValchecker, implStepPlugin } from './core'
 
@@ -26,7 +26,7 @@ const executionPlugin = implStepPlugin({
 			throw new Error('synchronous async-step error')
 		}, 'async')
 	},
-} as any) as StepPluginImpl<TStepPluginDef>
+} as any) as StepPlugin<TStepPluginDef>
 
 const v = createValchecker({ steps: [executionPlugin] }) as any
 

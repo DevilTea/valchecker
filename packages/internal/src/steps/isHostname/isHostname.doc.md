@@ -7,7 +7,9 @@ summary: RFC 1123 hostname, labels of 1–63 characters within 253
 ### `isHostname(options?)`
 
 RFC 1123 hostname: dot-separated labels of 1–63 characters, each starting and ending with an
-alphanumeric character, with a total length of at most 253. Matching is case-insensitive.
+alphanumeric character, with a total length of at most 253. The final highest-level label cannot be
+entirely numeric, so dotted-decimal IPv4 text is not accepted as a hostname. Matching is
+case-insensitive.
 
 ```ts
 v.string()

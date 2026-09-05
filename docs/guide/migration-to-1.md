@@ -29,7 +29,7 @@
 - JSON serialization, length validation, and mapped-boolean payloads expose additional diagnostic fields.
 - `literal()` uses `Object.is`; `toBigint:invalid_bigint` becomes `toBigint:conversion_failed`.
 - `toNumber:conversion_failed` and `toBigint:conversion_failed` are now `operation` issues rather than `validation`, because a throwing native conversion is an operation failure.
-- `toJSONString()` fails on sparse array holes with `toJSONString:unserializable` (`{ reason: 'undefined_result' }`) instead of serializing them to `null`.
+- `toJSONString()` now tracks native `JSON.stringify()` behavior, including serializing sparse array holes as `null` and omitting lossy object properties. The previous path-aware loss-preventing behavior is available explicitly as `toStrictJSONString()`.
 - `toString()` takes a trailing options object `{ radix?, message? }`; `toString(16)` becomes `toString({ radix: 16 })`.
 
 ## Common rename example

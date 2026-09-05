@@ -196,6 +196,13 @@ function validateResult(raw) {
 			throw new Error(`${path}.issuePolicy is invalid`)
 		if (!comparisonScopes.has(scenario.comparisonScope))
 			throw new Error(`${path}.comparisonScope is invalid`)
+		assertOptionalString(scenario.comparisonNote, `${path}.comparisonNote`)
+		assertOptionalString(scenario.conformanceKey, `${path}.conformanceKey`)
+		if (scenario.conformanceCaseCount !== undefined && (!Number.isInteger(scenario.conformanceCaseCount) || scenario.conformanceCaseCount < 0))
+			throw new Error(`${path}.conformanceCaseCount must be a non-negative integer`)
+		assertOptionalString(scenario.conformanceNoFailureReason, `${path}.conformanceNoFailureReason`)
+		if (scenario.conformanceKey != null && (scenario.conformanceCaseCount ?? 0) === 0)
+			throw new Error(`${path} names a conformance contract but records no executable cases`)
 		if (scenario.diagnosticIssueCount !== null && (!Number.isInteger(scenario.diagnosticIssueCount) || scenario.diagnosticIssueCount <= 0))
 			throw new Error(`${path}.diagnosticIssueCount must be null or a positive integer`)
 		scenario.executionMode = readEnumerated(scenario.executionMode, executionModes, 'sync', `${path}.executionMode`)
@@ -477,11 +484,15 @@ function renderMarkdown(raw) {
 		const rows = scenarioRows(raw, scenario, interpreted)
 		const skipped = skippedRows(raw, scenario)
 		const shard = shards.get(scenario.id)
+		const conformanceText = scenario.conformanceKey == null
+			? ''
+			: ` · Conformance: **${scenario.conformanceKey}** (${scenario.conformanceCaseCount} case${scenario.conformanceCaseCount === 1 ? '' : 's'})`
 		lines.push(
 			`### ${scenario.id}`,
 			'',
-			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}** · Execution: **${scenario.executionMode}** · Entry: **${scenario.entry}**${sharded ? ` · Shard: **${shard.index + 1}/${shard.count}** on **${shard.environment.runnerName ?? 'local'}**` : ''}`,
+			`Group: **${scenario.group}** · Result: **${scenario.resultKind}** · Issue policy: **${scenario.issuePolicy}** · Issues: **${scenario.diagnosticIssueCount ?? 'n/a'}** · Comparison scope: **${scenario.comparisonScope}**${conformanceText} · Execution: **${scenario.executionMode}** · Entry: **${scenario.entry}**${sharded ? ` · Shard: **${shard.index + 1}/${shard.count}** on **${shard.environment.runnerName ?? 'local'}**` : ''}`,
 			'',
+			...(scenario.comparisonNote == null ? [] : [`Execution-model note: ${scenario.comparisonNote}`, '']),
 			interpreted == null
 				? '| Rank | Library | Version | Median ops/s | Median ns/op | Fastest | vs Valchecker | RME | Samples |'
 				: '| Rank | Rank (interpreted) | Library | Version | Median ops/s | Median ns/op | Fastest | Fastest (interpreted) | vs Valchecker | RME | Samples |',
@@ -521,6 +532,7 @@ function renderMarkdown(raw) {
 		'- `library-default` failure scenarios show product defaults and are not diagnostic-work-equivalent across libraries.',
 		'- `first` and `all` scenarios verify issue-count semantics before timing; unsupported adapters are omitted instead of being assigned a synthetic mode.',
 		'- `compatible-subset` scenarios intentionally test only behavior that is common to every participating library.',
+		'- `equivalent` means every participating adapter passed the same executable observable conformance contract before timing; it does not require identical internal implementation. Material execution-model differences are disclosed on the affected row.',
 		`- Every cell was measured under **${raw.isolation}** isolation. Under \`cell\` isolation each (adapter, scenario) pair had its own process, so a cell's number does not depend on which scenarios preceded it; a number from an \`adapter\`-isolated run is not comparable with one from a \`cell\`-isolated run.`,
 		...(sharded ? [`- ${shardedWarning}`] : []),
 		'- An `async` scenario is measured with the await inside the timed loop, so its numbers include the microtask turn an asynchronous caller cannot avoid. Compare an async row only with another async row: they carry their own benchmark groups, and the two named pairings against a synchronous scenario are stated in `scenarios/async.mjs`.',
@@ -561,7 +573,13 @@ function renderHtml(raw) {
 		const shardText = sharded
 			? ` · Shard: <strong>${shard.index + 1}/${shard.count}</strong> on <strong>${htmlEscape(shard.environment.runnerName ?? 'local')}</strong>`
 			: ''
-		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong> · Execution: <strong>${htmlEscape(scenario.executionMode)}</strong> · Entry: <strong>${htmlEscape(scenario.entry)}</strong>${shardText}</p><div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th><th>Samples</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
+		const conformanceText = scenario.conformanceKey == null
+			? ''
+			: ` · Conformance: <strong>${htmlEscape(scenario.conformanceKey)}</strong> (${scenario.conformanceCaseCount} case${scenario.conformanceCaseCount === 1 ? '' : 's'})`
+		const comparisonNote = scenario.comparisonNote == null
+			? ''
+			: `<p><strong>Execution-model note:</strong> ${htmlEscape(scenario.comparisonNote)}</p>`
+		return `<section><h2>${htmlEscape(scenario.id)}</h2><p>Group: <strong>${htmlEscape(scenario.group)}</strong> · Result: <strong>${htmlEscape(scenario.resultKind)}</strong> · Issue policy: <strong>${htmlEscape(scenario.issuePolicy)}</strong> · Issues: <strong>${scenario.diagnosticIssueCount ?? 'n/a'}</strong> · Comparison scope: <strong>${htmlEscape(scenario.comparisonScope)}</strong>${conformanceText} · Execution: <strong>${htmlEscape(scenario.executionMode)}</strong> · Entry: <strong>${htmlEscape(scenario.entry)}</strong>${shardText}</p>${comparisonNote}<div class="table-wrap"><table><thead><tr><th>Rank</th>${interpreted == null ? '' : '<th>Rank (interpreted)</th>'}<th class="text">Library</th><th class="text">Version</th><th>Median ops/s</th><th>Median ns/op</th><th>Fastest</th>${interpreted == null ? '' : '<th>Fastest (interpreted)</th>'}<th>vs Valchecker</th><th>RME</th><th>Samples</th></tr></thead><tbody>${body}</tbody></table></div>${skippedText}</section>`
 	})
 		.join('')
 
@@ -584,7 +602,7 @@ ${sharded ? `<p class="notice">${htmlEscape(shardedWarning)}</p>` : ''}
 ${shardTable}
 ${sections}
 <h2>Interpretation rules</h2>
-<ul><li>Every cell was measured under <strong>${htmlEscape(raw.isolation)}</strong> isolation; a number from a <code>cell</code>-isolated run is not comparable with one from an <code>adapter</code>-isolated run.</li><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>An async scenario is measured with the await inside the timed loop and belongs to its own benchmark group; compare it only with another async row.</li><li>A standard-entry scenario calls <code>~standard.validate</code> over the same schema as the native scenario sharing its build key.</li><li>&#8776; marks a row the run does not separate from the one above it.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
+<ul><li>Every cell was measured under <strong>${htmlEscape(raw.isolation)}</strong> isolation; a number from a <code>cell</code>-isolated run is not comparable with one from an <code>adapter</code>-isolated run.</li><li>Compare libraries only within the same scenario, benchmark group, and issue policy.</li><li>Library-default failures are not diagnostic-work-equivalent.</li><li>Explicit first/all scenarios verify issue counts and omit unsupported adapters.</li><li>Compatible-subset scenarios test only common behavior.</li><li>Equivalent scenarios passed the same executable observable conformance contract before timing; internal implementation may differ, and material differences are disclosed on the row.</li><li>An async scenario is measured with the await inside the timed loop and belongs to its own benchmark group; compare it only with another async row.</li><li>A standard-entry scenario calls <code>~standard.validate</code> over the same schema as the native scenario sharing its build key.</li><li>&#8776; marks a row the run does not separate from the one above it.</li><li>RME above 5% is unstable (&#9888;). A dagger (&#8224;) marks a measurement whose interval stayed wider than the profile's target.</li><li>The raw JSON remains the source of truth.</li></ul>
 </body>
 </html>
 `

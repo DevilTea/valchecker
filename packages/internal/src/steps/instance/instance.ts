@@ -2,6 +2,7 @@ import type { Class } from 'type-fest'
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<T extends Class<any> = Class<any>> = ExecutionIssue<'instance:expected_instance', { value: unknown, expected: T }>
@@ -56,6 +57,7 @@ export const instance = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [class_, options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(
 			value => value instanceof class_
 				?	success(value)
@@ -63,7 +65,7 @@ export const instance = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'instance:expected_instance',
 							payload: { value, expected: class_ },
-							customMessage: options?.message,
+							customMessage: message,
 							defaultMessage: `Expected instance of ${class_.name}.`,
 						}),
 					),

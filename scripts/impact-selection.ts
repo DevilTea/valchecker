@@ -137,7 +137,6 @@ const cannotChangeTheBuild: RegExp[] = [
 	/^eslint\.config\.js$/,
 	/^vitest\.config\.ts$/,
 	/^api-surface\.json$/,
-	/^release-plan\.json$/,
 ]
 
 /**
@@ -437,8 +436,8 @@ export function buildAttribution(tree: SourceTree): Attribution {
  * per-call floor, the string pipeline, the object walk, issue construction with and
  * without a path, the deferred message chain, the collect-all traversal, and the
  * asynchronous path. They exist so that a broad regression cannot hide behind a mapping
- * that missed it, and they give every benchmark group at least two cells, which is what
- * the severe-group trigger needs.
+ * that missed it. They are health controls only: a scoped product group estimator may
+ * consume only cells the diff can move, so canary coverage never pads its sample size.
  *
  * They are listed rather than flagged in the bench files on purpose. A `canary: true` on
  * a cell would be a claim each step's author makes about the core, and a core path
@@ -484,9 +483,12 @@ export interface ChangeClassification {
 
 export interface GroupCoverage {
 	group: string
+	/** All measured rows: affected plus health-canary controls. */
 	selected: number
+	/** Rows the diff can move and the product group estimator is allowed to consume. */
+	affected: number
 	total: number
-	/** Whether enough scenarios of this group run for the severe-group trigger to be possible. */
+	/** Whether at least two affected rows exist for a genuine group estimator. */
 	triggerPossible: boolean
 }
 
@@ -501,10 +503,36 @@ export interface Selection {
 	canaryIds: string[]
 	/** Scenarios the diff attributed. */
 	attributedIds: string[]
-	/** Scenarios added only to keep a group's severe-group trigger possible. */
-	topUpIds: string[]
 	/** Reasons the import graph could not be trusted, each of which forced the full run. */
 	problems: string[]
+}
+
+export type MeasurementRole = 'affected' | 'health-canary'
+
+export interface MeasurementSelectionArtifact {
+	schemaVersion: 1
+	full: boolean
+	scenarios: { id: string, role: MeasurementRole }[]
+}
+
+/**
+ * The machine-readable meaning of a scoped selection.
+ *
+ * A cell can be measured for two different reasons that must not be conflated by the
+ * group estimator: `affected` means the diff can move it and therefore it belongs in a
+ * product regression aggregate; canary cells are health signals. A full run
+ * has no narrower attribution claim, so every measured cell is affected.
+ */
+export function measurementSelectionOf(selection: Selection): MeasurementSelectionArtifact {
+	const affected = new Set(selection.full ? selection.scenarioIds : selection.attributedIds)
+	return {
+		schemaVersion: 1,
+		full: selection.full,
+		scenarios: selection.scenarioIds.map(id => ({
+			id,
+			role: affected.has(id) ? 'affected' : 'health-canary',
+		})),
+	}
 }
 
 export interface Canary {
@@ -634,10 +662,9 @@ export function selectImpactScenarios({ changedFiles, attribution, catalog, cana
 			totalScenarios: catalog.length,
 			steps: [...steps].sort(),
 			classifications,
-			groups: coverageOf(catalog, new Set(catalog.map(scenario => scenario.id))),
+			groups: coverageOf(catalog, new Set(catalog.map(scenario => scenario.id)), new Set(catalog.map(scenario => scenario.id))),
 			canaryIds,
 			attributedIds: [],
-			topUpIds: [],
 			problems: attribution.problems,
 		}
 	}
@@ -648,26 +675,6 @@ export function selectImpactScenarios({ changedFiles, attribution, catalog, cana
 
 	const selected = new Set([...canaryIds, ...attributedIds])
 
-	// Keep every measured group able to trigger. With the canary covering all seven
-	// groups this adds nothing today; it is here so that trimming the canary cannot
-	// silently disable a trigger instead of failing visibly.
-	const topUpIds: string[] = []
-	for (const group of groupsInCatalog) {
-		const inGroup = catalog.filter(scenario => scenario.group === group)
-		let chosen = inGroup.filter(scenario => selected.has(scenario.id)).length
-		if (chosen === 0)
-			continue
-		for (const scenario of inGroup) {
-			if (chosen >= minimumScenariosPerGroup)
-				break
-			if (selected.has(scenario.id))
-				continue
-			selected.add(scenario.id)
-			topUpIds.push(scenario.id)
-			chosen++
-		}
-	}
-
 	const scenarioIds = catalog.filter(scenario => selected.has(scenario.id))
 		.map(scenario => scenario.id)
 
@@ -677,24 +684,25 @@ export function selectImpactScenarios({ changedFiles, attribution, catalog, cana
 		totalScenarios: catalog.length,
 		steps: [...steps].sort(),
 		classifications,
-		groups: coverageOf(catalog, selected),
+		groups: coverageOf(catalog, selected, new Set(attributedIds)),
 		canaryIds,
 		attributedIds,
-		topUpIds,
 		problems: attribution.problems,
 	}
 }
 
-function coverageOf(catalog: CatalogEntry[], selected: Set<string>): GroupCoverage[] {
+function coverageOf(catalog: CatalogEntry[], selected: Set<string>, affected: Set<string>): GroupCoverage[] {
 	const groups = new Map<string, GroupCoverage>()
 	for (const scenario of catalog) {
-		const coverage = groups.get(scenario.group) ?? { group: scenario.group, selected: 0, total: 0, triggerPossible: false }
+		const coverage = groups.get(scenario.group) ?? { group: scenario.group, selected: 0, affected: 0, total: 0, triggerPossible: false }
 		coverage.total++
 		if (selected.has(scenario.id))
 			coverage.selected++
+		if (affected.has(scenario.id))
+			coverage.affected++
 		groups.set(scenario.group, coverage)
 	}
 	for (const coverage of groups.values())
-		coverage.triggerPossible = coverage.selected >= minimumScenariosPerGroup
+		coverage.triggerPossible = coverage.affected >= minimumScenariosPerGroup
 	return [...groups.values()]
 }

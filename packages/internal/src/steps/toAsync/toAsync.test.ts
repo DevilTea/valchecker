@@ -10,11 +10,19 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { createValchecker, string, toAsync, transform } from '../..'
+import { array, createValchecker, string, toAsync, transform } from '../..'
 
-const v = createValchecker({ steps: [string, transform, toAsync] })
+const v = createValchecker({ steps: [array, string, transform, toAsync] })
 
 describe('toAsync plugin', () => {
+	it('keeps a structural parent asynchronous when a child uses toAsync', async () => {
+		const result = v.array(v.string()
+			.toAsync())
+			.execute(['hello'])
+		await expect(result)
+			.resolves.toEqual({ value: ['hello'] })
+	})
+
 	describe('valid inputs', () => {
 		it('should convert sync success result to async', async () => {
 			const result = await v.string()

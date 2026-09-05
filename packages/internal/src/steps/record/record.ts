@@ -2,6 +2,8 @@ import type { IsLiteral } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferExecutionContext, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { markIssueSnapshotPayload } from '../../core/core'
+import { snapshotMessage } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 import { getLiteralMembers } from '../literal/literal-members'
 
@@ -162,7 +164,7 @@ export const record = implStepPlugin<PluginDef>({
 		// this generic impl boundary the options message type does not cover every
 		// code we may raise. Widen it to the full self-issue handler; the runtime
 		// resolver simply ignores codes a map handler does not name.
-		const message = options.message as StructuralStepOptions<Internal.SelfIssue>['message']
+		const message = snapshotMessage(options.message) as StructuralStepOptions<Internal.SelfIssue>['message']
 
 		// Finite key domains canonicalize their members to property keys once at
 		// construction. A number member collapses to its string key (`1` -> `'1'`),
@@ -309,7 +311,10 @@ export const record = implStepPlugin<PluginDef>({
 				if (unknownKeys != null) {
 					issues = [createIssue({
 						code: 'record:unexpected_keys',
-						payload: { keys: unknownKeys, expectedKeys: [...keys] },
+						payload: markIssueSnapshotPayload(
+							{ keys: unknownKeys, expectedKeys: [...keys] },
+							{ keys: 'container', expectedKeys: 'container' },
+						),
 						customMessage: message,
 						defaultMessage: 'Unexpected record keys found.',
 					})]

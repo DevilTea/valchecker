@@ -41,9 +41,11 @@ Schema instances use a shared prototype. Registered methods are non-enumerable p
 
 Structural branch configuration uses the schema execution protocol rather than nominal class identity. Construction must still validate every invariant explicitly documented by the public method, such as non-empty arrays, sparse arrays, discriminator configuration, and required callable schema execution.
 
-## Ownership and snapshots
+A protocol that can cross a public composition boundary is runtime-owned interoperability state, not unsupported `~core` tampering. Compatible physical package copies must share a stable, namespaced, versioned identity (`valchecker.protocol.<name>.vN`) for issue-draft metadata, plugin markers/capabilities, and construction metadata they consume across copies. Keep truly local sentinels module-local. Verification must include a real two-physical-copy topology; do not treat two URLs that resolve one internal module as cross-copy evidence.
 
-Do not use `Object.freeze()` as an automatic synonym for immutability. First classify each value:
+## Ownership, snapshots, and runtime freezing
+
+Snapshot/copy and runtime freezing solve different problems. Do not use `Object.freeze()` as an automatic synonym for immutability. First classify each value:
 
 - caller-owned configuration;
 - private execution state;
@@ -51,15 +53,21 @@ Do not use `Object.freeze()` as an automatic synonym for immutability. First cla
 - public diagnostic payload;
 - shared state crossing executions.
 
-Private state used by future validation must not remain externally mutable through issue payloads or introspection. Prefer copying caller configuration, compiling to a private `Set`/`Map`, exposing a separate diagnostic snapshot, or creating diagnostic copies only on failure.
+If a fully type-correct caller can retain a mutable construction alias and later mutate it so an already-created schema changes behavior, snapshot/compile/capture the relevant state at construction. The supported guarantee is alias isolation; the snapshot does not also need runtime freezing unless runtime immutability itself is a documented contract.
 
-Issue payloads are consumer data and do not automatically require freezing. Copy or freeze when immutability is a documented contract, the payload shares private state, consumer mutation could alter future validation, or async/deferred diagnostics require a stable snapshot.
+Readonly low-level/internal/protocol surfaces rely on the TypeScript contract by default. Do not add per-schema or recursive freezes solely so behavior survives JavaScript, `any`, casts, or other deliberate mutation of readonly `~core`, metadata, protocol descriptors, or similar implementation state. This is the same boundary used by `~core.runtimeSteps`.
+
+Private state used by future validation must not remain mutable through a supported public alias. Prefer copying caller configuration, compiling to a private `Set`/`Map`, exposing a separate diagnostic snapshot, or creating diagnostic copies only on failure.
+
+Issue payloads are consumer data and do not automatically require freezing. Freeze only when runtime immutability is itself a public contract, a supported typed path can otherwise mutate shared state, or an intentionally shared implementation singleton has a concrete defensive reason. A snapshot that merely reports construction state normally needs ownership isolation, not `Object.freeze()`.
+
+When an API promises a defensive issue snapshot, isolate the Valchecker-owned structural layer rather than generically deep-cloning the payload graph. The issue record, `path`, `context`, and plain payload record are snapshot-owned. Nested diagnostic containers are copied only when their owning protocol declares them as Valchecker-owned; opaque/user-owned values such as input objects, arrays, `Error`, `Date`, collections, callbacks, proxies, and schema references retain identity. Ownership metadata that must survive composition across physical package copies uses a versioned `Symbol.for(...)` protocol and stays non-enumerable so it does not change the public payload shape.
 
 Never remove a freeze mechanically when one reference serves both execution and diagnostics. Separate the representations first, then benchmark.
 
 ## Construction metadata
 
-`~core.metadata` is readonly-typed but not frozen. A step that stores mutable metadata with `utils.setMetadata()` owns any required snapshot or freeze. Metadata is final-step construction data and is dropped by the next fluent call unless redeclared.
+`~core.metadata` is readonly-typed and intentionally not runtime-frozen. A step that stores mutable metadata with `utils.setMetadata()` owns any required snapshot/alias isolation for values that remain mutable through supported references. Direct mutation of readonly metadata or protocol descriptors is unsupported internal/protocol tampering and is not runtime-hardened. Metadata is final-step construction data and is dropped by the next fluent call unless redeclared.
 
 ## Review requirements
 

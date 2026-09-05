@@ -18,6 +18,6 @@ stepBench('isIsoTime', [
 		group: 'warm/failure/library-default',
 		expect: { success: false, issues: ['isIsoTime:expected_iso_time'] },
 		batch: 100,
-		run: () => schema.execute('24:00:00'),
+		run: () => schema.execute('24:00:01'),
 	},
 ])

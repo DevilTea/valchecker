@@ -134,10 +134,10 @@ Value-preserving format validators, on [String formats](/api/formats).
 - [`isEmail()`](/api/formats#isEmail) — pragmatic WHATWG `<input type="email">` pattern
 - [`isEmoji()`](/api/formats#isEmoji) — the UTS #51 emoji sequence grammar, or Unicode's RGI set on request
 - [`isIp()`](/api/formats#isIp) — IPv4 or IPv6, with range-checked octets and `::` compression
-- [`isIsoDate()`](/api/formats#isIsoDate) — `YYYY-MM-DD` calendar date, with impossible dates rejected
-- [`isIsoDateTime()`](/api/formats#isIsoDateTime) — a date and time joined by `T`, with an optional offset
-- [`isIsoTime()`](/api/formats#isIsoTime) — `HH:MM:SS` time of day, with no time-zone
-- [`isJwt()`](/api/formats#isJwt) — three base64url segments with a decodable JOSE header
+- [`isIsoDate()`](/api/formats#isIsoDate) — bounded ISO `YYYY-MM-DD` calendar dates
+- [`isIsoDateTime()`](/api/formats#isIsoDateTime) — bounded ISO extended calendar date-time with optional offset
+- [`isIsoTime()`](/api/formats#isIsoTime) — bounded ISO `HH:MM:SS` time of day, with no timezone
+- [`isJwt()`](/api/formats#isJwt) — structurally strict JWTs using JWS Compact Serialization
 - [`isUrl()`](/api/formats#isUrl) — WHATWG `URL` parse with a scheme allow-list
 
 ### Pattern formats
@@ -149,7 +149,7 @@ Value-preserving format validators, on [String formats](/api/formats).
 - [`isHostname()`](/api/formats#isHostname) — RFC 1123 hostname, labels of 1–63 characters within 253
 - [`isMac()`](/api/formats#isMac) — EUI-48 MAC address with `:` or `-` separators
 - [`isNanoid()`](/api/formats#isNanoid) — one or more characters of the default Nano ID alphabet
-- [`isUlid()`](/api/formats#isUlid) — 26 characters of Crockford base32
+- [`isUlid()`](/api/formats#isUlid) — canonical 128-bit ULIDs in Crockford base32
 - [`isUuid()`](/api/formats#isUuid) — RFC 9562 / RFC 4122 UUID, versions 1–8 plus nil and max
 
 ## Structures
@@ -230,8 +230,9 @@ Output transformations, on [Transforms](/api/transforms).
 
 ### JSON transforms
 
-- [`toJSONString()`](/api/transforms#toJSONString) — stringify a supported value with JSON semantics
+- [`toJSONString()`](/api/transforms#toJSONString) — stringify a value with native `JSON.stringify()` semantics
 - [`toJSONValue()`](/api/transforms#toJSONValue) — parse a JSON string with `JSON.parse`
+- [`toStrictJSONString()`](/api/transforms#toStrictJSONString) — stringify a supported value with JSON semantics
 
 ### Primitive conversions
 

@@ -2,9 +2,8 @@
  * Advanced, semver-covered API for custom Valchecker step plugins.
  *
  * Runtime implementation helpers from `shared` are intentionally not exported,
- * except the step discovery marker below, which the `@valchecker/all-steps`
- * package must share by value to avoid a duplicated `Symbol.for` string drifting
- * into a silently empty collection.
+ * except the versioned step-discovery protocol marker below, which
+ * `@valchecker/all-steps` must share by value with compatible physical copies.
  */
 export * from './core'
 export { runtimeExecutionStepDefMarker } from './shared'

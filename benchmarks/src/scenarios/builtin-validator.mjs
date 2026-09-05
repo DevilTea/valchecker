@@ -28,8 +28,8 @@ export const builtinValidatorScenarios = [
 	// written, which understates today's idiomatic Valchecker. This variant keeps
 	// the same validation semantics and every competitor schema unchanged, and
 	// only spells the Valchecker side the way a user would write it now.
-	warm('flat-object-builtin/valid', 'standard', 'builtinFlatObject', flatObject.valid, { success: true }, { comparisonScope: 'compatible-subset', steps: builtinFlatObjectSteps }),
-	warm('flat-object-builtin/invalid-last', 'full', 'builtinFlatObject', flatObject.invalidLast, { success: false }, { comparisonScope: 'compatible-subset', steps: builtinFlatObjectSteps }),
+	warm('flat-object-builtin/valid', 'standard', 'builtinFlatObject', flatObject.valid, { success: true, output: flatObject.valid }, { comparisonNote: 'Valchecker uses the built-in `isMatching` step for the email field while the competitors use their own built-in regex action; executable conformance proves the observable object contract is the same.', steps: builtinFlatObjectSteps }),
+	warm('flat-object-builtin/invalid-last', 'full', 'builtinFlatObject', flatObject.invalidLast, { success: false }, { comparisonNote: 'Valchecker uses the built-in `isMatching` step for the email field while the competitors use their own built-in regex action; executable conformance proves the observable object contract is the same.', steps: builtinFlatObjectSteps }),
 
 	// Valchecker validates the string and then membership; the competitors
 	// dispatch a single enum/picklist check. The benchmark deliberately measures

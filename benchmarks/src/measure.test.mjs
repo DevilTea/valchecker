@@ -27,7 +27,7 @@ import { criticalValue, relativeMarginOfError } from './statistics.mjs'
 const fullProfile = getProfile('full')
 
 function sampleOf(opsPerSecond) {
-	return { iterations: 1000, elapsedNs: 1e9, opsPerSecond, nanosecondsPerOperation: 1e9 / opsPerSecond }
+	return { iterations: 1000, logicalOperations: 1000, elapsedNs: 1e9, opsPerSecond, nanosecondsPerOperation: 1e9 / opsPerSecond }
 }
 
 /** Wide overall, but with a run of identical values at the end. */
@@ -190,9 +190,9 @@ test('a single sample is infinitely uncertain, not perfectly certain', () => {
 
 /** Three samples whose median, first value, and mean are three different numbers. */
 const scriptedSummary = [
-	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 1000, nanosecondsPerOperation: 50 },
-	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 3000, nanosecondsPerOperation: 10 },
-	{ iterations: 100, elapsedNs: 1e8, opsPerSecond: 2600, nanosecondsPerOperation: 20 },
+	{ iterations: 100, logicalOperations: 100, elapsedNs: 1e8, opsPerSecond: 1000, nanosecondsPerOperation: 50 },
+	{ iterations: 100, logicalOperations: 100, elapsedNs: 1e8, opsPerSecond: 3000, nanosecondsPerOperation: 10 },
+	{ iterations: 100, logicalOperations: 100, elapsedNs: 1e8, opsPerSecond: 2600, nanosecondsPerOperation: 20 },
 ]
 
 test('the reported throughput is the median sample, not the first or the mean', () => {
@@ -306,7 +306,11 @@ test('the await is inside the timed region', async () => {
 	// per-operation cost below one. This is the mutation that matters most on this
 	// path: a loop that started the operation without awaiting it would time promise
 	// creation — hundreds of nanoseconds — and publish it as validation throughput.
-	const result = await measureAsync(() => new Promise(resolve => setTimeout(resolve, 1)), 'smoke')
+	const blocker = new Int32Array(new SharedArrayBuffer(4))
+	const result = await measureAsync(() => Promise.resolve()
+		.then(() => {
+			Atomics.wait(blocker, 0, 0, 1)
+		}), 'smoke')
 	assert.ok(
 		result.medianNanosecondsPerOperation > 500_000,
 		`${result.medianNanosecondsPerOperation.toFixed(0)} ns/op for an operation that takes at least a millisecond`,
@@ -326,4 +330,28 @@ test('measureAsync refuses an operation that is not asynchronous', async () => {
 	// number under an async label, so this is rejected before any timing.
 	await assert.rejects(() => measureAsync(() => 1, 'smoke'), /requires an operation that returns a promise/)
 	await assert.rejects(() => measureAsync(() => ({ value: 'abc' }), 'smoke'), /requires an operation that returns a promise/)
+})
+
+test('a batched measured iteration reports logical operations rather than wrapper calls', () => {
+	const batch = 200
+	const result = measure(() => 1, 'smoke', batch)
+	for (const sample of result.samples) {
+		assert.equal(sample.logicalOperations, sample.iterations * batch)
+		assert.equal(sample.opsPerSecond, sample.logicalOperations * 1e9 / sample.elapsedNs)
+		assert.equal(sample.nanosecondsPerOperation, sample.elapsedNs / sample.logicalOperations)
+	}
+})
+
+test('the async path applies the same logical-operation normalization', async () => {
+	const batch = 20
+	const result = await measureAsync(async () => 1, 'smoke', batch)
+	for (const sample of result.samples)
+		assert.equal(sample.logicalOperations, sample.iterations * batch)
+})
+
+test('a measurement refuses an invalid logical-operation multiplier', async () => {
+	for (const invalid of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+		assert.throws(() => measure(() => 1, 'smoke', invalid), /positive safe integer/)
+		await assert.rejects(() => measureAsync(async () => 1, 'smoke', invalid), /positive safe integer/)
+	}
 })

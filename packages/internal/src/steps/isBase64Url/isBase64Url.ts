@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 import { isBase64UrlString } from './base64url'
 
 type Meta = DefineStepMethodMeta<{
@@ -47,13 +48,14 @@ export const isBase64Url = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(value => isBase64UrlString(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isBase64Url:expected_base64_url',
 						payload: { value },
-						customMessage: options?.message,
+						customMessage: message,
 						defaultMessage: 'Expected a valid base64url string.',
 					}),
 				))

@@ -152,5 +152,7 @@ export function returnTrue() {
 /* @__NO_SIDE_EFFECTS__ */
 export function noop() {}
 
+// Cross-copy protocol v1. `@valchecker/all-steps` and independently installed
+// compatible copies must discover the same step-plugin objects by identity.
 /* @__NO_SIDE_EFFECTS__ */
-export const runtimeExecutionStepDefMarker = Symbol.for('valchecker:runtimeExecutionStepDefMarker')
+export const runtimeExecutionStepDefMarker = Symbol.for('valchecker.protocol.runtimeExecutionStepDef.v1')

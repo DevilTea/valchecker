@@ -1,246 +1,163 @@
 # Releasing Valchecker
 
-Valchecker publishes three public packages from immutable tarballs prepared by CI:
+Valchecker publishes three public packages as one lockstep release unit:
 
 1. `@valchecker/internal`
 2. `@valchecker/all-steps`
 3. `valchecker`
 
-Publishing is intentionally separated from version changes. The publish workflow never edits files, creates commits, pushes tags, or creates GitHub releases.
+The repository root and all three publishable package manifests always carry the same version. Publication is authorized by an **annotated Git tag**, not by a mutable repository state file or typed workflow inputs.
 
-## Release plan
+## Source of truth
 
-The active candidate is defined in `release-plan.json`. It records:
+Each part of a release has one authority:
 
-- the exact version,
-- the npm distribution tag,
-- the release channel,
-- the ordered package list,
-- external publishing prerequisites,
-- `state`, either `prepared` or `published`,
-- `publish: false` to assert that repository state never authorizes publication.
+- next release contents: `CHANGELOG.md` under `## [Unreleased]`;
+- version being prepared: the four lockstep workspace manifests in the release pull request;
+- candidate quality: required pull-request CI;
+- authorization to publish: annotated Git tag `vX.Y.Z`;
+- npm channel: derived from semver (`*-rc.N` → `next`, stable → `latest`);
+- publication reality: the npm registry;
+- released source revision: the commit the annotated tag points to.
 
-`state` exists because the changelog heading must say different things at the two ends of a version's life: `Unreleased` while it is being prepared, since the repository must never claim a publication that has not happened, and the publication date once it has. The readiness gate enforces whichever one the state calls for. It cannot verify that a plan marked `published` really was published, so preparing the next version must set it back to `prepared`.
-
-The separate, manually dispatched npm workflow is the publication authorization: dispatching it from `main` and typing the exact confirmation string. A pull request, merge, tag, or value committed to `release-plan.json` must never publish a package by itself.
-
-`pnpm release:readiness` validates this plan against package manifests, changelog, migration/support/releasing documents, and workflow safety properties.
+The tag is intentionally created **after** the release pull request has merged. A branch, pull request, merge, or manifest version alone does not publish anything.
 
 ## npm trusted publisher configuration
 
-Configure a trusted publisher separately for all three npm packages.
+Configure an npm trusted publisher for each of the three packages. All three point at:
 
-Use these exact values:
+- repository: `DevilTea/valchecker`;
+- workflow: `.github/workflows/release.yml`;
+- GitHub environment: `npm`.
 
-| Setting | Value |
-| --- | --- |
-| Organization or user | `DevilTea` |
-| Repository | `valchecker` |
-| Workflow filename | `release.yml` |
-| GitHub environment | `npm` |
-| Allowed actions | `npm publish` |
+The publish job runs on a GitHub-hosted runner, requests `id-token: write`, and uses npm Trusted Publishing/OIDC. Do not configure `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or another long-lived npm credential for this workflow.
 
-The GitHub workflow is `.github/workflows/release.yml`. It runs only on a GitHub-hosted Ubuntu runner and requests `id-token: write` only for the publish job.
+The workflow deliberately does not pass `registry-url` to `actions/setup-node`: that option exports a `NODE_AUTH_TOKEN` placeholder, while this release path accepts only OIDC. npm 11.5.1 or newer is required and the workflow installs that version before publication.
 
-Do not configure `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or another long-lived npm credential. `scripts/publish-release.ts` rejects token-based publishing.
+The `npm` GitHub environment exists to supply the OIDC environment claim expected by npm. It does not need a deployment URL or a long-lived secret.
 
-Trusted publishing currently requires npm 11.5.1 or newer. The workflow installs and verifies that npm version before publishing.
+## Security audit policy
 
-Do not add `registry-url` to the workflow's `actions/setup-node` step. It writes an `.npmrc` containing `_authToken=${NODE_AUTH_TOKEN}` and exports `NODE_AUTH_TOKEN` even when no token exists, and `scripts/publish-release.ts` refuses to publish while that variable is set. Trusted publishing needs neither: npm defaults to `registry.npmjs.org` and exchanges the OIDC token itself. `pnpm release:readiness` fails if the input reappears.
+Release preparation and publication run `pnpm security:audit` before any tarball is prepared or published. The policy runs both the full and production-only pnpm audits and evaluates exposure rather than trusting the `devDependency` label:
 
-Official references:
+- production/consumer advisories at `moderate` or above block the release;
+- advisories reachable through the release/security-sensitive npm tool roots (`@clack/prompts`, `bumpp`, `tsx`, `zx`) block even though those packages are development tools;
+- other development-tool advisories must match a bounded record in `security-audit-acknowledgements.json`;
+- an acknowledgement is valid only while severity stays at or below its ceiling, every observed direct root stays inside its allowed roots, and its review date has not expired;
+- a new advisory, widened exposure, severity increase, expired acknowledgement, or stale acknowledgement is a hard failure.
 
-- https://docs.npmjs.com/trusted-publishers/
-- https://docs.npmjs.com/generating-provenance-statements/
-- https://docs.github.com/en/actions/concepts/security/openid-connect
+Acknowledgements are visible debt, not a suppression list. Each record states the GHSA identity, affected dependency, exposure rationale, remediation blocker, acknowledgement/expiry dates, and review condition. The weekly `security-audit` workflow writes the full machine-readable evaluation to `artifacts/security-audit/report.json` and uploads it even when the policy blocks.
 
-## GitHub environment
+## Preparing a release pull request
 
-`release.yml` declares `environment: npm` on its publish job. That declaration is required: it is
-what puts an `environment` claim in the OIDC token, and the claim must match the environment name
-in the trusted publisher configuration on npm. Removing it would break publishing, and the npm-side
-field would have to be cleared first.
-
-**No `npm` environment object exists in this repository, so no deployment protection applies.** The
-declaration supplies the OIDC claim and nothing else; a dispatched workflow publishes without a
-separate approval step. This is deliberate — the manual dispatch and the typed confirmation string
-are the authorization, and the maintainer performing them is the same person an environment reviewer
-would be.
-
-If a second pair of eyes is ever wanted, create an Actions environment named `npm` (the name must
-stay exactly that) and add: a required reviewer, deployment branches restricted to `main`, no npm
-token stored in the environment, and no administrator bypass. Nothing else needs to change.
-
-## Version preparation
-
-Version changes must be made in a normal pull request. Keep these versions identical:
-
-- root `package.json`,
-- `packages/internal/package.json`,
-- `packages/all-steps/package.json`,
-- `packages/valchecker/package.json`.
-
-Do not publish from an unmerged branch. The publish workflow rejects refs other than `refs/heads/main` and requires the requested version to match the prepared release manifest.
-
-Prerelease versions use semver prerelease syntax, for example:
-
-```text
-1.0.0-rc.0
-```
-
-Prereleases must use the npm `next` tag. Stable versions must use `latest`.
-
-## RC readiness checklist
-
-Before publishing a release candidate, all items must be true:
-
-- [ ] The version and npm tag in `release-plan.json` are correct, and its `state` is back to `prepared`.
-- [ ] Root and all three publishable package manifests have the same version.
-- [ ] `CHANGELOG.md` has an `Unreleased` entry for the exact version.
-- [ ] `MIGRATION.md` documents every known pre-1.0 breaking change.
-- [ ] `SUPPORT.md` defines runtime, semver, prerelease, deprecation, and security policies.
-- [ ] The 1.0 contract and API documentation build successfully.
-- [ ] Public runtime and declaration exports match `api-surface.json`.
-- [ ] Package tarball consumer fixtures pass for ESM, dynamic import, `NodeNext`, and `Bundler`.
-- [ ] Coverage, benchmark smoke, Node 22/24, and Ubuntu/macOS/Windows jobs are green.
-- [ ] `Release-Artifacts` prepares and verifies exact tarball sizes and SHA-256 checksums.
-- [ ] npm trusted publishers are configured for all three packages with the exact workflow and environment name.
-- [ ] The final `main` commit is the commit intended for publication.
-
-The repository can verify the code-controlled items with:
+Start from a clean, synchronized local `main` with an authenticated GitHub CLI:
 
 ```bash
-pnpm release:readiness
-pnpm release:validate
-pnpm release:prepare
+pnpm release <release>
 ```
 
-The npm trusted publisher settings are an external control and must be checked in the npm UI.
-
-## Validation commands
-
-Run the complete release validation without publishing:
+`<release>` is any release selector accepted by `bumpp`, including an exact version. Examples:
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm release:validate
-pnpm release:prepare
+pnpm release patch
+pnpm release 1.0.0-rc.0
+pnpm release 1.0.0
 ```
 
-`release:validate` runs:
+The command fails unless local `main` exactly matches `origin/main`. It then:
 
-- release-plan and governance readiness checks,
-- package builds,
-- public API surface verification,
-- `publint`,
-- installed-tarball consumer tests,
-- lint,
-- typechecking,
-- coverage gates,
-- documentation build.
+1. bumps the root and all three publishable manifests together;
+2. updates the lockfile;
+3. moves the current `[Unreleased]` changelog contents under a dated version heading and leaves a fresh `[Unreleased]` section above it;
+4. verifies the four manifests are still version-lockstep;
+5. refuses an existing local/remote release tag or release branch;
+6. asks for confirmation;
+7. creates `release/vX.Y.Z`, commits and pushes the release candidate;
+8. opens a release pull request and enables squash auto-merge.
 
-`release:prepare` then:
+Required CI validates that pull request exactly like any other candidate. In particular, `Release-Artifacts` builds and inspects the three immutable tarballs, verifies workspace dependency rewriting, and runs the publish preflight in verify-only mode.
 
-- validates every source package manifest,
-- requires all package versions to match,
-- requires ESM-only exports and Node.js 22+,
-- packs packages in dependency order,
-- inspects actual tarball manifests,
-- verifies `workspace:*` dependencies were replaced by the release version,
-- rejects source, test, benchmark, TypeScript config, or `node_modules` files in tarballs,
-- verifies runtime and declaration entrypoints are present,
-- records tarball size and SHA-256 in `artifacts/release/release-manifest.json`.
+If required CI fails, fix the release pull request. Do not tag around a red candidate.
 
-CI runs `release:prepare` for every pull request and uploads the resulting tarballs for inspection. These CI artifacts are not published automatically.
+## Authorizing publication with an annotated tag
 
-## Manual publish workflow
+After the release pull request has merged, return to a clean worktree and run:
 
-After the version pull request is merged and all main-branch checks pass:
-
-1. Open **Actions → Publish to npm**.
-2. Run the workflow from `main`.
-3. Enter the exact committed version.
-4. Choose `next` for a prerelease or `latest` for a stable release.
-5. Enter the exact confirmation text:
-
-```text
-publish <version> to <tag>
+```bash
+pnpm release:tag
 ```
 
-Example, for the version this repository currently prepares:
+The command fetches `origin/main` and tags, switches to `main`, fast-forwards it with `--ff-only`, and rechecks the lockstep version and changelog. It refuses a tag that already exists locally or remotely, shows the exact `main` commit, and asks for explicit confirmation before running the equivalent of:
 
-```text
-publish 0.0.33 to latest
+```bash
+git tag --annotate vX.Y.Z --message vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-The workflow starts publishing as soon as it is dispatched; there is no approval gate after this
-point. Check the version and tag before running it.
+Pushing that annotated tag is the publication authorization. There is no second version/tag prompt in GitHub Actions.
 
-The workflow reruns the complete release validation, prepares fresh tarballs from the checked-out commit, uploads them for audit, verifies their checksums, and publishes those exact tarballs sequentially.
+## What the publish workflow proves
 
-Automatic npm provenance is supplied by trusted publishing for the public GitHub repository and packages. The workflow does not pass a separate provenance flag.
+A `v*` tag starts `.github/workflows/release.yml`. Before publishing, the workflow and release scripts verify all of the following:
+
+- the ref is an annotated tag object, not a lightweight tag;
+- peeling the tag yields exactly `GITHUB_SHA`;
+- the tagged commit is an ancestor of `origin/main`;
+- the tag is exactly `v<workspace version>`;
+- root, `@valchecker/internal`, `@valchecker/all-steps`, and `valchecker` remain version-lockstep;
+- the first dated changelog release heading is that same version;
+- prerelease versions end in `-rc.N` and use npm `next`; stable versions use `latest`;
+- `pnpm release:validate` passes on the tagged source;
+- freshly packed tarballs contain the expected files and no source/tests/benchmarks/TypeScript config;
+- packed workspace dependencies have been rewritten to the exact release version;
+- tarball size, SHA-256 checksum, and SHA-512 npm integrity match the release manifest immediately before publication;
+- no long-lived npm token is present.
+
+The exact tarballs verified above are uploaded as a workflow artifact before npm publication.
+
+## Publication order and partial release recovery
+
+Packages publish in dependency order:
+
+1. `@valchecker/internal`
+2. `@valchecker/all-steps`
+3. `valchecker`
+
+A workflow rerun after a partial release is safe. Before each publish attempt, the script asks the npm registry whether that package version already exists.
+
+- If it does not exist, the verified tarball is published.
+- If it exists and npm's `dist.integrity` exactly matches this release tarball's SHA-512 integrity, that package is skipped and the workflow continues.
+- If it exists with different integrity, publication stops with a hard failure. An existing version is never assumed to be the intended artifact just because its version string matches.
+
+This is the only supported recovery path for a partial release: rerun the workflow for the same annotated tag. Do not publish a missing package manually with a local token, and never try to overwrite or reuse a conflicting npm version.
+
+## npm distribution tags
+
+The normal release path does not accept a hand-entered npm tag.
+
+- `X.Y.Z-rc.N` publishes to `next`.
+- `X.Y.Z` publishes to `latest`.
+- Other prerelease labels are rejected by the release contract.
+
+A stable release publishes new stable-version tarballs; it does not retag an RC artifact as stable.
 
 ## Post-publish verification
 
-After npm publication succeeds:
+After the workflow succeeds:
 
-1. Verify all three exact versions exist on npm.
-2. Verify prereleases are attached to `next` and stable releases to `latest`.
-3. Inspect npm provenance for every package.
-4. Install `valchecker@<version>` into a clean temporary project.
-5. Repeat an ESM import and a TypeScript `NodeNext` compile outside the monorepo.
-6. Confirm the published package manifests contain exact internal dependency versions.
-7. Only then create the matching Git tag and GitHub release.
-8. Open a follow-up pull request that sets `release-plan.json`'s `state` to `published`, replaces `- Unreleased` in that version's `CHANGELOG.md` heading with the publication date, and makes sure a fresh `## [Unreleased]` section sits above it. The readiness gate requires the heading to say `Unreleased` while the version is being prepared and to carry the date once the state is `published`, so both edits belong in the same pull request; changing one without the other fails the gate.
+1. verify all three exact versions are visible on npm;
+2. verify the stable/prerelease dist-tag points at the intended version;
+3. inspect npm provenance for every package;
+4. confirm package manifests on npm contain exact internal dependency versions;
+5. create the matching GitHub Release from the existing `vX.Y.Z` tag if desired.
 
-The tag must be exactly:
+No follow-up repository state transition is required. Development continues by adding entries to the already-present `[Unreleased]` section.
 
-```text
-v<version>
-```
+## Release failure rules
 
-The GitHub release body must be derived from the matching `CHANGELOG.md` section and link to `MIGRATION.md` for a major or prerelease transition. Do not mark an RC as the latest stable release.
-
-Tag and GitHub release creation are deliberate post-publication actions. They are not performed by `.github/workflows/release.yml`.
-
-## Stable promotion
-
-Do not move the npm `latest` tag to an RC.
-
-Promoting an RC to stable requires a new reviewed pull request that:
-
-- changes every manifest and `release-plan.json` to `1.0.0`,
-- changes the npm tag to `latest`,
-- converts the changelog entry from `Unreleased` to the publication date,
-- records RC feedback and fixes,
-- reruns every readiness and release-artifact gate.
-
-Stable promotion publishes new `1.0.0` tarballs; it does not retag or rename `1.0.0-rc.*` artifacts.
-
-## Failure behavior
-
-Publishing stops on the first failed package. npm does not support atomic multi-package publication, so a partial release is possible if npm accepts one package and a later publication fails.
-
-Recovery rules:
-
-- never reuse or overwrite an already-published version,
-- inspect which package versions exist on npm,
-- fix the cause in a pull request,
-- publish a new patch or prerelease version,
-- do not manually publish missing packages with a local token.
-
-Do not create a Git tag or GitHub release for a partial release.
-
-## Explicit non-actions
-
-The release workflow does not:
-
-- bump versions,
-- modify the working tree,
-- commit or push,
-- create or push Git tags,
-- generate a GitHub release,
-- download and execute an unpinned release-note tool,
-- publish on `push`, `pull_request`, or tag creation.
-
-The RC preparation pull request also does not publish, tag, or dispatch the npm workflow. Publication requires a separate explicit action after all external prerequisites are confirmed.
+- Never move or recreate a release tag to change its source commit.
+- Never reuse a version whose npm artifact conflicts with the intended tarball.
+- Never bypass required release CI by publishing locally.
+- Never add a long-lived npm token to the release workflow.
+- For a partial release, rerun the same tag workflow so the artifact-integrity check decides which packages may be skipped.
+- If a release needs corrected source, prepare a new patch or RC version through a new release pull request and annotated tag.

@@ -79,3 +79,65 @@ const scenarioFamilies = [
 ]
 
 export const allScenarios = scenarioFamilies.flat()
+
+// `equivalent` is an executable claim, not a label. Every equivalent scenario is
+// attached to a small library-neutral contract assembled from the correctness
+// fixtures of scenarios that build the same schema under the same issue-policy
+// context. One exact successful output and one representative failure are required;
+// if a family has no timed row in one direction it supplies that case explicitly via
+// `conformanceCases`. The cases are executed through each scenario's own entry point
+// before its timed operation is created.
+function attachEquivalentConformanceContracts(scenarios) {
+	const groups = new Map()
+	for (const scenario of scenarios) {
+		const group = groups.get(scenario.conformanceKey)
+		if (group === undefined)
+			groups.set(scenario.conformanceKey, [scenario])
+		else
+			group.push(scenario)
+	}
+
+	const problems = []
+	for (const [key, group] of groups) {
+		const equivalent = group.filter(scenario => scenario.comparisonScope === 'equivalent')
+		if (equivalent.length === 0)
+			continue
+
+		const seeds = group.flatMap(scenario => scenario.conformanceSeeds ?? [])
+		const exactSuccesses = seeds.filter(({ expected }) => expected.success === true && Object.hasOwn(expected, 'output'))
+		const failures = seeds.filter(({ expected }) => expected.success === false)
+		const noFailureReasons = new Set(equivalent
+			.map(scenario => scenario.conformanceNoFailureReason)
+			.filter(reason => typeof reason === 'string' && reason.trim().length > 0))
+		const success = exactSuccesses[0]
+		const failure = failures[0]
+		const noFailureContract = failure === undefined && noFailureReasons.size === 1
+		if (success === undefined || (failure === undefined && !noFailureContract)) {
+			const missing = [
+				success === undefined ? 'an exact success case (`output` must be present, including `output: undefined`)' : null,
+				failure === undefined && !noFailureContract ? 'a failure case (or one explicit no-failure reason for a schema with no rejecting input)' : null,
+			].filter(Boolean)
+				.join(' and ')
+			problems.push(`${key}: ${missing}; equivalent scenarios: ${equivalent.map(scenario => scenario.id)
+				.join(', ')}`)
+			continue
+		}
+		if (noFailureReasons.size > 1) {
+			problems.push(`${key}: equivalent scenarios disagree about why no failure case exists: ${[...noFailureReasons].join(' | ')}`)
+			continue
+		}
+
+		const cases = failure === undefined ? exactSuccesses : [success, failure]
+		for (const scenario of equivalent)
+			scenario.conformanceCases = cases
+	}
+
+	if (problems.length > 0) {
+		throw new TypeError(
+			`Equivalent benchmark conformance is incomplete:\n- ${problems.join('\n- ')}\n`
+			+ 'Add representative `conformanceCases` to a scenario using that build key instead of weakening the equivalence label.',
+		)
+	}
+}
+
+attachEquivalentConformanceContracts(allScenarios)

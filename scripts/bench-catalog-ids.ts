@@ -27,10 +27,12 @@ import ts from 'typescript'
 // today writes both as literals, which is also what `pnpm bench:cells` needs to name a cell in
 // a failure message.
 
-/** A cell as source declares it: its id, and the group that decides whether the gate measures it. */
+/** The measurement contract one cell declares in source. */
 export interface StaticCell {
 	id: string
 	group: string
+	batch: number
+	async: boolean
 }
 
 export interface StaticCatalog {
@@ -47,13 +49,30 @@ export interface StaticCatalog {
 	 * the history. A cell moved out of `warm/failure/all` under an unchanged id would otherwise
 	 * report `added 0 / removed 0` while the group contract and its denominator had changed.
 	 */
-	groups: Record<string, string>
+	contracts: Record<string, Omit<StaticCell, 'id'>>
 	/** Everything this reader could not decide. A non-empty list means the diff is incomplete. */
 	problems: string[]
 }
 
 function stringLiteral(node: ts.Expression | undefined): string | null {
 	return node != null && ts.isStringLiteralLike(node) ? node.text : null
+}
+
+function positiveIntegerLiteral(node: ts.Expression | undefined): number | null {
+	if (node == null || !ts.isNumericLiteral(node))
+		return null
+	const value = Number(node.text)
+	return Number.isSafeInteger(value) && value > 0 ? value : null
+}
+
+function booleanLiteral(node: ts.Expression | undefined, defaultValue: boolean): boolean | null {
+	if (node == null)
+		return defaultValue
+	if (node.kind === ts.SyntaxKind.TrueKeyword)
+		return true
+	if (node.kind === ts.SyntaxKind.FalseKeyword)
+		return false
+	return null
 }
 
 function propertyOf(object: ts.ObjectLiteralExpression, name: string): ts.Expression | undefined {
@@ -93,11 +112,16 @@ export function cellsOfSource(path: string, text: string): { cells: StaticCell[]
 					}
 					const name = stringLiteral(propertyOf(element, 'name'))
 					const group = stringLiteral(propertyOf(element, 'group'))
-					if (name == null || group == null) {
-						problems.push(`${path}: cell ${index} of \`stepBench('${step}', …)\` declares a ${name == null ? 'name' : 'group'} that is not a string literal, so it cannot be read from source`)
+					const batch = positiveIntegerLiteral(propertyOf(element, 'batch'))
+					const async = booleanLiteral(propertyOf(element, 'async'), false)
+					const unreadable = name == null ? 'name' : group == null ? 'group' : batch == null ? 'batch' : async == null ? 'async' : null
+					if (unreadable != null) {
+						problems.push(`${path}: cell ${index} of \`stepBench('${step}', …)\` declares ${unreadable === 'batch' ? 'a batch that is not a positive integer literal' : unreadable === 'async' ? 'an async mode that is not a boolean literal' : `a ${unreadable} that is not a string literal`}, so its measurement contract cannot be read from source`)
 						continue
 					}
-					cells.push({ id: `${step}/${name}`, group })
+					if (name == null || group == null || batch == null || async == null)
+						throw new Error('unreachable: unreadable measurement contract passed its guard')
+					cells.push({ id: `${step}/${name}`, group, batch, async })
 				}
 			}
 		}
@@ -114,7 +138,7 @@ export function cellsOfSource(path: string, text: string): { cells: StaticCell[]
 export function staticCatalog(files: readonly { path: string, text: string }[]): StaticCatalog {
 	const ids: string[] = []
 	const declaredIds: string[] = []
-	const groups: Record<string, string> = {}
+	const contracts: Record<string, Omit<StaticCell, 'id'>> = {}
 	const problems: string[] = []
 	for (const file of files) {
 		const { cells, problems: fileProblems } = cellsOfSource(file.path, file.text)
@@ -123,7 +147,7 @@ export function staticCatalog(files: readonly { path: string, text: string }[]):
 			declaredIds.push(cell.id)
 			// Every cell's group is retained, `baseline` included, so a move into or out of the gate
 			// is legible as a move rather than as an unexplained addition or deletion.
-			groups[cell.id] ??= cell.group
+			contracts[cell.id] ??= { group: cell.group, batch: cell.batch, async: cell.async }
 			// `baseline` is excluded from the gate set for the same reason the runtime catalog
 			// excludes it: a cell that measures JavaScript rather than the library is not part of
 			// what the gate covers.
@@ -134,7 +158,15 @@ export function staticCatalog(files: readonly { path: string, text: string }[]):
 	const duplicates = declaredIds.filter((id, index) => declaredIds.indexOf(id) !== index)
 	for (const id of [...new Set(duplicates)])
 		problems.push(`the cell id '${id}' is declared twice across the revision's bench files, so a diff cannot tell which one moved`)
-	return { ids: [...new Set(ids)].sort(), groups, problems: [...new Set(problems)] }
+	return { ids: [...new Set(ids)].sort(), contracts, problems: [...new Set(problems)] }
+}
+
+export interface CatalogContractChange {
+	id: string
+	fields: ('group' | 'batch' | 'async')[]
+	base: Omit<StaticCell, 'id'>
+	head: Omit<StaticCell, 'id'>
+	gateEffect: 'entered' | 'left' | null
 }
 
 export interface CatalogIdDiff {
@@ -142,15 +174,11 @@ export interface CatalogIdDiff {
 	added: string[]
 	/** Cell ids the base declared and the head does not — the deletion the runtime cannot see. */
 	removed: string[]
-	/**
-	 * Cells both revisions declare under one id but in different groups. Not automatically a
-	 * failure — a group move can be deliberate — but never invisible, because it changes which
-	 * aggregate the cell is judged in and what that aggregate's denominator is.
-	 */
-	changed: { id: string, baseGroup: string, headGroup: string, gateEffect: 'entered' | 'left' | null }[]
+	/** Cells whose measurement contract changed under the same id. */
+	changed: CatalogContractChange[]
 	baseCells: number
 	headCells: number
-	/** Anything either side could not read. A non-empty list means the counts are not a complete audit. */
+	/** Anything either side could not read. A non-empty list means the diff is incomplete. */
 	problems: string[]
 	/** The subset that makes the audit unusable rather than merely incomplete. */
 	fatalProblems: string[]
@@ -192,20 +220,26 @@ export function catalogIdDiff(base: StaticCatalog, head: StaticCatalog, benchFil
 	const headProblems = head.problems.map(problem => `head: ${problem}`)
 	const baseProblems = base.problems.map(problem => `base: ${problem}`)
 	const tolerated = isLegacyBaselineOnly(base, benchFileCount)
-	const changed = Object.keys(head.groups)
-		.filter(id => base.groups[id] != null && base.groups[id] !== head.groups[id])
+	const changed = Object.keys(head.contracts)
+		.filter(id => base.contracts[id] != null)
 		.sort()
-		.map(id => ({
-			id,
-			baseGroup: base.groups[id]!,
-			headGroup: head.groups[id]!,
-			// A `baseline` transition is a group move that also adds the cell to the gate or takes
-			// it out, so it shows up in `added`/`removed` as well; naming it here is what stops that
-			// reading as a cell appearing from nowhere.
-			gateEffect: base.groups[id] === 'baseline'
-				? 'entered' as const
-				: head.groups[id] === 'baseline' ? 'left' as const : null,
-		}))
+		.flatMap((id): CatalogContractChange[] => {
+			const before = base.contracts[id]!
+			const after = head.contracts[id]!
+			const fields = (['group', 'batch', 'async'] as const).filter(field => before[field] !== after[field])
+			if (fields.length === 0)
+				return []
+			return [{
+				id,
+				fields: [...fields],
+				base: before,
+				head: after,
+				// A `baseline` transition also adds/removes the id from the gate set.
+				gateEffect: before.group === 'baseline'
+					? 'entered' as const
+					: after.group === 'baseline' ? 'left' as const : null,
+			}]
+		})
 	return {
 		added: head.ids.filter(id => !baseIds.has(id)),
 		removed: base.ids.filter(id => !headIds.has(id)),

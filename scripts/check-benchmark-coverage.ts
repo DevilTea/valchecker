@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -9,15 +10,15 @@ import { discoverSteps } from './step-inventory'
 // and would check nothing; what can actually rot is whether the *cross-library* suite still puts a
 // step next to a competitor spelling of the same work.
 //
-// The covered set is read from each scenario's declared `steps`, through the scenario catalog —
-// the same field that reaches `raw.json` — rather than from adapter source. Scanning an adapter for
-// `.isLengthAtLeast(` would follow a rename or a respelling into silence, and it could not tell a
-// Valchecker chain from a competitor closure that happens to contain the same characters.
+// The covered set is read from each scenario's `steps` through the scenario catalog, but that
+// metadata is no longer trusted. Before this gate counts one name, `step-audit.mjs` executes every
+// Valchecker build and proves the declaration equals its direct plus omission-proven indirect
+// dependencies. A fabricated extra therefore fails here instead of increasing the coverage count;
+// a missing dependency fails for the symmetric reason. Scanning adapter source for a spelling such
+// as `.isLengthAtLeast(` would follow a rename into silence and cannot see registry-mediated work.
 //
-// Both directions are checked, because each one lies without the other. A declared step that no
-// scenario names is an uncovered step. A `steps` entry that names nothing declared is a typo that
-// would otherwise report coverage for a method that does not exist while the real one stays
-// uncovered.
+// The catalog checks below still validate both directions against the source inventory: a step no
+// scenario names is uncovered, and a name that no built-in step declares is invalid metadata.
 //
 // A scenario only covers a step if some *competitor* participates in it. A scenario every
 // competitor is gated out of measures Valchecker against nothing, which is the same situation as a
@@ -31,13 +32,11 @@ import { discoverSteps } from './step-inventory'
 // the list shrinks as the suite grows instead of quietly absorbing a regression, and an entry for a
 // step that no longer exists fails rather than lingering as a comment.
 //
-// This gate imports the scenario catalog, `define.mjs`, and the capability declarations, whose
-// module graphs are closed over `fixtures.mjs` and contain no bare specifier, so it runs without
-// `benchmarks/node_modules` — `benchmarks/` is installed separately with `--ignore-workspace` and
-// its libraries may be absent. That is also why the capabilities are declared in a module of their
-// own instead of read from the adapters: the Zod adapters detect theirs from the live module, which
-// this gate cannot load. The declaration is not a second opinion, because those adapters take their
-// published capabilities from it and refuse to load when detection disagrees.
+// Neither this catalog walk nor the exact step audit needs `benchmarks/node_modules`: the audit
+// loads only the built Valchecker adapter and local modules, while competitor participation below is
+// decided from the capability declarations. `pnpm verify` builds packages before `test:quality`; a
+// standalone coverage run without a current build fails closed with the audit error rather than
+// reporting unaudited coverage.
 
 interface Exemption {
 	/** The `Meta.Name` of the built-in step. */
@@ -62,6 +61,10 @@ const exemptions: Exemption[] = [
 		reason: 'No pinned competitor has a Map value-membership check, for the same reason `isIncludingKey` has none. A closure would also have to reimplement this step\'s SameValueZero match, under which `NaN` finds `NaN`, so it would be a stand-in making a different decision rather than the same one.',
 	},
 	{
+		step: 'toStrictJSONString',
+		reason: 'No pinned competitor exposes the same path-aware loss-preventing JSON stringify preflight. Native JSON.stringify semantics are compared separately through toJSONString; implementing strict preflight in an adapter closure would be a hand-rolled stand-in for the built-in under test.',
+	},
+	{
 		step: 'json',
 		reason: 'Every pinned competitor is gated out of `schema-kind/json-*`, so those scenarios rank one library against nothing. Zod 3 and Valibot have no equivalent of a check that a string parses, and Zod 4\'s `z.json()` is a recursive JSON-*value* schema that accepts `42`, `null`, arrays, plain objects, and the string `\'not json\'`, so pairing them would compare a structural walk against one native parse call.',
 	},
@@ -72,6 +75,19 @@ const exemptions: Exemption[] = [
 const minimumReasonLength = 60
 
 const root = fileURLToPath(new URL('..', import.meta.url))
+const stepAudit = spawnSync(process.execPath, [path.join(root, 'benchmarks/src/step-audit.mjs')], {
+	cwd: root,
+	encoding: 'utf8',
+})
+if (stepAudit.status !== 0 || stepAudit.signal != null || stepAudit.error != null) {
+	const detail = stepAudit.error?.message || stepAudit.stderr || stepAudit.stdout || `exit ${stepAudit.status ?? stepAudit.signal}`
+	console.error(`Cross-library benchmark step coverage is unassessed because exact Valchecker step evidence failed:
+${detail.trim()}`)
+	process.exit(1)
+}
+if (stepAudit.stderr.trim().length > 0)
+	console.error(stepAudit.stderr.trim())
+
 const catalogEntry = path.join(root, 'benchmarks/src/scenarios/index.mjs')
 const defineEntry = path.join(root, 'benchmarks/src/scenarios/define.mjs')
 const capabilitiesEntry = path.join(root, 'benchmarks/src/capabilities.mjs')

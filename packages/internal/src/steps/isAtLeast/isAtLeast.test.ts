@@ -10,6 +10,8 @@ describe('isAtLeast step plugin', () => {
 		[v.number()
 			.isAtLeast(10), 15],
 		[v.bigint()
+			.isAtLeast(10n), 10n],
+		[v.bigint()
 			.isAtLeast(10n), 15n],
 	] as const)('accepts numeric values at or above the minimum', (schema, value) => {
 		expect(schema.execute(value as never))

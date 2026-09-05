@@ -1,5 +1,6 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callback-error-sentinel'
 
 declare namespace Internal {
@@ -99,12 +100,14 @@ export const toMapped = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [mapper, options],
 	}) => {
+		const message = snapshotMessage(options?.message)
+		const thisArg = options?.thisArg
 		addSuccessStep((value) => {
 			if (Array.isArray(value)) {
 				return runWithCallbackErrorSentinel(
 					() => success(value.map((item: unknown, index: number, array: unknown[]) => {
 						try {
-							return mapper.call(options?.thisArg, item, index, array)
+							return mapper.call(thisArg, item, index, array)
 						}
 						catch (error) {
 							throw new CallbackErrorSentinel({ item, index }, error)
@@ -114,7 +117,7 @@ export const toMapped = implStepPlugin<PluginDef>({
 						code: 'toMapped:callback_failed',
 						category: 'operation',
 						payload: { value, item: context.item, index: context.index, error },
-						customMessage: options?.message,
+						customMessage: message,
 						defaultMessage: 'Map callback failed.',
 					})),
 				)
@@ -127,14 +130,14 @@ export const toMapped = implStepPlugin<PluginDef>({
 				const item = items[index]
 				let mappedItem: unknown
 				try {
-					mappedItem = mapper.call(options?.thisArg, item, index, value)
+					mappedItem = mapper.call(thisArg, item, index, value)
 				}
 				catch (error) {
 					return failure(createIssue({
 						code: 'toMapped:callback_failed',
 						category: 'operation',
 						payload: { value, item, index, error },
-						customMessage: options?.message,
+						customMessage: message,
 						defaultMessage: 'Map callback failed.',
 					}))
 				}
@@ -154,7 +157,7 @@ export const toMapped = implStepPlugin<PluginDef>({
 						// The impl-level `options` type collapses the Set overload's
 						// message union down to the callback issue; the runtime value is
 						// the caller's handler for the full union, so retarget it here.
-						customMessage: options?.message as StepOptions<Internal.DuplicateMappedItemIssue>['message'],
+						customMessage: message as StepOptions<Internal.DuplicateMappedItemIssue>['message'],
 						defaultMessage: 'Expected mapped Set items to be unique.',
 					}))
 				}

@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferExecutionContext, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue = ExecutionIssue<'isNonNull:expected_non_null', { value: null }>
@@ -61,12 +62,13 @@ export const isNonNull = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		addSuccessStep(value => value !== null
 			? success(value as any)
 			: failure(createIssue({
 					code: 'isNonNull:expected_non_null',
 					payload: { value: value as null },
-					customMessage: options?.message,
+					customMessage: message,
 					defaultMessage: 'Expected a non-null value.',
 				})))
 	},

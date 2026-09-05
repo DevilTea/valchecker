@@ -10,6 +10,10 @@ Checks that a `Date` is strictly before `bound`, a `Date`, comparing `getTime()`
 itself is rejected. Only the strict variant exists; pass an adjusted bound when an inclusive edge is
 required.
 
+The bound's comparison value and diagnostic representation are snapshotted when the schema is
+constructed. Mutating the caller-owned `Date` afterward does not change validation or failure
+diagnostics.
+
 An Invalid Date bound is not rejected at construction: every value then fails with this step's own
 issue, and the default message renders the bound as `Invalid Date`.
 

@@ -53,20 +53,30 @@ const profiles = {
 // eslint-disable-next-line no-unused-vars, unused-imports/no-unused-vars -- write-only sink: assigning each result prevents V8 from dead-code-eliminating the benchmarked operation
 let sink
 
+function assertLogicalOperationsPerIteration(value) {
+	if (!Number.isSafeInteger(value) || value < 1) {
+		throw new TypeError(
+			`logicalOperationsPerIteration must be a positive safe integer; received ${String(value)}.`,
+		)
+	}
+}
+
 function isThenable(value) {
 	return value != null && typeof value.then === 'function'
 }
 
-function sampleOf(iterations, elapsedNs) {
+function sampleOf(iterations, elapsedNs, logicalOperationsPerIteration = 1) {
+	const logicalOperations = iterations * logicalOperationsPerIteration
 	return {
 		iterations,
+		logicalOperations,
 		elapsedNs,
-		opsPerSecond: iterations * 1e9 / elapsedNs,
-		nanosecondsPerOperation: elapsedNs / iterations,
+		opsPerSecond: logicalOperations * 1e9 / elapsedNs,
+		nanosecondsPerOperation: elapsedNs / logicalOperations,
 	}
 }
 
-function executeFor(operation, durationMs) {
+function executeFor(operation, durationMs, logicalOperationsPerIteration = 1) {
 	const started = process.hrtime.bigint()
 	const deadline = started + BigInt(Math.round(durationMs * 1e6))
 	let iterations = 0
@@ -79,7 +89,7 @@ function executeFor(operation, durationMs) {
 			now = process.hrtime.bigint()
 	} while (now < deadline)
 
-	return sampleOf(iterations, Number(process.hrtime.bigint() - started))
+	return sampleOf(iterations, Number(process.hrtime.bigint() - started), logicalOperationsPerIteration)
 }
 
 /**
@@ -96,7 +106,7 @@ function executeFor(operation, durationMs) {
  * same thing the synchronous loop measures, and the only version of it that a
  * per-operation number can describe.
  */
-async function executeForAsync(operation, durationMs) {
+async function executeForAsync(operation, durationMs, logicalOperationsPerIteration = 1) {
 	const started = process.hrtime.bigint()
 	const deadline = started + BigInt(Math.round(durationMs * 1e6))
 	let iterations = 0
@@ -109,7 +119,7 @@ async function executeForAsync(operation, durationMs) {
 			now = process.hrtime.bigint()
 	} while (now < deadline)
 
-	return sampleOf(iterations, Number(process.hrtime.bigint() - started))
+	return sampleOf(iterations, Number(process.hrtime.bigint() - started), logicalOperationsPerIteration)
 }
 
 /**
@@ -197,8 +207,9 @@ export function summarize(samples, profile) {
 	}
 }
 
-export function measure(operation, mode) {
+export function measure(operation, mode, logicalOperationsPerIteration = 1) {
 	const profile = getProfile(mode)
+	assertLogicalOperationsPerIteration(logicalOperationsPerIteration)
 
 	// The mirror of the probe in `measureAsync`, and the reason a wiring mistake
 	// cannot publish a wrong number: an operation that returns a promise measured
@@ -208,9 +219,9 @@ export function measure(operation, mode) {
 	if (isThenable(operation()))
 		throw new TypeError('A synchronous measurement requires an operation that returns a value; received a promise. Measure it with `measureAsync`.')
 
-	executeFor(operation, profile.warmupMs)
+	executeFor(operation, profile.warmupMs, logicalOperationsPerIteration)
 
-	return summarize(collectSamples(() => executeFor(operation, profile.sampleMs), profile), profile)
+	return summarize(collectSamples(() => executeFor(operation, profile.sampleMs, logicalOperationsPerIteration), profile), profile)
 }
 
 /**
@@ -225,17 +236,18 @@ export function measure(operation, mode) {
  * promise-returning operation declared synchronous, when it verifies the
  * scenario's result.
  */
-export async function measureAsync(operation, mode) {
+export async function measureAsync(operation, mode, logicalOperationsPerIteration = 1) {
 	const profile = getProfile(mode)
+	assertLogicalOperationsPerIteration(logicalOperationsPerIteration)
 
 	const probe = operation()
 	if (!isThenable(probe))
 		throw new TypeError('An asynchronous measurement requires an operation that returns a promise; received a synchronous value.')
 	await probe
 
-	await executeForAsync(operation, profile.warmupMs)
+	await executeForAsync(operation, profile.warmupMs, logicalOperationsPerIteration)
 
-	return summarize(await collectSamplesAsync(() => executeForAsync(operation, profile.sampleMs), profile), profile)
+	return summarize(await collectSamplesAsync(() => executeForAsync(operation, profile.sampleMs, logicalOperationsPerIteration), profile), profile)
 }
 
 export function getProfile(mode) {

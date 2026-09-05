@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessage } from '../../core/message'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 type Meta = DefineStepMethodMeta<{
@@ -52,6 +53,7 @@ export const boolean = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [options],
 	}) => {
+		const message = snapshotMessage(options?.message)
 		setMetadata(templateLiteralPartMarker, {
 			kind: 'union',
 			members: [{ kind: 'literal', value: true }, { kind: 'literal', value: false }],
@@ -63,7 +65,7 @@ export const boolean = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'boolean:expected_boolean',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: message,
 							defaultMessage: 'Expected a boolean.',
 						}),
 					),

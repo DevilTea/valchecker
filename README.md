@@ -6,7 +6,7 @@
 
 > Runtime-first validation with zero guesswork
 
-A modular ESM-only TypeScript validation library with immutable fluent steps, transformed-output inference, structured non-empty issues, sync/maybe-async execution, Standard Schema V1, and selective tree-shakable plugin registration.
+A modular ESM-only TypeScript validation library with immutable fluent steps, transformed-output inference, structured non-empty issues, sync/maybe-async execution, Standard Schema V1.1, and selective tree-shakable plugin registration.
 
 ## Requirements and installation
 
@@ -130,7 +130,7 @@ type Output = InferOutput<typeof userSchema>
 | `@valchecker/all-steps` | complete runtime-marked plugin collection |
 | `@valchecker/internal` | semver-covered advanced types and plugin author API |
 
-Every schema exposes `~standard` for Standard Schema V1 integrations. Public exports are recorded in `api-surface.json`.
+Every schema exposes the upstream-compatible `~standard` contract for Standard Schema V1.1 integrations. Public exports are recorded in `api-surface.json`.
 
 ## Documentation
 

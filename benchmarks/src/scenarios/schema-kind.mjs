@@ -74,10 +74,10 @@
 // `equivalent`. Every scenario here is `equivalent`: on each participating adapter
 // the accepted set, the rejected set, and the preserved output agree exactly.
 //
-// Two fixture notes. `undefined-valid` asserts no output, because `assertResult`
-// reads an `undefined` expectation as "do not assert" and the only value the schema
-// can return is the `undefined` it was given. And the symbol fixture is why
-// `canonicalizeOutput` grew a symbol branch: `JSON.stringify` maps a top-level
+// Two fixture notes. `undefined-valid` deliberately asserts `output: undefined`;
+// expectation *presence* decides whether output is checked, so this case catches an
+// adapter that returns a successful but incorrect value. And the symbol fixture is
+// why `canonicalizeOutput` grew a symbol branch: `JSON.stringify` maps a top-level
 // symbol to `undefined` instead of throwing, so before that branch a symbol output
 // compared equal to every other symbol and to no output at all.
 import { BenchmarkResource } from '../fixtures.mjs'
@@ -105,16 +105,16 @@ const blobFeature = ['Blob']
 const jsonFeature = ['JSON string validation']
 
 export const schemaKindScenarios = [
-	warm('schema-kind/any-valid', 'standard', 'kindAny', inputs.anyValue, { success: true, output: inputs.anyValue }, { steps: ['any'] }),
-	warm('schema-kind/unknown-valid', 'standard', 'kindUnknown', inputs.anyValue, { success: true, output: inputs.anyValue }, { steps: ['unknown'] }),
+	warm('schema-kind/any-valid', 'standard', 'kindAny', inputs.anyValue, { success: true, output: inputs.anyValue }, { conformanceCases: [{ input: null, expected: { success: true, output: null } }, { input: undefined, expected: { success: true, output: undefined } }], conformanceNoFailureReason: '`any` accepts every JavaScript value, so no rejecting input exists.', steps: ['any'] }),
+	warm('schema-kind/unknown-valid', 'standard', 'kindUnknown', inputs.anyValue, { success: true, output: inputs.anyValue }, { conformanceCases: [{ input: null, expected: { success: true, output: null } }, { input: undefined, expected: { success: true, output: undefined } }], conformanceNoFailureReason: '`unknown` accepts every JavaScript value, so no rejecting input exists.', steps: ['unknown'] }),
 	warm('schema-kind/never-invalid', 'full', 'kindNever', inputs.anyValue, { success: false, issueCount: 1 }, { steps: ['never'] }),
 
-	warm('schema-kind/null-valid', 'standard', 'kindNull', inputs.empty, { success: true, output: inputs.empty }, { steps: ['null'] }),
-	warm('schema-kind/undefined-valid', 'standard', 'kindUndefined', inputs.missing, { success: true }, { steps: ['undefined'] }),
-	warm('schema-kind/bigint-valid', 'standard', 'kindBigint', inputs.big, { success: true, output: inputs.big }, { steps: ['bigint'] }),
-	warm('schema-kind/symbol-valid', 'standard', 'kindSymbol', inputs.tag, { success: true, output: inputs.tag }, { steps: ['symbol'] }),
-	warm('schema-kind/instance-valid', 'standard', 'kindInstance', inputs.resource, { success: true, output: inputs.resource }, { steps: ['instance'] }),
-	warm('schema-kind/blob-valid', 'standard', 'kindBlob', inputs.blob, { success: true, output: inputs.blob }, { requiredFeatures: blobFeature, steps: ['blob'] }),
+	warm('schema-kind/null-valid', 'standard', 'kindNull', inputs.empty, { success: true, output: inputs.empty }, { conformanceCases: [{ input: undefined, expected: { success: false } }], steps: ['null'] }),
+	warm('schema-kind/undefined-valid', 'standard', 'kindUndefined', inputs.missing, { success: true, output: undefined }, { conformanceCases: [{ input: null, expected: { success: false } }], steps: ['undefined'] }),
+	warm('schema-kind/bigint-valid', 'standard', 'kindBigint', inputs.big, { success: true, output: inputs.big }, { conformanceCases: [{ input: 42, expected: { success: false } }], steps: ['bigint'] }),
+	warm('schema-kind/symbol-valid', 'standard', 'kindSymbol', inputs.tag, { success: true, output: inputs.tag }, { conformanceCases: [{ input: 'not-a-symbol', expected: { success: false } }], steps: ['symbol'] }),
+	warm('schema-kind/instance-valid', 'standard', 'kindInstance', inputs.resource, { success: true, output: inputs.resource }, { conformanceCases: [{ input: { id: 'resource-1' }, expected: { success: false } }], steps: ['instance'] }),
+	warm('schema-kind/blob-valid', 'standard', 'kindBlob', inputs.blob, { success: true, output: inputs.blob }, { conformanceCases: [{ input: 'not-a-blob', expected: { success: false } }], requiredFeatures: blobFeature, steps: ['blob'] }),
 
 	warm('schema-kind/json-valid', 'standard', 'kindJsonString', inputs.json, { success: true, output: inputs.json }, { requiredFeatures: jsonFeature, steps: ['string', 'json'] }),
 	warm('schema-kind/json-invalid', 'full', 'kindJsonString', inputs.invalidJson, { success: false }, { requiredFeatures: jsonFeature, steps: ['string', 'json'] }),

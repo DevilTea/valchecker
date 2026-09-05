@@ -1,5 +1,6 @@
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { issueCodeProblems } from './issue-code-analysis'
 import { fileSystemTree } from './source-tree'
 import { discoverSteps } from './step-inventory'
 
@@ -16,47 +17,14 @@ import { discoverSteps } from './step-inventory'
 // namespace it never looked at.
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const descriptionPattern = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/
 const { steps, problems } = discoverSteps(fileSystemTree(root))
 const errors: string[] = [...problems]
-
-function declaredCodes(source: string): string[] {
-	const codes: string[] = []
-	const marker = 'ExecutionIssue<'
-	let index = source.indexOf(marker)
-
-	while (index !== -1) {
-		const quote = source.indexOf('\'', index + marker.length)
-		if (quote !== -1) {
-			const end = source.indexOf('\'', quote + 1)
-			if (end !== -1)
-				codes.push(source.slice(quote + 1, end))
-		}
-		index = source.indexOf(marker, index + marker.length)
-	}
-
-	return codes
-}
 
 for (const { directory, name: declaredName, path: relative, source } of steps) {
 	if (declaredName !== directory)
 		errors.push(`${relative}: Meta.Name '${declaredName}' must match the step directory '${directory}'`)
 
-	for (const code of declaredCodes(source)) {
-		const separator = code.indexOf(':')
-		if (separator === -1) {
-			errors.push(`${relative}: issue code '${code}' must be <step-name>:<snake_case_description>`)
-			continue
-		}
-
-		const prefix = code.slice(0, separator)
-		const description = code.slice(separator + 1)
-
-		if (prefix !== declaredName)
-			errors.push(`${relative}: issue code '${code}' must be prefixed with '${declaredName}'`)
-		if (!descriptionPattern.test(description))
-			errors.push(`${relative}: issue code '${code}' description must be snake_case`)
-	}
+	errors.push(...issueCodeProblems(declaredName, source, relative))
 }
 
 if (errors.length > 0) {

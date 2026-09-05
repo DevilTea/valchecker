@@ -16,17 +16,21 @@ const setSteps = ['set', 'string']
 const mapSteps = ['map', 'string', 'number']
 const intersectionSteps = ['intersection', 'object', 'string', 'number']
 
+const primitiveComparisonNote = 'Valchecker uses a `check()` closure for the primitive pattern where competitors use built-in regex actions; the construction/cold row shares the same executable observable contract as the warm primitive family.'
+const flatObjectComparisonNote = 'Valchecker uses a `check()` closure for the flat object\'s email predicate where competitors use built-in regex actions; the construction/cold row shares the same executable observable contract as the warm flat-object family.'
+const nestedObjectComparisonNote = 'Valchecker uses callback constraints inside the nested object where competitors use built-in regex/length actions; executable conformance establishes the shared observable contract.'
+
 export const lifecycleScenarios = [
-	construction('construct/primitive', 'smoke', 'primitive', primitive.valid, { success: true }, { steps: primitiveSteps }),
-	construction('construct/flat-object', 'standard', 'flatObject', flatObject.valid, { success: true }, { steps: flatObjectSteps }),
-	construction('construct/nested-object', 'standard', 'nestedObject', nestedObject.valid, { success: true }, { steps: nestedObjectSteps }),
+	construction('construct/primitive', 'smoke', 'primitive', primitive.valid, { success: true }, { comparisonNote: primitiveComparisonNote, steps: primitiveSteps }),
+	construction('construct/flat-object', 'standard', 'flatObject', flatObject.valid, { success: true }, { comparisonNote: flatObjectComparisonNote, steps: flatObjectSteps }),
+	construction('construct/nested-object', 'standard', 'nestedObject', nestedObject.valid, { success: true }, { comparisonNote: nestedObjectComparisonNote, steps: nestedObjectSteps }),
 	construction('construct/union', 'standard', 'union', unionInputs.first, { success: true }, { steps: unionSteps }),
 	construction('construct/set', 'standard', 'set', collectionStructures.set100, { success: true, output: collectionStructures.set100 }, { steps: setSteps }),
 	construction('construct/map', 'standard', 'map', collectionStructures.map100, { success: true, output: collectionStructures.map100 }, { steps: mapSteps }),
 	construction('construct/intersection', 'standard', 'intersection', collectionStructures.intersection, { success: true, output: collectionStructures.intersection }, { comparisonScope: 'compatible-subset', steps: intersectionSteps }),
 
-	cold('cold/flat-valid', 'smoke', 'flatObject', flatObject.valid, { success: true }, { steps: flatObjectSteps }),
-	cold('cold/nested-valid', 'standard', 'nestedObject', nestedObject.valid, { success: true }, { steps: nestedObjectSteps }),
+	cold('cold/flat-valid', 'smoke', 'flatObject', flatObject.valid, { success: true }, { comparisonNote: flatObjectComparisonNote, steps: flatObjectSteps }),
+	cold('cold/nested-valid', 'standard', 'nestedObject', nestedObject.valid, { success: true }, { comparisonNote: nestedObjectComparisonNote, steps: nestedObjectSteps }),
 	cold('cold/union-last', 'standard', 'union', unionInputs.last, { success: true }, { steps: unionSteps }),
 	cold('cold/set-valid', 'standard', 'set', collectionStructures.set100, { success: true, output: collectionStructures.set100 }, { steps: setSteps }),
 	cold('cold/map-valid', 'standard', 'map', collectionStructures.map100, { success: true, output: collectionStructures.map100 }, { steps: mapSteps }),

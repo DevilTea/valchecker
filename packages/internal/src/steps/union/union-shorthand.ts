@@ -20,7 +20,7 @@ export interface UnionShorthandProvider {
 	toParams?: (branch: unknown) => readonly unknown[]
 }
 
-export const unionShorthandCapability: unique symbol = Symbol.for('valchecker.unionShorthand')
+export const unionShorthandCapability: unique symbol = Symbol.for('valchecker.protocol.unionShorthand.v1')
 
 /**
  * Type-state-only half of the shorthand mechanism, declared under a provider
