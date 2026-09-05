@@ -123,11 +123,11 @@ Packages publish in dependency order:
 2. `@valchecker/all-steps`
 3. `valchecker`
 
-A workflow rerun after a partial release is safe. Before each publish attempt, the script asks the npm registry whether that package version already exists.
+A workflow rerun after a partial release is safe. Before publishing any new tarball, the script preflights all three package versions against npm and builds a complete publication plan. No package is published until every existing version has passed the integrity check.
 
-- If it does not exist, the verified tarball is published.
-- If it exists and npm's `dist.integrity` exactly matches this release tarball's SHA-512 integrity, that package is skipped and the workflow continues.
-- If it exists with different integrity, publication stops with a hard failure. An existing version is never assumed to be the intended artifact just because its version string matches.
+- If a version does not exist, that verified tarball is planned for publication.
+- If it exists and npm's `dist.integrity` exactly matches this release tarball's SHA-512 integrity, that package is planned to be skipped.
+- If any existing version has different integrity, the whole publication stops before the first publish call. An existing version is never assumed to be the intended artifact just because its version string matches.
 
 This is the only supported recovery path for a partial release: rerun the workflow for the same annotated tag. Do not publish a missing package manually with a local token, and never try to overwrite or reuse a conflicting npm version.
 

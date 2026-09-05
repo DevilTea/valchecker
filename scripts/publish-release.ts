@@ -219,18 +219,28 @@ async function main(): Promise<void> {
 		return
 	}
 
+	const publicationActions = new Map<string, 'publish' | 'skip'>()
+	for (const packageItem of packages) {
+		publicationActions.set(
+			packageItem.name,
+			publishedArtifactAction(
+				packageItem.name,
+				version,
+				packageItem.integrity,
+				await publishedIntegrity(packageItem.name, version),
+			),
+		)
+	}
+
 	console.log(`Publishing ${version} to npm tag ${npmTag} from annotated tag ${releaseTag}.`)
 	for (const packageItem of packages) {
 		const tarballPath = tarballs.get(packageItem.name)
 		if (!tarballPath)
 			throw new Error(`Missing verified tarball for ${packageItem.name}`)
 
-		const action = publishedArtifactAction(
-			packageItem.name,
-			version,
-			packageItem.integrity,
-			await publishedIntegrity(packageItem.name, version),
-		)
+		const action = publicationActions.get(packageItem.name)
+		if (!action)
+			throw new Error(`Missing registry preflight result for ${packageItem.name}`)
 		if (action === 'skip') {
 			console.log(`Skipping ${packageItem.name}@${version}: npm already holds the identical artifact.`)
 			continue
