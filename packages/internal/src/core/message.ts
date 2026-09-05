@@ -36,5 +36,5 @@ export function snapshotMessage<Message extends MessageHandler<any> | undefined>
 export function snapshotMessageOptions(
 	options: { readonly message?: MessageHandler<any> | undefined } | undefined,
 ): { readonly message: MessageHandler<any> | undefined } | undefined {
-	return options == null ? undefined : { message: snapshotMessage(options.message) }
+	return options && { message: snapshotMessage(options.message) }
 }
