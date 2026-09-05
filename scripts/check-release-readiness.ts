@@ -7,6 +7,7 @@ import {
 	releaseManifestPaths,
 	releasePackages,
 } from './release-contract'
+import { assertReleaseWorkflowContract } from './release-workflow-contract'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -54,22 +55,6 @@ function assertNoPlaceholders(text: string, path: string): void {
 	const match = /\b(?:TODO|TBD|FIXME)\b/i.exec(text) ?? /\bPLACEHOLDER\b/.exec(text)
 	if (match)
 		throw new Error(`${path} contains unresolved placeholder ${JSON.stringify(match[0])}`)
-}
-
-function workflowTriggers(workflow: string): string[] {
-	const lines = workflow.split(/\r?\n/)
-	const onIndex = lines.findIndex(line => line === 'on:')
-	if (onIndex === -1)
-		throw new Error('.github/workflows/release.yml is missing its on block')
-	const triggers: string[] = []
-	for (const line of lines.slice(onIndex + 1)) {
-		if (line.length > 0 && !line.startsWith(' '))
-			break
-		const match = /^ {2}([A-Z_][\w-]*):(?:\s|$)/i.exec(line)
-		if (match)
-			triggers.push(match[1]!)
-	}
-	return triggers
 }
 
 async function assertRetiredReleasePlan(): Promise<void> {
@@ -182,24 +167,7 @@ async function main(): Promise<void> {
 		assertContains(releaseScript, fragment, 'scripts/release.ts')
 
 	const releaseWorkflow = await readText('.github/workflows/release.yml')
-	const triggers = workflowTriggers(releaseWorkflow)
-	if (JSON.stringify(triggers) !== JSON.stringify(['push']))
-		throw new Error(`release workflow triggers must equal ["push"], received ${JSON.stringify(triggers)}`)
-	for (const fragment of [
-		'- \'v*\'',
-		'environment: npm',
-		'id-token: write',
-		'persist-credentials: false',
-		'fetch-depth: 0',
-		'git cat-file -t "$GITHUB_REF_NAME"',
-		'git fetch origin main',
-		'git merge-base --is-ancestor "$GITHUB_SHA" origin/main',
-		'pnpm release:validate',
-		'pnpm security:audit',
-		'pnpm release:prepare',
-		'pnpm release:publish',
-	])
-		assertContains(releaseWorkflow, fragment, '.github/workflows/release.yml')
+	assertReleaseWorkflowContract(releaseWorkflow)
 	for (const forbidden of [
 		/workflow_dispatch/,
 		/\binputs\./,
