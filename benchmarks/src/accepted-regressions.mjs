@@ -95,42 +95,13 @@ export const acceptedRegressions = [
 ]
 
 /**
- * Groups whose aggregate is accepted, which is a different claim from accepting their cells.
- *
- * Why this exists rather than the alternative. `warm/failure/all` measured −6.40% with an
- * interval of [−7.1%, −5.7%], and that number is **true**: the group really is about 6.4%
- * slower, because two of its nine cells carry a cost the repository accepted. It is not a
- * false positive to suppress. The alternative — leaving acknowledged cells out of the
- * aggregate — was rejected outright, and the reason is worth keeping: it would condition the
- * aggregate on which cells someone previously forgave, which is the same disease
- * `groupEstimate` was rebuilt to remove, and it would shrink the denominator so a *new*
- * regression landing in the group would be diluted rather than caught. The reported group
- * number therefore stays the true one over every cell, and what a bound does is say how much
- * of it a person has agreed to.
- *
- * **What a group acknowledgement cannot decide:** whether the group's cost is still the
- * accepted one. It checks a magnitude against a number a person set. A future breach could be
- * the same cells drifting or something new arriving in the group, which is why the reason
- * below records how much each acknowledged cell contributes — so a reader can subtract.
+ * Groups whose aggregate has a separately accepted regression. This is intentionally
+ * independent from cell acknowledgements: accepting one or more cells never suppresses a
+ * broad group regression. Entries are removed once a whole-group single-runner confirmation
+ * shows the cost has cleared.
  */
 /** @type {{ group: string, maxRegressionPercent: number, because: string }[]} */
-export const acceptedGroupRegressions = [
-	{
-		group: 'warm/failure/all',
-		maxRegressionPercent: 12,
-		because: 'The group-level measurement of the same accepted `firstIndex` correction. `warm/failure/all` holds one '
-			+ 'collect-all cell per structure — nine of them — so the two cells this repository accepts carry the aggregate: '
-			+ 'measured at −6.40% with an interval of [−7.1%, −5.7%], `set/collect-all` alone accounts for −4.25pp of it and '
-			+ '`map/collect-all` for −0.88pp, the two together for −5.10pp, and the remaining seven cells for −1.37pp spread '
-			+ 'across rows none of which is individually decisive. A reader checking a future breach should subtract those '
-			+ 'contributions first: if the acknowledged cells still account for about −5pp and the group has moved well past '
-			+ 'this bound, something else arrived in the group. The bound is 12% rather than 7% because this group sits '
-			+ 'astride the −5% trigger and seven of its nine rows are individually inconclusive, so it flips between runs — '
-			+ 'the previous comparison put the same group at −3.93% and called it inconclusive — while 12% still fails if the '
-			+ 'group effect roughly doubles. This entry is void the moment its member cells stop being acknowledged, which '
-			+ 'is checked rather than trusted.',
-	},
-]
+export const acceptedGroupRegressions = []
 
 const minimumReasonLength = 200
 

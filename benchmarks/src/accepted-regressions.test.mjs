@@ -176,15 +176,16 @@ const catalog = [
 	{ id: 'string/valid', group: 'warm/success' },
 ]
 
-test('the committed group list is well formed and names the cells that carry the aggregate', () => {
+test('the committed group acknowledgement list is empty after the confirmed group cost cleared', () => {
 	assert.deepEqual(malformedAcceptedGroupRegressions(), [])
-	assert.deepEqual(acceptedGroupRegressions.map(entry => entry.group), ['warm/failure/all'])
-	const [entry] = acceptedGroupRegressions
-	assert.equal(entry.maxRegressionPercent, 12)
-	// A reader checking a future breach has to be able to subtract the accepted contributions.
-	assert.match(entry.because, /set\/collect-all` alone accounts for −4\.25pp/)
-	assert.match(entry.because, /map\/collect-all` for −0\.88pp/)
+	assert.deepEqual(acceptedGroupRegressions, [])
 })
+
+const acceptedFailureGroup = [{
+	group: 'warm/failure/all',
+	maxRegressionPercent: 12,
+	because: 'Synthetic group acknowledgement used only to exercise the generic acknowledgement machinery after the repository retired its real warm/failure/all entry. The fixture deliberately remains long enough to satisfy the same reviewability rule as committed entries, while no production gate consumes it.',
+}]
 
 function group(name, classification, delta, width = 0.01) {
 	return { group: name, classification, delta, intervalLow: delta - width, intervalHigh: delta + width }
@@ -198,7 +199,7 @@ function confirmedGroup(name, classification, delta, width = 0.01) {
 test('a group aggregate is judged from the single-runner confirmation, inside its bound and past it', () => {
 	// `warm/failure/all` as CI measured it: -6.40%, interval [-7.1%, -5.7%], against a 12% bound.
 	const screen = [group('warm/failure/all', 'regression', -0.064)]
-	const within = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.064))
+	const within = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.064), acceptedFailureGroup)
 	assert.equal(within.acknowledged.length, 1)
 	assert.equal(within.acknowledged[0].bound, 12)
 	assert.equal(Number(within.acknowledged[0].depthPercent.toFixed(2)), 6.40)
@@ -206,12 +207,12 @@ test('a group aggregate is judged from the single-runner confirmation, inside it
 
 	// A breach needs both batches, here a screen and a confirmation that agree.
 	const pastScreen = [group('warm/failure/all', 'regression', -0.2)]
-	const past = evaluateAcceptedGroupRegressions(pastScreen, confirmedGroup('warm/failure/all', 'regression', -0.2))
+	const past = evaluateAcceptedGroupRegressions(pastScreen, confirmedGroup('warm/failure/all', 'regression', -0.2), acceptedFailureGroup)
 	assert.deepEqual(past.acknowledged, [])
 	assert.equal(Number(past.exceeded[0].depthPercent.toFixed(1)), 20, 'a group effect roughly tripled still fails')
 
 	// And a confirmation breach the screen does not reproduce is unassessed rather than red.
-	const unreproduced = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.2))
+	const unreproduced = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.2), acceptedFailureGroup)
 	assert.deepEqual([unreproduced.exceeded, unreproduced.acknowledged], [[], []])
 	assert.match(unreproduced.unassessed[0].why, /not independently reproduced/)
 })
@@ -223,39 +224,39 @@ test('a cross-shard screen decides nothing about an acknowledged group', () => {
 	// variation exceeds the within-run interval — the between-runner fixed effect, demonstrated
 	// by this list's own rot check. If that instrument cannot block a group, it cannot retire one.
 	const screen = [group('warm/failure/all', 'cleared', -0.0344)]
-	const result = evaluateAcceptedGroupRegressions(screen, { groups: [], singleRunner: false, measuredWhole: () => false })
+	const result = evaluateAcceptedGroupRegressions(screen, { groups: [], singleRunner: false, measuredWhole: () => false }, acceptedFailureGroup)
 	assert.deepEqual([result.stale, result.exceeded, result.acknowledged], [[], [], []])
 	assert.match(result.unassessed[0].why, /no single-runner confirmation measured this group/)
 })
 
 test('a group entry is stale when a single-runner batch clears it, and unassessed when it cannot judge', () => {
 	const screen = [group('warm/failure/all', 'regression', -0.064)]
-	const stale = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'cleared', -0.004))
+	const stale = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'cleared', -0.004), acceptedFailureGroup)
 	assert.deepEqual(stale.stale.map(record => record.group), ['warm/failure/all'])
 
 	// An inconclusive confirmation neither confirms the accepted cost nor shows it gone.
-	const undecided = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'inconclusive', -0.0393))
+	const undecided = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'inconclusive', -0.0393), acceptedFailureGroup)
 	assert.deepEqual([undecided.acknowledged, undecided.exceeded, undecided.stale], [[], [], []])
 	assert.match(undecided.unassessed[0].why, /reports it inconclusive/)
 
 	// A confirmation that measured only part of the group cannot speak for the group.
-	const partial = evaluateAcceptedGroupRegressions(screen, { groups: [group('warm/failure/all', 'cleared', -0.004)], singleRunner: true, measuredWhole: () => false })
+	const partial = evaluateAcceptedGroupRegressions(screen, { groups: [group('warm/failure/all', 'cleared', -0.004)], singleRunner: true, measuredWhole: () => false }, acceptedFailureGroup)
 	assert.deepEqual(partial.stale, [])
 	assert.match(partial.unassessed[0].why, /did not measure every cell of the group/)
 })
 
 test('a group entry naming no group in the catalog is refused', () => {
 	assert.deepEqual(unknownAcceptedGroupRegressions(catalog), [])
-	assert.deepEqual(unknownAcceptedGroupRegressions([{ group: 'warm/success' }]), ['warm/failure/all'])
+	assert.deepEqual(unknownAcceptedGroupRegressions([{ group: 'warm/success' }], acceptedFailureGroup), ['warm/failure/all'])
 })
 
 test('a group entry outliving its member cells is refused', () => {
 	// The check a cell entry does not need. If the buffered path is optimized and the two cell
 	// entries go, this entry must not survive them as a standing exemption for the group.
 	assert.deepEqual(groupsWithoutAcknowledgedCells(catalog), [])
-	assert.deepEqual(groupsWithoutAcknowledgedCells(catalog, acceptedGroupRegressions, []), ['warm/failure/all'])
+	assert.deepEqual(groupsWithoutAcknowledgedCells(catalog, acceptedFailureGroup, []), ['warm/failure/all'])
 	assert.deepEqual(
-		groupsWithoutAcknowledgedCells(catalog, acceptedGroupRegressions, [{ cell: 'object/collect-all' }]),
+		groupsWithoutAcknowledgedCells(catalog, acceptedFailureGroup, [{ cell: 'object/collect-all' }]),
 		[],
 		'any acknowledged member cell keeps the entry alive',
 	)
