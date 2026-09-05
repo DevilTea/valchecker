@@ -34,7 +34,7 @@ jobs:
           test "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag"
           tagged_commit="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
           test "$tagged_commit" = "$GITHUB_SHA"
-          git fetch origin main --depth=1
+          git fetch origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
       - name: Setup PNPM

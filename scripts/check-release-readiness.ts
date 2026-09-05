@@ -192,6 +192,7 @@ async function main(): Promise<void> {
 		'persist-credentials: false',
 		'fetch-depth: 0',
 		'git cat-file -t "$GITHUB_REF_NAME"',
+		'git fetch origin main',
 		'git merge-base --is-ancestor "$GITHUB_SHA" origin/main',
 		'pnpm release:validate',
 		'pnpm security:audit',
@@ -206,6 +207,7 @@ async function main(): Promise<void> {
 		/secrets\.(?:NPM_TOKEN|NODE_AUTH_TOKEN)/,
 		/\bgit\s+push\b/,
 		/\bgit\s+tag\b/,
+		/git fetch origin main --depth(?:=|\s+)1/,
 		/\bnpm\s+version\b/,
 		/\bpnpm\s+publish\b/,
 	]) {
