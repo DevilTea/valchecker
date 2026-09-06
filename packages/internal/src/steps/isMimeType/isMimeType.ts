@@ -81,28 +81,6 @@ function hasValidWildcardSubtype(actual: string, subtypeStart: number): boolean 
 	return true
 }
 
-interface CompiledMimePattern {
-	normalized: string
-	wildcardPrefix: string | undefined
-}
-
-function compileMimePattern(pattern: string): CompiledMimePattern {
-	const normalized = pattern.toLowerCase()
-	return {
-		normalized,
-		wildcardPrefix: normalized.endsWith('/*') ? normalized.slice(0, -1) : undefined,
-	}
-}
-
-function matchesMimeType(actual: string, normalizedActual: string, pattern: CompiledMimePattern): boolean {
-	const { wildcardPrefix } = pattern
-	if (wildcardPrefix != null) {
-		return normalizedActual.startsWith(wildcardPrefix)
-			&& hasValidWildcardSubtype(actual, wildcardPrefix.length)
-	}
-	return normalizedActual === pattern.normalized
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export const isMimeType = implStepPlugin<PluginDef>({
 	isMimeType: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [types, options] }) => {
@@ -111,20 +89,18 @@ export const isMimeType = implStepPlugin<PluginDef>({
 		const patterns = configuredAsList ? [...types] : [types]
 		if (patterns.length === 0)
 			throw new TypeError('isMimeType() requires at least one MIME type.')
-		const compiledPatterns = patterns.map(compileMimePattern)
+		const normalizedPatterns = patterns.map((pattern) => {
+			const normalized = pattern.toLowerCase()
+			return normalized.endsWith('/*') ? normalized.slice(0, -1) : normalized
+		})
 		const expectedSingle = configuredAsList ? undefined : patterns[0]!
 		const defaultMessage = `Expected a MIME type matching ${patterns.join(', ')}.`
 		addSuccessStep((value) => {
 			const actual = value.type
 			const normalizedActual = actual.toLowerCase()
-			let matches = false
-			for (let index = 0; index < compiledPatterns.length; index++) {
-				if (matchesMimeType(actual, normalizedActual, compiledPatterns[index]!)) {
-					matches = true
-					break
-				}
-			}
-			return matches
+			return normalizedPatterns.some((pattern, index) => patterns[index]!.endsWith('/*')
+				? normalizedActual.startsWith(pattern) && hasValidWildcardSubtype(actual, pattern.length)
+				: normalizedActual === pattern)
 				? success(value)
 				: failure(createIssue({
 						code: 'isMimeType:unexpected_mime_type',
