@@ -81,15 +81,26 @@ function hasValidWildcardSubtype(actual: string, subtypeStart: number): boolean 
 	return true
 }
 
-function matchesMimeType(actual: string, pattern: string): boolean {
-	const normalizedActual = actual.toLowerCase()
-	const normalizedPattern = pattern.toLowerCase()
-	if (normalizedPattern.endsWith('/*')) {
-		const familyPrefix = normalizedPattern.slice(0, -1)
-		return normalizedActual.startsWith(familyPrefix)
-			&& hasValidWildcardSubtype(actual, familyPrefix.length)
+interface CompiledMimePattern {
+	normalized: string
+	wildcardPrefix: string | undefined
+}
+
+function compileMimePattern(pattern: string): CompiledMimePattern {
+	const normalized = pattern.toLowerCase()
+	return {
+		normalized,
+		wildcardPrefix: normalized.endsWith('/*') ? normalized.slice(0, -1) : undefined,
 	}
-	return normalizedActual === normalizedPattern
+}
+
+function matchesMimeType(actual: string, normalizedActual: string, pattern: CompiledMimePattern): boolean {
+	const { wildcardPrefix } = pattern
+	if (wildcardPrefix != null) {
+		return normalizedActual.startsWith(wildcardPrefix)
+			&& hasValidWildcardSubtype(actual, wildcardPrefix.length)
+	}
+	return normalizedActual === pattern.normalized
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -100,11 +111,20 @@ export const isMimeType = implStepPlugin<PluginDef>({
 		const patterns = configuredAsList ? [...types] : [types]
 		if (patterns.length === 0)
 			throw new TypeError('isMimeType() requires at least one MIME type.')
+		const compiledPatterns = patterns.map(compileMimePattern)
 		const expectedSingle = configuredAsList ? undefined : patterns[0]!
 		const defaultMessage = `Expected a MIME type matching ${patterns.join(', ')}.`
 		addSuccessStep((value) => {
 			const actual = value.type
-			return patterns.some(pattern => matchesMimeType(actual, pattern))
+			const normalizedActual = actual.toLowerCase()
+			let matches = false
+			for (let index = 0; index < compiledPatterns.length; index++) {
+				if (matchesMimeType(actual, normalizedActual, compiledPatterns[index]!)) {
+					matches = true
+					break
+				}
+			}
+			return matches
 				? success(value)
 				: failure(createIssue({
 						code: 'isMimeType:unexpected_mime_type',

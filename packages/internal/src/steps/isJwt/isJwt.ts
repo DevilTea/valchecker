@@ -51,6 +51,19 @@ function decodeBase64UrlUtf8(segment: string): string {
 		.replace(/_/g, '/')
 	const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=')
 	const binary = atob(padded)
+	// ASCII bytes decode to the same code points under UTF-8, so the common
+	// JWT path can skip allocating a Uint8Array and invoking TextDecoder. Any
+	// high-bit byte still goes through the fatal UTF-8 decoder below.
+	let ascii = true
+	for (let i = 0; i < binary.length; i++) {
+		if (binary.charCodeAt(i) > 0x7F) {
+			ascii = false
+			break
+		}
+	}
+	if (ascii)
+		return binary
+
 	const bytes = new Uint8Array(binary.length)
 	for (let i = 0; i < binary.length; i++)
 		bytes[i] = binary.charCodeAt(i)
