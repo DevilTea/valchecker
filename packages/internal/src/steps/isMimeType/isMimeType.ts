@@ -89,18 +89,30 @@ export const isMimeType = implStepPlugin<PluginDef>({
 		const patterns = configuredAsList ? [...types] : [types]
 		if (patterns.length === 0)
 			throw new TypeError('isMimeType() requires at least one MIME type.')
-		const normalizedPatterns = patterns.map((pattern) => {
+		const wildcardPrefixLengths: number[] = []
+		const normalizedPatterns = patterns.map((pattern, index) => {
 			const normalized = pattern.toLowerCase()
-			return normalized.endsWith('/*') ? normalized.slice(0, -1) : normalized
+			const wildcard = normalized.endsWith('/*')
+			wildcardPrefixLengths[index] = wildcard ? normalized.length - 1 : 0
+			return wildcard ? normalized.slice(0, -1) : normalized
 		})
 		const expectedSingle = configuredAsList ? undefined : patterns[0]!
 		const defaultMessage = `Expected a MIME type matching ${patterns.join(', ')}.`
 		addSuccessStep((value) => {
 			const actual = value.type
 			const normalizedActual = actual.toLowerCase()
-			return normalizedPatterns.some((pattern, index) => patterns[index]!.endsWith('/*')
-				? normalizedActual.startsWith(pattern) && hasValidWildcardSubtype(actual, pattern.length)
-				: normalizedActual === pattern)
+			let matches = false
+			for (let index = 0; index < normalizedPatterns.length; index++) {
+				const pattern = normalizedPatterns[index]!
+				const wildcardPrefixLength = wildcardPrefixLengths[index]!
+				if (wildcardPrefixLength === 0
+					? normalizedActual === pattern
+					: normalizedActual.startsWith(pattern) && hasValidWildcardSubtype(actual, wildcardPrefixLength)) {
+					matches = true
+					break
+				}
+			}
+			return matches
 				? success(value)
 				: failure(createIssue({
 						code: 'isMimeType:unexpected_mime_type',

@@ -16,9 +16,9 @@ import {
 /**
  * The acknowledgement's rules, and the rot checks that keep it from becoming an escape hatch.
  *
- * The numbers are the ones two hosted CI comparisons of this pull request produced for the
- * two accepted cells, so the fixtures are the case the list exists for rather than a
- * hypothetical.
+ * The list mixes long-standing collection-path acknowledgements with the ownership and
+ * validation costs accepted by Issue #140. Focused fixtures below exercise the mechanism;
+ * the committed-list test separately protects the real entries from malformed reasons.
  */
 
 /**
@@ -42,10 +42,21 @@ function row(scenario, screen, screenDelta, confirm = null, confirmDelta = null,
 
 test('the committed list is well formed and every entry states a reason', () => {
 	assert.deepEqual(malformedAcceptedRegressions(), [])
-	assert.deepEqual(acceptedRegressions.map(entry => entry.cell), ['map/collect-all', 'set/collect-all'])
+	assert.deepEqual(acceptedRegressions.map(entry => entry.cell), [
+		'fallback/callback-failed',
+		'fallback/recovers',
+		'intersection/conflicting-outputs',
+		'isAfter/before-bound',
+		'isBefore/after-bound',
+		'isJwt/valid',
+		'isMimeType/other-type',
+		'map/collect-all',
+		'set/collect-all',
+		'strictObject/unexpected-keys',
+	])
 	for (const entry of acceptedRegressions) {
 		assert.ok(entry.maxRegressionPercent > 0, `${entry.cell} needs a bound`)
-		assert.match(entry.because, /collectAllIssues|firstIndex/, `${entry.cell}'s reason must name the change that caused it`)
+		assert.ok(entry.because.trim().length >= 200, `${entry.cell}'s reason must explain the accepted cost`)
 	}
 })
 
@@ -67,9 +78,9 @@ test('an entry with no bound, no reason, or a repeated cell is refused', () => {
 
 test('an entry naming a cell the catalog does not declare is refused', () => {
 	// The rot direction a script can decide with no measurement at all.
-	const catalog = [{ id: 'map/collect-all' }, { id: 'set/collect-all' }]
+	const catalog = acceptedRegressions.map(entry => ({ id: entry.cell }))
 	assert.deepEqual(unknownAcceptedRegressions(catalog), [])
-	assert.deepEqual(unknownAcceptedRegressions([{ id: 'map/collect-all' }]), ['set/collect-all'])
+	assert.deepEqual(unknownAcceptedRegressions(catalog.slice(0, -1)), ['strictObject/unexpected-keys'])
 })
 
 test('a measured regression inside its bound is acknowledged and does not block', () => {

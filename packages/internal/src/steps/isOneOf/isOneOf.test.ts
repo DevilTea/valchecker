@@ -50,6 +50,14 @@ describe('isOneOf step plugin', () => {
 			.toMatchObject({
 				issues: [{ payload: { expectedValues: ['draft', 'published'] } }],
 			})
+
+		const expectedValues = failure.issues[0].payload.expectedValues as string[]
+		expect(Reflect.set(expectedValues, 0, 'other'))
+			.toBe(false)
+		expect(schema.execute('draft'))
+			.toEqual({ value: 'draft' })
+		expect(schema.execute('other'))
+			.toMatchObject({ issues: [{ payload: { expectedValues: ['draft', 'published'] } }] })
 	})
 
 	it('reports custom messages and enforces non-empty primitive tuples', () => {

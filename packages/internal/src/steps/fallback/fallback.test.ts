@@ -417,8 +417,8 @@ describe('fallback plugin', () => {
 		snapshot.payload.owned.push('snapshot-only')
 		expect(owned)
 			.toEqual(['owned'])
-		expect(snapshot.payload.opaque)
-			.toBe(opaque)
+		expect(snapshot.payload.opaque === opaque)
+			.toBe(true)
 		expect(Object.keys(snapshot.payload))
 			.toEqual(['owned', 'opaque'])
 		expect(Object.prototype.propertyIsEnumerable.call(snapshot.payload, protocol))
@@ -428,6 +428,80 @@ describe('fallback plugin', () => {
 		snapshotPolicy.owned = 'issues'
 		expect(policy.owned)
 			.toBe('container')
+	})
+
+	it('honors versioned shared diagnostic container protocols from another package copy', () => {
+		const arrayProtocol = Symbol.for('valchecker.protocol.issueSnapshotArray.v1')
+		const objectProtocol = Symbol.for('valchecker.protocol.issueSnapshotObject.v1')
+		const ownedArray = ['owned']
+		const ownedObject = { nested: 'owned' }
+		Object.defineProperty(ownedArray, arrayProtocol, { value: true })
+		Object.defineProperty(ownedObject, objectProtocol, { value: true })
+		const payload = { ownedArray, ownedObject }
+		const issue: ExecutionIssue<'foreign:shared_diagnostics', typeof payload> = {
+			code: 'foreign:shared_diagnostics',
+			category: 'validation',
+			message: 'Foreign shared diagnostics.',
+			path: [],
+			payload,
+		}
+
+		const [snapshot] = snapshotIssuesForConsumer([issue])
+		expect(snapshot.payload.ownedArray).not.toBe(ownedArray)
+		expect(snapshot.payload.ownedArray)
+			.toEqual(['owned'])
+		expect(snapshot.payload.ownedObject).not.toBe(ownedObject)
+		expect(snapshot.payload.ownedObject)
+			.toEqual({ nested: 'owned' })
+		expect(Object.prototype.propertyIsEnumerable.call(snapshot.payload.ownedArray, arrayProtocol))
+			.toBe(false)
+		expect(Object.prototype.propertyIsEnumerable.call(snapshot.payload.ownedObject, objectProtocol))
+			.toBe(false)
+		expect(Reflect.get(snapshot.payload.ownedArray, arrayProtocol))
+			.toBe(true)
+		expect(Reflect.get(snapshot.payload.ownedObject, objectProtocol))
+			.toBe(true)
+	})
+
+	it('fails closed when owned-container marker lookup is hostile', () => {
+		const arrayProtocol = Symbol.for('valchecker.protocol.issueSnapshotArray.v1')
+		const objectProtocol = Symbol.for('valchecker.protocol.issueSnapshotObject.v1')
+		const hostileArray = new Proxy(['array'], {
+			get(target, property, receiver) {
+				if (property === arrayProtocol)
+					throw new Error('hostile array marker')
+				return Reflect.get(target, property, receiver)
+			},
+		})
+		const hostileObject = new Proxy({ object: true }, {
+			get(target, property, receiver) {
+				if (property === objectProtocol)
+					throw new Error('hostile object marker')
+				return Reflect.get(target, property, receiver)
+			},
+		})
+		const opaqueDate = new Date(0)
+		const payload = markIssueSnapshotPayload(
+			{ hostileArray, hostileObject, opaqueDate },
+			{ hostileArray: 'container', hostileObject: 'container', opaqueDate: 'container' },
+		)
+		const issue: ExecutionIssue<'owned:hostile_markers', typeof payload> = {
+			code: 'owned:hostile_markers',
+			category: 'validation',
+			message: 'Owned containers with hostile marker lookup.',
+			path: [],
+			payload,
+		}
+
+		const [snapshot] = snapshotIssuesForConsumer([issue])
+		expect(snapshot.payload.hostileArray).not.toBe(hostileArray)
+		expect(snapshot.payload.hostileArray)
+			.toEqual(['array'])
+		expect(snapshot.payload.hostileObject).not.toBe(hostileObject)
+		expect(snapshot.payload.hostileObject)
+			.toEqual({ object: true })
+		expect(snapshot.payload.opaqueDate)
+			.toBe(opaqueDate)
 	})
 
 	it('copies an owned payload policy before retaining it', () => {
@@ -447,6 +521,28 @@ describe('fallback plugin', () => {
 		expect(snapshot.payload.owned).not.toBe(owned)
 		expect(snapshot.payload.owned)
 			.toEqual(['owned'])
+	})
+
+	it('preserves a nested opaque payload value when prototype inspection throws', () => {
+		const opaque = new Proxy({}, {
+			getPrototypeOf() {
+				throw new Error('nested opaque proxy prototype')
+			},
+		})
+		const payload = { opaque }
+		const issue: ExecutionIssue<'foreign:nested_proxy_payload', typeof payload> = {
+			code: 'foreign:nested_proxy_payload',
+			category: 'validation',
+			message: 'Nested proxy payload.',
+			path: [],
+			payload,
+		}
+
+		const [snapshot] = snapshotIssuesForConsumer([issue])
+		expect(snapshot.payload !== payload)
+			.toBe(true)
+		expect(snapshot.payload.opaque === opaque)
+			.toBe(true)
 	})
 
 	it('preserves an opaque payload when prototype inspection throws', () => {

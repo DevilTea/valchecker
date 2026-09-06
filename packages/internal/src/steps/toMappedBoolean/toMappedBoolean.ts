@@ -1,6 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
-import { markIssueSnapshotPayload } from '../../core/core'
+import { markIssueSnapshotArray } from '../../core/core'
 import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
@@ -73,8 +73,10 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 		if (options.trueValues.length === 0 && options.falseValues.length === 0)
 			throw new TypeError('toMappedBoolean() requires at least one configured value.')
 
-		const trueValuesSnapshot = [...options.trueValues]
-		const falseValuesSnapshot = [...options.falseValues]
+		const trueValuesSnapshot = markIssueSnapshotArray([...options.trueValues])
+		const falseValuesSnapshot = markIssueSnapshotArray([...options.falseValues])
+		Object.freeze(trueValuesSnapshot)
+		Object.freeze(falseValuesSnapshot)
 		const trueValues = new Set(trueValuesSnapshot)
 		const falseValues = new Set(falseValuesSnapshot)
 		for (const value of trueValues) {
@@ -89,10 +91,7 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 				return success(false)
 			return failure(createIssue({
 				code: 'toMappedBoolean:unmapped_value',
-				payload: markIssueSnapshotPayload(
-					{ value, trueValues: trueValuesSnapshot, falseValues: falseValuesSnapshot },
-					{ trueValues: 'container', falseValues: 'container' },
-				),
+				payload: { value, trueValues: trueValuesSnapshot, falseValues: falseValuesSnapshot },
 				customMessage: messageOptions?.message,
 				defaultMessage: 'Expected the value to match a configured boolean mapping.',
 			}))

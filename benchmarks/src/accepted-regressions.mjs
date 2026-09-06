@@ -62,6 +62,41 @@
 /** @type {AcceptedRegression[]} */
 export const acceptedRegressions = [
 	{
+		cell: 'fallback/callback-failed',
+		maxRegressionPercent: 55,
+		because: 'Issue #140 requires `fallback()` to hand the callback a defensive structural snapshot and, when the callback throws, to retain a second pristine snapshot for the fallback issue instead of reusing data the callback may have mutated. The current implementation already removed an accidental generic-scan cost from that path; the remaining work is the two ownership-preserving snapshots themselves. Five adjacent paired local repetitions on the current candidate measured -41.96% with a 95% interval of [-43.95%, -39.89%]. The 55% bound leaves room for the runner variation the gate is designed to observe while still making a materially deeper slowdown fail.',
+	},
+	{
+		cell: 'fallback/recovers',
+		maxRegressionPercent: 45,
+		because: 'A successful `fallback()` callback now receives a detached issue record, path, context, payload record, and every Valchecker-owned nested diagnostic container declared by the issue protocol. That isolation fixes the audit case where callback mutation rewrote the original failure; opaque user-owned values still retain identity rather than being deep-cloned. After removing the accidental generic marker scan from the common snapshot path, five adjacent paired local repetitions measured this cell at -30.93%, with an interval of [-39.41%, -21.26%]. The 45% ceiling covers that measured correctness cost without turning the acknowledgement into an unlimited exemption.',
+	},
+	{
+		cell: 'intersection/conflicting-outputs',
+		maxRegressionPercent: 40,
+		because: 'The conflict payload contains a graph `path` array assembled only when two branch outputs cannot be merged. `fallback()` must be able to detach that Valchecker-owned failure-time container without cloning opaque branch values, so the issue carries explicit ownership policy for `path`; moving that information to construction time is impossible because the conflict path does not exist yet. Five adjacent paired local repetitions on the current code measured -23.56% with a tight interval of [-25.05%, -22.04%], while the hosted PR screen before the follow-up optimizations showed the same direction at roughly -27%. The 40% bound keeps substantial headroom below a further accidental regression.',
+	},
+	{
+		cell: 'isAfter/before-bound',
+		maxRegressionPercent: 80,
+		because: '`isAfter()` now snapshots the configured `Date` by value for validation and returns a fresh diagnostic `Date` on each failure. A `Date` cannot be made safely shareable with `Object.freeze()` because its internal time slot remains mutable through methods such as `setTime()`: reusing one diagnostic object would let a consumer mutate the next failure or, worse, schema execution state. Five adjacent paired local repetitions measured -61.04% with an interval of [-62.67%, -59.34%], consistent with the earlier hosted result near -68%. The 80% ceiling acknowledges the allocation required by the corrected ownership contract but still bounds it tightly enough to catch another large step backwards.',
+	},
+	{
+		cell: 'isBefore/after-bound',
+		maxRegressionPercent: 80,
+		because: '`isBefore()` has the same mutable-`Date` ownership correction as `isAfter()`: validation captures the construction-time instant, while each failure must expose a new `Date` object so supported consumer mutation cannot change later diagnostics or the schema itself. Runtime freezing is not an alternative because frozen `Date` objects still allow their internal time value to change. Five adjacent paired local repetitions measured -60.62% with an interval of [-60.99%, -60.26%], and the earlier hosted screen was near -69%. The 80% bound pays for that specific correctness guarantee while leaving a clear failure margin for any additional slowdown.',
+	},
+	{
+		cell: 'isJwt/valid',
+		maxRegressionPercent: 55,
+		because: '`isJwt()` now validates the structural JWT/JWS contract chosen in Issue #140 instead of accepting any three base64url segments whose header happened to contain a string `alg`. The hot valid path must base64url-decode both JOSE header and Claims Set as fatal UTF-8, parse both as JSON objects, require a non-empty string `alg`, and enforce the `alg: "none"` versus signature-presence rule; signatures are still not cryptographically verified. Five adjacent paired local repetitions measured -41.85% with an interval of [-45.33%, -38.16%], matching the earlier hosted result near -42%. The 55% bound records that added validation work without hiding a materially deeper regression.',
+	},
+	{
+		cell: 'isMimeType/other-type',
+		maxRegressionPercent: 45,
+		because: '`isMimeType()` now snapshots a caller-owned list at construction and keeps each failure payload independently mutable, so mutating one issue\'s `expected` array cannot rewrite future diagnostics or schema configuration. The wildcard matcher itself was optimized in this follow-up and the success cell is now faster than `main`; the remaining failure-only cost is the explicit ownership marker needed so `fallback()` can detach the fresh diagnostic array without generically cloning user arrays. Five adjacent paired local repetitions measured -31.05% with an interval of [-33.00%, -29.04%], consistent with the earlier hosted result near -34%. The 45% bound is deliberately above both readings but still bounded.',
+	},
+	{
 		cell: 'map/collect-all',
 		maxRegressionPercent: 25,
 		because: 'The `firstIndex` correction in `map()` under `collectAllIssues`. A buffered entry used to be '
@@ -91,6 +126,11 @@ export const acceptedRegressions = [
 			+ 'run where this cell was too noisy to judge, by only 2.1pp — so the bound holds but thinly, and a noisier '
 			+ 'run will report this entry `unassessed` rather than acknowledged. That is the honest outcome and it blocks '
 			+ 'nothing; the bound is deliberately not widened to make it read as acknowledged.',
+	},
+	{
+		cell: 'strictObject/unexpected-keys',
+		maxRegressionPercent: 75,
+		because: '`strictObject:unexpected_keys` reports two consumer-visible arrays: the failure-time unknown-key list and the configured expected-key list. Issue #140 requires `fallback()` to detach Valchecker-owned diagnostic containers while preserving identity for opaque user payload values, so the fresh unknown-key array needs explicit ownership metadata; it cannot be pre-marked at schema construction because its contents depend on the failing input. Five adjacent paired local repetitions measured -60.26% with an interval of [-61.46%, -59.02%], consistent with the earlier hosted result near -64%. The 75% ceiling accepts that bounded diagnostic-ownership cost but leaves roughly ten percentage points before a further slowdown becomes a breach.',
 	},
 ]
 

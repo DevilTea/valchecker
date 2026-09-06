@@ -106,10 +106,23 @@ const issueDraftMetadata = Symbol.for('valchecker.protocol.issueDraftMetadata.v1
 // unchanged while another compatible Valchecker copy can still honor it.
 const issueSnapshotPayloadMarker = Symbol.for('valchecker.protocol.issueSnapshotPayload.v1')
 
+// Cross-copy-compatible ownership marker for shared diagnostic arrays. The
+// marker is attached once while the schema is constructed, so a defensive
+// issue snapshot can detach the array without every failure payload paying for
+// its own property descriptor.
+const issueSnapshotArrayMarker = Symbol.for('valchecker.protocol.issueSnapshotArray.v1')
+const issueSnapshotObjectMarker = Symbol.for('valchecker.protocol.issueSnapshotObject.v1')
+
 type IssueSnapshotPayloadRule = 'container' | 'issues'
 type IssueSnapshotPayloadPolicy = Readonly<Record<PropertyKey, IssueSnapshotPayloadRule>>
 type IssuePayloadWithSnapshotPolicy = Record<PropertyKey, unknown> & {
 	[issueSnapshotPayloadMarker]?: IssueSnapshotPayloadPolicy | undefined
+}
+type IssueSnapshotArray = readonly unknown[] & {
+	[issueSnapshotArrayMarker]?: true | undefined
+}
+type IssueSnapshotObject = Record<PropertyKey, unknown> & {
+	[issueSnapshotObjectMarker]?: true | undefined
 }
 
 type IssueWithDraftMetadata = AnyExecutionIssue & {
@@ -139,6 +152,27 @@ export function markIssueSnapshotPayload<Payload extends Record<PropertyKey, unk
 ): Payload {
 	Object.defineProperty(payload, issueSnapshotPayloadMarker, { value: { ...policy } })
 	return payload
+}
+
+/**
+ * Marks a Valchecker-owned diagnostic array that can be shared by execution
+ * state and issue payloads. Attach this once before optionally freezing the
+ * construction-time snapshot; fallback snapshots copy and re-mark it lazily.
+ * Package-internal: intentionally not exported from `core/index.ts`.
+ */
+export function markIssueSnapshotArray<ArrayValue extends readonly unknown[]>(
+	array: ArrayValue,
+): ArrayValue {
+	Object.defineProperty(array, issueSnapshotArrayMarker, { value: true })
+	return array
+}
+
+/** Marks a shared Valchecker-owned plain diagnostic record. */
+export function markIssueSnapshotObject<ObjectValue extends Record<PropertyKey, unknown>>(
+	object: ObjectValue,
+): ObjectValue {
+	Object.defineProperty(object, issueSnapshotObjectMarker, { value: true })
+	return object
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -307,10 +341,39 @@ function isPlainIssuePayloadRecord(value: unknown): value is Record<PropertyKey,
 	}
 }
 
+function isMarkedIssueSnapshotArray(value: unknown): value is IssueSnapshotArray {
+	try {
+		return Array.isArray(value) && (value as IssueSnapshotArray)[issueSnapshotArrayMarker] === true
+	}
+	catch {
+		return false
+	}
+}
+
+function isMarkedIssueSnapshotObject(value: unknown): value is IssueSnapshotObject {
+	if (!isPlainIssuePayloadRecord(value))
+		return false
+	try {
+		return (value as IssueSnapshotObject)[issueSnapshotObjectMarker] === true
+	}
+	catch {
+		return false
+	}
+}
+
 function snapshotOwnedContainer(value: unknown): unknown {
-	if (Array.isArray(value))
-		return [...value]
-	return isPlainIssuePayloadRecord(value) ? snapshotIssueRecord(value) : value
+	if (Array.isArray(value)) {
+		const snapshot = [...value]
+		return isMarkedIssueSnapshotArray(value)
+			? markIssueSnapshotArray(snapshot)
+			: snapshot
+	}
+	if (!isPlainIssuePayloadRecord(value))
+		return value
+	const snapshot = snapshotIssueRecord(value)
+	return isMarkedIssueSnapshotObject(value)
+		? markIssueSnapshotObject(snapshot)
+		: snapshot
 }
 
 function snapshotIssueArray(value: unknown): AnyExecutionIssue[] {
@@ -328,6 +391,18 @@ function snapshotIssueRecord(
 ): Record<PropertyKey, unknown> {
 	const snapshot: Record<PropertyKey, unknown> = { ...record }
 	const policy = getIssueSnapshotPayloadPolicy(record)
+	// Object spread above still preserves enumerable symbol payload keys. The
+	// package-internal construction markers, however, are only discovered on
+	// string-keyed built-in diagnostic fields; formal cross-copy payload policy
+	// below retains full PropertyKey support. Avoiding a symbol scan saves ~20ns
+	// on the overwhelmingly common simple-issue snapshot path on Node 24.
+	for (const key of Object.keys(snapshot)) {
+		if (policy != null && Object.hasOwn(policy, key))
+			continue
+		const value = snapshot[key]
+		if (isMarkedIssueSnapshotArray(value) || isMarkedIssueSnapshotObject(value))
+			snapshot[key] = snapshotOwnedContainer(value)
+	}
 	if (policy == null)
 		return snapshot
 

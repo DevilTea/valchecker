@@ -1,7 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { markIssueSnapshotPayload } from '../../core/core'
+import { markIssueSnapshotArray } from '../../core/core'
 import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
@@ -115,7 +115,8 @@ export const variant = implStepPlugin<PluginDef>({
 		if (variantKeys.length === 0)
 			throw new TypeError('variant() requires at least one variant.')
 
-		const expected: readonly (string | symbol)[] = variantKeys
+		const expected: readonly (string | symbol)[] = markIssueSnapshotArray([...variantKeys])
+		Object.freeze(expected)
 		const executors = new Map<string | symbol, Use<Valchecker>['~execute']>()
 		let operationMode: OperationMode = 'sync'
 		for (const key of variantKeys) {
@@ -167,10 +168,7 @@ export const variant = implStepPlugin<PluginDef>({
 			if (execute === undefined) {
 				return failure(createIssue({
 					code: 'variant:invalid_discriminator',
-					payload: markIssueSnapshotPayload(
-						{ value, discriminator, received, expected },
-						{ expected: 'container' },
-					),
+					payload: { value, discriminator, received, expected },
 					path: [discriminator],
 					customMessage: messageOptions?.message,
 					defaultMessage: `Expected discriminator "${String(discriminator)}" to match a configured variant.`,
