@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib'
 import { rollup, VERSION as rollupVersion } from 'rollup'
 import { minify } from 'terser'
+import { acceptedBundleBytesForBase } from './accepted-bundle-regressions.mjs'
 import { compareBundleImpact } from './bundle-impact.mjs'
 import { consumerResolver } from './consumer-resolver.mjs'
 import { createPackedValcheckerConsumer } from './packed-valchecker.mjs'
@@ -531,7 +532,7 @@ function impactTable(impact) {
 		return 'No base artifact was supplied, so this run has structural tree-shaking evidence only and makes no impact claim.'
 	const rows = impact.rows.map(row => `| ${row.id} | ${bytes(row.baseBrotliBytes)} | ${bytes(row.candidateBrotliBytes)} | ${row.deltaBytes >= 0 ? '+' : ''}${row.deltaBytes} B | ${signedPercent(row.delta)} | ${row.classification} |`)
 		.join('\n')
-	return `Policy threshold: **>${percent(impact.threshold)} Brotli increase is a bundle regression**. Every byte delta is still reported; the threshold is a review/blocking policy, not measurement uncertainty.\n\n| Scenario | Base Brotli | Candidate Brotli | Bytes | Change | Classification |\n| --- | ---: | ---: | ---: | ---: | --- |\n${rows}`
+	return `Policy threshold: **>${percent(impact.threshold)} Brotli increase is a bundle regression**. Every byte delta is still reported; the threshold is a review/blocking policy, not measurement uncertainty. Base-commit-pinned accepted-regression rows are bounded one-time acknowledgements and do not change the threshold for later bases.\n\n| Scenario | Base Brotli | Candidate Brotli | Bytes | Change | Classification |\n| --- | ---: | ---: | ---: | ---: | --- |\n${rows}`
 }
 
 function markdown(report, concise = false) {
@@ -544,7 +545,9 @@ function markdown(report, concise = false) {
 			? 'Packed consumer tree-shaking guardrails are healthy. No base artifact was supplied, so this run makes no impact verdict.'
 			: 'The current packed consumer tree-shaking guardrails need investigation. No base artifact was supplied, so this run makes no impact verdict.'
 		: report.status === 'healthy'
-			? 'Packed consumer tree-shaking is healthy and no meaningful bundle regression was measured.'
+			? report.impact.verdict === 'accepted'
+				? 'Packed consumer tree-shaking is healthy; the only over-threshold bundle growth is explicitly bounded to this historical base.'
+				: 'Packed consumer tree-shaking is healthy and no meaningful bundle regression was measured.'
 			: report.impact.verdict === 'regression'
 				? 'The candidate has a meaningful Brotli regression against the packed base artifact.'
 				: 'The current packed consumer tree-shaking guardrails need investigation.'
@@ -586,7 +589,12 @@ async function main() {
 			baseResults = []
 			for (const item of scenarios.filter(item => item.library === 'Valchecker'))
 				baseResults.push(await bundleScenario(item, options.output, baseConsumer, 'base'))
-			impact = compareBundleImpact(baseResults, results.filter(result => result.library === 'Valchecker'))
+			impact = compareBundleImpact(
+				baseResults,
+				results.filter(result => result.library === 'Valchecker'),
+				undefined,
+				acceptedBundleBytesForBase(options.baseCommit),
+			)
 		}
 
 		const analysis = analyze(results)

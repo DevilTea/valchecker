@@ -39,3 +39,14 @@ test('bundle impact refuses missing rows, zero baselines, and invalid thresholds
 	assert.throws(() => compareBundleImpact([result('a', 0)], [result('a', 1)]), /positive Brotli sizes/)
 	assert.throws(() => compareBundleImpact([result('a', 1)], [result('a', 1)], -1), /non-negative finite/)
 })
+
+test('a bounded scenario acknowledgement suppresses only growth within its byte ceiling', () => {
+	const accepted = new Map([['full', 100]])
+	const within = compareBundleImpact([result('full', 1000)], [result('full', 1080)], undefined, accepted)
+	assert.equal(within.verdict, 'accepted')
+	assert.equal(within.rows[0].classification, 'accepted-regression')
+
+	const breached = compareBundleImpact([result('full', 1000)], [result('full', 1101)], undefined, accepted)
+	assert.equal(breached.verdict, 'regression')
+	assert.equal(breached.rows[0].classification, 'regression')
+})
