@@ -43,12 +43,9 @@ function row(scenario, screen, screenDelta, confirm = null, confirmDelta = null,
 test('the committed list is well formed and every entry states a reason', () => {
 	assert.deepEqual(malformedAcceptedRegressions(), [])
 	assert.deepEqual(acceptedRegressions.map(entry => entry.cell), [
-		'fallback/callback-failed',
 		'fallback/recovers',
-		'intersection/conflicting-outputs',
 		'isAfter/before-bound',
 		'isBefore/after-bound',
-		'isJwt/valid',
 		'isMimeType/other-type',
 		'map/collect-all',
 		'set/collect-all',

@@ -62,19 +62,9 @@
 /** @type {AcceptedRegression[]} */
 export const acceptedRegressions = [
 	{
-		cell: 'fallback/callback-failed',
-		maxRegressionPercent: 55,
-		because: 'Issue #140 requires `fallback()` to hand the callback a defensive structural snapshot and, when the callback throws, to retain a second pristine snapshot for the fallback issue instead of reusing data the callback may have mutated. The current implementation already removed an accidental generic-scan cost from that path; the remaining work is the two ownership-preserving snapshots themselves. Five adjacent paired local repetitions on the current candidate measured -41.96% with a 95% interval of [-43.95%, -39.89%]. The 55% bound leaves room for the runner variation the gate is designed to observe while still making a materially deeper slowdown fail.',
-	},
-	{
 		cell: 'fallback/recovers',
 		maxRegressionPercent: 45,
 		because: 'A successful `fallback()` callback now receives a detached issue record, path, context, payload record, and every Valchecker-owned nested diagnostic container declared by the issue protocol. That isolation fixes the audit case where callback mutation rewrote the original failure; opaque user-owned values still retain identity rather than being deep-cloned. After removing the accidental generic marker scan from the common snapshot path, five adjacent paired local repetitions measured this cell at -30.93%, with an interval of [-39.41%, -21.26%]. The 45% ceiling covers that measured correctness cost without turning the acknowledgement into an unlimited exemption.',
-	},
-	{
-		cell: 'intersection/conflicting-outputs',
-		maxRegressionPercent: 40,
-		because: 'The conflict payload contains a graph `path` array assembled only when two branch outputs cannot be merged. `fallback()` must be able to detach that Valchecker-owned failure-time container without cloning opaque branch values, so the issue carries explicit ownership policy for `path`; moving that information to construction time is impossible because the conflict path does not exist yet. Five adjacent paired local repetitions on the current code measured -23.56% with a tight interval of [-25.05%, -22.04%], while the hosted PR screen before the follow-up optimizations showed the same direction at roughly -27%. The 40% bound keeps substantial headroom below a further accidental regression.',
 	},
 	{
 		cell: 'isAfter/before-bound',
@@ -85,11 +75,6 @@ export const acceptedRegressions = [
 		cell: 'isBefore/after-bound',
 		maxRegressionPercent: 80,
 		because: '`isBefore()` has the same mutable-`Date` ownership correction as `isAfter()`: validation captures the construction-time instant, while each failure must expose a new `Date` object so supported consumer mutation cannot change later diagnostics or the schema itself. Runtime freezing is not an alternative because frozen `Date` objects still allow their internal time value to change. Five adjacent paired local repetitions measured -60.62% with an interval of [-60.99%, -60.26%], and the earlier hosted screen was near -69%. The 80% bound pays for that specific correctness guarantee while leaving a clear failure margin for any additional slowdown.',
-	},
-	{
-		cell: 'isJwt/valid',
-		maxRegressionPercent: 55,
-		because: '`isJwt()` now validates the structural JWT/JWS contract chosen in Issue #140 instead of accepting any three base64url segments whose header happened to contain a string `alg`. The hot valid path must base64url-decode both JOSE header and Claims Set as fatal UTF-8, parse both as JSON objects, require a non-empty string `alg`, and enforce the `alg: "none"` versus signature-presence rule; signatures are still not cryptographically verified. Five adjacent paired local repetitions measured -41.85% with an interval of [-45.33%, -38.16%], matching the earlier hosted result near -42%. The 55% bound records that added validation work without hiding a materially deeper regression.',
 	},
 	{
 		cell: 'isMimeType/other-type',
