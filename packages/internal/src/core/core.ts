@@ -377,7 +377,15 @@ function snapshotOwnedContainer(value: unknown): unknown {
 }
 
 function snapshotIssueArray(value: unknown): AnyExecutionIssue[] {
-	return (value as AnyExecutionIssue[]).map(snapshotExecutionIssue)
+	const issues = value as AnyExecutionIssue[]
+	const len = issues.length
+	if (len === 1)
+		return [snapshotExecutionIssue(issues[0]!)]
+	const result: AnyExecutionIssue[] = []
+	result.length = len
+	for (let i = 0; i < len; i++)
+		result[i] = snapshotExecutionIssue(issues[i]!)
+	return result
 }
 
 function getIssueSnapshotPayloadPolicy(
@@ -436,7 +444,14 @@ function snapshotExecutionIssue<Issue extends AnyExecutionIssue>(issue: Issue): 
 export function snapshotIssuesForConsumer<Issue extends AnyExecutionIssue>(
 	issues: [Issue, ...Issue[]],
 ): [Issue, ...Issue[]] {
-	return issues.map(snapshotExecutionIssue) as [Issue, ...Issue[]]
+	const len = issues.length
+	if (len === 1)
+		return [snapshotExecutionIssue(issues[0]!)]
+	const result: Issue[] = []
+	result.length = len
+	for (let i = 0; i < len; i++)
+		result[i] = snapshotExecutionIssue(issues[i]!)
+	return result as [Issue, ...Issue[]]
 }
 
 /**
