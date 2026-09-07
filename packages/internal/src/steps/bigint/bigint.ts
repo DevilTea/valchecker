@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { templateLiteralPartMarker } from '../templateLiteral/template-literal-part'
 
 type Meta = DefineStepMethodMeta<{
@@ -52,6 +53,7 @@ export const bigint = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, setMetadata },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		setMetadata(templateLiteralPartMarker, { kind: 'bigint' })
 		addSuccessStep(
 			value => typeof value === 'bigint'
@@ -60,7 +62,7 @@ export const bigint = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'bigint:expected_bigint',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected a bigint.',
 						}),
 					),

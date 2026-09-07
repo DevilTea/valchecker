@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'file'
@@ -53,6 +54,7 @@ export const file = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(
 			value => typeof File !== 'undefined' && value instanceof File
 				?	success(value)
@@ -60,7 +62,7 @@ export const file = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'file:expected_file',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected a File.',
 						}),
 					),

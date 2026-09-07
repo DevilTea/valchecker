@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<T extends { size: number } = { size: number }> = ExecutionIssue<'isSizeAtMost:expected_size_at_most', { value: T, maximumSize: number, size: number }>
@@ -44,6 +45,7 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isSizeAtMost = implStepPlugin<PluginDef>({
 	isSizeAtMost: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [maximumSize, options] }) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			const size = value.size
 			return size <= maximumSize
@@ -51,7 +53,7 @@ export const isSizeAtMost = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isSizeAtMost:expected_size_at_most',
 						payload: { value, maximumSize, size },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected a size of at most ${maximumSize}.`,
 					}))
 		})

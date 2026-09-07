@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toNumber'
@@ -52,6 +53,7 @@ export const toNumber = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			try {
 				return success(Number(value))
@@ -62,7 +64,7 @@ export const toNumber = implStepPlugin<PluginDef>({
 						code: 'toNumber:conversion_failed',
 						category: 'operation',
 						payload: { value, error },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a value convertible to number.',
 					}),
 				)

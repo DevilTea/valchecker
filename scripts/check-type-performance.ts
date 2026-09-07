@@ -1,22 +1,10 @@
+import type { TypePerformanceBudget, TypePerformanceMetrics } from './type-performance-gate'
 import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-
-interface TypePerformanceMetrics {
-	files: number
-	types: number
-	instantiations: number
-	memoryKib: number
-	checkSeconds: number
-	totalSeconds: number
-}
-
-interface TypePerformanceBudget {
-	typescript: string
-	maximum: Pick<TypePerformanceMetrics, 'types' | 'instantiations' | 'memoryKib'>
-}
+import { evaluateTypePerformance, typePerformanceMarkdown } from './type-performance-gate'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const artifactRoot = join(root, 'artifacts', 'type-performance')
@@ -139,25 +127,6 @@ async function readBudget(): Promise<TypePerformanceBudget | undefined> {
 	}
 }
 
-function markdown(metrics: TypePerformanceMetrics, budget: TypePerformanceBudget | undefined, typescript: string, failures: string[]): string {
-	const rows = [
-		['Files', metrics.files.toLocaleString('en-US'), 'report only'],
-		['Types', metrics.types.toLocaleString('en-US'), budget?.maximum.types.toLocaleString('en-US') ?? 'baseline pending'],
-		['Instantiations', metrics.instantiations.toLocaleString('en-US'), budget?.maximum.instantiations.toLocaleString('en-US') ?? 'baseline pending'],
-		['Memory', `${metrics.memoryKib.toLocaleString('en-US')} KiB`, budget == null ? 'baseline pending' : `${budget.maximum.memoryKib.toLocaleString('en-US')} KiB`],
-		['Check time', `${metrics.checkSeconds.toFixed(2)} s`, 'report only'],
-		['Total time', `${metrics.totalSeconds.toFixed(2)} s`, 'report only'],
-	]
-	const status = failures.length === 0 ? 'passed' : 'failed'
-	return `# Type performance\n\n**${status.toUpperCase()}** with TypeScript ${typescript}.\n\n| Metric | Observed | Budget |\n| --- | ---: | ---: |\n${rows.map(row => `| ${row.join(' | ')} |`)
-		.join('\n')}\n\n${budget == null
-		? 'No committed budget exists yet. Commit the generated metrics as the initial reviewed baseline before marking this pull request ready.\n'
-		: failures.length === 0
-			? 'All deterministic compiler-complexity metrics are within budget. Wall-clock timings are reported but intentionally not gated on shared runners.\n'
-			: `## Regressions\n\n${failures.map(failure => `- ${failure}`)
-				.join('\n')}\n`}\n`
-}
-
 await rm(generatedRoot, { force: true, recursive: true })
 await mkdir(generatedRoot, { recursive: true })
 await writeFile(join(generatedRoot, 'fixture.ts'), createFixture())
@@ -198,21 +167,11 @@ else if (result.status !== 0) {
 else {
 	const metrics = parseMetrics(output)
 	const budget = await readBudget()
-	const failures: string[] = []
-	if (budget != null) {
-		if (budget.typescript !== typescriptPackage.version)
-			failures.push(`budget targets TypeScript ${budget.typescript}, but the workspace uses ${typescriptPackage.version}`)
-		for (const metric of ['types', 'instantiations', 'memoryKib'] as const) {
-			if (metrics[metric] > budget.maximum[metric])
-				failures.push(`${metric} ${metrics[metric]} exceeds ${budget.maximum[metric]}`)
-		}
-	}
+	const failures = evaluateTypePerformance(metrics, budget, typescriptPackage.version)
 
 	await writeFile(metricsPath, `${JSON.stringify({ typescript: typescriptPackage.version, metrics }, null, 2)}\n`)
-	await writeFile(summaryPath, markdown(metrics, budget, typescriptPackage.version, failures))
+	await writeFile(summaryPath, typePerformanceMarkdown(metrics, budget, typescriptPackage.version, failures))
 	process.stdout.write(await readFile(summaryPath, 'utf8'))
-	if (budget == null)
-		process.stdout.write(`Initial baseline candidate: ${JSON.stringify({ typescript: typescriptPackage.version, maximum: metrics })}\n`)
 	if (failures.length > 0)
 		process.exitCode = 1
 }

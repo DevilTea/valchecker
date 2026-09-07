@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toSafeNumber'
@@ -56,6 +57,7 @@ export const toSafeNumber = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			if (value < MIN_SAFE_BIGINT || value > MAX_SAFE_BIGINT) {
 				return failure(
@@ -66,7 +68,7 @@ export const toSafeNumber = implStepPlugin<PluginDef>({
 							minimum: MIN_SAFE_BIGINT,
 							maximum: MAX_SAFE_BIGINT,
 						},
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected the bigint to be within the safe integer range.',
 					}),
 				)

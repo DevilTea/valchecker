@@ -3,6 +3,12 @@ run-name: Bundle size impact report by @${{ github.actor }}
 
 on:
   workflow_dispatch:
+    inputs:
+      base:
+        description: Base ref to compare against
+        required: false
+        default: main
+        type: string
 
   pull_request:
     branches:
@@ -28,7 +34,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      REPORT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base || 'main' }}
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -40,8 +47,29 @@ jobs:
         with:
           benchmarks: 'true'
 
-      - name: Generate Bundle Size Report
-        run: pnpm --dir benchmarks treeshake --output ../artifacts/bundle-size-impact
+      - name: Checkout base artifact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.BASE_SHA }}
+          path: .bundle-base
+          persist-credentials: false
+
+      - name: Build base artifact
+        shell: bash
+        run: |
+          pnpm --dir .bundle-base install --frozen-lockfile
+          pnpm --dir .bundle-base build
+
+      - name: Generate Bundle Size Impact
+        shell: bash
+        run: |
+          pnpm --dir benchmarks treeshake \
+            --output ../artifacts/bundle-size-impact \
+            --base-root ../.bundle-base \
+            --candidate-root .. \
+            --base-commit "$BASE_SHA" \
+            --candidate-commit "$CANDIDATE_SHA" \
+            --fail-on-regression
 
       - name: Publish Job Summary
         if: always() && hashFiles('artifacts/bundle-size-impact/summary.md') != ''

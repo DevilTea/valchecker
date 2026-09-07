@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<Input extends Map<any, any> = Map<any, any>> = ExecutionIssue<
@@ -73,6 +74,8 @@ export const toMappedValues = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [mapper, options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
+		const thisArg = options?.thisArg
 		addSuccessStep((value) => {
 			const entries = [...value.entries()]
 			const output = new Map<unknown, unknown>()
@@ -80,14 +83,14 @@ export const toMappedValues = implStepPlugin<PluginDef>({
 				const [key, entryValue] = entries[index]!
 				let mappedValue: unknown
 				try {
-					mappedValue = mapper.call(options?.thisArg, entryValue, key, index, value)
+					mappedValue = mapper.call(thisArg, entryValue, key, index, value)
 				}
 				catch (error) {
 					return failure(createIssue({
 						code: 'toMappedValues:callback_failed',
 						category: 'operation',
 						payload: { value, key, entryValue, index, error },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Map value callback failed.',
 					}))
 				}

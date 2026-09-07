@@ -1,7 +1,8 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isoCalendarDateSource } from '../isIsoDate/iso-calendar-date'
-import { isoHourMinuteSource, isoTimeSource } from '../isIsoTime/iso-time-source'
+import { isoTimeSource, isoUtcOffsetSource } from '../isIsoTime/iso-time-source'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isIsoDateTime'
@@ -12,12 +13,11 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the string is an ISO 8601 date-time: a calendar date and
-	 * time joined by `T`, with optional fractional seconds and an optional
-	 * `Z` or `±HH:MM` time-zone offset. Impossible calendar dates such as
-	 * `2026-02-30`, and out-of-range time or offset fields such as `24:00:00`,
-	 * are rejected: the calendar and the field ranges are both part of the
-	 * accepted shape.
+	 * Checks the bounded ISO 8601 extended calendar date-time profile:
+	 * `YYYY-MM-DDTHH:MM:SS`, optional fractional seconds using `.` or `,`,
+	 * and an optional `Z` or `±HH:MM` offset. Calendar validity, year `0000`,
+	 * and valid end-of-day `24:00:00` forms are supported. Leap seconds and
+	 * other ISO representation families remain outside this API shape.
 	 *
 	 * ---
 	 *
@@ -32,7 +32,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'isIsoDateTime:expected_iso_date_time'`: The string is not a valid ISO 8601 date-time.
+	 * - `'isIsoDateTime:expected_iso_date_time'`: The string does not match the supported ISO 8601 extended calendar date-time profile.
 	 */
 	isIsoDateTime: DefineStepMethod<
 		Meta,
@@ -45,10 +45,10 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-// A calendar date, `T`, a time of day, and an optional `Z` or `±HH:MM` offset.
-// The date, time and offset grammars come from their owning steps, so this step
-// cannot drift from `isIsoDate` or `isIsoTime`.
-const isoDateTimePattern = new RegExp(String.raw`^${isoCalendarDateSource}T${isoTimeSource}(?:Z|[+-]${isoHourMinuteSource})?$`)
+// The calendar, time-of-day, and offset grammars are shared with their owning
+// steps. Time-of-day and offset remain semantically separate so accepting the
+// end-of-day hour 24 can never make `+24:00` a valid UTC offset.
+const isoDateTimePattern = new RegExp(String.raw`^${isoCalendarDateSource}T${isoTimeSource}(?:Z|[+-]${isoUtcOffsetSource})?$`)
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isIsoDateTime = implStepPlugin<PluginDef>({
@@ -56,14 +56,15 @@ export const isIsoDateTime = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => isoDateTimePattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isIsoDateTime:expected_iso_date_time',
 						payload: { value },
-						customMessage: options?.message,
-						defaultMessage: 'Expected a valid ISO 8601 date-time.',
+						customMessage: messageOptions?.message,
+						defaultMessage: 'Expected a supported ISO 8601 calendar date-time.',
 					}),
 				))
 	},

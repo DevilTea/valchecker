@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isFinite'
@@ -44,13 +45,14 @@ export const isFinite = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => Number.isFinite(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isFinite:expected_finite',
 						payload: { value },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a finite number.',
 					}),
 				))

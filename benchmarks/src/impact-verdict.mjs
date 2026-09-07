@@ -146,10 +146,6 @@ function htmlEscape(value) {
 		.replaceAll('\'', '&#39;')
 }
 
-function coveragePercent(measured, total) {
-	return total === 0 ? 100 : Math.round(measured / total * 100)
-}
-
 /**
  * Why a partly covered group is reported as covered-in-part rather than as a trigger
  * that could not apply.
@@ -230,25 +226,25 @@ function classifyGroup(estimate) {
 }
 
 function summarizeGroups(rows, groupTotals) {
-	return [...new Set(rows.map(row => row.group))].map((group) => {
-		const groupRows = rows.filter(row => row.group === group)
+	const affected = rows.filter(row => row.measurementRole === 'affected')
+	return [...new Set(affected.map(row => row.group))].map((group) => {
+		const groupRows = affected.filter(row => row.group === group)
+		const measuredRows = rows.filter(row => row.group === group)
 		const estimate = groupEstimate(groupRows)
 		const classified = classifyGroup(estimate)
 		return {
 			group,
+			/** Rows attributed to the diff and therefore admitted to the product estimator. */
 			scenarios: groupRows.length,
-			// The scenarios this group has in the profile's tier. A selection can name a
-			// scenario from a richer tier than the mode's, so the measured count is the
-			// floor: a denominator smaller than the numerator would be a reporting bug
-			// standing in for a selection fact.
-			catalogScenarios: Math.max(groupTotals.get(group) ?? 0, groupRows.length),
-			/** Diagnostic: how many of the group's own rows their own intervals settled. */
+			/** Everything measured in this group, including canary health signals. */
+			measuredScenarios: measuredRows.length,
+			healthScenarios: measuredRows.length - groupRows.length,
+			catalogScenarios: Math.max(groupTotals.get(group) ?? 0, measuredRows.length),
+			/** Diagnostic over the same affected rows the group estimator consumes. */
 			decisiveScenarios: groupRows.filter(row => row.decisive).length,
-			/** Diagnostic: the rest of them. Both counts decide nothing about this group. */
 			inconclusiveScenarios: groupRows.filter(row => !row.decisive).length,
 			ratio: estimate.ratio,
 			delta: estimate.ratio - 1,
-			/** The group's own 95% interval, as a change like `delta`. */
 			intervalLow: classified.low,
 			intervalHigh: classified.high,
 			classification: classified.classification,
@@ -343,6 +339,9 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 	// It is never dropped in silence — every one of them is named.
 	const paired = baseline.results.filter(base => candidateByScenario.has(base.scenario))
 	const baselineIds = new Set(baseline.results.map(result => result.scenario))
+	const roleByScenario = baseline.identity.scenarioRoles == null
+		? null
+		: new Map(baseline.identity.scenarioRoles)
 	const presence = {
 		measured: paired.length,
 		added: candidate.results.filter(result => !baselineIds.has(result.scenario))
@@ -368,8 +367,10 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 		// than a second one computed beside it. Still a diagnostic; it decides nothing.
 		const pairedRme = estimate.halfWidth * 100
 		const classified = classifyRow(estimate)
+		const measurementRole = roleByScenario?.get(base.scenario) ?? 'affected'
 		return {
 			scenario: base.scenario,
+			measurementRole,
 			category: base.category,
 			group: base.group,
 			resultKind: base.resultKind,
@@ -414,7 +415,7 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 	// The groups whose aggregate is over part of the group. Named for the same reason:
 	// `2/2 decisive` says nothing about whether the group has 2 scenarios or 113.
 	const partiallyCoveredGroups = groups.filter(row => row.scenarios < row.catalogScenarios)
-		.map(row => ({ group: row.group, measured: row.scenarios, total: row.catalogScenarios }))
+		.map(row => ({ group: row.group, affected: row.scenarios, measured: row.measuredScenarios, total: row.catalogScenarios }))
 	const improvements = rows.filter(row => row.classification === 'improvement')
 	// Severe rows are regressions too; the count is of everything the interval rule
 	// settled on the regression side, so it can never read as smaller than `severeScenarios`.
@@ -439,25 +440,26 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 					// an unsettled row fail the build would turn a runner's noise — 54 of 170
 					// cells moved across the old precision threshold between two identical
 					// hosted-runner runs — into a red gate on pull requests that changed nothing.
-					// Not a pass and not a failure: an answer the gate does not have yet.
+					// Not a regression verdict: an answer the gate does not have yet. The final
+					// resolver may require an answer and refuse required-check success until it has one.
 					: inconclusiveScenarios.length > 0
 						? 'inconclusive'
 						: 'neutral'
 
 	return {
-		// 9 because a group row gained its own interval and verdict, and `thresholds` renamed
-		// `minimumDecisiveScenariosPerGroup` to `minimumScenariosPerGroup`. Both are the
-		// group estimator: a stored report's group number means something different before
-		// and after — a geometric mean over the decisive rows, against an estimate over every
-		// selected cell — so a reader must be able to tell which one they are holding.
-		schemaVersion: 9,
+		// 10 because group estimates now distinguish diff-attributed rows from canary health controls
+		// health measurements. A stored group number now means the affected subset only;
+		// neutral controls can no longer dilute it.
+		schemaVersion: 10,
 		mode: baseline.mode,
 		// The measurement identity both sides had to share, recorded so the verdict
 		// carries the conditions it was reached under rather than only the numbers.
 		measurement: {
 			isolation: baseline.identity.isolation,
+			temporalPairing: baseline.identity.temporalPairing,
 			shardCount: baseline.identity.shardCount,
 			selection: baseline.identity.selection,
+			scenarioRoles: baseline.identity.scenarioRoles,
 			cellCatalogHash: baseline.identity.cellCatalogHash,
 		},
 		/**
@@ -501,6 +503,7 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 		// same whether the group has two scenarios or a hundred and thirteen.
 		coverage: {
 			measuredScenarios: rows.length,
+			affectedScenarios: rows.filter(row => row.measurementRole === 'affected').length,
 			tierScenarios: Math.max([...groupTotals.values()].reduce((sum, count) => sum + count, 0), rows.length),
 		},
 		runCounts: { baseline: baseline.runCount, candidate: candidate.runCount },
@@ -522,9 +525,12 @@ export function compareResults(baseline, candidate, { groupTotals, catalogHash =
 			// Diagnostic only, and reported beside the classifications rather than inside
 			// them: how many rows met the precision threshold that used to be the gate.
 			imprecise: rows.filter(row => !row.precise).length,
+			healthSignals: rows.filter(row => row.measurementRole !== 'affected').length,
 		},
 		groups,
 		rows,
+		healthSignals: rows.filter(row => row.measurementRole !== 'affected')
+			.map(row => ({ scenario: row.scenario, role: row.measurementRole, classification: row.classification })),
 		severeScenarios: severeScenarios.map(row => row.scenario),
 		severeGroups: severeGroups.map(row => row.group),
 		// The confirmation stage's input. `confirmation.mjs` measures a second, **independent**
@@ -556,7 +562,7 @@ function presenceLines(result) {
 		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}`
 		+ `${result.cells.catalogHash == null ? '' : ` (catalog \`${result.cells.catalogHash}\`)`}, `
 		+ `**catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}`
-		+ ` / regrouped ${diff == null ? 'n/a' : (diff.changed ?? []).length}**, `
+		+ ` / contract changed ${diff == null ? 'n/a' : (diff.changed ?? []).length}**, `
 		+ `**candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}**.`,
 		'',
 		'Two different questions, deliberately not sharing a word. **Catalog** addition and removal come from a static comparison of what the two '
@@ -591,11 +597,12 @@ function presenceLines(result) {
 	}
 	if (diff != null && (diff.changed ?? []).length > 0) {
 		lines.push(
-			`> **Regrouped.** ${nameList(diff.changed, change => `\`${change.id}\` ${change.baseGroup} → ${change.headGroup}`
-				+ `${change.gateEffect == null ? '' : ` (${change.gateEffect} the gate)`}`)}. `
-				+ 'A cell keeps its id and changes which aggregate it is judged in, so the severe-group contract and that group\'s denominator both move. '
-				+ 'No runtime comparison can see this: the apparatus comes from the candidate ref and supplies the group to both measured sides, so they '
-				+ 'agree on the new group by construction. Not a failure by itself — a move can be deliberate — but never an unchanged catalog.',
+			`> **Measurement contract changed.** ${nameList(diff.changed, (change) => {
+				const details = change.fields.map(field => `${field} ${String(change.base[field])} → ${String(change.head[field])}`)
+				return `\`${change.id}\` ${details.join(', ')}${change.gateEffect == null ? '' : ` (${change.gateEffect} the gate)`}`
+			})}. `
+			+ 'Group, batch, and async mode decide how a cell is aggregated or measured. The candidate apparatus supplies all three to both sides, '
+			+ 'so only a static base-versus-head audit can recover that history. A change can be deliberate, but it is never an unchanged benchmark contract.',
 			'',
 		)
 	}
@@ -627,7 +634,7 @@ export function renderMarkdown(result) {
 	const lines = [
 		'# Valchecker benchmark impact',
 		'',
-		`Verdict: **${result.verdict}** · Paired process runs: **${result.runCounts.baseline}** · Isolation: **${result.measurement.isolation}** · Shards: **${result.measurement.shardCount}**`,
+		`Verdict: **${result.verdict}** · Paired process runs: **${result.runCounts.baseline}** · Isolation: **${result.measurement.isolation}** · Temporal pairing: **${result.measurement.temporalPairing}** · Shards: **${result.measurement.shardCount}**`,
 		'',
 		`Scenarios measured: **${result.coverage.measuredScenarios} of ${result.coverage.tierScenarios}** in the \`${result.mode}\` tier`
 		+ `${result.measurement.selection == null ? ' (unscoped)' : ' (scoped to the diff)'}.`,
@@ -642,18 +649,20 @@ export function renderMarkdown(result) {
 		'',
 		'## Benchmark-group tradeoffs',
 		'',
-		`A group is an estimator of its own, over **every** cell selected into it: per repetition its cells' log ratios are averaged into \`G_r\`, `
-		+ 'and the group is judged by the Student-t interval across those. It is deliberately not a mean over the rows that happened to be '
-		+ 'decisive — filtering to those conditions the estimate on the measurement outcome, and the rows that survive such a filter are the ones '
-		+ `most likely to trigger it. \`Decisive\` below is a diagnostic of the group's own rows and decides nothing about the group.`,
+		`A group is an estimator of its own over **diff-attributed** cells only: per repetition their log ratios are averaged into \`G_r\`, `
+		+ 'and the group is judged by the Student-t interval across those. Canary cells remain measured as health signals and keep their '
+		+ 'own direct row verdicts, but they are not mixed into this product estimator — a neutral control must not dilute an affected regression. '
+		+ `Within the affected set, every row contributes whatever its own classification; \`Decisive\` remains diagnostic only.`,
 		'',
-		'| Group | Scenarios measured | Decisive | Group change | 95% interval | Verdict |',
-		'| --- | ---: | ---: | ---: | ---: | --- |',
+		'| Group | Affected in estimator | Health measured | Catalog total | Decisive affected | Group change | 95% interval | Verdict |',
+		'| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
 	]
 	for (const row of result.groups) {
 		lines.push(
 			`| ${markdownCell(row.group)} `
-			+ `| ${row.scenarios}/${row.catalogScenarios} (${coveragePercent(row.scenarios, row.catalogScenarios)}%) `
+			+ `| ${row.scenarios} `
+			+ `| ${row.healthScenarios} `
+			+ `| ${row.catalogScenarios} `
 			+ `| ${row.decisiveScenarios}/${row.scenarios} `
 			+ `| ${row.delta == null ? 'n/a' : formatDelta(row.delta)} `
 			+ `| ${formatInterval(row)} `
@@ -664,10 +673,9 @@ export function renderMarkdown(result) {
 	if (result.partiallyCoveredGroups.length > 0) {
 		lines.push(
 			'',
-			`> **Partly covered groups.** ${result.partiallyCoveredGroups.map(row => `\`${row.group}\` ${row.measured}/${row.total}`)
-				.join(', ')}. A group's geometric mean is over the scenarios this run measured, not over the group, `
-				+ 'so it is not comparable with an unscoped run\'s and it cannot contain a regression in a scenario that did not run. '
-				+ 'The scenarios left out are the ones the diff cannot reach; the **Scenario scope** section states which paths that conclusion rests on.',
+			`> **Scoped group estimators.** ${result.partiallyCoveredGroups.map(row => `\`${row.group}\` ${row.affected} affected / ${row.measured} measured / ${row.total} catalog`)
+				.join(', ')}. The geometric mean uses only the affected count; the remaining measured rows are health signals. `
+				+ 'It is therefore not comparable with an unscoped whole-group estimate, and a canary cannot flatten the affected subset.',
 		)
 	}
 
@@ -675,7 +683,7 @@ export function renderMarkdown(result) {
 		lines.push(
 			'',
 			`> **No severe-group trigger** for ${result.groupsWithoutTrigger.map(group => `\`${group}\``)
-				.join(', ')}. It needs at least ${minimumScenariosPerGroup} **measured** rows in a group, and these have fewer, `
+				.join(', ')}. It needs at least ${minimumScenariosPerGroup} **affected** rows in a group, and these have fewer, `
 				+ 'so a broad moderate regression inside one of them is watched only by the per-scenario 10% threshold. '
 				+ 'A one-row group\'s aggregate would be that row\'s own number wearing an aggregate\'s authority.',
 		)
@@ -694,15 +702,23 @@ export function renderMarkdown(result) {
 		)
 	}
 
+	if (result.healthSignals.length > 0) {
+		lines.push(
+			'',
+			`> **Health signals measured: ${result.healthSignals.length}.** ${nameList(result.healthSignals, row => `\`${row.scenario}\` (${row.role}, ${row.classification})`)}. `
+			+ 'These rows keep their direct cell verdicts, including severe regressions, but are excluded from benchmark-group aggregation.',
+		)
+	}
+
 	lines.push(
 		'',
 		'## Scenario changes',
 		'',
-		'| Scenario | Group | Issue policy | Issues | Baseline ops/s | Candidate ops/s | Change | 95% interval | Paired RME | Classification |',
-		'| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
+		'| Scenario | Role | Group | Issue policy | Issues | Baseline ops/s | Candidate ops/s | Change | 95% interval | Paired RME | Classification |',
+		'| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
 	)
 	for (const row of [...result.rows].sort((left, right) => left.delta - right.delta)) {
-		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps)
+		lines.push(`| ${markdownCell(row.scenario)} | ${markdownCell(row.measurementRole)} | ${markdownCell(row.group)} | ${markdownCell(row.issuePolicy)} | ${row.diagnosticIssueCount ?? 'n/a'} | ${Math.round(row.baselineOps)
 			.toLocaleString('en-US')} | ${Math.round(row.candidateOps)
 			.toLocaleString('en-US')} | ${formatDelta(row.delta)} | ${formatInterval(row)} | ${row.pairedRme.toFixed(2)}% | ${row.classification} |`)
 	}
@@ -715,7 +731,7 @@ export function renderMarkdown(result) {
 		'- The estimator is the mean of `ln(candidate/baseline)` over those repetitions. The reported change is `exp` of it, and the interval is `exp` of it plus and minus a 95% Student’s t half-width — one statistic, so improvement and regression are multiplicatively symmetric and a group aggregate is a mean of the same numbers.',
 		'- A row is decided by whether its whole interval is on one side of a threshold, never by the point estimate alone. A point estimate past a threshold with an interval straddling it is `inconclusive`, which is what a run that cannot judge a row should say.',
 		'- Group-level gates keep success, library-default failure, first-issue failure, and all-issues failure tradeoffs separate.',
-		'- A group aggregate covers the scenarios that ran; read it with the coverage column beside it.',
+		'- A product group aggregate covers only diff-attributed affected scenarios. Canary rows are measured health signals with direct row verdicts, never neutral controls mixed into the product estimator.',
 		'- Construction or fresh-schema regressions require documented warm-path amortization.',
 		'- Added complexity or bundle size should normally buy at least 10% in a representative hot path or broad gains.',
 		'- Correctness, API stability, coverage, and package integrity remain hard constraints.',
@@ -725,28 +741,32 @@ export function renderMarkdown(result) {
 }
 
 export function renderHtml(result) {
-	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.scenarios}/${row.catalogScenarios} (${coveragePercent(row.scenarios, row.catalogScenarios)}%)</td><td>${row.decisiveScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td><td>${htmlEscape(formatInterval(row))}</td><td>${htmlEscape(row.classification)}</td></tr>`)
+	const groups = result.groups.map(row => `<tr><td>${htmlEscape(row.group)}</td><td>${row.scenarios}</td><td>${row.healthScenarios}</td><td>${row.catalogScenarios}</td><td>${row.decisiveScenarios}/${row.scenarios}</td><td>${row.delta == null ? 'n/a' : formatDelta(row.delta)}</td><td>${htmlEscape(formatInterval(row))}</td><td>${htmlEscape(row.classification)}</td></tr>`)
 		.join('')
 	const rows = [...result.rows].sort((left, right) => left.delta - right.delta)
-		.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps)
+		.map(row => `<tr><td>${htmlEscape(row.scenario)}</td><td>${htmlEscape(row.measurementRole)}</td><td>${htmlEscape(row.group)}</td><td>${htmlEscape(row.issuePolicy)}</td><td>${row.diagnosticIssueCount ?? 'n/a'}</td><td>${Math.round(row.baselineOps)
 			.toLocaleString('en-US')}</td><td>${Math.round(row.candidateOps)
-			.toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`)
+			.toLocaleString('en-US')}</td><td>${formatDelta(row.delta)}</td><td>${htmlEscape(formatInterval(row))}</td><td>${row.pairedRme.toFixed(2)}%</td><td>${htmlEscape(row.classification)}</td></tr>`)
 		.join('')
 	const scope = result.partiallyCoveredGroups.length === 0
 		? ''
-		: `<p><strong>Partly covered groups:</strong> ${htmlEscape(result.partiallyCoveredGroups.map(row => `${row.group} ${row.measured}/${row.total}`)
-			.join(', '))}. A group's geometric mean is over the scenarios this run measured.</p>`
+		: `<p><strong>Scoped group estimators:</strong> ${htmlEscape(result.partiallyCoveredGroups.map(row => `${row.group} ${row.affected} affected / ${row.measured} measured / ${row.total} catalog`)
+			.join(', '))}. The geometric mean uses only affected rows; the remainder are health signals and cannot flatten the affected estimate.</p>`
+	const health = result.healthSignals.length === 0
+		? ''
+		: `<p><strong>Health signals measured: ${result.healthSignals.length}.</strong> ${htmlEscape(result.healthSignals.map(row => `${row.scenario} (${row.role}, ${row.classification})`)
+			.join(', '))}. They retain direct row verdicts but are excluded from group aggregation.</p>`
 	// The same presence line the Markdown report prints, and printed on the same terms:
 	// always, so that a zero is visible.
 	const diff = result.cells.catalogDiff
 	const presence = `<p>Cells: <strong>measured ${result.cells.measured}</strong>`
 		+ `${result.cells.catalogCells == null ? '' : ` of the ${result.cells.catalogCells} the catalog declares`}, `
 		+ `<strong>catalog added ${diff == null ? 'n/a' : diff.added.length} / removed ${diff == null ? 'n/a' : diff.removed.length}`
-		+ ` / regrouped ${diff == null ? 'n/a' : (diff.changed ?? []).length}</strong>, `
+		+ ` / contract changed ${diff == null ? 'n/a' : (diff.changed ?? []).length}</strong>, `
 		+ `<strong>candidate-only ${result.cells.candidateOnly.length} / baseline-only ${result.cells.baselineOnly.length}</strong>.`
 		+ `${diff == null || diff.removed.length === 0 ? '' : ` Removed from the catalog: ${htmlEscape(diff.removed.join(', '))}.`}`
 		+ `${diff == null || diff.added.length === 0 ? '' : ` Added to the catalog: ${htmlEscape(diff.added.join(', '))}.`}`
 		+ `${result.cells.candidateOnly.length === 0 ? '' : ` Candidate-only: ${htmlEscape(result.cells.candidateOnly.join(', '))}.`}`
 		+ `${result.cells.baselineOnly.length === 0 ? '' : ` Baseline-only: ${htmlEscape(result.cells.baselineOnly.join(', '))}.`}</p>`
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Shards: ${result.measurement.shardCount}</p>${presence}${scope}<h2>Benchmark-group tradeoffs</h2><table><thead><tr><th>Group</th><th>Scenarios measured</th><th>Decisive rows</th><th>Group change</th><th>95% interval</th><th>Verdict</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benchmark impact</title><style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#1f2937;background:#f8fafc}body{max-width:1260px;margin:0 auto;padding:32px 20px 64px}table{border-collapse:collapse;width:100%;background:#fff;margin-bottom:28px}th,td{padding:9px 12px;border:1px solid #cbd5e1;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}th{background:#e2e8f0}li{line-height:1.5}</style></head><body><h1>Valchecker benchmark impact</h1><p>Verdict: <strong>${htmlEscape(result.verdict)}</strong> · Paired process runs: ${result.runCounts.baseline} · Isolation: <strong>${htmlEscape(result.measurement.isolation)}</strong> · Temporal pairing: <strong>${htmlEscape(result.measurement.temporalPairing)}</strong> · Shards: ${result.measurement.shardCount}</p>${presence}${scope}${health}<h2>Benchmark-group tradeoffs</h2><p>Group estimates use diff-attributed affected rows only. Canary rows are health measurements with direct row verdicts, not neutral controls in the aggregate.</p><table><thead><tr><th>Group</th><th>Affected in estimator</th><th>Health measured</th><th>Catalog total</th><th>Decisive affected</th><th>Group change</th><th>95% interval</th><th>Verdict</th></tr></thead><tbody>${groups}</tbody></table><h2>Scenario changes</h2><table><thead><tr><th>Scenario</th><th>Role</th><th>Group</th><th>Issue policy</th><th>Issues</th><th>Baseline ops/s</th><th>Candidate ops/s</th><th>Change</th><th>95% interval</th><th>Paired RME</th><th>Classification</th></tr></thead><tbody>${rows}</tbody></table></body></html>\n`
 }

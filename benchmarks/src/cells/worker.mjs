@@ -25,7 +25,23 @@ async function main() {
 	if (!file)
 		throw new Error(`No bench file for '${step}', named by the cell '${cellId}'`)
 
-	const [bench] = await collectStepBenches([file])
+	let bench
+	try {
+		;[bench] = await collectStepBenches([file])
+	}
+	catch (error) {
+		// The benchmark apparatus comes from the candidate checkout while this worker may
+		// execute against an older baseline build. A newly-added step can therefore have a
+		// perfectly valid bench file whose public plugin export does not exist in that build.
+		// That is a build-compatibility observation, not a harness crash: the parent records
+		// the cell as unmeasurable on this side and the static catalog diff still reports it
+		// as added. The checked-out candidate cannot hide a malformed bench this way because
+		// `pnpm bench:cells` and the parent's candidate-side catalog import it strictly first.
+		return {
+			cell: cellId,
+			unmeasurable: `could not load the benchmark against this build: ${error instanceof Error ? error.message : String(error)}`,
+		}
+	}
 	const cell = bench.cells.find(candidate => candidate.id === cellId)
 	if (!cell) {
 		throw new Error(`'${step}' declares no cell '${cellId}'. Its cells are ${bench.cells.map(candidate => candidate.id)
@@ -58,7 +74,9 @@ async function main() {
 			executionMode: cell.async ? 'async' : 'sync',
 			entry: 'native',
 			batch: cell.batch,
-			...(cell.async ? await measureAsync(cell.measuredUnit, mode) : measure(cell.measuredUnit, mode)),
+			...(cell.async
+				? await measureAsync(cell.measuredUnit, mode, cell.batch)
+				: measure(cell.measuredUnit, mode, cell.batch)),
 		},
 	}
 }

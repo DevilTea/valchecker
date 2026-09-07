@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'isSafeInteger'
@@ -36,12 +37,13 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isSafeInteger = implStepPlugin<PluginDef>({
 	isSafeInteger: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [options] }) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => Number.isSafeInteger(value)
 			? success(value)
 			: failure(createIssue({
 					code: 'isSafeInteger:expected_safe_integer',
 					payload: { value },
-					customMessage: options?.message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected a safe integer.',
 				})))
 	},

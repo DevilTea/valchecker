@@ -9,6 +9,7 @@ const valid = [
 	'255.255.255.255',
 	'::1',
 	'2001:db8::8a2e:370:7334',
+	'::192.0.2.1',
 	'::ffff:192.168.0.1',
 	// Zero-compression edges. `::` is the unspecified address and a trailing `::`
 	// leaves the right half empty, so neither half may be required to be present.
@@ -40,6 +41,11 @@ const invalid = [
 	'1::2:3:4:5:6:7:8',
 	'1:2:3:4:5:6:7:8::',
 	'::gggg',
+	// An embedded IPv4 suffix must be on the right side of `::`; placing it
+	// before compression is invalid.
+	'192.0.2.1::',
+	'1:192.0.2.1::',
+	'1:2:3:4:5:192.0.2.1::',
 	'hello',
 	'',
 	'255.255.255.256',
@@ -105,6 +111,17 @@ describe('isIp step plugin', () => {
 		expect(v.string()
 			.isIp({ version: 6 })
 			.execute('1.2.3.4'))
+			.toMatchObject({ issues: [{ code: 'isIp:expected_ip' }] })
+	})
+
+	it.each([
+		'192.0.2.1::',
+		'1:192.0.2.1::',
+		'1:2:3:4:5:192.0.2.1::',
+	])('rejects an embedded IPv4 suffix before IPv6 compression: %s', (input) => {
+		expect(v.string()
+			.isIp({ version: 6 })
+			.execute(input))
 			.toMatchObject({ issues: [{ code: 'isIp:expected_ip' }] })
 	})
 })

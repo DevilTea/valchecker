@@ -1,34 +1,50 @@
 /**
- * A Valchecker instance that records which step methods are called on it.
+ * A Valchecker instance that records which step methods are called on it and can
+ * rebuild the same public instance with one registered step omitted.
  *
- * The Valchecker adapter takes its instance from `VALCHECKER_DIST_URL`, so pointing
- * that at this module puts a recorder between the adapter and the real build without
- * the adapter knowing. `step-audit.mjs` then drives every `build()` and compares what
- * was called against what the scenarios declare in `steps`.
+ * `step-audit.mjs` uses the direct recording first, then omission probes every
+ * other registered method. If removing a method makes an otherwise identical
+ * adapter build fail, that method is a real indirect construction dependency
+ * (for example `union(['px'])` reaches the registered `literal` shorthand provider
+ * through the core registry without calling `v.literal()` directly).
  *
- * Two properties make the recording trustworthy:
- *
- * - **The library never sees a proxy.** Every argument is unwrapped back to the real
- *   schema before the call is forwarded, so field objects, union branch arrays, and
- *   nested schemas reach the implementation exactly as they would without this module.
- *   A proxy leaking into the library would risk changing what is built, and an audit
- *   that changes its subject measures nothing.
- * - **The step names come from the build itself**, as the own property names of the
- *   prototype every schema of the instance shares. That is the registered method set by
- *   construction, so the audit cannot go stale against a renamed or added step, and
- *   non-step members (`execute`, `~standard`, `isSuccess`) are passed through untouched
- *   rather than reported as steps.
+ * The adapter imports one stable `v` proxy. Its active target can therefore move
+ * between the full instance and an omission instance without re-importing the
+ * adapter. Schemas returned by a step call wrap the concrete schema that created
+ * them; the library still never receives a proxy as a schema argument.
  */
 import process from 'node:process'
 
 const realUrl = process.env.VALCHECKER_AUDIT_TARGET
 	|| new URL('../../packages/valchecker/dist/index.mjs', import.meta.url).href
 
-// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM benchmark entry script executed to completion at load
-const { v: real } = await import(realUrl)
+// eslint-disable-next-line antfu/no-top-level-await -- benchmark audit entry module loads the built package once
+const realModule = await import(realUrl)
+const { allSteps, createValchecker, v: full } = realModule
 
-const stepNames = new Set(Object.getOwnPropertyNames(Object.getPrototypeOf(real)))
+if (typeof createValchecker !== 'function' || !Array.isArray(allSteps))
+	throw new TypeError('The Valchecker audit target must export createValchecker(), allSteps, and v.')
+
+const stepNames = new Set(Object.getOwnPropertyNames(Object.getPrototypeOf(full)))
+const pluginByStep = new Map()
+for (const plugin of allSteps) {
+	const names = Reflect.ownKeys(plugin)
+		.filter(key => typeof key === 'string' && stepNames.has(key))
+	if (names.length !== 1) {
+		throw new TypeError(
+			`Exact omission audit requires one public step method per built-in plugin; found ${names.length}: ${names.join(', ') || '(none)'}.`,
+		)
+	}
+	pluginByStep.set(names[0], plugin)
+}
+for (const step of stepNames) {
+	if (!pluginByStep.has(step))
+		throw new TypeError(`The allSteps export has no plugin owning registered step '${step}'.`)
+}
+
 const targets = new WeakMap()
+const omittedInstances = new Map()
+let active = full
 
 /** Method names observed since the last `resetRecording()`, in call order. */
 const observed = new Set()
@@ -41,9 +57,31 @@ export function recordedSteps() {
 	return [...observed]
 }
 
-/** Every public step method the loaded build registers. */
+/** Every public step method the loaded full build registers. */
 export function registeredStepNames() {
 	return [...stepNames]
+}
+
+/** Restore the instance containing the complete published step set. */
+export function restoreAuditStepSet() {
+	active = full
+}
+
+/**
+ * Switch the stable exported `v` proxy to an otherwise-identical instance with
+ * exactly one published step plugin omitted. Instances are cached because the
+ * audit probes the same omission across many build keys.
+ */
+export function omitAuditStep(step) {
+	const omittedPlugin = pluginByStep.get(step)
+	if (omittedPlugin === undefined)
+		throw new TypeError(`Cannot omit unknown Valchecker step '${step}'.`)
+	let instance = omittedInstances.get(step)
+	if (instance === undefined) {
+		instance = createValchecker({ steps: allSteps.filter(plugin => plugin !== omittedPlugin) })
+		omittedInstances.set(step, instance)
+	}
+	active = instance
 }
 
 function unwrap(value) {
@@ -54,9 +92,6 @@ function unwrap(value) {
 		return target
 	if (Array.isArray(value))
 		return value.map(unwrap)
-	// A callback can return a schema — `use`, `fallback`, and `transform` all take one —
-	// and that schema would be a proxy built inside the callback. Unwrapping the return
-	// value keeps the "no proxy reaches the library" property for the deferred case too.
 	if (typeof value === 'function')
 		return (...args) => unwrap(value(...args))
 	if (Object.getPrototypeOf(value) === Object.prototype) {
@@ -84,4 +119,16 @@ function wrap(schema) {
 	return proxy
 }
 
-export const v = wrap(real)
+// Stable root identity for the adapter. Unlike a schema proxy, the target of this
+// proxy is deliberately dynamic so omission probes can swap the registered step set.
+export const v = new Proxy({}, {
+	get(_target, property) {
+		const value = Reflect.get(active, property)
+		if (typeof property !== 'string' || !stepNames.has(property) || typeof value !== 'function')
+			return value
+		return (...args) => {
+			observed.add(property)
+			return wrap(value.apply(active, args.map(unwrap)))
+		}
+	},
+})

@@ -38,7 +38,7 @@
  * script cannot do as precisely.
  */
 
-export const supportedSchemaVersion = 4
+export const supportedSchemaVersion = 5
 
 /**
  * The fields that must agree, as a plain object so a mismatch can name the field
@@ -51,6 +51,8 @@ export function measurementIdentity(raw, label) {
 		throw new Error(`${label} is missing its measurement profile`)
 	if (typeof raw.isolation !== 'string' || raw.isolation.length === 0)
 		throw new Error(`${label} is missing its measurement isolation`)
+	if (raw.temporalPairing !== 'none' && raw.temporalPairing !== 'adjacent-cell')
+		throw new Error(`${label} records an unknown temporal pairing mode: ${String(raw.temporalPairing)}`)
 	if (!Array.isArray(raw.shards) || raw.shards.length === 0)
 		throw new Error(`${label} is missing its shard record`)
 	const shardCount = raw.shards[0].count
@@ -58,6 +60,8 @@ export function measurementIdentity(raw, label) {
 		throw new Error(`${label} records an invalid shard count: ${String(shardCount)}`)
 	if (raw.shards.length !== shardCount)
 		throw new Error(`${label} carries ${raw.shards.length} of its ${shardCount} shards, so it is not a complete run`)
+	if (raw.scenarioRoles !== null && (typeof raw.scenarioRoles !== 'object' || Array.isArray(raw.scenarioRoles)))
+		throw new Error(`${label} does not record valid scenario roles`)
 	if (raw.scenarioFilter !== null && !Array.isArray(raw.scenarioFilter))
 		throw new Error(`${label} does not record which scenarios it measured`)
 
@@ -66,6 +70,7 @@ export function measurementIdentity(raw, label) {
 		profile: Object.entries(raw.profile)
 			.sort(([left], [right]) => left.localeCompare(right)),
 		isolation: raw.isolation,
+		temporalPairing: raw.temporalPairing,
 		shardCount,
 		cellCatalogHash: raw.cellCatalogHash ?? null,
 		// Sorted, because the same selection written in a different order is the same
@@ -73,6 +78,10 @@ export function measurementIdentity(raw, label) {
 		// value as a filter that happens to name every scenario in it, since only the
 		// first is guaranteed to keep naming every scenario as the suite grows.
 		selection: raw.scenarioFilter == null ? null : [...raw.scenarioFilter].sort(),
+		scenarioRoles: raw.scenarioRoles == null
+			? null
+			: Object.entries(raw.scenarioRoles)
+					.sort(([left], [right]) => left.localeCompare(right)),
 	}
 }
 
@@ -86,8 +95,10 @@ const reasons = {
 	mode: 'a mode selects a different sampling profile',
 	profile: 'the sampling profile decides how much evidence stands behind every number',
 	isolation: 'a cell measured alone and a cell measured after other scenarios in the same process are not measurements of the same thing',
+	temporalPairing: 'whole-side ordering and adjacent per-cell A/B pairing have different exposure to temporal drift',
 	shardCount: 'scenarios measured on different machines cannot be pooled with scenarios measured on one',
 	cellCatalogHash: 'the cell catalog decides the run order and every group denominator, so two runs measured against different catalogs are not one measurement even where they name the same cells',
+	scenarioRoles: 'the role map decides which measured rows are allowed into the product group estimator',
 	selection: 'a group aggregate is a geometric mean over the scenarios that ran, so two runs of different scenario sets have group numbers that are not measurements of the same thing',
 }
 

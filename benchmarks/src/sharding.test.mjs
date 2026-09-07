@@ -72,11 +72,13 @@ function environmentOf(runner, overrides = {}) {
 /** One shard result, carrying only the fields the merge reads. */
 function shardResult({ index, count, ids, runner, startedAt, completedAt, environment = environmentOf(runner), ...overrides }) {
 	return {
-		schemaVersion: 4,
+		schemaVersion: 5,
 		mode: 'standard',
 		seed: 'fixed-seed',
 		scenarioFilter: null,
 		isolation: 'cell',
+		temporalPairing: 'none',
+		scenarioRoles: null,
 		startedAt,
 		completedAt,
 		profile: { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 7, targetRelativeMarginOfError: 0.75 },
@@ -169,6 +171,7 @@ test('the merged run spans the shards in time and keeps each shard machine', () 
 	assert.deepEqual(merged.shards.map(shard => shard.environment.runnerName), ['runner-a', 'runner-b'])
 	assert.equal(merged.environment.runnerName, 'runner-a')
 	assert.equal(merged.isolation, 'cell')
+	assert.equal(merged.temporalPairing, 'none')
 })
 
 test('an incomplete set of shards is not a run', () => {
@@ -198,6 +201,8 @@ test('shards of different runs are refused, naming the field that differs', () =
 		['mode', raw => raw.mode = 'full'],
 		['seed', raw => raw.seed = 'other-seed'],
 		['isolation', raw => raw.isolation = 'adapter'],
+		['temporalPairing', raw => raw.temporalPairing = 'adjacent-cell'],
+		['scenarioRoles', raw => raw.scenarioRoles = { a: 'affected' }],
 		['profile', raw => raw.profile.maxSamples = 12],
 		['order', raw => raw.order = ['valibot', 'valchecker']],
 		['scenarioFilter', raw => raw.scenarioFilter = ['primitive/valid']],

@@ -126,12 +126,10 @@ describe('literal step plugin', () => {
 	})
 
 	describe('literal member declaration', () => {
-		it('advertises the literal as a frozen single-member set', () => {
+		it('advertises the literal as an owned single-member snapshot', () => {
 			const schema = v.literal('a')
 			expect(getLiteralMembers(schema))
 				.toEqual(['a'])
-			expect(Object.isFrozen(getLiteralMembers(schema)))
-				.toBe(true)
 		})
 
 		it('drops the member set after a further step chains', () => {

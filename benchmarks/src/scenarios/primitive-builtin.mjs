@@ -1,4 +1,4 @@
-// `primitive-builtin/*`: the same validation `primitive/*` measures, with the
+// `primitive-builtin/*`: observably the same validation `primitive/*` measures, with the
 // Valchecker side's `check()` closure replaced by the `isMatching` pattern
 // validator that shipped after the original scenario was written. Zod and Valibot
 // were always spelled with a built-in pattern action (`.regex(...)`, `v.regex()`),
@@ -16,10 +16,10 @@ import { warm } from './define.mjs'
 const primitiveBuiltinSteps = ['string', 'isLengthAtLeast', 'isLengthAtMost', 'isMatching']
 
 export const primitiveBuiltinScenarios = [
-	warm('primitive-builtin/valid', 'standard', 'primitiveBuiltin', primitive.valid, { success: true, output: primitive.valid }, { comparisonScope: 'compatible-subset', steps: primitiveBuiltinSteps }),
+	warm('primitive-builtin/valid', 'standard', 'primitiveBuiltin', primitive.valid, { success: true, output: primitive.valid }, { comparisonNote: 'Valchecker uses the built-in `isMatching` step while Zod and Valibot use their built-in regex actions; the executable conformance contract proves the same accepted/rejected values and preserved output despite different internal implementations.', steps: primitiveBuiltinSteps }),
 	// `primitive.invalidLate` reaches the pattern before failing, which is the step
 	// the two spellings differ in. `primitive/invalid-type` has no counterpart here:
 	// the chain aborts at the string check without reaching either spelling, so it
 	// would measure the same work twice.
-	warm('primitive-builtin/invalid-late', 'full', 'primitiveBuiltin', primitive.invalidLate, { success: false }, { comparisonScope: 'compatible-subset', steps: primitiveBuiltinSteps }),
+	warm('primitive-builtin/invalid-late', 'full', 'primitiveBuiltin', primitive.invalidLate, { success: false }, { comparisonNote: 'Valchecker uses the built-in `isMatching` step while Zod and Valibot use their built-in regex actions; the executable conformance contract proves the same accepted/rejected values and preserved output despite different internal implementations.', steps: primitiveBuiltinSteps }),
 ]

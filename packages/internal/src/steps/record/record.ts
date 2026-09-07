@@ -2,6 +2,8 @@ import type { IsLiteral } from 'type-fest'
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, ExecutionSuccessResult, InferExecutionContext, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { markIssueSnapshotPayload } from '../../core/core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 import { getLiteralMembers } from '../literal/literal-members'
 
@@ -162,7 +164,7 @@ export const record = implStepPlugin<PluginDef>({
 		// this generic impl boundary the options message type does not cover every
 		// code we may raise. Widen it to the full self-issue handler; the runtime
 		// resolver simply ignores codes a map handler does not name.
-		const message = options.message as StructuralStepOptions<Internal.SelfIssue>['message']
+		const messageOptions = snapshotMessageOptions(options)
 
 		// Finite key domains canonicalize their members to property keys once at
 		// construction. A number member collapses to its string key (`1` -> `'1'`),
@@ -199,7 +201,7 @@ export const record = implStepPlugin<PluginDef>({
 				code: 'record:missing_key',
 				payload: { key },
 				path: [key],
-				customMessage: message,
+				customMessage: messageOptions?.message,
 				defaultMessage: 'Missing required record key.',
 			}))
 			return target
@@ -217,7 +219,7 @@ export const record = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, [key], message))
+					target.push(prependIssuePath(issue, [key], messageOptions?.message))
 				}
 			}
 			return { issues: target, hasInternal }
@@ -235,7 +237,7 @@ export const record = implStepPlugin<PluginDef>({
 					if (issue.category === 'internal')
 						hasInternal = true
 					target.push(appendIssueContext(
-						prependIssuePath(issue, [sourceKey], message),
+						prependIssuePath(issue, [sourceKey], messageOptions?.message),
 						{ type: 'record', part: 'key' },
 					))
 				}
@@ -291,7 +293,7 @@ export const record = implStepPlugin<PluginDef>({
 					return failure(createIssue({
 						code: 'record:expected_object',
 						payload: { value },
-						customMessage: message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected an object.',
 					}))
 				}
@@ -309,8 +311,11 @@ export const record = implStepPlugin<PluginDef>({
 				if (unknownKeys != null) {
 					issues = [createIssue({
 						code: 'record:unexpected_keys',
-						payload: { keys: unknownKeys, expectedKeys: [...keys] },
-						customMessage: message,
+						payload: markIssueSnapshotPayload(
+							{ keys: unknownKeys, expectedKeys: [...keys] },
+							{ keys: 'container', expectedKeys: 'container' },
+						),
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Unexpected record keys found.',
 					})]
 					output = undefined
@@ -374,7 +379,7 @@ export const record = implStepPlugin<PluginDef>({
 						transformedKey,
 					},
 					path: [canonicalKey],
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected transformed record keys to be unique.',
 				}))
 				return { issues: target, stop: !collectAllIssues }
@@ -459,7 +464,7 @@ export const record = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'record:expected_object',
 					payload: { value },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected an object.',
 				}))
 			}

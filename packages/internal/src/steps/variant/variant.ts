@@ -1,6 +1,8 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { markIssueSnapshotArray } from '../../core/core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -101,7 +103,8 @@ export const variant = implStepPlugin<PluginDef>({
 		if (typeof options !== 'object' || options === null || Array.isArray(options))
 			throw new TypeError('variant() requires a configuration object.')
 
-		const { discriminator, variants, message } = options
+		const { discriminator, variants } = options
+		const messageOptions = snapshotMessageOptions(options)
 		const discriminatorType = typeof discriminator
 		if (discriminatorType !== 'string' && discriminatorType !== 'number' && discriminatorType !== 'symbol')
 			throw new TypeError('variant() discriminator must be a property key.')
@@ -112,7 +115,8 @@ export const variant = implStepPlugin<PluginDef>({
 		if (variantKeys.length === 0)
 			throw new TypeError('variant() requires at least one variant.')
 
-		const expected = Object.freeze([...variantKeys])
+		const expected: readonly (string | symbol)[] = markIssueSnapshotArray([...variantKeys])
+		Object.freeze(expected)
 		const executors = new Map<string | symbol, Use<Valchecker>['~execute']>()
 		let operationMode: OperationMode = 'sync'
 		for (const key of variantKeys) {
@@ -133,7 +137,7 @@ export const variant = implStepPlugin<PluginDef>({
 			const issues: AnyExecutionIssue[] = Array.from({ length: result.issues.length })
 			// Deliberately duplicated per-file inline loop: V8 inlines this per-schema loop but not a shared cross-module helper. See architecture.md (extraction measured -12%/-13% on the failure hot path, 2026-07-22).
 			for (let index = 0; index < result.issues.length; index++) {
-				const scoped = prependIssuePath(result.issues[index]!, [], message)
+				const scoped = prependIssuePath(result.issues[index]!, [], messageOptions?.message)
 				issues[index] = appendIssueContext(scoped, {
 					type: 'variant',
 					discriminator,
@@ -148,7 +152,7 @@ export const variant = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'variant:expected_object',
 					payload: { value },
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected an object for variant validation.',
 				}))
 			}
@@ -166,7 +170,7 @@ export const variant = implStepPlugin<PluginDef>({
 					code: 'variant:invalid_discriminator',
 					payload: { value, discriminator, received, expected },
 					path: [discriminator],
-					customMessage: message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected discriminator "${String(discriminator)}" to match a configured variant.`,
 				}))
 			}

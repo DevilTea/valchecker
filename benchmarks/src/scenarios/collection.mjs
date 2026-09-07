@@ -34,7 +34,7 @@ const mapSteps = ['map', 'string', 'number']
 const intersectionSteps = ['intersection', 'object', 'string', 'number']
 
 export const collectionScenarios = [
-	warm('array/10-valid', 'smoke', 'recordArray', records10, { success: true }, { steps: recordArraySteps }),
+	warm('array/10-valid', 'smoke', 'recordArray', records10, { success: true, output: records10 }, { steps: recordArraySteps }),
 	warmPool('array/10-valid-rotating', 'standard', 'recordArray', recordArrayPool, { success: true }, { steps: recordArraySteps }),
 	warm('array/100-valid', 'standard', 'recordArray', records100, { success: true }, { steps: recordArraySteps }),
 	warm('array/1000-valid', 'full', 'recordArray', records1000, { success: true }, { steps: recordArraySteps }),
@@ -42,7 +42,7 @@ export const collectionScenarios = [
 	warm('array/100-invalid-last', 'standard', 'recordArray', createInvalidRecords(100, 99), { success: false }, { steps: recordArraySteps }),
 	warm('array/1000-invalid-last', 'full', 'recordArray', createInvalidRecords(1000, 999), { success: false }, { steps: recordArraySteps }),
 
-	warm('set/100-valid', 'standard', 'set', collectionStructures.set100, { success: true, output: collectionStructures.set100 }, { steps: setSteps }),
-	warm('map/100-valid', 'standard', 'map', collectionStructures.map100, { success: true, output: collectionStructures.map100 }, { steps: mapSteps }),
+	warm('set/100-valid', 'standard', 'set', collectionStructures.set100, { success: true, output: collectionStructures.set100 }, { conformanceCases: [{ input: new Set([1]), expected: { success: false } }], steps: setSteps }),
+	warm('map/100-valid', 'standard', 'map', collectionStructures.map100, { success: true, output: collectionStructures.map100 }, { conformanceCases: [{ input: new Map([[1, 'invalid']]), expected: { success: false } }], steps: mapSteps }),
 	warm('intersection/valid', 'standard', 'intersection', collectionStructures.intersection, { success: true, output: collectionStructures.intersection }, { comparisonScope: 'compatible-subset', steps: intersectionSteps }),
 ]

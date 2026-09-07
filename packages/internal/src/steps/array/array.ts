@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -65,6 +66,7 @@ export const array = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [item, options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		const operationMode = item['~core']?.operationMode === 'sync' ? 'sync' : 'maybe-async'
 		const childIsSynchronous = operationMode === 'sync'
 		const execute = item['~execute']
@@ -82,7 +84,7 @@ export const array = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, [index], options?.message))
+					target.push(prependIssuePath(issue, [index], messageOptions?.message))
 				}
 			}
 			return { issues: target, hasInternal }
@@ -121,7 +123,7 @@ export const array = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'array:expected_array',
 					payload: { value },
-					customMessage: options?.message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected an array.',
 				}))
 			}

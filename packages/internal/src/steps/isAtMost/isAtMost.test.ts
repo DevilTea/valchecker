@@ -10,6 +10,8 @@ describe('isAtMost step plugin', () => {
 		[v.number()
 			.isAtMost(10), 5],
 		[v.bigint()
+			.isAtMost(10n), 10n],
+		[v.bigint()
 			.isAtMost(10n), 5n],
 	] as const)('accepts numeric values at or below the maximum', (schema, value) => {
 		expect(schema.execute(value as never))

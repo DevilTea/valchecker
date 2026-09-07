@@ -1,5 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { markIssueSnapshotObject } from '../../core/core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export interface PatternSnapshot { readonly source: string, readonly flags: string }
@@ -45,10 +47,12 @@ interface PluginDef extends TStepPluginDef {
 /* @__NO_SIDE_EFFECTS__ */
 export const isMatching = implStepPlugin<PluginDef>({
 	isMatching: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [pattern, options] }) => {
+		const messageOptions = snapshotMessageOptions(options)
 		if (!(pattern instanceof RegExp))
 			throw new TypeError('isMatching() requires a RegExp pattern.')
 
-		const patternSnapshot = Object.freeze({ source: pattern.source, flags: pattern.flags })
+		const patternSnapshot: Internal.PatternSnapshot = markIssueSnapshotObject({ source: pattern.source, flags: pattern.flags })
+		Object.freeze(patternSnapshot)
 		const regex = new RegExp(patternSnapshot.source, patternSnapshot.flags)
 		addSuccessStep((value) => {
 			regex.lastIndex = 0
@@ -59,7 +63,7 @@ export const isMatching = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isMatching:expected_matching',
 						payload: { value, pattern: patternSnapshot },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected the string to match /${patternSnapshot.source}/${patternSnapshot.flags}.`,
 					}))
 		})

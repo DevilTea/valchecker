@@ -1,7 +1,8 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsEqual, IsPromise, MaybePromiseLike } from '../../shared'
 import { implStepPlugin } from '../../core'
-import { hasInternalIssue } from '../../core/core'
+import { hasInternalIssue, markIssueSnapshotPayload, snapshotIssuesForConsumer } from '../../core/core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -68,38 +69,28 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-function snapshotReceivedIssues<Issue extends AnyExecutionIssue>(
-	issues: [Issue, ...Issue[]],
-): [Issue, ...Issue[]] {
-	return issues.map((issue) => {
-		const snapshot = {
-			...issue,
-			path: [...issue.path],
-		}
-		if (issue.context != null)
-			snapshot.context = [...issue.context]
-		return snapshot
-	}) as [Issue, ...Issue[]]
-}
-
 /* @__NO_SIDE_EFFECTS__ */
 export const fallback = implStepPlugin<PluginDef>({
 	fallback: ({
 		utils: { addFailureStep, success, createIssue, failure },
 		params: [run, options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addFailureStep((issues) => {
 			if (hasInternalIssue(issues))
 				return failure(issues)
 
-			const callbackIssues = snapshotReceivedIssues(issues)
+			const callbackIssues = snapshotIssuesForConsumer(issues)
 
 			const handleError = (error: unknown) => {
 				const fallbackIssue = createIssue({
 					code: 'fallback:failed',
 					category: 'operation',
-					payload: { receivedIssues: snapshotReceivedIssues(issues), error },
-					customMessage: options?.message,
+					payload: markIssueSnapshotPayload(
+						{ receivedIssues: snapshotIssuesForConsumer(issues), error },
+						{ receivedIssues: 'issues' },
+					),
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Fallback failed.',
 				})
 				return failure([...issues, fallbackIssue])

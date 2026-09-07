@@ -24,6 +24,11 @@ const invalid = [
 	'01ARZ3NDEKTSV4RRFFQ69G5FAO',
 	'01ARZ3NDEKTSV4RRFFQ69G5FAU',
 	'01ARZ3NDEKTSV4RRFFQ69G5FAi',
+	// The first base32 character carries only four significant bits in a
+	// canonical 128-bit ULID, so values beginning with 8 or a later letter
+	// overflow even when all 26 characters use the Crockford alphabet.
+	'8ZZZZZZZZZZZZZZZZZZZZZZZZZ',
+	'ZZZZZZZZZZZZZZZZZZZZZZZZZZ',
 	// `$` without the `m` flag is end-of-input, so a 26-character ULID with a
 	// trailing newline is 27 characters and fails.
 	'01ARZ3NDEKTSV4RRFFQ69G5FAV\n',

@@ -15,6 +15,8 @@ function resultOf(overrides = {}) {
 		schemaVersion: supportedSchemaVersion,
 		mode: 'standard',
 		isolation: 'cell',
+		temporalPairing: 'none',
+		scenarioRoles: null,
 		profile: { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 7, targetRelativeMarginOfError: 0.75 },
 		shards: [{ index: 0, count: 1 }],
 		scenarioFilter: null,
@@ -27,9 +29,11 @@ function identityOf(overrides) {
 }
 
 test('a result that does not record how it was measured has no identity', () => {
-	assert.throws(() => measurementIdentity(resultOf({ schemaVersion: 3 }), 'baseline run 1'), /baseline run 1 has benchmark schema version 3, expected 4/)
+	assert.throws(() => measurementIdentity(resultOf({ schemaVersion: 3 }), 'baseline run 1'), /baseline run 1 has benchmark schema version 3, expected 5/)
 	assert.throws(() => measurementIdentity(resultOf({ profile: undefined }), 'run'), /missing its measurement profile/)
 	assert.throws(() => measurementIdentity(resultOf({ isolation: undefined }), 'run'), /missing its measurement isolation/)
+	assert.throws(() => measurementIdentity(resultOf({ temporalPairing: undefined }), 'run'), /unknown temporal pairing mode/)
+	assert.throws(() => measurementIdentity(resultOf({ scenarioRoles: undefined }), 'run'), /valid scenario roles/)
 	assert.throws(() => measurementIdentity(resultOf({ shards: undefined }), 'run'), /missing its shard record/)
 	assert.throws(() => measurementIdentity(resultOf({ shards: [] }), 'run'), /missing its shard record/)
 	assert.throws(() => measurementIdentity(resultOf({ shards: [{ index: 0, count: 0 }] }), 'run'), /invalid shard count/)
@@ -95,6 +99,8 @@ test('each identity field is a refusal on its own, and is named', () => {
 		['mode', { mode: 'full' }],
 		['profile', { profile: { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 12, targetRelativeMarginOfError: 0.75 } }],
 		['isolation', { isolation: 'adapter' }],
+		['temporalPairing', { temporalPairing: 'adjacent-cell' }],
+		['scenarioRoles', { scenarioRoles: { 'primitive/valid': 'affected' } }],
 		['shardCount', { shards: [{ index: 0, count: 4 }, { index: 1, count: 4 }, { index: 2, count: 4 }, { index: 3, count: 4 }] }],
 		// The cell catalog is the apparatus: it decides the run order and every group
 		// denominator, and it is recorded rather than re-derived, so a run measured against
@@ -114,9 +120,9 @@ test('each identity field is a refusal on its own, and is named', () => {
 
 test('several differences are all reported, in a stable order', () => {
 	const left = identityOf()
-	const right = identityOf({ mode: 'smoke', isolation: 'adapter' })
-	assert.deepEqual(identityDifferences(left, right), ['mode', 'isolation'])
-	assert.deepEqual(identityDifferences(right, left), ['mode', 'isolation'])
+	const right = identityOf({ mode: 'smoke', isolation: 'adapter', temporalPairing: 'adjacent-cell', scenarioRoles: { a: 'affected' } })
+	assert.deepEqual(identityDifferences(left, right), ['mode', 'isolation', 'temporalPairing', 'scenarioRoles'])
+	assert.deepEqual(identityDifferences(right, left), ['mode', 'isolation', 'temporalPairing', 'scenarioRoles'])
 })
 
 test('a profile that dropped a field is not the same profile', () => {

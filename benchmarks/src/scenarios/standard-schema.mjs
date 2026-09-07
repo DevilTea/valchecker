@@ -69,6 +69,8 @@ import { flatObject, primitive } from '../fixtures.mjs'
 import { warm } from './define.mjs'
 
 const standardEntry = { entry: 'standard' }
+const primitiveComparisonNote = 'The reused primitive schema has a Valchecker `check()` closure where competitors use built-in regex actions; this row additionally changes only the entry point to Standard Schema V1, and both observable contracts are executed before timing.'
+const flatObjectComparisonNote = 'The reused flat-object schema has a Valchecker email `check()` closure where competitors use built-in regex actions; this row additionally changes only the entry point to Standard Schema V1, with observable conformance verified first.'
 
 // The build keys' own step declarations, which the scenario tests require to match
 // the native scenarios sharing each key.
@@ -79,14 +81,14 @@ const asyncCheckSteps = ['string', 'check']
 export const standardSchemaScenarios = [
 	// The cheapest schema in the suite, where a fixed per-call interop cost is the
 	// largest share of the number.
-	warm('standard-schema/primitive-valid', 'standard', 'primitive', primitive.valid, { success: true, output: primitive.valid }, { ...standardEntry, steps: primitiveSteps }),
+	warm('standard-schema/primitive-valid', 'standard', 'primitive', primitive.valid, { success: true, output: primitive.valid }, { ...standardEntry, comparisonNote: primitiveComparisonNote, steps: primitiveSteps }),
 	// The failure direction: the interop layer also has to hand back issues.
 	// `invalidLate` fails at the final predicate, so the row includes the same
 	// validation work `primitive/invalid-late` measures and differs only in the exit.
-	warm('standard-schema/primitive-invalid', 'full', 'primitive', primitive.invalidLate, { success: false }, { ...standardEntry, steps: primitiveSteps }),
+	warm('standard-schema/primitive-invalid', 'full', 'primitive', primitive.invalidLate, { success: false }, { ...standardEntry, comparisonNote: primitiveComparisonNote, steps: primitiveSteps }),
 	// A ten-field object, so the pair with the primitive row shows whether the interop
 	// cost is fixed per call or grows with the work.
-	warm('standard-schema/flat-object-valid', 'standard', 'flatObject', flatObject.valid, { success: true }, { ...standardEntry, steps: flatObjectSteps }),
+	warm('standard-schema/flat-object-valid', 'standard', 'flatObject', flatObject.valid, { success: true }, { ...standardEntry, comparisonNote: flatObjectComparisonNote, steps: flatObjectSteps }),
 	// The interop entry over an asynchronous schema, which is where the three
 	// implementations diverge most: an alias on Valchecker against a caught throw per
 	// call on both Zod pins.

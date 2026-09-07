@@ -21,6 +21,7 @@ describe('isMimeType step plugin', () => {
 		// parameterised type matches its family even though it never matches a
 		// bare type/subtype.
 		['wildcard over a parameterised type', 'text/*', 'text/plain;charset=utf-8'],
+		['wildcard over token punctuation', 'application/*', 'application/vnd.example+json'],
 	])('accepts %s', (_label, types, actual) => {
 		const input = blobOf(actual)
 		expect(v.blob()
@@ -34,6 +35,9 @@ describe('isMimeType step plugin', () => {
 		['list mismatch', ['image/png', 'image/jpeg'], 'application/pdf'],
 		['wildcard family mismatch', 'image/*', 'text/plain'],
 		['wildcard is not a prefix of a longer type', 'image/*', 'imagex/png'],
+		['wildcard rejects an empty subtype', 'image/*', 'image/'],
+		['wildcard rejects another slash in the subtype', 'image/*', 'image//x'],
+		['wildcard rejects a parameter marker with no subtype', 'image/*', 'image/;'],
 		['empty type', 'image/png', ''],
 		// MIME parameters are not parsed off the observed type, so an exact
 		// pattern compares against the whole string including them.
@@ -73,6 +77,49 @@ describe('isMimeType step plugin', () => {
 			.execute(input))
 			.toMatchObject({
 				issues: [{ payload: { expected: 'image/*', actual: 'text/plain' } }],
+			})
+	})
+
+	it('snapshots mutable list configuration and diagnostic payloads', () => {
+		const types = ['image/png', 'application/pdf']
+		const schema = v.blob()
+			.isMimeType(types)
+		types.splice(0, types.length, 'text/plain')
+
+		const accepted = blobOf('image/png')
+		expect(schema.execute(accepted))
+			.toEqual({ value: accepted })
+
+		const rejected = blobOf('text/plain')
+		const firstFailure = schema.execute(rejected)
+		expect(firstFailure)
+			.toEqual({
+				issues: [{
+					code: 'isMimeType:unexpected_mime_type',
+					category: 'validation',
+					message: 'Expected a MIME type matching image/png, application/pdf.',
+					path: [],
+					payload: { value: rejected, expected: ['image/png', 'application/pdf'], actual: 'text/plain' },
+				}],
+			})
+		if (!v.isFailure(firstFailure))
+			throw new Error('Expected a failure result.')
+		const issue = firstFailure.issues[0]!
+		if (issue.code !== 'isMimeType:unexpected_mime_type')
+			throw new Error(`Unexpected issue: ${issue.code}`)
+		if (!Array.isArray(issue.payload.expected))
+			throw new Error('Expected an array diagnostic payload.')
+		issue.payload.expected.push('mutated')
+
+		expect(schema.execute(rejected))
+			.toEqual({
+				issues: [{
+					code: 'isMimeType:unexpected_mime_type',
+					category: 'validation',
+					message: 'Expected a MIME type matching image/png, application/pdf.',
+					path: [],
+					payload: { value: rejected, expected: ['image/png', 'application/pdf'], actual: 'text/plain' },
+				}],
 			})
 	})
 

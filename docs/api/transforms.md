@@ -358,37 +358,38 @@ const scores = v.map({ key: v.string(), value: v.number() })
 
 ### `toJSONString(options?)` {#toJSONString}
 
-Serializes a supported value with JSON semantics after a single-read preflight: the value is walked
-once, and the plain copy that walk produces is what `JSON.stringify` receives, so a getter, a
-`toJSON` method, or a Proxy trap runs exactly once. Inherited and symbol-keyed properties are
-ignored, boxed string/number/boolean values are unboxed, and `NaN` or infinity serialize as `null`.
+Serializes the current value with native `JSON.stringify()` semantics. Object properties whose
+values are `undefined`, functions, or symbols are omitted, while those values and sparse holes in an
+array become `null`, exactly as they do in the native operation. Boxed primitives, `toJSON()`
+methods, getters, Proxies, and cross-realm values are likewise handled by the native serializer.
 
-Lossy slots are treated uniformly and strictly: an explicit `undefined`, a `function` or `symbol`
-value, and a sparse array hole all fail rather than being silently coerced. A hole fails with
-`toJSONString:unserializable` carrying `{ reason: 'undefined_result' }` at the hole's path, the same
-as an explicit `undefined` element. (Native `JSON.stringify` would instead write `null` for a hole.)
+If native serialization returns `undefined` at the top level, the step fails with
+`toJSONString:unserializable`. If `JSON.stringify()` throws — for example for a bigint without a
+custom JSON representation, a circular structure, or a throwing getter / Proxy trap / `toJSON()` —
+the step catches that exception as `toJSONString:serialization_failed` rather than leaking it into
+the core execution boundary.
+
+Use `toStrictJSONString()` when lossy slots should fail instead of following native omission or
+coercion semantics.
 
 ```ts
 v.unknown()
 	.toJSONString()
-	.execute({ value: 42 })
-// { value: '{"value":42}' }
+	.execute({ keep: 1, drop: undefined })
+// { value: '{"keep":1}' }
 
 v.unknown()
 	.toJSONString()
-	.execute([1, undefined, 3])
-// failure, at [1]
+	.execute(undefined)
+// failure
 ```
 
 **Issues:**
 
-- `toJSONString:unserializable` (`validation`) — the value, or a nested slot, has no JSON
-  representation. Payload `{ reason, value, at, valueType? }`, where `reason` is
-  `'undefined_result'`, `'unsupported_type'`, or `'circular_reference'`, `at` is the path of the
-  offending slot, and `valueType` is present only for `'unsupported_type'`, where it is `'bigint'`,
-  `'function'`, or `'symbol'`
-- `toJSONString:serialization_failed` (`operation`) — a getter, a Proxy trap, or a `toJSON` method
-  threw while the value was being read. Payload `{ value, at, error }`
+- `toJSONString:unserializable` (`validation`) — native `JSON.stringify()` returned `undefined`
+  instead of JSON text. Payload `{ reason: 'undefined_result', value, at: [] }`
+- `toJSONString:serialization_failed` (`operation`) — native `JSON.stringify()` threw. Payload
+  `{ value, at: [], error }`
 
 ### `toJSONValue<T = unknown>(options?)` {#toJSONValue}
 
@@ -412,6 +413,40 @@ v.string()
 
 **Issue code:** `toJSONValue:invalid_json` — `JSON.parse` threw on the string. Payload
 `{ value, error }`, where `error` is the `SyntaxError` it threw.
+
+### `toStrictJSONString(options?)` {#toStrictJSONString}
+
+Serializes a supported value with JSON semantics after a single-read preflight: the value is walked
+once, and the plain copy that walk produces is what `JSON.stringify` receives, so a getter, a
+`toJSON` method, or a Proxy trap runs exactly once. Inherited and symbol-keyed properties are
+ignored, boxed string/number/boolean values are unboxed, and `NaN` or infinity serialize as `null`.
+
+Lossy slots are treated uniformly and strictly: an explicit `undefined`, a `function` or `symbol`
+value, and a sparse array hole all fail rather than being silently coerced. A hole fails with
+`toStrictJSONString:unserializable` carrying `{ reason: 'undefined_result' }` at the hole's path, the same
+as an explicit `undefined` element. (Native `JSON.stringify` would instead write `null` for a hole.)
+
+```ts
+v.unknown()
+	.toStrictJSONString()
+	.execute({ value: 42 })
+// { value: '{"value":42}' }
+
+v.unknown()
+	.toStrictJSONString()
+	.execute([1, undefined, 3])
+// failure, at [1]
+```
+
+**Issues:**
+
+- `toStrictJSONString:unserializable` (`validation`) — the value, or a nested slot, has no JSON
+  representation. Payload `{ reason, value, at, valueType? }`, where `reason` is
+  `'undefined_result'`, `'unsupported_type'`, or `'circular_reference'`, `at` is the path of the
+  offending slot, and `valueType` is present only for `'unsupported_type'`, where it is `'bigint'`,
+  `'function'`, or `'symbol'`
+- `toStrictJSONString:serialization_failed` (`operation`) — a getter, a Proxy trap, or a `toJSON` method
+  threw while the value was being read. Payload `{ value, at, error }`
 
 ## Primitive conversions
 
@@ -507,7 +542,7 @@ v.string()
 ```
 
 Mappings use SameValueZero equality, so `NaN` matches `NaN` and `-0` matches `0`. Configuration
-arrays are immutable schema-time snapshots: mutating an array afterwards does not change the schema,
+arrays are schema-time snapshots: mutating an array afterwards does not change the schema,
 and the snapshot is what the failure payload reports. Supplying two empty mappings, or a value that
 appears in both, throws a `TypeError` while the schema is constructed; a one-sided mapping is
 allowed.

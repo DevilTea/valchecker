@@ -10,12 +10,14 @@ import { primitive } from '../fixtures.mjs'
 import { warm } from './define.mjs'
 
 // `v.unknown().use(v.string().isLengthAtLeast(3).isLengthAtMost(32).isMatching(...))`
+const delegationComparisonNote = 'Valchecker composes an already-built inner schema with `unknown().use(inner)`, Zod uses `.pipe(inner)`, and Valibot nests a schema inside `pipe()`; executable conformance proves the same delegated success/output and inner failure semantics.'
+
 const delegationSteps = ['unknown', 'use', 'string', 'isLengthAtLeast', 'isLengthAtMost', 'isMatching']
 
 export const delegationScenarios = [
-	warm('delegation/valid', 'standard', 'delegate', primitive.valid, { success: true }, { steps: delegationSteps }),
+	warm('delegation/valid', 'standard', 'delegate', primitive.valid, { success: true, output: primitive.valid }, { comparisonNote: delegationComparisonNote, steps: delegationSteps }),
 	// The pattern check inside the delegated schema is what fails, so this row is the
 	// inner issue travelling back out through the delegation layer rather than a
 	// rejection by the outer schema.
-	warm('delegation/invalid-late', 'standard', 'delegate', primitive.invalidLate, { success: false }, { steps: delegationSteps }),
+	warm('delegation/invalid-late', 'standard', 'delegate', primitive.invalidLate, { success: false }, { comparisonNote: delegationComparisonNote, steps: delegationSteps }),
 ]

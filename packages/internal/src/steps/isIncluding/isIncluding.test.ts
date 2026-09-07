@@ -20,6 +20,19 @@ describe('isIncluding step plugin', () => {
 			})
 	})
 
+	it('captures string position and its failure payload at construction', () => {
+		const options = { position: 3 }
+		const schema = v.string()
+			.isIncluding('ab', options)
+
+		options.position = 2
+
+		expect(schema.execute('xxab'))
+			.toMatchObject({
+				issues: [{ payload: { position: 3 } }],
+			})
+	})
+
 	it('uses SameValueZero array inclusion with fromIndex', () => {
 		expect(v.array(v.number())
 			.isIncluding(Number.NaN)
@@ -29,6 +42,19 @@ describe('isIncluding step plugin', () => {
 			.isIncluding(1, { fromIndex: 1, message: 'Missing item' })
 			.execute([1]))
 			.toMatchObject({ issues: [{ message: 'Missing item', payload: { target: 'array', expected: 1, fromIndex: 1 } }] })
+	})
+
+	it('captures array fromIndex and its failure payload at construction', () => {
+		const options = { fromIndex: 1 }
+		const schema = v.array(v.number())
+			.isIncluding(1, options)
+
+		options.fromIndex = 0
+
+		expect(schema.execute([1]))
+			.toMatchObject({
+				issues: [{ payload: { fromIndex: 1 } }],
+			})
 	})
 
 	it('uses native Set SameValueZero membership', () => {

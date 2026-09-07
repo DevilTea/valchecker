@@ -10,12 +10,10 @@
 // `equivalent` and the outputs were confirmed identical, including the normalized
 // one, where all three participants produce the same composed string.
 //
-// The family has no failure scenario, because none of these four steps can fail:
-// each is one `String.prototype` call. Their only failure is the `v.string()` check
-// in front of them, and the suite measures that twice already —
-// `primitive/invalid-type` and, in front of a transformation chain,
-// `transform/invalid-type`. A third and fourth copy would measure the same work
-// under a new name.
+// The family has no *timed* failure scenario, because none of these four transforms
+// can fail after the leading string check. The executable equivalence contract still
+// runs a representative non-string failure before timing; publishing another failure
+// throughput row would only duplicate `primitive/invalid-type` / `transform/invalid-type`.
 import { warm } from './define.mjs'
 
 const inputs = {
@@ -37,8 +35,8 @@ const oneSidedTrim = ['one-sided trim']
 const unicodeNormalization = ['Unicode normalization']
 
 export const stringShapeScenarios = [
-	warm('string-shape/uppercase-valid', 'standard', 'shapeUppercase', inputs.padded, { success: true, output: '  ADA LOVELACE  ' }, { steps: uppercaseSteps }),
-	warm('string-shape/trimmed-start-valid', 'standard', 'shapeTrimmedStart', inputs.padded, { success: true, output: 'Ada Lovelace  ' }, { requiredFeatures: oneSidedTrim, steps: trimmedStartSteps }),
-	warm('string-shape/trimmed-end-valid', 'standard', 'shapeTrimmedEnd', inputs.padded, { success: true, output: '  Ada Lovelace' }, { requiredFeatures: oneSidedTrim, steps: trimmedEndSteps }),
-	warm('string-shape/normalized-valid', 'standard', 'shapeNormalized', inputs.decomposed, { success: true, output: 'Am\u00E9lie Poulain' }, { requiredFeatures: unicodeNormalization, steps: normalizedSteps }),
+	warm('string-shape/uppercase-valid', 'standard', 'shapeUppercase', inputs.padded, { success: true, output: '  ADA LOVELACE  ' }, { conformanceCases: [{ input: 42, expected: { success: false } }], steps: uppercaseSteps }),
+	warm('string-shape/trimmed-start-valid', 'standard', 'shapeTrimmedStart', inputs.padded, { success: true, output: 'Ada Lovelace  ' }, { conformanceCases: [{ input: 42, expected: { success: false } }], requiredFeatures: oneSidedTrim, steps: trimmedStartSteps }),
+	warm('string-shape/trimmed-end-valid', 'standard', 'shapeTrimmedEnd', inputs.padded, { success: true, output: '  Ada Lovelace' }, { conformanceCases: [{ input: 42, expected: { success: false } }], requiredFeatures: oneSidedTrim, steps: trimmedEndSteps }),
+	warm('string-shape/normalized-valid', 'standard', 'shapeNormalized', inputs.decomposed, { success: true, output: 'Am\u00E9lie Poulain' }, { conformanceCases: [{ input: 42, expected: { success: false } }], requiredFeatures: unicodeNormalization, steps: normalizedSteps }),
 ]

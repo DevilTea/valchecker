@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export interface LengthValue { length: number }
@@ -60,6 +61,7 @@ export const isEmpty = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			// `value` is `LengthValue | SizeValue`; the runtime probes `.length`
 			// first, then `.size`. Read both through a permissive view so the
@@ -72,7 +74,7 @@ export const isEmpty = implStepPlugin<PluginDef>({
 					: failure(createIssue({
 							code: 'isEmpty:expected_empty',
 							payload: { value: value as Internal.LengthValue, length },
-							customMessage: options?.message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected an empty value.',
 						}))
 			}
@@ -83,7 +85,7 @@ export const isEmpty = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isEmpty:expected_empty',
 						payload: { value: value as Internal.SizeValue, size },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected an empty value.',
 					}))
 		})

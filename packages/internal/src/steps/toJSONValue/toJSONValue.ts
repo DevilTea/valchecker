@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'toJSONValue'
@@ -45,6 +46,7 @@ export const toJSONValue = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			try {
 				return success(JSON.parse(value))
@@ -54,7 +56,7 @@ export const toJSONValue = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'toJSONValue:invalid_json',
 						payload: { value, error },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a valid JSON string.',
 					}),
 				)

@@ -1,19 +1,15 @@
 import { access, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import {
+	assertLockstepVersions,
+	assertReleaseChangelog,
+	npmTagForVersion,
+	releaseManifestPaths,
+	releasePackages,
+} from './release-contract'
+import { assertReleaseWorkflowContract } from './release-workflow-contract'
 
 const root = resolve(import.meta.dirname, '..')
-const semverPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-([0-9A-Z-]+(?:\.[0-9A-Z-]+)*))?(?:\+[0-9A-Z-]+(?:\.[0-9A-Z-]+)*)?$/i
-
-interface ReleasePlan {
-	schemaVersion: unknown
-	version: unknown
-	npmTag: unknown
-	channel: unknown
-	state: unknown
-	publish: unknown
-	packages: unknown
-	externalPrerequisites: unknown
-}
 
 interface PackageManifest {
 	name?: unknown
@@ -22,19 +18,6 @@ interface PackageManifest {
 	engines?: { node?: unknown }
 	scripts?: Record<string, unknown>
 }
-
-const packageDefinitions = [
-	{ name: '@valchecker/internal', path: 'packages/internal/package.json' },
-	{ name: '@valchecker/all-steps', path: 'packages/all-steps/package.json' },
-	{ name: 'valchecker', path: 'packages/valchecker/package.json' },
-] as const
-
-// The publish job's `environment: npm` declaration is asserted against release.yml below, so it is
-// a code-controlled property rather than an external prerequisite. No `npm` environment object
-// exists, and deliberately so — see the GitHub environment section of RELEASING.md.
-const expectedExternalPrerequisites = [
-	'npm trusted publisher is configured for all three packages',
-] as const
 
 const requiredReleaseFiles = [
 	'README.md',
@@ -47,6 +30,12 @@ const requiredReleaseFiles = [
 	'docs/guide/migration-to-1.md',
 	'.github/workflows/ci.yml',
 	'.github/workflows/release.yml',
+	'scripts/release.ts',
+	'scripts/release-contract.ts',
+	'.github/workflows/security-audit.yml',
+	'security-audit-acknowledgements.json',
+	'scripts/check-security-audit.ts',
+	'scripts/security-audit-policy.ts',
 ] as const
 
 async function readText(path: string): Promise<string> {
@@ -57,142 +46,70 @@ async function readJson<T>(path: string): Promise<T> {
 	return JSON.parse(await readText(path)) as T
 }
 
-function assertNonEmptyString(value: unknown, path: string): asserts value is string {
-	if (typeof value !== 'string' || value.length === 0)
-		throw new Error(`${path} must be a non-empty string`)
-}
-
-function assertExactArray(value: unknown, expected: readonly string[], path: string): asserts value is string[] {
-	if (!Array.isArray(value) || value.some(item => typeof item !== 'string'))
-		throw new Error(`${path} must be an array of strings`)
-	if (JSON.stringify(value) !== JSON.stringify(expected))
-		throw new Error(`${path} must equal ${JSON.stringify(expected)}, received ${JSON.stringify(value)}`)
-}
-
-function assertValidSemver(value: unknown, path: string): asserts value is string {
-	assertNonEmptyString(value, path)
-	const match = semverPattern.exec(value)
-	if (!match)
-		throw new Error(`${path} is not valid semver: ${value}`)
-	const prerelease = match[1]
-	if (prerelease) {
-		for (const identifier of prerelease.split('.')) {
-			if (/^\d+$/.test(identifier) && identifier.length > 1 && identifier.startsWith('0'))
-				throw new Error(`${path} has a numeric prerelease identifier with a leading zero: ${identifier}`)
-		}
-	}
-}
-
 function assertContains(text: string, fragment: string, path: string): void {
 	if (!text.includes(fragment))
 		throw new Error(`${path} must contain ${JSON.stringify(fragment)}`)
 }
 
-/**
- * A release document must not name a version other than the one being shipped.
- * `assertContains` alone cannot catch a document left describing a version that
- * was renumbered away, because the new version can be present while the old one
- * still is too.
- */
-function assertNoForeignVersion(text: string, version: string, path: string): void {
-	for (const match of text.matchAll(/\b\d+\.\d+\.\d+(?:-[\w.]+)?\b/g)) {
-		if (match[0] !== version)
-			throw new Error(`${path} refers to version ${match[0]}, but the release is ${version}`)
-	}
-}
-
 function assertNoPlaceholders(text: string, path: string): void {
-	// `TODO`/`TBD`/`FIXME` are unambiguous dev sentinels (any case). `PLACEHOLDER`
-	// is matched case-sensitively (all-caps only) so the legitimate lowercase word
-	// "placeholder" — a real domain term, e.g. template-literal placeholders — does
-	// not trip the release guard.
 	const match = /\b(?:TODO|TBD|FIXME)\b/i.exec(text) ?? /\bPLACEHOLDER\b/.exec(text)
 	if (match)
 		throw new Error(`${path} contains unresolved placeholder ${JSON.stringify(match[0])}`)
 }
 
-function workflowTriggers(workflow: string): string[] {
-	const lines = workflow.split(/\r?\n/)
-	const onIndex = lines.findIndex(line => line === 'on:')
-	if (onIndex === -1)
-		throw new Error('.github/workflows/release.yml is missing its on block')
-	const triggers: string[] = []
-	for (const line of lines.slice(onIndex + 1)) {
-		if (line.length > 0 && !line.startsWith(' '))
-			break
-		const match = /^ {2}([A-Z_][\w-]*):(?:\s|$)/i.exec(line)
-		if (match)
-			triggers.push(match[1]!)
+async function assertRetiredReleasePlan(): Promise<void> {
+	try {
+		await access(resolve(root, 'release-plan.json'))
 	}
-	return triggers
+	catch {
+		return
+	}
+	throw new Error('release-plan.json must remain retired; annotated Git tags authorize publication')
 }
 
 async function main(): Promise<void> {
-	const plan = await readJson<ReleasePlan>('release-plan.json')
-	if (plan.schemaVersion !== 1)
-		throw new Error(`release-plan.json schemaVersion must be 1, received ${String(plan.schemaVersion)}`)
-	assertValidSemver(plan.version, 'release-plan.json.version')
-	// Two channels, each strict. RELEASING.md states the rule this enforces:
-	// a prerelease publishes to `next`, a stable version to `latest`. Pairing
-	// them here is what stops a stable version reaching `next`, or an rc
-	// reaching `latest` where every existing installation would follow it.
-	const isReleaseCandidate = plan.channel === 'release-candidate'
-	if (!isReleaseCandidate && plan.channel !== 'stable')
-		throw new Error(`release-plan.json.channel must be "release-candidate" or "stable", received ${String(plan.channel)}`)
-	const expectedTag = isReleaseCandidate ? 'next' : 'latest'
-	if (plan.npmTag !== expectedTag)
-		throw new Error(`release-plan.json.npmTag must be "${expectedTag}" for a ${plan.channel} release, received ${String(plan.npmTag)}`)
-	// A plan describes one version across its whole life, and the changelog heading
-	// has to say different things at each end of that life: `Unreleased` while the
-	// version is being prepared, because the repository must never claim a
-	// publication that has not happened, and the publication date afterwards,
-	// because by then the claim is true. Without this field the two requirements
-	// contradict each other and the post-publication step in RELEASING.md turns CI
-	// red — which is exactly what happened when 0.0.33 shipped.
-	//
-	// What this cannot prove: that a plan marked `published` really was published.
-	// Nothing available to a local, offline gate can. Preparing the next version
-	// must set it back to `prepared`, and RELEASING.md says so in the preparation
-	// checklist.
-	const isPublished = plan.state === 'published'
-	if (!isPublished && plan.state !== 'prepared')
-		throw new Error(`release-plan.json.state must be "prepared" or "published", received ${String(plan.state)}`)
-	if (plan.publish !== false)
-		throw new Error('release-plan.json.publish must remain false; repository state never authorizes publication')
-	assertExactArray(plan.packages, packageDefinitions.map(item => item.name), 'release-plan.json.packages')
-	assertExactArray(plan.externalPrerequisites, expectedExternalPrerequisites, 'release-plan.json.externalPrerequisites')
-
-	const withoutBuild = plan.version.split('+', 1)[0]!
-	if (isReleaseCandidate && !/-rc\.\d+$/.test(withoutBuild))
-		throw new Error('A release-candidate plan must use an -rc.N version')
-	if (!isReleaseCandidate && withoutBuild.includes('-'))
-		throw new Error(`A stable plan must not use a prerelease version, received ${plan.version}`)
+	const versionEntries = await Promise.all(releaseManifestPaths.map(async (path) => {
+		const manifest = await readJson<PackageManifest>(path)
+		return { path, version: manifest.version }
+	}))
+	const version = assertLockstepVersions(versionEntries)
+	const npmTag = npmTagForVersion(version)
 
 	const rootManifest = await readJson<PackageManifest>('package.json')
 	if (rootManifest.private !== true)
 		throw new Error('The workspace root must remain private')
-	if (rootManifest.version !== plan.version)
-		throw new Error(`Root version ${String(rootManifest.version)} does not match ${plan.version}`)
 	if (rootManifest.engines?.node !== '>=22')
 		throw new Error('Root engines.node must remain >=22')
 	const scripts = rootManifest.scripts ?? {}
-	if (scripts['release:readiness'] !== 'tsx ./scripts/check-release-readiness.ts')
-		throw new Error('package.json must expose the release:readiness script')
+	const expectedScripts = {
+		'release': 'tsx ./scripts/release.ts open',
+		'release:tag': 'tsx ./scripts/release.ts tag',
+		'release:prepare': 'tsx ./scripts/prepare-release.ts',
+		'release:publish': 'tsx ./scripts/publish-release.ts',
+		'release:readiness': 'tsx ./scripts/check-release-readiness.ts',
+		'security:audit': 'tsx ./scripts/check-security-audit.ts',
+	} as const
+	for (const [name, expected] of Object.entries(expectedScripts)) {
+		if (scripts[name] !== expected)
+			throw new Error(`package.json script ${name} must equal ${JSON.stringify(expected)}`)
+	}
 	if (typeof scripts['release:validate'] !== 'string' || !scripts['release:validate'].startsWith('pnpm release:readiness && '))
 		throw new Error('release:validate must begin with the readiness gate')
 
-	for (const definition of packageDefinitions) {
-		const manifest = await readJson<PackageManifest>(definition.path)
+	for (const definition of releasePackages) {
+		const path = `${definition.directory}/package.json`
+		const manifest = await readJson<PackageManifest>(path)
 		if (manifest.name !== definition.name)
-			throw new Error(`${definition.path} has unexpected name ${String(manifest.name)}`)
-		if (manifest.version !== plan.version)
-			throw new Error(`${definition.name} version ${String(manifest.version)} does not match ${plan.version}`)
+			throw new Error(`${path} has unexpected name ${String(manifest.name)}`)
+		if (manifest.version !== version)
+			throw new Error(`${definition.name} version ${String(manifest.version)} does not match ${version}`)
 		if (manifest.private === true)
 			throw new Error(`${definition.name} must remain publishable`)
 		if (manifest.engines?.node !== '>=22')
 			throw new Error(`${definition.name} engines.node must remain >=22`)
 	}
 
+	await assertRetiredReleasePlan()
 	for (const path of requiredReleaseFiles) {
 		await access(resolve(root, path))
 		const text = await readText(path)
@@ -207,42 +124,12 @@ async function main(): Promise<void> {
 	assertContains(readme, './RELEASING.md', 'README.md')
 
 	const changelog = await readText('CHANGELOG.md')
-	if (isPublished) {
-		const escapedVersion = plan.version.replaceAll('.', String.raw`\.`)
-		const headingPattern = new RegExp(String.raw`^## \[${escapedVersion}\] - (\d{4}-\d{2}-\d{2})$`, 'm')
-		const heading = headingPattern.exec(changelog)
-		if (!heading)
-			throw new Error(`CHANGELOG.md must date the ${plan.version} heading as "## [${plan.version}] - YYYY-MM-DD" once the version is published`)
-		const date = heading[1]!
-		// `Date` rolls an out-of-range day into the next month, so parsing alone
-		// accepts 2026-02-30. Round-tripping is what rejects it.
-		const parsed = new Date(`${date}T00:00:00Z`)
-		const roundTripped = Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
-		if (!roundTripped.startsWith(date))
-			throw new Error(`CHANGELOG.md dates ${plan.version} as ${date}, which is not a real calendar date`)
-		// The next cycle needs somewhere to write, and its absence is how an entry
-		// ends up appended to a shipped version's section.
-		assertContains(changelog, '## [Unreleased]', 'CHANGELOG.md')
-	}
-	else {
-		assertContains(changelog, `## [${plan.version}] - Unreleased`, 'CHANGELOG.md')
-	}
-	assertContains(changelog, `npm \`${plan.npmTag}\` tag`, 'CHANGELOG.md')
-	assertContains(changelog, `[${plan.version}]: https://github.com/DevilTea/valchecker/releases/tag/v${plan.version}`, 'CHANGELOG.md')
+	assertReleaseChangelog(changelog, version)
 	for (const heading of ['### Added', '### Changed', '### Removed', '### Security'])
 		assertContains(changelog, heading, 'CHANGELOG.md')
 	assertNoPlaceholders(changelog, 'CHANGELOG.md')
 
-	// The migration documents describe the 1.0 contract, so only a 1.0 candidate
-	// has to name the version being shipped. Their substance is required either
-	// way, and on both channels they must not name a DIFFERENT version: the
-	// weaker "contains the version" check would have passed a document still
-	// describing a version that was renumbered away, which is exactly what
-	// happened when 1.0.0-rc.0 became 0.0.33.
 	const migration = await readText('MIGRATION.md')
-	if (isReleaseCandidate)
-		assertContains(migration, plan.version, 'MIGRATION.md')
-	assertNoForeignVersion(migration, plan.version, 'MIGRATION.md')
 	assertContains(migration, 'Node.js 22', 'MIGRATION.md')
 	assertContains(migration, 'ESM-only', 'MIGRATION.md')
 	assertContains(migration, '.toAsync()', 'MIGRATION.md')
@@ -250,9 +137,6 @@ async function main(): Promise<void> {
 	assertNoPlaceholders(migration, 'MIGRATION.md')
 
 	const migrationPage = await readText('docs/guide/migration-to-1.md')
-	if (isReleaseCandidate)
-		assertContains(migrationPage, plan.version, 'docs/guide/migration-to-1.md')
-	assertNoForeignVersion(migrationPage, plan.version, 'docs/guide/migration-to-1.md')
 	assertContains(migrationPage, 'MIGRATION.md', 'docs/guide/migration-to-1.md')
 	assertContains(migrationPage, '/guide/v1-contract', 'docs/guide/migration-to-1.md')
 
@@ -264,35 +148,34 @@ async function main(): Promise<void> {
 	assertNoPlaceholders(support, 'SUPPORT.md')
 
 	const releasing = await readText('RELEASING.md')
-	assertContains(releasing, 'environment named `npm`', 'RELEASING.md')
-	assertContains(releasing, 'npm trusted publisher', 'RELEASING.md')
-	assertContains(releasing, 'publish <version> to <tag>', 'RELEASING.md')
-	assertContains(releasing, 'partial release', 'RELEASING.md')
-	assertContains(releasing, 'RC readiness checklist', 'RELEASING.md')
-	assertContains(releasing, 'repository state never authorizes publication', 'RELEASING.md')
+	for (const fragment of [
+		'npm trusted publisher',
+		'pnpm release <release>',
+		'pnpm release:tag',
+		'annotated',
+		'partial release',
+		'`next`',
+		'`latest`',
+	])
+		assertContains(releasing, fragment, 'RELEASING.md')
+	if (/release-plan\.json|workflow_dispatch|publish <version> to <tag>/.test(releasing))
+		throw new Error('RELEASING.md still describes the retired release state/dispatch model')
 	assertNoPlaceholders(releasing, 'RELEASING.md')
 
+	const releaseScript = await readText('scripts/release.ts')
+	for (const fragment of ['gh pr create', 'gh pr merge', '--auto', '--squash', '\'tag\', \'--annotate\'', '\'push\', \'origin\', tag'])
+		assertContains(releaseScript, fragment, 'scripts/release.ts')
+
 	const releaseWorkflow = await readText('.github/workflows/release.yml')
-	assertExactArray(workflowTriggers(releaseWorkflow), ['workflow_dispatch'], 'release workflow triggers')
-	for (const fragment of [
-		'environment: npm',
-		'id-token: write',
-		'persist-credentials: false',
-		'pnpm release:validate',
-		'pnpm release:prepare',
-		'pnpm release:publish',
-	]) {
-		assertContains(releaseWorkflow, fragment, '.github/workflows/release.yml')
-	}
+	assertReleaseWorkflowContract(releaseWorkflow)
 	for (const forbidden of [
-		// setup-node's `registry-url` exports NODE_AUTH_TOKEN even with no token
-		// configured, and publish-release.ts refuses to publish when that variable
-		// is present. Having both makes the release path unrunnable, which is how
-		// the first real dispatch of this workflow failed.
+		/workflow_dispatch/,
+		/\binputs\./,
 		/registry-url:/,
 		/secrets\.(?:NPM_TOKEN|NODE_AUTH_TOKEN)/,
 		/\bgit\s+push\b/,
 		/\bgit\s+tag\b/,
+		/git fetch origin main --depth(?:=|\s+)1/,
 		/\bnpm\s+version\b/,
 		/\bpnpm\s+publish\b/,
 	]) {
@@ -302,12 +185,25 @@ async function main(): Promise<void> {
 
 	const ciWorkflow = await readText('.github/workflows/ci.yml')
 	assertContains(ciWorkflow, 'Release Readiness', '.github/workflows/ci.yml')
+	assertContains(ciWorkflow, 'Security Audit Policy', '.github/workflows/ci.yml')
+	assertContains(ciWorkflow, 'pnpm security:audit', '.github/workflows/ci.yml')
 	assertContains(ciWorkflow, 'pnpm release:readiness', '.github/workflows/ci.yml')
-	assertContains(ciWorkflow, 'Verify Publish Inputs', '.github/workflows/ci.yml')
+	assertContains(ciWorkflow, 'pnpm release:publish --verify-only', '.github/workflows/ci.yml')
+	if (/PUBLISH_CONFIRMATION|RELEASE_VERSION|NPM_TAG/.test(ciWorkflow))
+		throw new Error('.github/workflows/ci.yml still synthesizes retired manual publish inputs')
 
-	console.log(`Release readiness verified for ${plan.version} (${plan.npmTag}); publishing remains disabled.`)
-	for (const prerequisite of plan.externalPrerequisites)
-		console.log(`External prerequisite: ${prerequisite}`)
+	const securityWorkflow = await readText('.github/workflows/security-audit.yml')
+	for (const fragment of [
+		'cron: \'0 21 * * 0\'',
+		'workflow_dispatch:',
+		'pnpm install --frozen-lockfile',
+		'pnpm security:audit',
+		'if: always()',
+		'artifacts/security-audit/report.json',
+	])
+		assertContains(securityWorkflow, fragment, '.github/workflows/security-audit.yml')
+
+	console.log(`Release readiness verified for lockstep ${version}; npm tag ${npmTag} is derived from semver and annotated v${version} authorizes publication.`)
 }
 
 await main()

@@ -40,6 +40,6 @@ const v = createValchecker({ steps: allSteps })
 
 ## Plugin authors
 
-Root exports include the state-aware plugin types and `implStepPlugin()` used to define custom fluent methods. Use the repository's [Custom Steps guide](https://deviltea.github.io/valchecker/guide/custom-steps) for the current `Meta`, `PluginDef`, trailing-options, issue-draft, operation-mode, testing, and tree-shaking contracts.
+Root exports include the state-aware plugin types and `implStepPlugin()` used to define custom fluent methods. `StepPluginImpl<Def>` is the implementation shape accepted by `implStepPlugin()`; its registered `StepPlugin<Def>` return type is the value accepted by `createValchecker({ steps })`. Use the repository's [Custom Steps guide](https://deviltea.github.io/valchecker/guide/custom-steps) for the current `Meta`, `PluginDef`, trailing-options, issue-draft, operation-mode, testing, and tree-shaking contracts.
 
 The package is ESM-only and requires Node.js 22 or newer.

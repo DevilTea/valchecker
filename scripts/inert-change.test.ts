@@ -106,7 +106,7 @@ describe('a TypeScript change', () => {
 	 * the gate's own build of both revisions, a lint directive fails `pnpm lint` in the
 	 * preflight job, and a coverage directive moves a threshold in a different gate.
 	 */
-	it('is inert when only a type, lint, or coverage directive changed', () => {
+	it('is inert when only a type, lint, or gate directive changed', () => {
 		for (const revision of [
 			edited('\tisLower: value => pattern.test(value),', '\t// @ts-expect-error the plugin shape is checked elsewhere\n\tisLower: value => pattern.test(value),'),
 			edited(`import { implStepPlugin } from '../../core'`, `/* eslint-disable ts/no-unsafe-call */\nimport { implStepPlugin } from '../../core'`),

@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type NumberIssue = ExecutionIssue<'isMultipleOf:expected_multiple_of', { target: 'number', value: number, divisor: number }>
@@ -16,9 +17,11 @@ interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
 	 * Checks that a number or bigint is a multiple of the divisor. Bigint inputs
-	 * use an exact remainder check. Number inputs use a small floating-point
-	 * tolerance so ordinary decimal expressions such as `0.3` being a multiple of
-	 * `0.1` are accepted, while non-finite number inputs fail. A zero or non-finite
+	 * use an exact remainder check. Number inputs accept an exact zero remainder;
+	 * otherwise they compare the value with its nearest reconstructed integer
+	 * multiple using a magnitude-scaled IEEE-754 tolerance. This accepts ordinary
+	 * decimal expressions such as `0.3` being a multiple of `0.1` without an
+	 * arbitrary absolute cap, while non-finite number inputs fail. A zero or non-finite
 	 * divisor makes divisibility meaningless and throws a `TypeError` while
 	 * constructing the schema.
 	 *
@@ -47,7 +50,7 @@ interface PluginDef extends TStepPluginDef {
 				: never>
 }
 
-const MAX_QUOTIENT_TOLERANCE = 1e-10
+const NUMBER_MULTIPLE_TOLERANCE_FACTOR = Number.EPSILON * 8
 
 function isNumberMultipleOf(value: number, divisor: number): boolean {
 	if (!Number.isFinite(value))
@@ -58,17 +61,18 @@ function isNumberMultipleOf(value: number, divisor: number): boolean {
 		return true
 
 	const quotient = value / divisor
-	const nearestInteger = Math.round(quotient)
-	const tolerance = Math.min(
-		MAX_QUOTIENT_TOLERANCE,
-		Number.EPSILON * Math.max(1, Math.abs(quotient)) * 8,
-	)
-	return Math.abs(quotient - nearestInteger) <= tolerance
+	const reconstructed = Math.round(quotient) * divisor
+	if (!Number.isFinite(reconstructed))
+		return false
+
+	const tolerance = Math.max(1, Math.abs(value), Math.abs(reconstructed)) * NUMBER_MULTIPLE_TOLERANCE_FACTOR
+	return Math.abs(value - reconstructed) <= tolerance
 }
 
 /* @__NO_SIDE_EFFECTS__ */
 export const isMultipleOf = implStepPlugin<PluginDef>({
 	isMultipleOf: ({ utils: { addSuccessStep, success, createIssue, failure }, params: [divisor, options] }) => {
+		const messageOptions = snapshotMessageOptions(options)
 		// Deliberate asymmetry: a zero or non-finite divisor makes "multiple of" meaningless, so it throws at
 		// construction. Bound/length/size families intentionally do NOT guard NaN operands (a NaN bound simply never
 		// matches), because the naming contract forbids hidden operand policy on those steps.
@@ -89,7 +93,7 @@ export const isMultipleOf = implStepPlugin<PluginDef>({
 				: failure(createIssue({
 						code: 'isMultipleOf:expected_multiple_of',
 						payload: { target: typeof value === 'bigint' ? 'bigint' : 'number', value, divisor } as any,
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: `Expected a multiple of ${divisor}.`,
 					}))
 		})

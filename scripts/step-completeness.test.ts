@@ -1180,8 +1180,28 @@ describe('the section-order rule', () => {
 
 describe('declaredCodes', () => {
 	it('reads each code once, however the type argument is wrapped', () => {
-		expect(declaredCodes('ExecutionIssue<\'a:b\', X> | ExecutionIssue<\n\t\'c:d\'\n> | ExecutionIssue<\'a:b\'>'))
+		expect(declaredCodes('type First = ExecutionIssue<\'a:b\', X> | ExecutionIssue<\n\t\'c:d\'\n> | ExecutionIssue<\'a:b\'>'))
 			.toEqual(['a:b', 'c:d'])
+	})
+
+	it('recognizes a later union member as an owned code', () => {
+		const path = `${stepsRoot}/isEmail`
+		const source = main({ name: 'isEmail', code: 'isEmail:expected_email' })
+			.replace(
+				`ExecutionIssue<'isEmail:expected_email', { value: string }>`,
+				`ExecutionIssue<'isEmail:expected_email' | "isEmail:expected_email_address", { value: string }>`,
+			)
+		const report = checkStepCompleteness(repository({
+			[`${path}/isEmail.ts`]: source,
+			[`${path}/isEmail.doc.md`]: doc({ name: 'isEmail', code: 'isEmail:expected_email' }),
+			[`${path}/isEmail.test.ts`]: test_({ name: 'isEmail', code: 'isEmail:expected_email' }),
+		}))
+		expect(report.errors)
+			.toHaveLength(1)
+		expect(report.errors[0])
+			.toContain('the owned issue code `isEmail:expected_email_address` appears in no code span')
+		expect(report.errors[0])
+			.toContain('the owned issue code `isEmail:expected_email_address` appears in no string')
 	})
 })
 

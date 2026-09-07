@@ -155,7 +155,6 @@ on:
       - '!eslint.config.js'
       - '!vitest.config.ts'
       - '!api-surface.json'
-      - '!release-plan.json'
       - '!scripts/**'
       - '!.github/**'
       - scripts/impact-selection.ts
@@ -191,7 +190,6 @@ on:
       - '!eslint.config.js'
       - '!vitest.config.ts'
       - '!api-surface.json'
-      - '!release-plan.json'
       - '!scripts/**'
       - '!.github/**'
       - scripts/impact-selection.ts
@@ -412,6 +410,7 @@ jobs:
             --head "$AFTER_SHA" \
             --tree ../valchecker-after \
             --markdown artifacts/performance-impact/selection.md \
+            --selection-json artifacts/performance-impact/selection.json \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Run interleaved paired benchmarks
@@ -435,37 +434,32 @@ jobs:
           fi
           seed="compare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
-          # The cell *definitions* always come from this checked-out ref, whichever build
-          # they are pointed at. The apparatus is fixed and `before`/`after` are two
-          # builds it measures; if each side read its own cells, editing a bench file
-          # would be editing the measurement.
-          # `--catalog-output` persists the cell catalog this shard measured against, hash
-          # included. That file is what `compare` reads: the reporting stage must not collect
-          # cells itself, because collecting them means importing every bench file through a
-          # loader pointed at a build under test. Each repetition writes the same catalog from
-          # the same checked-out ref, so the last write is the same as the first.
-          run_side() {
-            local side="$1" dist="$2" repetition="$3" sha="$4"
-            VALCHECKER_DIST_URL="$dist" \
-            BENCHMARK_COMMIT="$sha" \
+          # The cell definitions always come from this checked-out candidate ref. Each
+          # repetition is one paired invocation: the runner walks the shard cell by cell and
+          # starts the baseline/candidate workers back-to-back for that cell, reversing the
+          # order by repetition parity. A whole candidate shard followed by a whole baseline
+          # shard is not temporal pairing; dozens of worker processes can sit between the two
+          # observations that form one ratio.
+          #
+          # `--catalog-output` persists the fixed apparatus. Both raw files produced by one
+          # invocation record `temporalPairing: adjacent-cell`, which comparison identity
+          # refuses to mix with an older whole-side/standalone run.
+          for repetition in $(seq 1 "$RUNS"); do
             pnpm --dir benchmarks cells \
               --mode "$PROFILE" \
-              --seed "$seed-$repetition-$side" \
+              --seed "$seed" \
+              --repetition "$repetition" \
               --shard-index "$SHARD" \
               --shard-count 4 \
-              --output "../artifacts/performance-impact/$side-$repetition-shard$SHARD.json" \
+              --baseline-dist "$BEFORE_DIST" \
+              --candidate-dist "$AFTER_DIST" \
+              --baseline-sha "$BEFORE_SHA" \
+              --candidate-sha "$AFTER_SHA" \
+              --baseline-output "../artifacts/performance-impact/baseline-$repetition-shard$SHARD.json" \
+              --candidate-output "../artifacts/performance-impact/candidate-$repetition-shard$SHARD.json" \
               --catalog-output "../artifacts/performance-impact/cell-catalog.json" \
+              --selection-roles "../artifacts/performance-impact/selection.json" \
               "${cell_args[@]}"
-          }
-
-          for repetition in $(seq 1 "$RUNS"); do
-            if (( repetition % 2 == 0 )); then
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-            else
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-            fi
           done
 
       - name: Upload shard measurements
@@ -730,30 +724,23 @@ jobs:
           echo "id=$BATCH_ID" >> "$GITHUB_OUTPUT"
           echo "[confirm] batch $BATCH_ID: shard $SHARD of $SHARD_COUNT"
 
-          run_side() {
-            local side="$1" dist="$2" repetition="$3" sha="$4"
-            VALCHECKER_DIST_URL="$dist" \
-            BENCHMARK_COMMIT="$sha" \
+          # Confirmation uses the same per-cell adjacent pairing as the screen. Its
+          # independent batch is independent evidence, not a weaker whole-side ordering.
+          for repetition in $(seq 1 "$RUNS"); do
             pnpm --dir benchmarks cells \
               --mode "$PROFILE" \
-              --seed "$seed-$repetition-$side" \
+              --seed "$seed" \
+              --repetition "$repetition" \
               --shard-index "$SHARD" \
               --shard-count "$SHARD_COUNT" \
               --cells "$CELLS" \
-              --output "../artifacts/performance-impact-confirm/$side-$repetition-shard$SHARD.json" \
+              --baseline-dist "$BEFORE_DIST" \
+              --candidate-dist "$AFTER_DIST" \
+              --baseline-sha "$BEFORE_SHA" \
+              --candidate-sha "$AFTER_SHA" \
+              --baseline-output "../artifacts/performance-impact-confirm/baseline-$repetition-shard$SHARD.json" \
+              --candidate-output "../artifacts/performance-impact-confirm/candidate-$repetition-shard$SHARD.json" \
               --catalog-output "../artifacts/performance-impact-confirm/cell-catalog.json"
-          }
-
-          # Counterbalanced by repetition parity, for the reason the screen batch is: pairing
-          # cancels machine speed and not a monotonic drift over the job.
-          for repetition in $(seq 1 "$RUNS"); do
-            if (( repetition % 2 == 0 )); then
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-            else
-              run_side candidate "$AFTER_DIST" "$repetition" "$AFTER_SHA"
-              run_side baseline "$BEFORE_DIST" "$repetition" "$BEFORE_SHA"
-            fi
           done
 
       - name: Upload confirmation measurements
@@ -767,14 +754,16 @@ jobs:
   # The job that decides, and the only one carrying the exit code.
   #
   # `resolveConfirmation` combines the two stages: a severe screen row reproduced by the
-  # second batch fails, one the second batch could not judge is `unresolved` and not a pass,
-  # and one the second batch cleared passes with the screen's own noise named. A severe row
+  # second batch fails, one the second batch could not judge remains `unresolved` and blocks
+  # this required check as indeterminate without being relabelled a regression, and one the
+  # second batch cleared passes with the screen's own noise named. A severe row
   # with no second batch at all is `unconfirmed`, which still blocks — a missing confirmation
-  # must never read as a clearing one, which is why this job runs even when `confirm-measure`
-  # failed, and why it fails when the screen's severe rows arrive unconfirmed.
+  # must never read as a clearing one. This job therefore always runs: failed screen evidence
+  # is an infrastructure failure, and a planned confirmation batch that did not complete is
+  # rejected before resolution rather than being reinterpreted as "no confirmation needed".
   verdict:
     needs: [measure, compare, confirm-measure]
-    if: always() && needs.compare.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -808,10 +797,22 @@ jobs:
         shell: bash
         env:
           RUNS: ${{ needs.measure.outputs.runs }}
+          MEASURE_RESULT: ${{ needs.measure.result }}
+          COMPARE_RESULT: ${{ needs.compare.result }}
           CONFIRM_RESULT: ${{ needs.confirm-measure.result }}
           PLAN: ${{ needs.compare.outputs.confirm_plan }}
         run: |
           set -euo pipefail
+          if [[ "$MEASURE_RESULT" != "success" || "$COMPARE_RESULT" != "success" ]]; then
+            echo "[confirm] upstream evidence unavailable: measure=$MEASURE_RESULT compare=$COMPARE_RESULT" >&2
+            exit 2
+          fi
+          planned_batches="$(node -e 'const plan = JSON.parse(process.argv[1]); process.stdout.write(String(plan.batches.length))' "$PLAN")"
+          if [[ "$planned_batches" -gt 0 && "$CONFIRM_RESULT" != "success" ]]; then
+            echo "[confirm] $planned_batches confirmation batch(es) were planned but confirm-measure=$CONFIRM_RESULT" >&2
+            exit 2
+          fi
+
           mkdir -p artifacts/performance-impact-verdict
           runs="$RUNS"
           if ! [[ "$runs" =~ ^[0-9]+$ ]] || [ "$runs" -lt 3 ]; then
@@ -899,7 +900,8 @@ jobs:
             "${confirm_args[@]}" \
             --markdown ../artifacts/performance-impact-verdict/confirmation.md \
             --json ../artifacts/performance-impact-verdict/confirmation.json \
-            --fail-on-regression
+            --fail-on-regression \
+            --require-resolved
 
       - name: Publish the verdict
         if: always()

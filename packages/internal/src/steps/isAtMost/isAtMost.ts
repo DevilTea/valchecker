@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type NumberIssue = ExecutionIssue<'isAtMost:expected_at_most', { target: 'number', value: number, maximum: number }>
@@ -60,6 +61,7 @@ export const isAtMost = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [maximum, options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			if (value <= maximum) {
 				return success(value)
@@ -69,7 +71,7 @@ export const isAtMost = implStepPlugin<PluginDef>({
 				createIssue({
 					code: 'isAtMost:expected_at_most',
 					payload: { target, value: value as any, maximum: maximum as any },
-					customMessage: options?.message,
+					customMessage: messageOptions?.message,
 					defaultMessage: `Expected a value of at most ${maximum}.`,
 				}),
 			)

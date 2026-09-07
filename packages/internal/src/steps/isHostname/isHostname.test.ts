@@ -12,10 +12,10 @@ const valid = [
 	// anywhere but at a label's edges.
 	'a',
 	'a-b.com',
-	// RFC 1123 relaxed RFC 952 to let a label start with a digit, and this
-	// pattern adds no rule against an all-numeric top label either.
-	'123.456',
-	'1.2.3.4',
+	// RFC 1123 allows non-final labels to begin with a digit or be entirely
+	// numeric. Only the highest-level label carries the numeric ambiguity rule.
+	'123.example',
+	'1.2.3.example',
 	// Case-insensitive.
 	'EXAMPLE.COM',
 ]
@@ -33,6 +33,11 @@ const invalid = [
 	// is not a hostname here.
 	'a_b.com',
 	'_sip._tcp.example.com',
+	// An RFC 1123 host name cannot end in an all-numeric highest-level label;
+	// this also keeps dotted-decimal IPv4 text distinct from host names.
+	'example.123',
+	'1.2.3.4',
+	'123',
 	// `$` without the `m` flag is end-of-input.
 	'example.com\n',
 ]

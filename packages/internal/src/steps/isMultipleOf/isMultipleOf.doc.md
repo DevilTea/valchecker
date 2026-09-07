@@ -7,10 +7,13 @@ summary: divisibility by a number or bigint divisor
 ### `isMultipleOf(divisor, options?)`
 
 Checks that a number or bigint is a multiple of `divisor`. Bigint inputs use an exact remainder
-check. Number inputs accept an exact zero remainder, and otherwise compare the quotient against its
-nearest integer within a tolerance of `Number.EPSILON * Math.max(1, Math.abs(quotient)) * 8`, capped
-at `1e-10` — enough for ordinary decimal expressions such as `0.3`, or `0.1 + 0.2`, to count as
-multiples of `0.1`, without widening into a general nearness check. A non-finite number input fails.
+check. Number inputs accept an exact zero remainder. Otherwise they reconstruct the nearest integer
+multiple as `Math.round(value / divisor) * divisor` and compare it with `value` using a tolerance of
+`Number.EPSILON * Math.max(1, Math.abs(value), Math.abs(reconstructed)) * 8`. This scales with the
+IEEE-754 magnitude being compared, so ordinary decimal expressions such as `0.3`, `0.1 + 0.2`, and
+larger-quotient decimal multiples are not rejected by an arbitrary absolute cap. It is still a
+floating-point representation tolerance, not an arbitrary-precision decimal or general nearness
+check. A non-finite input, or a non-finite quotient/reconstruction on the inexact path, fails.
 
 A zero or non-finite number divisor, and a zero bigint divisor, make divisibility meaningless and
 throw a `TypeError` while the schema is being constructed. That guard is deliberately asymmetric

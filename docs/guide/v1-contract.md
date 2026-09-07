@@ -201,7 +201,7 @@ Concrete transformations use `toXxx` and replace the successful output value:
 - `toUppercase()`, `toLowercase()`,
 - `toSplit()`, `toSliced()`, `toSorted()`, `toFiltered()`,
 - `toLength()`, `toSize()`, `toArray()`, `toKeys()`, `toValues()`, `toEntries()`, `toString()`,
-- `toJSONValue()`, `toJSONString()`.
+- `toJSONValue()`, `toJSONString()`, `toStrictJSONString()`.
 
 `transform()` remains the generic arbitrary-output escape hatch. Callback exceptions use the operation issue `transform:callback_failed`. Array filter/sort callbacks and `toString()` similarly expose step-specific operation issues.
 
@@ -285,7 +285,7 @@ Issue categories have stable meanings:
 
 `context` carries non-data provenance such as a future union branch marker. It does not change the data `path`.
 
-## Standard Schema V1
+## Standard Schema V1.1
 
 Every schema exposes `~standard`:
 
@@ -294,9 +294,11 @@ Every schema exposes `~standard`:
 - success contains transformed output,
 - failure contains Standard Schema-compatible issues and paths.
 
+The public `~standard` type is the upstream `@standard-schema/spec` V1.1 `StandardSchemaV1.Props` contract rather than a Valchecker-specific redeclaration. Its `version`, `vendor`, `types`, and `validate` properties therefore preserve the spec's readonly declaration semantics, and `validate(value, options?)` accepts the optional V1.1 options object. Valchecker currently ignores `options.libraryOptions`; passing it does not change validation behavior.
+
 `~standard.validate` carries the schema output type, so a schema with output `Output` is assignable to `StandardSchemaV1<unknown, Output>` and its output infers through generic Standard Schema consumers. The input type stays `unknown`: any value can be executed.
 
-Use `execute()` when Valchecker's complete issue payload is required.
+These are TypeScript declaration guarantees, not runtime freezing. Use `execute()` when Valchecker's complete issue payload and Valchecker-specific result typing are required.
 
 ## Message resolution
 
@@ -457,7 +459,7 @@ Do not rely on `instanceof Promise`; Valchecker intentionally supports thenables
 
 ## Serialization and equality details
 
-`toJSONString()` performs a single-read preflight over own enumerable JSON properties. It reports unsupported values, cycles, and undefined results as validation issues with a nested `at` location; getter, Proxy, `toJSON`, and final stringify errors are operation issues. Sparse array holes are reported as `undefined_result` validation issues at the hole's path rather than serialized to `null`, boxed string/number/boolean values preserve JSON semantics, and boxed BigInt remains unsupported.
+`toJSONString()` follows native `JSON.stringify()` semantics: nested `undefined`, function, and symbol object properties are omitted; those values and sparse holes in arrays become `null`; boxed primitives, `toJSON()`, getters, Proxies, and cross-realm values are handled by the native serializer. A top-level native result of `undefined` is `toJSONString:unserializable`; an exception thrown by `JSON.stringify()` is `toJSONString:serialization_failed`. `toStrictJSONString()` is the explicit loss-preventing form: it performs the single-read preflight, rejects unsupported nested slots and sparse holes with their `at` path, detects cycles before native stringify, and owns getter, Proxy, `toJSON`, and preflight-reflection failures as operation issues.
 
 Length validators snapshot the actual `length` used for the decision. `toMappedBoolean()` snapshots its configured mappings at schema creation. `literal()` follows `Object.is`, including `NaN` equality and signed-zero distinction.
 

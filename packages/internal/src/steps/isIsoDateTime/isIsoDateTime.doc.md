@@ -1,29 +1,37 @@
 <!-- step-doc
 category: formats
 section: parsed
-summary: a date and time joined by `T`, with an optional offset
+summary: bounded ISO extended calendar date-time with optional offset
 -->
 
 ### `isIsoDateTime(options?)`
 
-Validates an ISO 8601 date and time joined by `T`, with optional fractional seconds and an optional
-`Z` or `±HH:MM` offset, and rejects impossible values. Month lengths and the leap-year rule are part
-of the accepted shape for the date portion, as are the field ranges for the time portion and the
-offset, so `2026-02-30`, `2023-02-29`, and `24:00:00` are all rejected. The date grammar comes from
-`isIsoDate` and the time and offset grammars from `isIsoTime`, each a single shared definition, so
-the accepted shapes cannot drift apart.
+Validates Valchecker's bounded ISO 8601 extended calendar date-time profile:
+`YYYY-MM-DDTHH:MM:SS`, with optional fractional seconds using either `.` or `,`, plus an optional `Z`
+or `±HH:MM` offset. The date uses the same proleptic Gregorian rules as `isIsoDate`, including valid
+year-zero leap day `0000-02-29`.
+
+The time portion also supports ISO's end-of-day instant `24:00:00`; if it has a fraction, every
+fractional digit must be zero. Time-of-day and UTC-offset grammars are deliberately separate, so this
+support never admits `+24:00` or `-24:00` offsets. Leap-second notation (`:60`) is intentionally
+excluded because validating it semantically would require UTC leap-second date and offset knowledge
+outside this lightweight format validator.
+
+The API intentionally stays within this extended-calendar shape. ISO basic forms, week dates,
+ordinal dates, reduced precision, signed/expanded years, timezone names, and other ISO 8601 profiles
+remain outside this method.
 
 ```ts
 v.string()
 	.isIsoDateTime()
-	.execute('2026-07-23T12:30:00Z')
-// { value: '2026-07-23T12:30:00Z' }
+	.execute('2026-07-23T12:30:00,5+08:00')
+// { value: '2026-07-23T12:30:00,5+08:00' }
 
 v.string()
 	.isIsoDateTime()
-	.execute('2026-07-23T12:30:00+08:00')
-// { value: '2026-07-23T12:30:00+08:00' }
+	.execute('2026-07-23T24:00:00Z')
+// { value: '2026-07-23T24:00:00Z' }
 ```
 
-**Issue code:** `isIsoDateTime:expected_iso_date_time` — the string is not a valid ISO 8601
-date-time. Payload `{ value }`.
+**Issue code:** `isIsoDateTime:expected_iso_date_time` — the string does not match the supported ISO
+8601 extended calendar date-time profile. Payload `{ value }`.

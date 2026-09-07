@@ -1,23 +1,15 @@
 /**
- * One side of a Performance Impact comparison: every selected cell, one process each,
- * written as the same `raw.json` shape a scenario run writes.
+ * Performance Impact cell runner.
  *
- * Keeping the shape is what makes this a change of *unit* rather than a second gate.
- * `impact-verdict.mjs`, `comparability.mjs`, `sharding.mjs`, and `merge.mjs` read a cell
- * run with no knowledge that its rows are cells, so the classification, the group
- * aggregates, the identity guards, and the shard merge are the ones already tested.
- *
- * Cell definitions come from the **checked-out ref only**. The measuring apparatus has
- * always been fixed while `before` and `after` are two builds it points at, and cells are
- * part of the apparatus: if each side read its own definitions, an author editing a bench
- * file would be editing the measurement, and `inert-change.ts` cannot see that. The cost
- * is that a cell which cannot execute against the baseline build — a new step's, most
- * often — has no baseline number. It is reported as **unmeasurable**, by name, rather
- * than dropped.
+ * The ordinary mode measures one side. Paired mode measures both builds in one process
+ * orchestrator, but still gives every observation its own worker process: for each cell the
+ * baseline/candidate workers are adjacent, and repetition parity reverses their order. The
+ * two outputs keep the existing raw result shape, so merge/compare remain the one downstream
+ * implementation of sharding and verdict semantics.
  */
 
 import { spawn } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
@@ -26,7 +18,7 @@ import { versionOfModule } from '../adapters/installed-version.mjs'
 import { getProfile } from '../measure.mjs'
 import { assertShardSelector, selectShardScenarios } from '../sharding.mjs'
 import { buildCellCatalog } from './catalog-artifact.mjs'
-import { cellCatalog, collectStepBenches } from './collect.mjs'
+import { pairedCellRuns } from './pairing.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('../..', import.meta.url))
 const workerPath = fileURLToPath(new URL('./worker.mjs', import.meta.url))
@@ -35,14 +27,19 @@ function parseArguments(argv) {
 	const options = {
 		mode: 'standard',
 		output: resolve(benchmarkRoot, 'results/cells.json'),
-		// Where to persist the catalog this run measured against. Written by the measuring
-		// job so that `compare` reads a file instead of re-collecting cells through the
-		// loader that points at the build under test.
 		catalogOutput: null,
 		cells: [],
 		shardIndex: 0,
 		shardCount: 1,
 		seed: process.env.BENCHMARK_SEED ?? String(Date.now()),
+		baselineDist: null,
+		candidateDist: null,
+		baselineOutput: null,
+		candidateOutput: null,
+		baselineSha: null,
+		candidateSha: null,
+		repetition: null,
+		selectionRoles: null,
 	}
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index]
@@ -77,20 +74,71 @@ function parseArguments(argv) {
 			options.shardCount = Number(value)
 			index++
 		}
+		else if (argument === '--selection-roles' && value) {
+			options.selectionRoles = resolve(benchmarkRoot, value)
+			index++
+		}
+		else if (argument === '--baseline-dist' && value) {
+			options.baselineDist = value
+			index++
+		}
+		else if (argument === '--candidate-dist' && value) {
+			options.candidateDist = value
+			index++
+		}
+		else if (argument === '--baseline-output' && value) {
+			options.baselineOutput = resolve(benchmarkRoot, value)
+			index++
+		}
+		else if (argument === '--candidate-output' && value) {
+			options.candidateOutput = resolve(benchmarkRoot, value)
+			index++
+		}
+		else if (argument === '--baseline-sha' && value) {
+			options.baselineSha = value
+			index++
+		}
+		else if (argument === '--candidate-sha' && value) {
+			options.candidateSha = value
+			index++
+		}
+		else if (argument === '--repetition' && value) {
+			options.repetition = Number(value)
+			index++
+		}
 		else {
 			throw new Error(`Unknown or incomplete argument: ${argument}`)
 		}
 	}
 	getProfile(options.mode)
 	assertShardSelector(options.shardIndex, options.shardCount)
-	return options
+
+	const pairedValues = [
+		options.baselineDist,
+		options.candidateDist,
+		options.baselineOutput,
+		options.candidateOutput,
+		options.baselineSha,
+		options.candidateSha,
+		options.repetition,
+	]
+	const paired = pairedValues.some(value => value != null)
+	if (paired && pairedValues.some(value => value == null)) {
+		throw new Error(
+			'Paired cell measurement requires --baseline-dist, --candidate-dist, --baseline-output, --candidate-output, '
+			+ '--baseline-sha, --candidate-sha, and --repetition together.',
+		)
+	}
+	if (paired && (!Number.isSafeInteger(options.repetition) || options.repetition < 1))
+		throw new TypeError(`--repetition must be a positive safe integer; received ${String(options.repetition)}`)
+	return { ...options, paired }
 }
 
-function runWorker(cellId, mode) {
+function runWorker(cellId, mode, environment = process.env) {
 	return new Promise((resolvePromise, reject) => {
 		const child = spawn(process.execPath, [workerPath, cellId, mode], {
 			cwd: benchmarkRoot,
-			env: process.env,
+			env: environment,
 			stdio: ['ignore', 'pipe', 'pipe'],
 		})
 		let stdout = ''
@@ -115,110 +163,188 @@ function runWorker(cellId, mode) {
 	})
 }
 
-async function main() {
-	const options = parseArguments(process.argv.slice(2))
-	const catalog = cellCatalog(await collectStepBenches())
-	// The catalog this run measured against, as data. Its hash goes into the result so that
-	// merge, the identity guard, and compare can all check that they are talking about one
-	// cell set; the file it is written to is what compare reads instead of collecting cells
-	// itself. Both come from the same collection, so the hash cannot describe a different
-	// catalog than the file.
-	const artifact = buildCellCatalog(catalog)
-	const known = new Map(catalog.map(cell => [cell.id, cell]))
-
-	// A selection naming a cell this ref does not declare is a mistake worth failing on
-	// rather than silently measuring less: the selector and the cells come from the same
-	// checked-out tree, so they cannot legitimately disagree.
-	const missing = options.cells.filter(id => !known.has(id))
-	if (missing.length > 0)
-		throw new Error(`No such cell: ${missing.join(', ')}`)
-
-	const selected = options.cells.length > 0 ? options.cells.map(id => known.get(id)) : catalog
-	const shardCells = selectShardScenarios(selected, options.shardIndex, options.shardCount)
-	if (shardCells.length === 0)
-		throw new Error(`Shard ${options.shardIndex} of ${options.shardCount} has no cells; use a shard count no larger than the ${selected.length} selected cells`)
-
-	const startedAt = new Date()
-		.toISOString()
-	const results = []
-	const unmeasurable = []
-	for (const [position, cell] of shardCells.entries()) {
-		console.error(`[cells] [${position + 1}/${shardCells.length}] ${cell.id}`)
-		const payload = await runWorker(cell.id, options.mode)
-		if (payload.unmeasurable != null)
-			unmeasurable.push({ cell: cell.id, reason: payload.unmeasurable })
-		else
-			results.push(payload.result)
-	}
-	const completedAt = new Date()
-		.toISOString()
-
-	// Named, not counted. A cell that cannot execute against the build under test is a fact
-	// about that build, and the reader has to be able to see which cell and why.
-	for (const entry of unmeasurable)
-		console.error(`[cells] unmeasurable against this build: ${entry.cell} — ${entry.reason}`)
-
-	const environment = {
+function machineEnvironment(commit) {
+	return {
 		node: process.version,
 		platform: process.platform,
 		arch: process.arch,
 		cpu: os.cpus()[0]?.model ?? 'unknown',
 		logicalCpuCount: os.cpus().length,
 		totalMemoryBytes: os.totalmem(),
-		commit: process.env.BENCHMARK_COMMIT ?? process.env.GITHUB_SHA ?? null,
+		commit,
 		runnerName: process.env.RUNNER_NAME ?? null,
 		runnerImageOS: process.env.ImageOS ?? null,
 		runnerImageVersion: process.env.ImageVersion ?? null,
 	}
-	const result = {
-		schemaVersion: 4,
+}
+
+function rawResult({ options, artifact, shardCells, side, dist, commit, state, pairing, scenarioRoles }) {
+	const environment = machineEnvironment(commit)
+	return {
+		schemaVersion: 5,
 		mode: options.mode,
-		seed: options.seed,
-		// The identity `comparability.mjs` compares. `null` is the whole cell set and is
-		// deliberately not the same value as a filter that happens to name every cell in it.
+		seed: side == null ? options.seed : `${options.seed}-${options.repetition}-${side}`,
 		scenarioFilter: options.cells.length > 0 ? options.cells : null,
-		// One process per cell, which is what the field has always meant.
 		isolation: 'cell',
-		// Which cell set this run measured against, so a result can be paired only with
-		// another measured from the same catalog. `comparability.mjs` carries it in the
-		// measurement identity and `merge` refuses shards that disagree.
+		temporalPairing: pairing,
+		scenarioRoles,
 		cellCatalogHash: artifact.catalogHash,
-		startedAt,
-		completedAt,
+		startedAt: state.startedAt,
+		completedAt: state.completedAt,
 		profile: getProfile(options.mode),
 		environment,
-		// The cells this shard was **assigned**, measurable or not. The catalog is the run
-		// order — `interleaveShards` inverts `p % count` from it — so dropping a cell that
-		// could not execute against this build would renumber every cell after it and give
-		// `merge` shard sizes positional round-robin cannot produce. A cell with no number is
-		// recorded below the way the cross-library runner records an adapter it had to skip:
-		// present in the catalog, absent from the results, named with its reason.
 		shards: [{
 			index: options.shardIndex,
 			count: options.shardCount,
 			scenarios: shardCells.map(cell => cell.id),
-			startedAt,
-			completedAt,
+			startedAt: state.startedAt,
+			completedAt: state.completedAt,
 			environment,
 		}],
 		order: ['valchecker'],
 		scenarioCatalog: shardCells.map(cell => ({ id: cell.id, group: cell.group, steps: cell.steps })),
-		unmeasurableCells: unmeasurable,
+		unmeasurableCells: state.unmeasurable,
 		libraries: [{
 			adapter: 'valchecker',
 			name: 'Valchecker',
-			version: versionOfModule(process.env.VALCHECKER_DIST_URL ?? new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href),
+			version: versionOfModule(dist),
 			capabilities: {},
-			verifiedScenarios: results.length,
+			verifiedScenarios: state.results.length,
 			totalScenarios: shardCells.length,
-			skippedScenarios: unmeasurable.map(entry => ({ scenario: entry.cell, reason: entry.reason })),
-			results,
+			skippedScenarios: state.unmeasurable.map(entry => ({ scenario: entry.cell, reason: entry.reason })),
+			results: state.results,
 		}],
 	}
+}
 
-	await mkdir(dirname(options.output), { recursive: true })
-	await writeFile(options.output, `${JSON.stringify(result, null, 2)}\n`)
-	console.error(`[cells] wrote ${options.output}: ${results.length} measured, ${unmeasurable.length} unmeasurable`)
+async function writeRaw(path, result) {
+	await mkdir(dirname(path), { recursive: true })
+	await writeFile(path, `${JSON.stringify(result, null, 2)}\n`)
+}
+
+function selectionOf(options, catalog) {
+	const known = new Map(catalog.map(cell => [cell.id, cell]))
+	const missing = options.cells.filter(id => !known.has(id))
+	if (missing.length > 0)
+		throw new Error(`No such cell: ${missing.join(', ')}`)
+	const selected = options.cells.length > 0 ? options.cells.map(id => known.get(id)) : catalog
+	const shardCells = selectShardScenarios(selected, options.shardIndex, options.shardCount)
+	if (shardCells.length === 0) {
+		throw new Error(
+			`Shard ${options.shardIndex} of ${options.shardCount} has no cells; `
+			+ `use a shard count no larger than the ${selected.length} selected cells`,
+		)
+	}
+	return shardCells
+}
+
+function emptySide() {
+	return { startedAt: null, completedAt: null, results: [], unmeasurable: [] }
+}
+
+function recordPayload(state, cell, payload) {
+	if (payload.unmeasurable != null)
+		state.unmeasurable.push({ cell: cell.id, reason: payload.unmeasurable })
+	else
+		state.results.push(payload.result)
+}
+
+async function runSingle(options, artifact, shardCells, scenarioRoles) {
+	const state = emptySide()
+	state.startedAt = new Date()
+		.toISOString()
+	for (const [position, cell] of shardCells.entries()) {
+		console.error(`[cells] [${position + 1}/${shardCells.length}] ${cell.id}`)
+		recordPayload(state, cell, await runWorker(cell.id, options.mode))
+	}
+	state.completedAt = new Date()
+		.toISOString()
+	const dist = process.env.VALCHECKER_DIST_URL ?? new URL('../../../packages/valchecker/dist/index.mjs', import.meta.url).href
+	const commit = process.env.BENCHMARK_COMMIT ?? process.env.GITHUB_SHA ?? null
+	for (const entry of state.unmeasurable)
+		console.error(`[cells] unmeasurable against this build: ${entry.cell} — ${entry.reason}`)
+	await writeRaw(options.output, rawResult({ options, artifact, shardCells, side: null, dist, commit, state, pairing: 'none', scenarioRoles }))
+	console.error(`[cells] wrote ${options.output}: ${state.results.length} measured, ${state.unmeasurable.length} unmeasurable`)
+}
+
+async function runPaired(options, artifact, shardCells, scenarioRoles) {
+	const sides = {
+		baseline: { ...emptySide(), dist: options.baselineDist, commit: options.baselineSha, output: options.baselineOutput },
+		candidate: { ...emptySide(), dist: options.candidateDist, commit: options.candidateSha, output: options.candidateOutput },
+	}
+	const plan = pairedCellRuns(shardCells, options.repetition)
+	for (const [position, { cell, side }] of plan.entries()) {
+		const state = sides[side]
+		state.startedAt ??= new Date()
+			.toISOString()
+		console.error(`[cells] [${position + 1}/${plan.length}] ${cell.id} × ${side} (adjacent pair, repetition ${options.repetition})`)
+		const payload = await runWorker(cell.id, options.mode, {
+			...process.env,
+			VALCHECKER_DIST_URL: state.dist,
+			BENCHMARK_COMMIT: state.commit,
+		})
+		recordPayload(state, cell, payload)
+		state.completedAt = new Date()
+			.toISOString()
+	}
+	for (const side of ['baseline', 'candidate']) {
+		const state = sides[side]
+		for (const entry of state.unmeasurable)
+			console.error(`[cells] ${side} unmeasurable: ${entry.cell} — ${entry.reason}`)
+		const result = rawResult({
+			options,
+			artifact,
+			shardCells,
+			side,
+			dist: state.dist,
+			commit: state.commit,
+			state,
+			pairing: 'adjacent-cell',
+			scenarioRoles,
+		})
+		await writeRaw(state.output, result)
+		console.error(`[cells] wrote ${state.output}: ${state.results.length} measured, ${state.unmeasurable.length} unmeasurable`)
+	}
+}
+
+async function readScenarioRoles(options) {
+	if (options.selectionRoles == null)
+		return null
+	const artifact = JSON.parse(await readFile(options.selectionRoles, 'utf8'))
+	if (artifact?.schemaVersion !== 1 || !Array.isArray(artifact.scenarios))
+		throw new Error(`${options.selectionRoles} is not a Performance Impact selection artifact`)
+	const roles = Object.fromEntries(artifact.scenarios.map((entry) => {
+		if (typeof entry?.id !== 'string' || !['affected', 'health-canary'].includes(entry?.role))
+			throw new Error(`${options.selectionRoles} contains an invalid scenario role`)
+		return [entry.id, entry.role]
+	}))
+	const selected = options.cells.length > 0 ? options.cells : Object.keys(roles)
+	const missing = selected.filter(id => roles[id] == null)
+	if (missing.length > 0)
+		throw new Error(`${options.selectionRoles} has no role for selected cell(s): ${missing.join(', ')}`)
+	return roles
+}
+
+async function main() {
+	const options = parseArguments(process.argv.slice(2))
+	// The apparatus always comes from the checked-out candidate ref. In paired mode the
+	// parent must resolve the bench declarations against the candidate build; each worker
+	// receives the side-specific dist separately.
+	if (options.paired)
+		process.env.VALCHECKER_DIST_URL = options.candidateDist
+	// `collect.mjs` registers the loader at import time, and Node's loader worker sees the
+	// environment as it stood at registration. Paired mode therefore sets the apparatus dist
+	// before importing the collector rather than mutating `process.env` afterwards.
+	const { cellCatalog, collectStepBenches } = await import('./collect.mjs')
+	const catalog = cellCatalog(await collectStepBenches())
+	const artifact = buildCellCatalog(catalog)
+	const shardCells = selectionOf(options, catalog)
+	const scenarioRoles = await readScenarioRoles(options)
+
+	if (options.paired)
+		await runPaired(options, artifact, shardCells, scenarioRoles)
+	else
+		await runSingle(options, artifact, shardCells, scenarioRoles)
 
 	if (options.catalogOutput != null) {
 		await mkdir(dirname(options.catalogOutput), { recursive: true })

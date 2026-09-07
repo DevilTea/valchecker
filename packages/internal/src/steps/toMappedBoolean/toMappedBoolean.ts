@@ -1,5 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { markIssueSnapshotArray } from '../../core/core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue<T = unknown> = ExecutionIssue<
@@ -23,7 +25,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ### Description:
 	 * Maps configured string, number, or bigint values to booleans using
 	 * SameValueZero equality, without coercion, trimming, or case normalization.
-	 * The `trueValues` and `falseValues` arrays are captured as immutable
+	 * The `trueValues` and `falseValues` arrays are captured as
 	 * schema-time snapshots and included in the failure payload. Supplying two
 	 * empty arrays, or overlapping values, throws a `TypeError` while constructing
 	 * the schema.
@@ -67,11 +69,14 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		if (options.trueValues.length === 0 && options.falseValues.length === 0)
 			throw new TypeError('toMappedBoolean() requires at least one configured value.')
 
-		const trueValuesSnapshot = Object.freeze([...options.trueValues])
-		const falseValuesSnapshot = Object.freeze([...options.falseValues])
+		const trueValuesSnapshot = markIssueSnapshotArray([...options.trueValues])
+		const falseValuesSnapshot = markIssueSnapshotArray([...options.falseValues])
+		Object.freeze(trueValuesSnapshot)
+		Object.freeze(falseValuesSnapshot)
 		const trueValues = new Set(trueValuesSnapshot)
 		const falseValues = new Set(falseValuesSnapshot)
 		for (const value of trueValues) {
@@ -86,12 +91,8 @@ export const toMappedBoolean = implStepPlugin<PluginDef>({
 				return success(false)
 			return failure(createIssue({
 				code: 'toMappedBoolean:unmapped_value',
-				payload: {
-					value,
-					trueValues: trueValuesSnapshot,
-					falseValues: falseValuesSnapshot,
-				},
-				customMessage: options.message,
+				payload: { value, trueValues: trueValuesSnapshot, falseValues: falseValuesSnapshot },
+				customMessage: messageOptions?.message,
 				defaultMessage: 'Expected the value to match a configured boolean mapping.',
 			}))
 		})

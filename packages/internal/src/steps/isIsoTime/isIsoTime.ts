@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isoTimeSource } from './iso-time-source'
 
 type Meta = DefineStepMethodMeta<{
@@ -11,9 +12,10 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the string is an ISO 8601 time of day in `HH:MM:SS` form
-	 * with an optional fractional-seconds part and no time-zone. The field
-	 * ranges (00-23, 00-59, 00-59) are part of the accepted shape.
+	 * Checks the bounded ISO 8601 extended time profile: `HH:MM:SS`, optional
+	 * fractional seconds using `.` or `,`, and no timezone. The special end-
+	 * of-day form `24:00:00` is accepted, with only an all-zero fraction. Leap
+	 * seconds, basic forms, and reduced precision are outside this API shape.
 	 *
 	 * ---
 	 *
@@ -28,7 +30,7 @@ interface PluginDef extends TStepPluginDef {
 	 * ---
 	 *
 	 * ### Issues:
-	 * - `'isIsoTime:expected_iso_time'`: The string is not a valid ISO 8601 time.
+	 * - `'isIsoTime:expected_iso_time'`: The string does not match the supported ISO 8601 time-of-day profile.
 	 */
 	isIsoTime: DefineStepMethod<
 		Meta,
@@ -49,14 +51,15 @@ export const isIsoTime = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => isoTimePattern.test(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isIsoTime:expected_iso_time',
 						payload: { value },
-						customMessage: options?.message,
-						defaultMessage: 'Expected a valid ISO 8601 time.',
+						customMessage: messageOptions?.message,
+						defaultMessage: 'Expected a supported ISO 8601 time of day.',
 					}),
 				))
 	},

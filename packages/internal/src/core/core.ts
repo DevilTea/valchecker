@@ -15,16 +15,18 @@ import type {
 	OperationMode,
 	ResolveMessageFn,
 	StepMethodUtils,
+	StepPlugin,
 	StepPluginImpl,
 	TStepPluginDef,
 } from './types'
 import { isPromiseLike, runtimeExecutionStepDefMarker } from '../shared'
+import { snapshotMessage } from './message'
 
 type RuntimeStep = (lastResult: ExecutionResult) => MaybePromise<ExecutionResult>
 type PipeExecutor = (value: unknown) => MaybePromise<ExecutionResult>
 
-const stepPluginDefaultOperationMode = Symbol.for('valchecker.stepPluginDefaultOperationMode')
-const stepPluginCapabilities = Symbol.for('valchecker.stepPluginCapabilities')
+const stepPluginDefaultOperationMode = Symbol.for('valchecker.protocol.stepPluginDefaultOperationMode.v1')
+const stepPluginCapabilities = Symbol.for('valchecker.protocol.stepPluginCapabilities.v1')
 
 const RUNTIME_OPERATION_MODE_SYNC = 0
 const RUNTIME_OPERATION_MODE_MAYBE_ASYNC = 1
@@ -95,7 +97,33 @@ class MessageResolutionError {
 	) { }
 }
 
-const issueDraftMetadata = Symbol('valchecker.issueDraftMetadata')
+// Cross-copy protocol v1: raw child issues can cross a public composition
+// boundary before the outer copy finalizes their deferred message handlers.
+const issueDraftMetadata = Symbol.for('valchecker.protocol.issueDraftMetadata.v1')
+
+// Cross-copy-compatible ownership protocol for defensive issue snapshots.
+// The marker is non-enumerable on payload records, so public payload shape stays
+// unchanged while another compatible Valchecker copy can still honor it.
+const issueSnapshotPayloadMarker = Symbol.for('valchecker.protocol.issueSnapshotPayload.v1')
+
+// Cross-copy-compatible ownership marker for shared diagnostic arrays. The
+// marker is attached once while the schema is constructed, so a defensive
+// issue snapshot can detach the array without every failure payload paying for
+// its own property descriptor.
+const issueSnapshotArrayMarker = Symbol.for('valchecker.protocol.issueSnapshotArray.v1')
+const issueSnapshotObjectMarker = Symbol.for('valchecker.protocol.issueSnapshotObject.v1')
+
+type IssueSnapshotPayloadRule = 'container' | 'issues'
+type IssueSnapshotPayloadPolicy = Readonly<Record<PropertyKey, IssueSnapshotPayloadRule>>
+type IssuePayloadWithSnapshotPolicy = Record<PropertyKey, unknown> & {
+	[issueSnapshotPayloadMarker]?: IssueSnapshotPayloadPolicy | undefined
+}
+type IssueSnapshotArray = readonly unknown[] & {
+	[issueSnapshotArrayMarker]?: true | undefined
+}
+type IssueSnapshotObject = Record<PropertyKey, unknown> & {
+	[issueSnapshotObjectMarker]?: true | undefined
+}
 
 type IssueWithDraftMetadata = AnyExecutionIssue & {
 	[issueDraftMetadata]?: IssueDraftMetadata | undefined
@@ -110,6 +138,41 @@ function setIssueDraftMetadata(
 	metadata: IssueDraftMetadata,
 ): void {
 	Object.defineProperty(issue, issueDraftMetadata, { value: metadata })
+}
+
+/**
+ * Attaches a non-enumerable ownership policy to a Valchecker-created payload
+ * record. `container` means shallow-copy that nested diagnostic container;
+ * `issues` means copy the array and recursively snapshot each execution issue.
+ * Package-internal: intentionally not exported from `core/index.ts`.
+ */
+export function markIssueSnapshotPayload<Payload extends Record<PropertyKey, unknown>>(
+	payload: Payload,
+	policy: IssueSnapshotPayloadPolicy,
+): Payload {
+	Object.defineProperty(payload, issueSnapshotPayloadMarker, { value: { ...policy } })
+	return payload
+}
+
+/**
+ * Marks a Valchecker-owned diagnostic array that can be shared by execution
+ * state and issue payloads. Attach this once before optionally freezing the
+ * construction-time snapshot; fallback snapshots copy and re-mark it lazily.
+ * Package-internal: intentionally not exported from `core/index.ts`.
+ */
+export function markIssueSnapshotArray<ArrayValue extends readonly unknown[]>(
+	array: ArrayValue,
+): ArrayValue {
+	Object.defineProperty(array, issueSnapshotArrayMarker, { value: true })
+	return array
+}
+
+/** Marks a shared Valchecker-owned plain diagnostic record. */
+export function markIssueSnapshotObject<ObjectValue extends Record<PropertyKey, unknown>>(
+	object: ObjectValue,
+): ObjectValue {
+	Object.defineProperty(object, issueSnapshotObjectMarker, { value: true })
+	return object
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -130,7 +193,7 @@ export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
 	stepImpl: StepPluginImpl<StepPluginDef>,
 	defaultOperationMode: OperationMode = 'maybe-async',
 	capabilities?: Readonly<Record<symbol, unknown>>,
-): StepPluginImpl<StepPluginDef> {
+): StepPlugin<StepPluginDef> {
 	(stepImpl as any)[runtimeExecutionStepDefMarker] = true
 	Object.defineProperty(stepImpl, stepPluginDefaultOperationMode, {
 		value: toRuntimeOperationMode(defaultOperationMode),
@@ -140,7 +203,7 @@ export function implStepPlugin<StepPluginDef extends TStepPluginDef>(
 			value: capabilities,
 		})
 	}
-	return stepImpl
+	return stepImpl as StepPlugin<StepPluginDef>
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -264,6 +327,116 @@ export function hasInternalIssue(issues: readonly AnyExecutionIssue[]): boolean 
 			return true
 	}
 	return false
+}
+
+function isPlainIssuePayloadRecord(value: unknown): value is Record<PropertyKey, unknown> {
+	if (typeof value !== 'object' || value === null || Array.isArray(value))
+		return false
+	try {
+		const prototype = Object.getPrototypeOf(value)
+		return prototype === Object.prototype || prototype === null
+	}
+	catch {
+		return false
+	}
+}
+
+function isMarkedIssueSnapshotArray(value: unknown): value is IssueSnapshotArray {
+	try {
+		return Array.isArray(value) && (value as IssueSnapshotArray)[issueSnapshotArrayMarker] === true
+	}
+	catch {
+		return false
+	}
+}
+
+function isMarkedIssueSnapshotObject(value: unknown): value is IssueSnapshotObject {
+	if (!isPlainIssuePayloadRecord(value))
+		return false
+	try {
+		return (value as IssueSnapshotObject)[issueSnapshotObjectMarker] === true
+	}
+	catch {
+		return false
+	}
+}
+
+function snapshotOwnedContainer(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		const snapshot = [...value]
+		return isMarkedIssueSnapshotArray(value)
+			? markIssueSnapshotArray(snapshot)
+			: snapshot
+	}
+	if (!isPlainIssuePayloadRecord(value))
+		return value
+	const snapshot = snapshotIssueRecord(value)
+	return isMarkedIssueSnapshotObject(value)
+		? markIssueSnapshotObject(snapshot)
+		: snapshot
+}
+
+function snapshotIssueArray(value: unknown): AnyExecutionIssue[] {
+	return (value as AnyExecutionIssue[]).map(snapshotExecutionIssue)
+}
+
+function getIssueSnapshotPayloadPolicy(
+	record: Record<PropertyKey, unknown>,
+): IssueSnapshotPayloadPolicy | undefined {
+	return (record as IssuePayloadWithSnapshotPolicy)[issueSnapshotPayloadMarker]
+}
+
+function snapshotIssueRecord(
+	record: Record<PropertyKey, unknown>,
+): Record<PropertyKey, unknown> {
+	const snapshot: Record<PropertyKey, unknown> = { ...record }
+	const policy = getIssueSnapshotPayloadPolicy(record)
+	// Object spread above still preserves enumerable symbol payload keys. The
+	// package-internal construction markers, however, are only discovered on
+	// string-keyed built-in diagnostic fields; formal cross-copy payload policy
+	// below retains full PropertyKey support. Avoiding a symbol scan saves ~20ns
+	// on the overwhelmingly common simple-issue snapshot path on Node 24.
+	for (const key of Object.keys(snapshot)) {
+		if (policy != null && Object.hasOwn(policy, key))
+			continue
+		const value = snapshot[key]
+		if (isMarkedIssueSnapshotArray(value) || isMarkedIssueSnapshotObject(value))
+			snapshot[key] = snapshotOwnedContainer(value)
+	}
+	if (policy == null)
+		return snapshot
+
+	for (const key of Reflect.ownKeys(policy)) {
+		snapshot[key] = policy[key] === 'issues'
+			? snapshotIssueArray(snapshot[key])
+			: snapshotOwnedContainer(snapshot[key])
+	}
+	Object.defineProperty(snapshot, issueSnapshotPayloadMarker, { value: { ...policy } })
+	return snapshot
+}
+
+function snapshotExecutionIssue<Issue extends AnyExecutionIssue>(issue: Issue): Issue {
+	const snapshot = { ...issue } as Issue
+	snapshot.path = [...issue.path]
+	if (isPlainIssuePayloadRecord(issue.payload))
+		snapshot.payload = snapshotIssueRecord(issue.payload) as Issue['payload']
+	if (issue.context != null)
+		snapshot.context = issue.context.map(context => ({ ...context }))
+	return snapshot
+}
+
+/**
+ * Creates consumer-safe issue snapshots without generic deep cloning. The issue
+ * record, path, context records, and plain payload record are detached. Nested
+ * values keep identity unless the payload's owner declares a protocol rule for
+ * a Valchecker-owned diagnostic container or nested execution-issue array.
+ *
+ * Package-internal: fallback imports this directly from `core/core`.
+ */
+export function snapshotIssuesForConsumer<Issue extends AnyExecutionIssue>(
+	issues: [Issue, ...Issue[]],
+): [Issue, ...Issue[]] {
+	return issues.map(snapshotExecutionIssue) as [Issue, ...Issue[]]
 }
 
 /**
@@ -873,7 +1046,7 @@ const reservedStepMethodNames = new Set<PropertyKey>([...coreInstancePropertyKey
 
 /* @__NO_SIDE_EFFECTS__ */
 export function createValchecker<
-	ExecutionSteps extends StepPluginImpl<any>[],
+	ExecutionSteps extends StepPlugin<TStepPluginDef>[],
 >({
 	steps,
 	message: globalMessage,
@@ -921,7 +1094,7 @@ export function createValchecker<
 			stepMethods[method] = { run: stepMethod as AnyFn, defaultOperationMode }
 		}
 	}
-	const resolver = createMessageResolver(globalMessage as MessageHandler<any> | undefined)
+	const resolver = createMessageResolver(snapshotMessage(globalMessage as MessageHandler<any> | undefined))
 
 	// Every schema instance shares this prototype. Step methods live here as
 	// non-enumerable properties so they resolve through the ordinary prototype

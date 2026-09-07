@@ -1,8 +1,18 @@
 import type { InferOutput } from '../..'
+import { runInNewContext } from 'node:vm'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createValchecker, toJSONString } from '../..'
 
 const v = createValchecker({ steps: [toJSONString] })
+
+function expectNativeJSON(value: unknown): void {
+	const expected = JSON.stringify(value)
+	expect(typeof expected)
+		.toBe('string')
+	expect(v.toJSONString()
+		.execute(value))
+		.toEqual({ value: expected })
+}
 
 describe('toJSONString step plugin', () => {
 	it.each([
@@ -14,28 +24,53 @@ describe('toJSONString step plugin', () => {
 		[new Object(42), '42'],
 		[new Object('value'), '"value"'],
 		[new Object(false), 'false'],
-	])('serializes %p', (value, output) => {
+	])('serializes %p like JSON.stringify', (value, output) => {
 		expect(v.toJSONString()
 			.execute(value))
 			.toEqual({ value: output })
 	})
 
-	it('serializes NaN and the infinities as null, like JSON.stringify', () => {
-		expect(v.toJSONString()
-			.execute({ nan: Number.NaN, positive: Infinity, negative: -Infinity }))
-			.toEqual({ value: '{"nan":null,"positive":null,"negative":null}' })
+	it('preserves native omission and array-null coercion for lossy nested slots', () => {
+		const symbol = Symbol('dropped')
+		const objectValue = {
+			undefinedValue: undefined,
+			functionValue: () => undefined,
+			symbolValue: symbol,
+			kept: 1,
+		}
+		expectNativeJSON(objectValue)
+
+		const sparse = [undefined, () => undefined, symbol, 4]
+		delete sparse[3]
+		expectNativeJSON(sparse)
 	})
 
-	it('ignores symbol-keyed properties during preflight', () => {
-		// An unsupported value behind a symbol key would fail if symbol keys were
-		// walked, so this distinguishes dropping them from serializing them.
-		const value = { [Symbol('dropped')]: 1n, own: 1 }
+	it.each([
+		undefined,
+		() => undefined,
+		Symbol('value'),
+		{ toJSON: () => undefined },
+	])('reports an undefined top-level JSON.stringify result for %p', (value) => {
+		expect(JSON.stringify(value))
+			.toBeUndefined()
 		expect(v.toJSONString()
 			.execute(value))
-			.toEqual({ value: '{"own":1}' })
+			.toMatchObject({
+				issues: [{
+					code: 'toJSONString:unserializable',
+					category: 'validation',
+					message: 'Value cannot be serialized to JSON.',
+					path: [],
+					payload: { reason: 'undefined_result', value, at: [] },
+				}],
+			})
 	})
 
-	it('reads a getter and calls a toJSON method exactly once', () => {
+	it('matches native NaN and infinity coercion', () => {
+		expectNativeJSON({ nan: Number.NaN, positive: Infinity, negative: -Infinity })
+	})
+
+	it('calls getters and toJSON exactly as the native serializer does', () => {
 		let getterReads = 0
 		let toJSONCalls = 0
 		const value = {
@@ -59,69 +94,79 @@ describe('toJSONString step plugin', () => {
 			.toBe(1)
 	})
 
-	it.each<[label: string, value: unknown, expected: Record<string, unknown>]>([
-		['a function', () => undefined, { reason: 'unsupported_type', at: [], valueType: 'function' }],
-		['a function under a property', { value: () => undefined }, { reason: 'unsupported_type', at: ['value'], valueType: 'function' }],
-		['a bigint', 1n, { reason: 'unsupported_type', at: [], valueType: 'bigint' }],
-		['a boxed bigint', new Object(1n), { reason: 'unsupported_type', at: [], valueType: 'bigint' }],
-		['a symbol', Symbol('value'), { reason: 'unsupported_type', at: [], valueType: 'symbol' }],
-		['undefined', undefined, { reason: 'undefined_result', at: [] }],
-	])('rejects %s with its own reason', (_label, value, expected) => {
-		expect(v.toJSONString()
-			.execute(value))
-			.toMatchObject({
-				issues: [{
-					code: 'toJSONString:unserializable',
-					category: 'validation',
-					message: 'Value cannot be serialized to JSON.',
-					path: [],
-					payload: { value, ...expected },
-				}],
-			})
+	it('uses native cross-realm boxed-primitive behavior', () => {
+		const values = runInNewContext(`[
+			new Number(42),
+			new String('hi'),
+			new Boolean(true),
+			Object(10n),
+		]`) as unknown[]
+		for (const value of values) {
+			let expected: string | undefined
+			let nativeError: unknown
+			try {
+				expected = JSON.stringify(value)
+			}
+			catch (error) {
+				nativeError = error
+			}
+
+			const result = v.toJSONString()
+				.execute(value)
+			if (nativeError === undefined) {
+				expect(result)
+					.toEqual({ value: expected })
+			}
+			else {
+				expect(result)
+					.toMatchObject({
+						issues: [{
+							code: 'toJSONString:serialization_failed',
+							category: 'operation',
+							payload: { value, at: [], error: expect.anything() },
+						}],
+					})
+			}
+		}
 	})
 
-	it('rejects a toJSON method that returns undefined', () => {
-		const value = Object.defineProperty({}, 'toJSON', {
-			value: () => undefined,
+	it('does not invoke Proxy traps that native JSON.stringify does not use', () => {
+		const error = new Error('getPrototypeOf')
+		const value = new Proxy({}, {
+			getPrototypeOf() { throw error },
 		})
-		expect(v.toJSONString()
-			.execute(value))
+		expectNativeJSON(value)
+	})
+
+	it('serializes prototype-spoofed primitive objects like native JSON.stringify', () => {
+		for (const prototype of [Number.prototype, String.prototype, Boolean.prototype, BigInt.prototype])
+			expectNativeJSON(Object.create(prototype))
+	})
+
+	const cyclicValue: Record<string, unknown> = {}
+	cyclicValue.self = cyclicValue
+
+	it.each([
+		['bigint', 1n],
+		['circular reference', cyclicValue],
+	])('reports native serialization throws for %s', (_label, value) => {
+		expect(() => JSON.stringify(value))
+			.toThrow()
+		const result = v.toJSONString()
+			.execute(value)
+		expect(result)
 			.toMatchObject({
 				issues: [{
-					code: 'toJSONString:unserializable',
-					category: 'validation',
-					message: 'Value cannot be serialized to JSON.',
+					code: 'toJSONString:serialization_failed',
+					category: 'operation',
+					message: 'JSON serialization failed.',
 					path: [],
-					payload: { reason: 'undefined_result', value, at: [] },
+					payload: { value, at: [], error: expect.anything() },
 				}],
 			})
 	})
 
-	it('reports a circular structure rather than recursing', () => {
-		const value: Record<string, unknown> = {}
-		value.self = value
-		expect(v.toJSONString()
-			.execute(value))
-			.toMatchObject({
-				issues: [{
-					code: 'toJSONString:unserializable',
-					category: 'validation',
-					message: 'Value cannot be serialized to JSON.',
-					path: [],
-					payload: { reason: 'circular_reference', value, at: ['self'] },
-				}],
-			})
-	})
-
-	it('ignores inherited enumerable properties during preflight', () => {
-		const inherited = { inherited: 1n }
-		const value = Object.assign(Object.create(inherited), { own: 1 })
-		expect(v.toJSONString()
-			.execute(value))
-			.toEqual({ value: '{"own":1}' })
-	})
-
-	it('reports getter, proxy, and toJSON failures with their paths', () => {
+	it('reports getter, Proxy, and toJSON exceptions from native serialization', () => {
 		const getterError = new Error('getter')
 		const getterValue = Object.defineProperty({}, 'value', {
 			enumerable: true,
@@ -133,17 +178,16 @@ describe('toJSONString step plugin', () => {
 			.toMatchObject({
 				issues: [{
 					code: 'toJSONString:serialization_failed',
-					category: 'operation',
-					payload: { at: ['value'], error: getterError },
+					payload: { at: [], error: getterError },
 				}],
 			})
 		expect((getterResult as any).issues[0].payload.value)
 			.toBe(getterValue)
 
 		const proxyError = new Error('ownKeys')
-		const proxy = new Proxy({}, { ownKeys() {
-			throw proxyError
-		} })
+		const proxy = new Proxy({}, {
+			ownKeys() { throw proxyError },
+		})
 		const proxyResult = v.toJSONString()
 			.execute(proxy)
 		expect(proxyResult)
@@ -157,9 +201,9 @@ describe('toJSONString step plugin', () => {
 			.toBe(proxy)
 
 		const toJSONError = new Error('toJSON')
-		const toJSONValue = { toJSON() {
-			throw toJSONError
-		} }
+		const toJSONValue = {
+			toJSON() { throw toJSONError },
+		}
 		const toJSONResult = v.toJSONString()
 			.execute(toJSONValue)
 		expect(toJSONResult)
@@ -173,90 +217,13 @@ describe('toJSONString step plugin', () => {
 			.toBe(toJSONValue)
 	})
 
-	it('serializes dense array values', () => {
-		expect(v.toJSONString()
-			.execute([1, { value: true }]))
-			.toEqual({
-				value: '[1,{"value":true}]',
-			})
-	})
-
-	it('rejects array holes at their exact path instead of coercing to null', () => {
-		const sparse = [1, 2, 3]
-		delete sparse[1]
-		expect(v.toJSONString()
-			.execute(sparse))
-			.toMatchObject({
-				issues: [{
-					code: 'toJSONString:unserializable',
-					category: 'validation',
-					payload: {
-						reason: 'undefined_result',
-						value: sparse,
-						at: [1],
-					},
-				}],
-			})
-	})
-
-	it('reports array element and toJSON property access failures', () => {
-		const elementError = new Error('element')
-		const arrayValue = Object.defineProperty([1], 0, {
-			enumerable: true,
-			get() { throw elementError },
-		})
-		const arrayResult = v.toJSONString()
-			.execute(arrayValue)
-		expect(arrayResult)
-			.toMatchObject({
-				issues: [{
-					code: 'toJSONString:serialization_failed',
-					payload: { at: [0], error: elementError },
-				}],
-			})
-		expect((arrayResult as any).issues[0].payload.value)
-			.toBe(arrayValue)
-
-		const toJSONGetterError = new Error('toJSON getter')
-		const toJSONGetterValue = Object.defineProperty({}, 'toJSON', {
-			get() { throw toJSONGetterError },
-		})
-		const toJSONGetterResult = v.toJSONString()
-			.execute(toJSONGetterValue)
-		expect(toJSONGetterResult)
-			.toMatchObject({
-				issues: [{
-					code: 'toJSONString:serialization_failed',
-					payload: { at: [], error: toJSONGetterError },
-				}],
-			})
-		expect((toJSONGetterResult as any).issues[0].payload.value)
-			.toBe(toJSONGetterValue)
-	})
-
-	it('reports nested unsupported values at their exact path', () => {
-		const value = { nested: { value: 1n } }
-		expect(v.toJSONString()
-			.execute(value))
-			.toMatchObject({
-				issues: [{
-					code: 'toJSONString:unserializable',
-					payload: {
-						reason: 'unsupported_type',
-						value,
-						at: ['nested', 'value'],
-						valueType: 'bigint',
-					},
-				}],
-			})
-	})
-
-	it('supports custom messages', () => {
+	it('supports custom messages for both owned failures', () => {
 		expect(v.toJSONString({ message: 'Custom stringify' })
 			.execute(undefined))
-			.toMatchObject({
-				issues: [{ message: 'Custom stringify' }],
-			})
+			.toMatchObject({ issues: [{ message: 'Custom stringify' }] })
+		expect(v.toJSONString({ message: 'Custom stringify' })
+			.execute(1n))
+			.toMatchObject({ issues: [{ message: 'Custom stringify' }] })
 	})
 
 	it('infers a string output', () => {

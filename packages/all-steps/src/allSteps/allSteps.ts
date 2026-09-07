@@ -7,7 +7,7 @@ const { runtimeExecutionStepDefMarker } = _all
 type _All = typeof _all
 
 export type AllSteps = _all.ValueOf<{
-	[K in keyof _All]: _All[K] extends { '~def'?: _all.TStepPluginDef } ? _All[K] : never
+	[K in keyof _All]: _All[K] extends _all.StepPlugin ? _All[K] : never
 }>[]
 
 /* @__NO_SIDE_EFFECTS__ */

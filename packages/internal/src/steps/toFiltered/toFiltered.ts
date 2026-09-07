@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callback-error-sentinel'
 
 declare namespace Internal {
@@ -108,12 +109,14 @@ export const toFiltered = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [predicate, options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
+		const thisArg = options?.thisArg
 		addSuccessStep((value) => {
 			if (Array.isArray(value)) {
 				return runWithCallbackErrorSentinel(
 					() => success(value.filter((item: unknown, index: number, array: unknown[]) => {
 						try {
-							return predicate.call(options?.thisArg, item, index, array)
+							return predicate.call(thisArg, item, index, array)
 						}
 						catch (error) {
 							throw new CallbackErrorSentinel({ item, index }, error)
@@ -123,7 +126,7 @@ export const toFiltered = implStepPlugin<PluginDef>({
 						code: 'toFiltered:callback_failed',
 						category: 'operation',
 						payload: { value, item: context.item, index: context.index, error },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Filter callback failed.',
 					})),
 				)
@@ -135,14 +138,14 @@ export const toFiltered = implStepPlugin<PluginDef>({
 				const item = items[index]
 				let included: unknown
 				try {
-					included = predicate.call(options?.thisArg, item, index, value)
+					included = predicate.call(thisArg, item, index, value)
 				}
 				catch (error) {
 					return failure(createIssue({
 						code: 'toFiltered:callback_failed',
 						category: 'operation',
 						payload: { value, item, index, error },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Filter callback failed.',
 					}))
 				}

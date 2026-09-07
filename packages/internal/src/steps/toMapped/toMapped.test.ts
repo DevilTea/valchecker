@@ -24,6 +24,22 @@ describe('toMapped step plugin', () => {
 			.toEqualTypeOf<number[]>()
 	})
 
+	it('captures the thisArg reference while retaining pointee mutation', () => {
+		const context = { offset: 10 }
+		const replacement = { offset: 100 }
+		const options = { thisArg: context }
+		const schema = v.array(v.number())
+			.toMapped(function (this: typeof context, item) {
+				return item + this.offset
+			}, options)
+
+		options.thisArg = replacement
+		context.offset = 20
+
+		expect(schema.execute([1]))
+			.toEqual({ value: [21] })
+	})
+
 	it('converts array callback exceptions into an operation issue', () => {
 		const error = new Error('boom')
 		const input = [1, 2]

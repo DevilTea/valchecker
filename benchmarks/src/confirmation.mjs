@@ -25,15 +25,16 @@
  * | screen | confirm | resolution | effect |
  * | --- | --- | --- | --- |
  * | severe or regression | severe or regression | `reproduced` | fails the gate when either side is severe |
- * | severe | inconclusive | `unresolved` | not a pass, and not a failure |
- * | inconclusive | severe | `unresolved` | not a pass, and not a failure |
+ * | severe | inconclusive | `unresolved` | not a regression verdict; a required check must not pass without an answer |
+ * | inconclusive | severe | `unresolved` | not a regression verdict; a required check must not pass without an answer |
  * | severe or regression | cleared or improvement | `not-reproduced` | passes, with a noise diagnostic |
  * | inconclusive | inconclusive | `unresolved` | reported; the screen's own verdict already says the run is unsettled |
  * | severe | no confirmation measured it | `unconfirmed` or `unmeasured` | still blocks |
  *
- * Only a **severe** claim fails the build, reproduced or unconfirmed, which is the one rule
- * that failed it before this stage existed. A plain regression reproduced is a `review`, as
- * it was.
+ * Only a **severe** claim produces a regression failure, reproduced or unconfirmed, which is
+ * the one product rule that failed it before this stage existed. A plain regression reproduced
+ * is a `review`, as it was; an `unresolved` result is separately non-success when the caller
+ * requires a resolved answer.
  *
  * **Groups are confirmed too, and on one runner.** A severe group verdict blocks, so it is
  * held to the same standard as a severe cell: the whole triggered group is remeasured in a
@@ -41,7 +42,7 @@
  * rather than an economy — a cell keeps its shard across every repetition, so a
  * runner-dependent effect on its ratio is a fixed effect that shifts every `G_r` equally and
  * contributes no variance, which is why the screen's group interval can be tight and
- * displaced at once. Where the whole group does not fit one runner inside the job's budget,
+ * displaced at once. Where the whole affected estimator set does not fit one runner inside the job's budget,
  * the trigger is reported as `review` rather than blocking, and the report shows the
  * arithmetic. The confirmation's group aggregate for a group it did *not* measure in full is
  * never read: that would be an aggregate over an outcome-selected subset, which is the bias
@@ -167,7 +168,7 @@ export function confirmationPlan(screen, { acknowledgedGroups = new Set(), ackno
 			.map(group => group.group),
 	])]
 	const groups = groupNames.map((group) => {
-		const cells = (screen.rows ?? []).filter(row => row.group === group)
+		const cells = (screen.rows ?? []).filter(row => row.group === group && (row.measurementRole ?? 'affected') === 'affected')
 			.map(row => row.scenario)
 			.sort()
 		const budget = confirmationBudget(cells.length, repetitions)
@@ -349,7 +350,7 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	// second stage happened to have.
 	const groupEvidence = (group) => {
 		const comparison = groupConfirmations[group] ?? null
-		const members = (screen.rows ?? []).filter(row => row.group === group)
+		const members = (screen.rows ?? []).filter(row => row.group === group && (row.measurementRole ?? 'affected') === 'affected')
 			.map(row => row.scenario)
 		const measured = new Set((comparison?.rows ?? []).map(row => row.scenario))
 		return {
@@ -439,7 +440,7 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	const unacknowledgedSevereGroups = screen.severeGroups
 		.filter(group => !acceptedGroupNames.has(group) || failedAcceptanceGroups.has(group))
 	// And of those, the ones whose evidence can support blocking: a group aggregate is only
-	// blocking when an independent batch measured the whole group on **one** runner and agreed.
+	// blocking when an independent batch measured the whole affected estimator set on **one** runner and agreed.
 	// A cell keeps its shard across every repetition, so a runner-dependent effect on its ratio
 	// is a fixed effect that shifts each `G_r` equally and leaves the interval untouched — the
 	// screen's group interval cannot see it. Everything this needs is read from the artifacts
@@ -459,7 +460,7 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 						? 'its confirmation does not record how many shards measured it, so it cannot be read as single-runner evidence'
 						: !evidence.singleRunner
 								? `its confirmation ran over ${evidence.comparison.measurement.shardCount} shards, so that aggregate mixes runners exactly as the screen's does`
-								: 'its confirmation did not measure every cell of the group',
+								: 'its confirmation did not measure every affected cell of the group',
 			}
 		}
 		return {
@@ -468,8 +469,8 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 			confirmClassification: evidence.row?.classification ?? null,
 			blocking: evidence.row?.classification === 'regression',
 			why: evidence.row?.classification === 'regression'
-				? 'an independent single-runner batch measured the whole group and agreed'
-				: `an independent single-runner batch measured the whole group and reported it ${evidence.row?.classification ?? 'not at all'}`,
+				? 'an independent single-runner batch measured the whole affected estimator set and agreed'
+				: `an independent single-runner batch measured the whole affected estimator set and reported it ${evidence.row?.classification ?? 'not at all'}`,
 		}
 	})
 	const blockingGroups = groupVerdicts.filter(verdict => verdict.blocking)
@@ -542,7 +543,7 @@ export function renderConfirmationMarkdown(result) {
 		'Two fixed batches, judged independently. The confirmation batch is a second measurement of the rows that could block — '
 		+ 'every candidate regression, and every inconclusive row whose interval reaches −5% — and it is **not** pooled with the first: '
 		+ 'adding samples to a set chosen by the first result until the interval settles is optional stopping, whatever the stopping rule is called. '
-		+ 'A triggered **group** is confirmed too, by remeasuring the whole group on a single runner — see the group table below — because a group '
+		+ 'A triggered **group** is confirmed too, by remeasuring the whole affected estimator set on a single runner — see the group table below — because a group '
 		+ 'aggregate mixed across runners carries a between-runner shift its interval cannot see.',
 		'',
 	]
@@ -599,7 +600,7 @@ export function renderConfirmationMarkdown(result) {
 		lines.push(
 			'',
 			`> **${result.groupVerdicts.length} group trigger${result.groupVerdicts.length === 1 ? '' : 's'} to settle.** A severe group verdict blocks, so it is held to the `
-			+ 'same standard as a severe cell: the whole group is remeasured in a **single-runner** batch and blocks only if that batch agrees. One runner, '
+			+ 'same standard as a severe cell: the whole affected estimator set is remeasured in a **single-runner** batch and blocks only if that batch agrees. One runner, '
 			+ 'because a cell keeps its shard across every repetition — a runner-dependent effect on its ratio is a fixed effect that shifts every `G_r` '
 			+ 'equally and contributes no variance, so the screen\'s group interval can be tight and displaced at the same time. Where the group does not '
 			+ 'fit one runner inside the job\'s budget, the trigger is `review` rather than blocking.',
@@ -660,7 +661,7 @@ export function renderConfirmationMarkdown(result) {
 			'',
 			`> **Unresolved.** ${result.unresolved.map(scenario => `\`${scenario}\``)
 				.join(', ')}: one batch calls ${result.unresolved.length === 1 ? 'it' : 'them'} a severe regression and the other cannot judge `
-				+ `${result.unresolved.length === 1 ? 'it' : 'them'}. Not a pass and not a failure, and the direction does not matter: `
+				+ `${result.unresolved.length === 1 ? 'it' : 'them'}. This is not relabelled a regression, but a required check must not pass without an answer; the direction does not matter: `
 				+ 'one severe judgement against one non-judgement is the same evidence whichever stage produced which. '
 				+ 'Re-running until one of them settles is the thing this stage is built to avoid.',
 		)

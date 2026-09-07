@@ -462,10 +462,13 @@ v.bigint()
 ### `isMultipleOf(divisor, options?)` {#isMultipleOf}
 
 Checks that a number or bigint is a multiple of `divisor`. Bigint inputs use an exact remainder
-check. Number inputs accept an exact zero remainder, and otherwise compare the quotient against its
-nearest integer within a tolerance of `Number.EPSILON * Math.max(1, Math.abs(quotient)) * 8`, capped
-at `1e-10` — enough for ordinary decimal expressions such as `0.3`, or `0.1 + 0.2`, to count as
-multiples of `0.1`, without widening into a general nearness check. A non-finite number input fails.
+check. Number inputs accept an exact zero remainder. Otherwise they reconstruct the nearest integer
+multiple as `Math.round(value / divisor) * divisor` and compare it with `value` using a tolerance of
+`Number.EPSILON * Math.max(1, Math.abs(value), Math.abs(reconstructed)) * 8`. This scales with the
+IEEE-754 magnitude being compared, so ordinary decimal expressions such as `0.3`, `0.1 + 0.2`, and
+larger-quotient decimal multiples are not rejected by an arbitrary absolute cap. It is still a
+floating-point representation tolerance, not an arbitrary-precision decimal or general nearness
+check. A non-finite input, or a non-finite quotient/reconstruction on the inexact path, fails.
 
 A zero or non-finite number divisor, and a zero bigint divisor, make divisibility meaningless and
 throw a `TypeError` while the schema is being constructed. That guard is deliberately asymmetric
@@ -568,6 +571,10 @@ Checks that a `Date` is strictly after `bound`, a `Date`, comparing `getTime()` 
 itself is rejected. Only the strict variant exists; pass an adjusted bound when an inclusive edge is
 required.
 
+The bound's comparison value and diagnostic representation are snapshotted when the schema is
+constructed. Mutating the caller-owned `Date` afterward does not change validation or failure
+diagnostics.
+
 An Invalid Date bound is not rejected at construction: every value then fails with this step's own
 issue, and the default message renders the bound as `Invalid Date`.
 
@@ -591,6 +598,10 @@ v.date()
 Checks that a `Date` is strictly before `bound`, a `Date`, comparing `getTime()` values. The bound
 itself is rejected. Only the strict variant exists; pass an adjusted bound when an inclusive edge is
 required.
+
+The bound's comparison value and diagnostic representation are snapshotted when the schema is
+constructed. Mutating the caller-owned `Date` afterward does not change validation or failure
+diagnostics.
 
 An Invalid Date bound is not rejected at construction: every value then fails with this step's own
 issue, and the default message renders the bound as `Invalid Date`.
@@ -756,7 +767,7 @@ expected length. Payload `{ value, expectedLength, length }`.
 ### `isMatching(pattern, options?)` {#isMatching}
 
 Checks that the string matches the regular expression. The pattern is snapshotted while the schema
-is constructed: its `source` and `flags` are copied into a frozen record, and the schema tests
+is constructed: its `source` and `flags` are copied into a schema-time snapshot, and the schema tests
 against a fresh `RegExp` built from that snapshot. Before and after each test `lastIndex` is reset
 to `0`. Both together make repeated executions deterministic — a stateful `g` or `y` pattern
 cannot carry a match position from one execution into the next, and mutating the caller's `RegExp`
@@ -776,7 +787,7 @@ v.string()
 ```
 
 **Issue code:** `isMatching:expected_matching` — the string does not match the pattern. Payload
-`{ value, pattern }`, where `pattern` is the frozen `{ source, flags }` snapshot rather than the
+`{ value, pattern }`, where `pattern` is the `{ source, flags }` construction snapshot rather than the
 `RegExp` itself.
 
 ### `isNotEmpty(options?)` {#isNotEmpty}
@@ -922,8 +933,8 @@ an output with no primitive member.
 
 A non-empty tuple is required: an empty array is rejected by the type, and a JavaScript caller
 passing one gets a `TypeError` while the schema is constructed. The configured values are
-snapshotted into a frozen array at construction, so mutating the caller's array afterwards does not
-change what the schema accepts, and the failure payload exposes that same frozen snapshot.
+snapshotted into an owned array at construction, so mutating the caller's array afterwards does not
+change what the schema accepts, and the failure payload exposes that same construction snapshot.
 Successful output narrows to the union of the members, which is part of the public contract. The
 step also advertises its candidates as a finite member set, which is what lets `record()` treat such
 a key schema's domain as closed and exhaustive — see [Structures](/api/structures).

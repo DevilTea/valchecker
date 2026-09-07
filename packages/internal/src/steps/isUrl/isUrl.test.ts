@@ -121,12 +121,4 @@ describe('isUrl step plugin', () => {
 		expect(schema.execute('https://example.com'))
 			.toMatchObject({ issues: [{ code: 'isUrl:expected_url', payload: { protocols: ['ftp'] } }] })
 	})
-
-	it('freezes the allow-list it reports, so a consumer cannot mutate it', () => {
-		const failure = v.string()
-			.isUrl()
-			.execute('ftp://example.com') as unknown as { issues: [{ payload: { protocols: string[] } }] }
-		expect(() => failure.issues[0].payload.protocols.push('ftp'))
-			.toThrow()
-	})
 })

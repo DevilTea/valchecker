@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canonicalizeOutput, warm } from './scenarios/define.mjs'
+import { assertResult, canonicalizeOutput, warm } from './scenarios/define.mjs'
 import { getScenarioCatalog, getScenarios } from './scenarios/index.mjs'
 
 /**
@@ -58,6 +58,66 @@ test('the catalog carries steps through to the raw result', () => {
 	assert.equal(catalog.length, scenarios.length)
 	for (const [index, entry] of catalog.entries())
 		assert.deepEqual(entry.steps, scenarios[index].steps)
+})
+
+test('every equivalent scenario is backed by an executable observable conformance contract', () => {
+	const catalog = getScenarioCatalog('full')
+	for (const [index, scenario] of scenarios.entries()) {
+		const entry = catalog[index]
+		if (scenario.comparisonScope !== 'equivalent') {
+			assert.equal(entry.conformanceKey, null, `${scenario.id} exposes an equivalence contract outside equivalent scope`)
+			assert.equal(entry.conformanceCaseCount, 0, `${scenario.id} exposes conformance cases outside equivalent scope`)
+			continue
+		}
+
+		assert.equal(entry.conformanceKey, scenario.conformanceKey, `${scenario.id} lost its conformance identity in the catalog`)
+		assert.equal(entry.conformanceCaseCount, scenario.conformanceCases.length, `${scenario.id} lost conformance cases in the catalog`)
+		assert.ok(scenario.conformanceCases.length > 0, `${scenario.id} has no executable conformance cases`)
+		const exactSuccesses = scenario.conformanceCases.filter(({ expected }) => expected.success && Object.hasOwn(expected, 'output'))
+		const failures = scenario.conformanceCases.filter(({ expected }) => !expected.success)
+		assert.ok(exactSuccesses.length > 0, `${scenario.id} has no exact success/output conformance case`)
+		if (failures.length === 0) {
+			assert.match(scenario.conformanceNoFailureReason ?? '', /accepts every JavaScript value/, `${scenario.id} has no failure case without explaining why none exists`)
+			assert.ok(exactSuccesses.length >= 2, `${scenario.id} replaces a failure case with too little success coverage`)
+		}
+	}
+})
+
+test('the built-in correction rows are equivalent by observable contract, not internal spelling', () => {
+	const catalog = new Map(getScenarioCatalog('full')
+		.map(scenario => [scenario.id, scenario]))
+	for (const id of ['primitive-builtin/valid', 'flat-object-builtin/valid']) {
+		const scenario = catalog.get(id)
+		assert.equal(scenario.comparisonScope, 'equivalent', `${id} is not classified by its observable contract`)
+		assert.ok(scenario.conformanceCaseCount >= 2, `${id} has no success/failure conformance pair`)
+		assert.match(scenario.comparisonNote, /built-in/, `${id} hides its execution-model difference`)
+	}
+	for (const id of ['primitive/valid', 'flat-object/valid', 'nested-object/valid', 'delegation/valid']) {
+		const scenario = catalog.get(id)
+		assert.equal(scenario.comparisonScope, 'equivalent')
+		assert.ok(scenario.comparisonNote, `${id} does not disclose its material execution-model difference`)
+	}
+})
+
+test('an explicit undefined success output is asserted instead of meaning no output assertion', () => {
+	const adapter = { name: 'Probe', normalize: result => result }
+	assert.doesNotThrow(() => assertResult(adapter, { success: true, output: undefined }, { success: true, output: undefined }))
+	assert.throws(
+		() => assertResult(adapter, { success: true, output: 'wrong' }, { success: true, output: undefined }),
+		/output mismatch.*Undefined/s,
+	)
+})
+
+test('equivalent conformance is executed before the timed operation is created', () => {
+	const scenario = warm('probe/conformance', 'full', 'probe', 'timed', { success: true, output: 'timed' }, { steps: ['string'] })
+	scenario.conformanceCases = [{ input: 'contract', expected: { success: true, output: 'contract' } }]
+	const adapter = {
+		name: 'Probe',
+		build: { probe: () => ({}) },
+		parse: (_schema, input) => ({ success: true, output: input === 'contract' ? 'wrong' : input }),
+		normalize: result => result,
+	}
+	assert.throws(() => scenario.setup(adapter), /output mismatch/)
 })
 
 /**

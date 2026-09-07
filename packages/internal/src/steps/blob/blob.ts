@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 type Meta = DefineStepMethodMeta<{
 	Name: 'blob'
@@ -54,6 +55,7 @@ export const blob = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(
 			value => typeof Blob !== 'undefined' && value instanceof Blob
 				?	success(value)
@@ -61,7 +63,7 @@ export const blob = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'blob:expected_blob',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected a Blob.',
 						}),
 					),

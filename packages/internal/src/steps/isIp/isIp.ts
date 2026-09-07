@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 
 declare namespace Internal {
 	export type Issue = ExecutionIssue<'isIp:expected_ip', { value: string, version: 4 | 6 | undefined }>
@@ -67,6 +68,8 @@ function isIPv6(value: string): boolean {
 	const compressed = halves.length === 2
 	const leftRaw = halves[0] ?? ''
 	const rightRaw = halves[1] ?? ''
+	if (compressed && leftRaw.includes('.'))
+		return false
 	const left = leftRaw === '' ? [] : leftRaw.split(':')
 	const right = compressed && rightRaw !== '' ? rightRaw.split(':') : []
 	const groups = [...left, ...right]
@@ -102,6 +105,7 @@ export const isIp = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		const version = options?.version
 		addSuccessStep(value => isIpValue(value, version)
 			? success(value)
@@ -109,7 +113,7 @@ export const isIp = implStepPlugin<PluginDef>({
 					createIssue({
 						code: 'isIp:expected_ip',
 						payload: { value, version },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a valid IP address.',
 					}),
 				))

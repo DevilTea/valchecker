@@ -14,11 +14,13 @@ import { criticalValue, mean } from './statistics.mjs'
 const profile = { warmupMs: 200, sampleMs: 300, minSamples: 5, maxSamples: 7, targetRelativeMarginOfError: 0.75 }
 
 /** One `raw.json`, carrying one result per named scenario. */
-function runOf(scenarios, { scenarioFilter = null, isolation = 'cell', shardCount = 1, cellCatalogHash = null, unmeasurableCells = [] } = {}) {
+function runOf(scenarios, { scenarioFilter = null, scenarioRoles = null, isolation = 'cell', temporalPairing = 'adjacent-cell', shardCount = 1, cellCatalogHash = null, unmeasurableCells = [] } = {}) {
 	return {
-		schemaVersion: 4,
+		schemaVersion: 5,
 		mode: 'standard',
 		isolation,
+		temporalPairing,
+		scenarioRoles,
 		profile,
 		scenarioFilter,
 		cellCatalogHash,
@@ -70,6 +72,8 @@ test('a group aggregate reports how much of the group it covers', () => {
 	assert.deepEqual(result.groups, [{
 		group: 'warm/success',
 		scenarios: 5,
+		measuredScenarios: 5,
+		healthScenarios: 0,
 		catalogScenarios: 113,
 		decisiveScenarios: 5,
 		inconclusiveScenarios: 0,
@@ -79,24 +83,24 @@ test('a group aggregate reports how much of the group it covers', () => {
 		intervalHigh: 0,
 		classification: 'cleared',
 	}])
-	assert.deepEqual(result.coverage, { measuredScenarios: 5, tierScenarios: 121 })
-	assert.deepEqual(result.partiallyCoveredGroups, [{ group: 'warm/success', measured: 5, total: 113 }])
-	assert.match(renderMarkdown(result), /\| warm\/success \| 5\/113 \(4%\) \| 5\/5 \| \+0\.0% \| \+0\.0% … \+0\.0% \| cleared \|/)
+	assert.deepEqual(result.coverage, { measuredScenarios: 5, affectedScenarios: 5, tierScenarios: 121 })
+	assert.deepEqual(result.partiallyCoveredGroups, [{ group: 'warm/success', affected: 5, measured: 5, total: 113 }])
+	assert.match(renderMarkdown(result), /\| warm\/success \| 5 \| 0 \| 113 \| 5\/5 \| \+0\.0% \| \+0\.0% … \+0\.0% \| cleared \|/)
 	assert.match(renderMarkdown(result), /Scenarios measured: \*\*5 of 121\*\*/)
-	assert.match(renderMarkdown(result), /Partly covered groups.*`warm\/success` 5\/113/)
+	assert.match(renderMarkdown(result), /Scoped group estimators.*`warm\/success` 5 affected \/ 5 measured \/ 113 catalog/)
 })
 
-test('a complete comparison says nothing about partial coverage', () => {
+test('a complete comparison says nothing about partial measurement', () => {
 	// The positive control for the note above: the same shape with every scenario of
 	// the group measured must not produce a scope warning, or the warning would be
 	// noise a reader learns to skip.
 	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
 	const result = compare(scenarios, scenarios, [['cold', 2]])
 	assert.deepEqual(result.partiallyCoveredGroups, [])
-	assert.deepEqual(result.coverage, { measuredScenarios: 2, tierScenarios: 2 })
+	assert.deepEqual(result.coverage, { measuredScenarios: 2, affectedScenarios: 2, tierScenarios: 2 })
 	const markdown = renderMarkdown(result)
 	assert.doesNotMatch(markdown, /Partly covered groups/)
-	assert.match(markdown, /\| cold \| 2\/2 \(100%\) \| 2\/2 \| \+0\.0% \| \+0\.0% … \+0\.0% \| cleared \|/)
+	assert.match(markdown, /\| cold \| 2 \| 0 \| 2 \| 2\/2 \| \+0\.0% \| \+0\.0% … \+0\.0% \| cleared \|/)
 })
 
 test('a group with one measured scenario has no severe-group trigger, and says so', () => {
@@ -195,6 +199,35 @@ test('a group verdict does not need any of its rows to be decisive', () => {
 	assert.equal(result.verdict, 'regression')
 })
 
+test('canary controls cannot dilute the diff-attributed group estimator', () => {
+	const before = [['a', 'cold', 100], ['b', 'cold', 100], ['canary-a', 'cold', 100], ['canary-b', 'cold', 100]]
+	const after = [['a', 'cold', 94], ['b', 'cold', 94], ['canary-a', 'cold', 100], ['canary-b', 'cold', 100]]
+	const scenarioRoles = {
+		'a': 'affected',
+		'b': 'affected',
+		'canary-a': 'health-canary',
+		'canary-b': 'health-canary',
+	}
+	const result = compare(before, after, [['cold', 4]], { scenarioRoles })
+	assert.equal(Number(result.groups[0].delta.toFixed(6)), -0.06)
+	assert.equal(result.groups[0].scenarios, 2)
+	assert.equal(result.groups[0].measuredScenarios, 4)
+	assert.equal(result.groups[0].healthScenarios, 2)
+	assert.deepEqual(result.severeGroups, ['cold'])
+	assert.deepEqual(result.healthSignals.map(row => row.scenario), ['canary-a', 'canary-b'])
+})
+
+test('a severe canary remains a direct cell signal while staying out of group aggregation', () => {
+	const before = [['affected', 'cold', 100], ['canary', 'cold', 100]]
+	const after = [['affected', 'cold', 100], ['canary', 'cold', 80]]
+	const result = compare(before, after, [['cold', 2]], { scenarioRoles: { affected: 'affected', canary: 'health-canary' } })
+	assert.deepEqual(result.severeScenarios, ['canary'])
+	assert.equal(result.groups[0].delta, 0)
+	assert.equal(result.groups[0].scenarios, 1)
+	assert.equal(result.groups[0].healthScenarios, 1)
+	assert.equal(result.verdict, 'regression')
+})
+
 test('a broad moderate regression across a group is severe even though no scenario is', () => {
 	// Every scenario is down 6%: under the per-scenario 10% threshold, over the 5%
 	// group threshold. This is the trigger the scoping had to keep working.
@@ -220,8 +253,8 @@ test('one scenario past the per-scenario threshold is severe on its own', () => 
 test('the report carries the conditions the verdict was reached under', () => {
 	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
 	const result = compare(scenarios, scenarios, [['cold', 8]], { scenarioFilter: ['b', 'a'] })
-	assert.equal(result.schemaVersion, 9)
-	assert.deepEqual(result.measurement, { isolation: 'cell', shardCount: 1, selection: ['a', 'b'], cellCatalogHash: null })
+	assert.equal(result.schemaVersion, 10)
+	assert.deepEqual(result.measurement, { isolation: 'cell', temporalPairing: 'adjacent-cell', shardCount: 1, selection: ['a', 'b'], scenarioRoles: null, cellCatalogHash: null })
 	assert.match(renderMarkdown(result), /scoped to the diff/)
 })
 
@@ -245,7 +278,7 @@ test('the presence counts are reported whether or not anything moved', () => {
 	assert.match(markdown, /Cells: \*\*measured 2\*\* of the 8 the catalog declares/)
 	// `n/a`, not `0`: with no static diff supplied this run cannot see a deleted cell, and
 	// printing a zero would claim an audit it did not perform.
-	assert.match(markdown, /\*\*catalog added n\/a \/ removed n\/a \/ regrouped n\/a\*\*/)
+	assert.match(markdown, /\*\*catalog added n\/a \/ removed n\/a \/ contract changed n\/a\*\*/)
 	assert.match(markdown, /No catalog diff was supplied/)
 })
 
@@ -275,7 +308,7 @@ test('a catalog deletion is reported from the static diff, which the runtime can
 	// is never collected, never measured, and can never appear in a baseline result. Every
 	// runtime count here is zero while a cell was in fact removed from the contract.
 	const scenarios = [['a', 'cold', 100], ['b', 'cold', 100]]
-	const catalogDiff = { added: ['c/new'], removed: ['map/collect-all'], changed: [{ id: 'set/collect-all', baseGroup: 'warm/failure/all', headGroup: 'warm/success', gateEffect: null }], baseCells: 3, headCells: 3, problems: [] }
+	const catalogDiff = { added: ['c/new'], removed: ['map/collect-all'], changed: [{ id: 'set/collect-all', fields: ['group', 'batch'], base: { group: 'warm/failure/all', batch: 20, async: false }, head: { group: 'warm/success', batch: 40, async: false }, gateEffect: null }], baseCells: 3, headCells: 3, problems: [] }
 	const result = compareResults(
 		aggregateRuns(sideOf(scenarios), 'baseline'),
 		aggregateRuns(sideOf(scenarios), 'candidate'),
@@ -284,10 +317,10 @@ test('a catalog deletion is reported from the static diff, which the runtime can
 	assert.deepEqual([result.cells.candidateOnly, result.cells.baselineOnly], [[], []], 'the runtime sees nothing')
 	assert.deepEqual(result.cells.catalogDiff.removed, ['map/collect-all'])
 	const markdown = renderMarkdown(result)
-	assert.match(markdown, /\*\*catalog added 1 \/ removed 1 \/ regrouped 1\*\*/)
+	assert.match(markdown, /\*\*catalog added 1 \/ removed 1 \/ contract changed 1\*\*/)
 	// A group move keeps the id and changes which aggregate judges the cell, so it must never read
 	// as an unchanged catalog.
-	assert.match(markdown, /\*\*Regrouped\.\*\* `set\/collect-all` warm\/failure\/all → warm\/success/)
+	assert.match(markdown, /\*\*Measurement contract changed\.\*\* `set\/collect-all` group warm\/failure\/all → warm\/success, batch 20 → 40/)
 	assert.match(markdown, /\*\*Removed from the catalog\.\*\* `map\/collect-all`/)
 	assert.match(markdown, /coverage loss no runtime comparison can report/)
 })

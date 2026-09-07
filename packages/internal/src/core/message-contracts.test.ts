@@ -562,6 +562,117 @@ describe('issue message finalization', () => {
 				}],
 			})
 	})
+
+	interface NumberMessageMap {
+		'number:expected_number'?: (issue: { path: PropertyKey[] }) => string | undefined | null
+	}
+
+	it('captures a step message option while retaining its callback closure state', () => {
+		const v = createValchecker({ steps: [number] })
+		const state = { label: 'before' }
+		const options = { message: () => `step:${state.label}` }
+		const schema = v.number(options)
+
+		options.message = () => 'replacement'
+		state.label = 'after'
+
+		expect(schema.execute('wrong'))
+			.toMatchObject({
+				issues: [{ message: 'step:after' }],
+			})
+	})
+
+	it('snapshots a step message map through entry replacement and deletion', () => {
+		const v = createValchecker({ steps: [number] })
+		const state = { label: 'before' }
+		const code = 'number:expected_number'
+		const callback = () => `map:${state.label}`
+		const messages: NumberMessageMap = { [code]: callback }
+		const options: { message?: string | NumberMessageMap } = { message: messages }
+		const schema = v.number(options)
+
+		options.message = 'replacement'
+		messages[code] = () => 'replaced entry'
+		delete messages[code]
+		state.label = 'after'
+
+		expect(schema.execute('wrong'))
+			.toMatchObject({
+				issues: [{ message: 'map:after' }],
+			})
+	})
+
+	it('does not capture a message-map entry added after schema construction', () => {
+		const v = createValchecker({ steps: [number] })
+		const code = 'number:expected_number'
+		const messages: NumberMessageMap = {}
+		const schema = v.number({ message: messages })
+
+		messages[code] = () => 'late entry'
+
+		expect(schema.execute('wrong'))
+			.toMatchObject({
+				issues: [{ message: 'Expected a number.' }],
+			})
+	})
+
+	it('snapshots a global message map while preserving nested paths and callback state', () => {
+		const state = { label: 'before' }
+		const code = 'number:expected_number'
+		const messages: NumberMessageMap = {
+			[code]: ({ path }: { path: PropertyKey[] }) => `global:${state.label}:${path.join('.')}`,
+		}
+		const v = createValchecker({ steps: [number, object], message: messages })
+		const schema = v.object({ age: v.number() })
+
+		messages[code] = () => 'replaced entry'
+		delete messages[code]
+		state.label = 'after'
+
+		expect(schema.execute({ age: 'wrong' }))
+			.toMatchObject({
+				issues: [{ message: 'global:after:age', path: ['age'] }],
+			})
+	})
+
+	it('captures non-enumerable own message-map getters as values', () => {
+		const v = createValchecker({ steps: [number] })
+		const code = 'number:expected_number'
+		let getterCalls = 0
+		const messages: NumberMessageMap = {}
+		Object.setPrototypeOf(messages, { [code]: () => 'inherited' })
+		Object.defineProperty(messages, code, {
+			configurable: true,
+			enumerable: false,
+			get: () => {
+				getterCalls++
+				return () => 'own getter'
+			},
+		})
+		const schema = v.number({ message: messages })
+
+		expect(getterCalls)
+			.toBe(1)
+		expect(schema.execute('wrong'))
+			.toMatchObject({
+				issues: [{ message: 'own getter' }],
+			})
+		expect(getterCalls)
+			.toBe(1)
+	})
+
+	it('does not capture inherited message-map entries', () => {
+		const v = createValchecker({ steps: [number] })
+		const code = 'number:expected_number'
+		const messages: NumberMessageMap = {}
+		Object.setPrototypeOf(messages, { [code]: () => 'inherited' })
+		const schema = v.number({ message: messages })
+
+		expect(schema.execute('wrong'))
+			.toMatchObject({
+				issues: [{ message: 'Expected a number.' }],
+			})
+	})
 })
 
 describe('static and dynamic message resolution parity', () => {

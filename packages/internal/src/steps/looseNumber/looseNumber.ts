@@ -1,6 +1,7 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import type { IsExactlyAnyOrUnknown } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { parseNumberLiteral } from './number-literal'
 
 type Meta = DefineStepMethodMeta<{
@@ -65,6 +66,7 @@ export const looseNumber = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep((value) => {
 			const parsed = parseLooseNumber(value)
 			return parsed !== undefined
@@ -73,7 +75,7 @@ export const looseNumber = implStepPlugin<PluginDef>({
 						createIssue({
 							code: 'looseNumber:expected_number',
 							payload: { value },
-							customMessage: options?.message,
+							customMessage: messageOptions?.message,
 							defaultMessage: 'Expected a number or number string.',
 						}),
 					)

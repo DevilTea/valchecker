@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, InferOutput, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { CallbackErrorSentinel, runWithCallbackErrorSentinel } from '../callback-error-sentinel'
 
 declare namespace Internal {
@@ -56,6 +57,7 @@ export const toSorted = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		const compareFn = options?.compareFn
 		addSuccessStep((value) => {
 			// No-comparator path assumes the ES2023 Array.prototype.toSorted
@@ -77,7 +79,7 @@ export const toSorted = implStepPlugin<PluginDef>({
 					code: 'toSorted:callback_failed',
 					category: 'operation',
 					payload: { value, left: context.left, right: context.right, error },
-					customMessage: options?.message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Sort callback failed.',
 				})),
 			)

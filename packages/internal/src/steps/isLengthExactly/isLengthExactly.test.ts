@@ -30,6 +30,18 @@ describe('isLengthExactly step plugin', () => {
 			})
 	})
 
+	it('rejects values longer than the expected length', () => {
+		expect(v.string()
+			.isLengthExactly(3)
+			.execute('abcd'))
+			.toMatchObject({
+				issues: [{
+					code: 'isLengthExactly:expected_length_exactly',
+					payload: { value: 'abcd', expectedLength: 3, length: 4 },
+				}],
+			})
+	})
+
 	it('reads a dynamic length once and supports custom messages', () => {
 		let reads = 0
 		const value = { get length() {

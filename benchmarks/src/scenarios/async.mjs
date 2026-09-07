@@ -51,10 +51,12 @@
 //   different predicate — so it bounds the order of magnitude rather than a
 //   difference.
 //
-// Scope. `check-valid`, `check-invalid`, and `transform-valid` are `equivalent`:
-// accepted sets, outputs, and the failure position agree exactly on every adapter,
-// and the failure reports one issue everywhere. `wrapper-valid` is
-// `compatible-subset`, because the two sides reach the promise from opposite places —
+// Scope. `check-valid` and `check-invalid` are `equivalent`: their shared success
+// and callback-failure cases stay asynchronous on every adapter and pass the same
+// executable contract. `transform-valid` is `compatible-subset`: its valid path is
+// shared, but a leading type failure returns synchronously on Valchecker before the
+// async callback while the competitors still require an async parse. `wrapper-valid`
+// is also `compatible-subset`, because the two sides reach the promise from opposite places —
 // a step inside the schema against a second entry point on the call — and a reader
 // should see that stated rather than infer that one API was measured twice.
 //
@@ -81,6 +83,6 @@ const wrapperSteps = ['string', 'isLengthAtLeast', 'isLengthAtMost', 'isMatching
 export const asyncScenarios = [
 	warm('async/check-valid', 'standard', 'asyncCheck', primitive.valid, { success: true, output: primitive.valid }, { ...asyncOptions, steps: checkSteps }),
 	warm('async/check-invalid', 'full', 'asyncCheck', tooShort, { success: false }, { ...asyncOptions, steps: checkSteps }),
-	warm('async/transform-valid', 'standard', 'asyncTransform', primitive.valid, { success: true, output: `user:${primitive.valid}` }, { ...asyncOptions, steps: transformSteps }),
+	warm('async/transform-valid', 'standard', 'asyncTransform', primitive.valid, { success: true, output: `user:${primitive.valid}` }, { ...asyncOptions, comparisonScope: 'compatible-subset', comparisonNote: 'The successful async transform is observably shared, but a value rejected by the leading string check returns synchronously on Valchecker before the async callback while competitor async schemas still require their async entry point; there is no shared failure execution model.', steps: transformSteps }),
 	warm('async/wrapper-valid', 'standard', 'asyncWrapper', primitive.valid, { success: true, output: primitive.valid }, { ...asyncOptions, comparisonScope: 'compatible-subset', steps: wrapperSteps }),
 ]

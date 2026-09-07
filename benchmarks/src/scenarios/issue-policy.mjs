@@ -12,6 +12,19 @@ const invalidMapEntries = Array.from({ length: 100 }, (_, index) => [`item-${ind
 invalidMapEntries[0] = [0, 0]
 invalidMapEntries[99] = ['item-99', 'invalid']
 
+const issuePolicySuccess = {
+	object: Object.freeze({ first: 'one', second: 'two' }),
+	strictObject: Object.freeze({ first: 'one', second: 'two' }),
+	looseObject: Object.freeze({ first: 'one', second: 'two', extra: true }),
+	array: Object.freeze(['one', 'two']),
+	set: new Set(['one', 'two']),
+	map: new Map([['one', 1], ['two', 2]]),
+}
+
+function exactSuccess(input) {
+	return [{ input, expected: { success: true, output: input } }]
+}
+
 const issuePolicyInputs = {
 	object: Object.freeze({ first: 1, second: 2 }),
 	strictObject: Object.freeze({ first: 1, second: 2, extra: true }),
@@ -23,11 +36,11 @@ const issuePolicyInputs = {
 }
 
 export const issuePolicyScenarios = [
-	...issuePolicyPair('object', 'issuePolicyObject', issuePolicyInputs.object, { tier: 'smoke', steps: ['object', 'string'] }),
-	...issuePolicyPair('strict-object', 'issuePolicyStrictObject', issuePolicyInputs.strictObject, { allIssueCount: 3, steps: ['strictObject', 'string'] }),
-	...issuePolicyPair('loose-object', 'issuePolicyLooseObject', issuePolicyInputs.looseObject, { steps: ['looseObject', 'string'] }),
-	...issuePolicyPair('array', 'issuePolicyArray', issuePolicyInputs.array, { steps: ['array', 'string'] }),
-	...issuePolicyPair('set', 'issuePolicySet', issuePolicyInputs.set, { steps: ['set', 'string'] }),
-	...issuePolicyPair('map', 'issuePolicyMap', issuePolicyInputs.map, { steps: ['map', 'string', 'number'] }),
+	...issuePolicyPair('object', 'issuePolicyObject', issuePolicyInputs.object, { conformanceCases: exactSuccess(issuePolicySuccess.object), tier: 'smoke', steps: ['object', 'string'] }),
+	...issuePolicyPair('strict-object', 'issuePolicyStrictObject', issuePolicyInputs.strictObject, { conformanceCases: exactSuccess(issuePolicySuccess.strictObject), allIssueCount: 3, steps: ['strictObject', 'string'] }),
+	...issuePolicyPair('loose-object', 'issuePolicyLooseObject', issuePolicyInputs.looseObject, { comparisonScope: 'compatible-subset', comparisonNote: 'On successful passthrough Valchecker emits undeclared keys before declared keys, while the competitors preserve first/second/extra enumeration order. The timed failure fixtures still agree on the compared issue-count behavior.', steps: ['looseObject', 'string'] }),
+	...issuePolicyPair('array', 'issuePolicyArray', issuePolicyInputs.array, { conformanceCases: exactSuccess(issuePolicySuccess.array), steps: ['array', 'string'] }),
+	...issuePolicyPair('set', 'issuePolicySet', issuePolicyInputs.set, { conformanceCases: exactSuccess(issuePolicySuccess.set), steps: ['set', 'string'] }),
+	...issuePolicyPair('map', 'issuePolicyMap', issuePolicyInputs.map, { conformanceCases: exactSuccess(issuePolicySuccess.map), steps: ['map', 'string', 'number'] }),
 	...issuePolicyPair('intersection', 'issuePolicyIntersection', issuePolicyInputs.intersection, { comparisonScope: 'compatible-subset', steps: ['intersection', 'object', 'string'] }),
 ]

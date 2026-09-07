@@ -27,7 +27,18 @@ describe('isMultipleOf step plugin', () => {
 			.toEqual({ value: 9n })
 	})
 
-	it('rejects non-multiples, huge near-quotients, and non-finite values', () => {
+	it.each([
+		[8192.04, 0.01],
+		[131072.05, 0.05],
+		[262144.1, 0.1],
+	] as const)('accepts %d as a floating-point multiple of %d at a larger quotient', (value, divisor) => {
+		expect(v.number()
+			.isMultipleOf(divisor)
+			.execute(value))
+			.toEqual({ value })
+	})
+
+	it('rejects ordinary non-multiples and non-finite values', () => {
 		expect(v.number()
 			.isMultipleOf(2)
 			.execute(3))
@@ -42,9 +53,23 @@ describe('isMultipleOf step plugin', () => {
 			})
 		expect(v.number()
 			.isMultipleOf(3)
-			.execute(10_000_000_000_000_000))
+			.execute(1_000_000_000_000))
 			.toMatchObject({
-				issues: [{ payload: { target: 'number', value: 10_000_000_000_000_000, divisor: 3 } }],
+				issues: [{ payload: { target: 'number', value: 1_000_000_000_000, divisor: 3 } }],
+			})
+		expect(v.number()
+			.isMultipleOf(1e-300)
+			.execute(Number.MAX_VALUE))
+			.toMatchObject({
+				issues: [{ payload: { target: 'number', value: Number.MAX_VALUE, divisor: 1e-300 } }],
+			})
+		const overflowValue = Number.MAX_VALUE * 0.9
+		const overflowDivisor = Number.MAX_VALUE * 0.55
+		expect(v.number()
+			.isMultipleOf(overflowDivisor)
+			.execute(overflowValue))
+			.toMatchObject({
+				issues: [{ payload: { target: 'number', value: overflowValue, divisor: overflowDivisor } }],
 			})
 		expect(v.number()
 			.isMultipleOf(2)
@@ -61,10 +86,10 @@ describe('isMultipleOf step plugin', () => {
 	})
 
 	it('includes the documented tolerance boundary and excludes the value past it', () => {
-		// The documented tolerance is Number.EPSILON * Math.max(1, |quotient|) * 8,
-		// which is exactly 2 ** -49 while |quotient| <= 1. A quotient of 1 - 2 ** -49
-		// therefore sits on the boundary, and the next representable step away from 1
-		// sits outside it.
+		// With divisor 1 the nearest reconstructed multiple is 1, so the documented
+		// value-space tolerance is Number.EPSILON * max(1, |value|, 1) * 8 = 2 ** -49.
+		// A value of 1 - 2 ** -49 sits on that boundary; the next representable step
+		// farther from 1 sits outside it.
 		expect(v.number()
 			.isMultipleOf(1)
 			.execute(1 - 2 ** -49))

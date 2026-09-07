@@ -37,6 +37,7 @@ else {
 
 ## Selective imports
 
+<!-- typecheck-isolate -->
 ```ts
 import {
 	createValchecker,
@@ -254,7 +255,8 @@ v.string().toTrimmed()
 v.string().toLowercase()
 v.string().toSplit(',')
 v.string().toJSONValue()
-v.unknown().toJSONString()
+v.unknown().toJSONString() // native JSON.stringify semantics
+v.unknown().toStrictJSONString() // reject lossy nested JSON slots
 v.array(v.number()).toSorted()
 v.set(v.string()).toSize()
 ```

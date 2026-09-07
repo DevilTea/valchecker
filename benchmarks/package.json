@@ -21,6 +21,7 @@
 		"verify": "node ./src/verify.mjs && node ./src/step-audit.mjs"
 	},
 	"dependencies": {
+		"picomatch": "4.0.5",
 		"rollup": "^4.0.0",
 		"terser": "^5.0.0",
 		"valibot": "1.4.2",

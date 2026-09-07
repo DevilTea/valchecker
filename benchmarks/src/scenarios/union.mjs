@@ -12,7 +12,7 @@ const unionFirstPool = Array.from({ length: 64 }, (_, index) => ({
 const unionSteps = ['union', 'object', 'literal', 'string', 'number', 'boolean']
 
 export const unionScenarios = [
-	warm('union/first', 'smoke', 'union', unionInputs.first, { success: true }, { steps: unionSteps }),
+	warm('union/first', 'smoke', 'union', unionInputs.first, { success: true, output: unionInputs.first }, { steps: unionSteps }),
 	warmPool('union/first-rotating', 'standard', 'union', unionFirstPool, { success: true }, { steps: unionSteps }),
 	warm('union/middle', 'standard', 'union', unionInputs.middle, { success: true }, { steps: unionSteps }),
 	warm('union/last', 'standard', 'union', unionInputs.last, { success: true }, { steps: unionSteps }),

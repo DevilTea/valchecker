@@ -1,6 +1,7 @@
 import type { AnyExecutionIssue, DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, ExecutionResult, InferIssue, InferOperationMode, InferOutput, Next, OperationMode, StructuralStepOptions, TStepPluginDef, Use, Valchecker } from '../../core'
 import type { IsEqual, IsExactlyAnyOrUnknown, Simplify, ValueOf } from '../../shared'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isPromiseLike } from '../../shared'
 
 declare namespace Internal {
@@ -122,6 +123,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure, isFailure, prependIssuePath },
 		params: [struct, options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		const keys: PropertyKey[] = Object.keys(struct)
 		const symbols = Object.getOwnPropertySymbols(struct)
 		for (let i = 0; i < symbols.length; i++) {
@@ -168,7 +170,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				code: 'looseObject:missing_key',
 				payload: { key },
 				path: [key],
-				customMessage: options?.message,
+				customMessage: messageOptions?.message,
 				defaultMessage: 'Missing required object key.',
 			}))
 			return target
@@ -186,7 +188,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				for (const issue of result.issues) {
 					if (issue.category === 'internal')
 						hasInternal = true
-					target.push(prependIssuePath(issue, [key], options?.message))
+					target.push(prependIssuePath(issue, [key], messageOptions?.message))
 				}
 			}
 			return { issues: target, hasInternal }
@@ -240,7 +242,7 @@ export const looseObject = implStepPlugin<PluginDef>({
 				return failure(createIssue({
 					code: 'looseObject:expected_object',
 					payload: { value },
-					customMessage: options?.message,
+					customMessage: messageOptions?.message,
 					defaultMessage: 'Expected an object.',
 				}))
 			}

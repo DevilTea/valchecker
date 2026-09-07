@@ -1,5 +1,6 @@
 import type { DefineExpectedValchecker, DefineStepMethod, DefineStepMethodMeta, ExecutionIssue, Next, StepOptions, TStepPluginDef } from '../../core'
 import { implStepPlugin } from '../../core'
+import { snapshotMessageOptions } from '../../core/message'
 import { isBase64UrlString } from '../isBase64Url/base64url'
 
 type Meta = DefineStepMethodMeta<{
@@ -11,10 +12,11 @@ type Meta = DefineStepMethodMeta<{
 interface PluginDef extends TStepPluginDef {
 	/**
 	 * ### Description:
-	 * Checks that the string is a JSON Web Token: three base64url segments
-	 * separated by dots. The header is base64url-decoded, parsed as JSON, and
-	 * required to be an object carrying a string `alg`. The signature segment
-	 * may be empty (an unsecured JWS).
+	 * Checks that the string is a structurally valid JWT using JWS Compact
+	 * Serialization. The JOSE header and Claims Set must be valid UTF-8 JSON
+	 * objects, the header must carry a non-empty string `alg`, and the signature
+	 * must be empty exactly for `alg: "none"`. Signatures are not
+	 * cryptographically verified and JWE is outside this step's contract.
 	 *
 	 * ---
 	 *
@@ -42,11 +44,42 @@ interface PluginDef extends TStepPluginDef {
 	>
 }
 
-function decodeBase64Url(segment: string): string {
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true })
+
+function decodeBase64UrlUtf8(segment: string): string {
 	const normalized = segment.replace(/-/g, '+')
 		.replace(/_/g, '/')
 	const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=')
-	return atob(padded)
+	const binary = atob(padded)
+	// ASCII bytes decode to the same code points under UTF-8, so the common
+	// JWT path can skip allocating a Uint8Array and invoking TextDecoder. Any
+	// high-bit byte still goes through the fatal UTF-8 decoder below.
+	let ascii = true
+	for (let i = 0; i < binary.length; i++) {
+		if (binary.charCodeAt(i) > 0x7F) {
+			ascii = false
+			break
+		}
+	}
+	if (ascii)
+		return binary
+
+	const bytes = new Uint8Array(binary.length)
+	for (let i = 0; i < binary.length; i++)
+		bytes[i] = binary.charCodeAt(i)
+	return utf8Decoder.decode(bytes)
+}
+
+function decodeJsonObject(segment: string): Record<string, unknown> | null {
+	try {
+		const decoded: unknown = JSON.parse(decodeBase64UrlUtf8(segment))
+		return typeof decoded === 'object' && decoded !== null && !Array.isArray(decoded)
+			? decoded as Record<string, unknown>
+			: null
+	}
+	catch {
+		return null
+	}
 }
 
 function isJwtValue(value: string): boolean {
@@ -63,16 +96,17 @@ function isJwtValue(value: string): boolean {
 		return false
 	if (!isBase64UrlString(header) || !isBase64UrlString(payload) || !isBase64UrlString(signature))
 		return false
-	try {
-		const decoded: unknown = JSON.parse(decodeBase64Url(header))
-		return typeof decoded === 'object'
-			&& decoded !== null
-			&& 'alg' in decoded
-			&& typeof (decoded as { alg?: unknown }).alg === 'string'
-	}
-	catch {
+
+	const decodedHeader = decodeJsonObject(header)
+	if (decodedHeader === null)
 		return false
-	}
+	const alg = decodedHeader.alg
+	if (typeof alg !== 'string' || alg.length === 0)
+		return false
+	if (decodeJsonObject(payload) === null)
+		return false
+
+	return alg === 'none' ? signature === '' : signature !== ''
 }
 
 /* @__NO_SIDE_EFFECTS__ */
@@ -81,13 +115,14 @@ export const isJwt = implStepPlugin<PluginDef>({
 		utils: { addSuccessStep, success, createIssue, failure },
 		params: [options],
 	}) => {
+		const messageOptions = snapshotMessageOptions(options)
 		addSuccessStep(value => isJwtValue(value)
 			? success(value)
 			: failure(
 					createIssue({
 						code: 'isJwt:expected_jwt',
 						payload: { value },
-						customMessage: options?.message,
+						customMessage: messageOptions?.message,
 						defaultMessage: 'Expected a valid JWT.',
 					}),
 				))

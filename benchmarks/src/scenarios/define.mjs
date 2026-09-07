@@ -149,7 +149,10 @@ export function assertResult(adapter, rawResult, expected, normalizeResult) {
 	if (normalized.success !== expected.success)
 		throw new Error(`${adapter.name}: expected success=${expected.success}, received ${normalized.success}`)
 
-	if (expected.output !== undefined) {
+	// Presence, not value, decides whether output is part of the contract. An
+	// explicit `output: undefined` is an observable successful result and must not
+	// collapse into the old "do not assert output" sentinel.
+	if (Object.hasOwn(expected, 'output')) {
 		const actual = JSON.stringify(canonicalizeOutput(normalized.output))
 		const wanted = JSON.stringify(canonicalizeOutput(expected.output))
 		if (actual !== wanted)
@@ -272,6 +275,50 @@ function operationAfter(verifications, operation) {
 				.then(() => operation)
 }
 
+function setupAfter(verifications, createOperation) {
+	const pending = verifications.filter(verification => verification !== undefined)
+	return pending.length === 0
+		? createOperation()
+		: Promise.all(pending)
+				.then(createOperation)
+}
+
+function conformanceContextKey(issuePolicy) {
+	return issuePolicy === 'first' || issuePolicy === 'all'
+		? issuePolicy
+		: 'default'
+}
+
+export function scenarioConformanceKey(buildKey, issuePolicy) {
+	return `${buildKey}::${conformanceContextKey(issuePolicy)}`
+}
+
+function conformanceFailure(adapter, scenario, index, error) {
+	const detail = error instanceof Error ? error.message : String(error)
+	return new Error(`${adapter.name}: conformance ${scenario.conformanceKey} case ${index + 1} failed for scenario '${scenario.id}': ${detail}`)
+}
+
+function verifyConformanceCases(adapter, scenario, entry, context) {
+	return scenario.conformanceCases.map(({ input, expected }, index) => {
+		try {
+			const schema = adapter.build[scenario.buildKey](context)
+			const verification = verifyResult(
+				adapter,
+				entry,
+				entry.call(schema, input, context),
+				expected,
+				context.executionMode,
+			)
+			return verification?.catch((error) => {
+				throw conformanceFailure(adapter, scenario, index, error)
+			})
+		}
+		catch (error) {
+			throw conformanceFailure(adapter, scenario, index, error)
+		}
+	})
+}
+
 export function defineScenario({
 	id,
 	category,
@@ -285,11 +332,14 @@ export function defineScenario({
 	requiredFeatures = [],
 	executionMode = 'sync',
 	entry = 'native',
+	conformanceSeeds,
+	conformanceNoFailureReason,
+	comparisonNote,
 	createOperation,
 }) {
 	const mode = normalizeExecutionMode(id, executionMode)
 	const group = benchmarkGroup(category, resultKind, issuePolicy, mode)
-	return {
+	const scenario = {
 		id,
 		category,
 		tier,
@@ -303,6 +353,11 @@ export function defineScenario({
 		entry,
 		buildKey,
 		steps: normalizeSteps(id, steps),
+		conformanceKey: scenarioConformanceKey(buildKey, issuePolicy),
+		conformanceSeeds,
+		conformanceNoFailureReason,
+		conformanceCases: [],
+		comparisonNote: comparisonNote ?? null,
 		support(adapter) {
 			return supportFor(adapter, issuePolicy, requiredFeatures)
 		},
@@ -318,13 +373,19 @@ export function defineScenario({
 					+ 'Add the build, or declare the missing capability with requiredFeatures.',
 				)
 			}
-			return createOperation(
+			const context = { issuePolicy, comparisonScope, resultKind, executionMode: mode, entry }
+			const resolvedEntry = resolveEntry(adapter, entry)
+			const conformanceVerifications = comparisonScope === 'equivalent'
+				? verifyConformanceCases(adapter, scenario, resolvedEntry, context)
+				: []
+			return setupAfter(conformanceVerifications, () => createOperation(
 				adapter,
-				{ issuePolicy, comparisonScope, resultKind, executionMode: mode, entry },
-				resolveEntry(adapter, entry),
-			)
+				context,
+				resolvedEntry,
+			))
 		},
 	}
+	return scenario
 }
 
 export function construction(id, tier, buildKey, correctnessInput, expected = { success: true }, options = {}) {
@@ -341,6 +402,12 @@ export function construction(id, tier, buildKey, correctnessInput, expected = { 
 		requiredFeatures: options.requiredFeatures,
 		executionMode: options.executionMode,
 		entry: options.entry,
+		conformanceSeeds: [
+			{ input: correctnessInput, expected },
+			...(options.conformanceCases ?? []),
+		],
+		conformanceNoFailureReason: options.conformanceNoFailureReason,
+		comparisonNote: options.comparisonNote,
 		createOperation(adapter, context, entry) {
 			const verifySchema = adapter.build[buildKey](context)
 			const verification = verifyResult(adapter, entry, entry.call(verifySchema, correctnessInput, context), expected, context.executionMode)
@@ -363,6 +430,12 @@ export function cold(id, tier, buildKey, input, expected, options = {}) {
 		requiredFeatures: options.requiredFeatures,
 		executionMode: options.executionMode,
 		entry: options.entry,
+		conformanceSeeds: [
+			{ input, expected },
+			...(options.conformanceCases ?? []),
+		],
+		conformanceNoFailureReason: options.conformanceNoFailureReason,
+		comparisonNote: options.comparisonNote,
 		createOperation(adapter, context, entry) {
 			const operation = () => entry.call(adapter.build[buildKey](context), input, context)
 			return operationAfter([verifyResult(adapter, entry, operation(), expected, context.executionMode)], operation)
@@ -384,6 +457,12 @@ export function warm(id, tier, buildKey, input, expected, options = {}) {
 		requiredFeatures: options.requiredFeatures,
 		executionMode: options.executionMode,
 		entry: options.entry,
+		conformanceSeeds: [
+			{ input, expected },
+			...(options.conformanceCases ?? []),
+		],
+		conformanceNoFailureReason: options.conformanceNoFailureReason,
+		comparisonNote: options.comparisonNote,
 		createOperation(adapter, context, entry) {
 			const schema = adapter.build[buildKey](context)
 			const operation = () => entry.call(schema, input, context)
@@ -406,6 +485,12 @@ export function warmPool(id, tier, buildKey, inputs, expected, options = {}) {
 		requiredFeatures: options.requiredFeatures,
 		executionMode: options.executionMode,
 		entry: options.entry,
+		conformanceSeeds: [
+			{ input: inputs[0], expected },
+			...(options.conformanceCases ?? []),
+		],
+		conformanceNoFailureReason: options.conformanceNoFailureReason,
+		comparisonNote: options.comparisonNote,
 		createOperation(adapter, context, entry) {
 			const schema = adapter.build[buildKey](context)
 			const verifications = inputs
@@ -432,7 +517,7 @@ export function issuePolicyPair(structure, buildKey, input, options = {}) {
 			buildKey,
 			input,
 			{ success: false, issueCount: 1 },
-			{ issuePolicy: 'first', comparisonScope, requiredFeatures: options.requiredFeatures, steps: options.steps },
+			{ issuePolicy: 'first', comparisonScope, comparisonNote: options.comparisonNote, conformanceCases: options.conformanceCases, requiredFeatures: options.requiredFeatures, steps: options.steps },
 		),
 		warm(
 			`issue-policy/${structure}/invalid/all`,
@@ -440,7 +525,7 @@ export function issuePolicyPair(structure, buildKey, input, options = {}) {
 			buildKey,
 			input,
 			{ success: false, issueCount: allIssueCount },
-			{ issuePolicy: 'all', comparisonScope, requiredFeatures: options.requiredFeatures, steps: options.steps },
+			{ issuePolicy: 'all', comparisonScope, comparisonNote: options.comparisonNote, conformanceCases: options.conformanceCases, requiredFeatures: options.requiredFeatures, steps: options.steps },
 		),
 	]
 }

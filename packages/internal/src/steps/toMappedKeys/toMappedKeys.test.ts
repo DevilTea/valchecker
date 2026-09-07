@@ -37,6 +37,22 @@ describe('toMappedKeys step plugin', () => {
 			.toEqualTypeOf<'sync'>()
 	})
 
+	it('captures the thisArg reference while retaining pointee mutation', () => {
+		const context = { prefix: 'key:' }
+		const replacement = { prefix: 'replacement:' }
+		const options = { thisArg: context }
+		const schema = v.map({ key: v.string(), value: v.number() })
+			.toMappedKeys(function (this: typeof context, key) {
+				return `${this.prefix}${key}`
+			}, options)
+
+		options.thisArg = replacement
+		context.prefix = 'captured:'
+
+		expect(schema.execute(new Map([['a', 1]])))
+			.toEqual({ value: new Map([['captured:a', 1]]) })
+	})
+
 	it('converts callback exceptions into an operation issue', () => {
 		const error = new Error('key mapper')
 		const input = new Map([['a', 1], ['b', 2]])

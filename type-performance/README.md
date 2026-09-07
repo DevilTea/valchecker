@@ -24,4 +24,4 @@ The committed budget gates deterministic structural metrics:
 
 `Check time` and `Total time` remain report-only because wall-clock timings on shared runners are noisy. A TypeScript version change requires a reviewed baseline refresh rather than silently comparing unrelated compiler implementations.
 
-The reviewed budget is committed in `type-performance/budget.json` and is enforced on every run. It targets the pinned TypeScript version; changing TypeScript requires an explicit baseline refresh because compiler metrics from different versions are not directly comparable. If the budget file is deliberately removed while establishing a new baseline, the script reports a baseline candidate instead of applying limits.
+The reviewed budget is committed in `type-performance/budget.json` and is enforced on every run. It targets the pinned TypeScript version; changing TypeScript requires an explicit baseline refresh because compiler metrics from different versions are not directly comparable. If the budget file is missing, the gate fails closed; a baseline candidate is not a passing result.
