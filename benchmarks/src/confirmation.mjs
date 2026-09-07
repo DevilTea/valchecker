@@ -51,13 +51,25 @@
 
 import {
 	acceptedGroupRegressions as acceptedGroupRegressionEntries,
+	acceptedGroupRegressionsForBase,
 	acceptedRegressions as acceptedRegressionEntries,
+	acceptedRegressionsForBase,
+	commitHashPattern,
 	evaluateAcceptedGroupRegressions,
 	evaluateAcceptedRegressions,
 	malformedAcceptedGroupRegressions,
 	malformedAcceptedRegressions,
+	matchesBaseCommit,
 } from './accepted-regressions.mjs'
 import { markdownCell, meaningfulThreshold, minimumScenariosPerGroup } from './impact-verdict.mjs'
+
+export function baselineCommitOf(screen) {
+	const baseline = screen?.commits?.baseline
+	if (!Array.isArray(baseline) || baseline.length !== 1 || typeof baseline[0] !== 'string')
+		return null
+	const commit = baseline[0]
+	return commitHashPattern.test(commit) ? commit : null
+}
 
 /**
  * What one paired cell-measurement costs, and how much of a job may be spent on the
@@ -134,7 +146,12 @@ export function groupsNeedingConfirmation(screen, acknowledgedGroups = new Set()
  * to `review`: a cross-shard hosted-runner group regression is then reported as evidence that
  * cannot support blocking, rather than blocking on it anyway.
  */
-export function confirmationPlan(screen, { acknowledgedGroups = new Set(), acknowledgedCells = new Set(), repetitions = 5 } = {}) {
+export function confirmationPlan(screen, { acknowledgedGroups, acknowledgedCells, repetitions = 5 } = {}) {
+	const baseCommit = baselineCommitOf(screen)
+	const resolvedAcknowledgedGroups = acknowledgedGroups ?? new Set(acceptedGroupRegressionsForBase(baseCommit)
+		.map(entry => entry.group))
+	const resolvedAcknowledgedCells = acknowledgedCells ?? new Set(acceptedRegressionsForBase(baseCommit)
+		.map(entry => entry.cell))
 	// Rows and groups are scheduled **independently**, and that is the whole shape of this
 	// function. They used to share one budget over the union of everything the second stage
 	// asked, and `confirmsGroups` was all-or-nothing over it — so a group that fitted a single
@@ -150,7 +167,7 @@ export function confirmationPlan(screen, { acknowledgedGroups = new Set(), ackno
 		...confirmationSelection(screen),
 		// Acknowledged cells ride with the rows: they are a rot-check workload, they do not need a
 		// single runner, and they must not enter any group's budget.
-		...(screen.rows ?? []).filter(row => acknowledgedCells.has(row.scenario))
+		...(screen.rows ?? []).filter(row => resolvedAcknowledgedCells.has(row.scenario))
 			.map(row => ({ scenario: row.scenario, reason: 'acknowledged' })),
 	]
 	const mergedRows = new Map()
@@ -163,8 +180,8 @@ export function confirmationPlan(screen, { acknowledgedGroups = new Set(), ackno
 	// Triggered groups need confirmation before they can block; acknowledged groups need it so
 	// their entries stay falsifiable. Both are judged on their own cells.
 	const groupNames = [...new Set([
-		...groupsNeedingConfirmation(screen, acknowledgedGroups),
-		...(screen.groups ?? []).filter(group => acknowledgedGroups.has(group.group))
+		...groupsNeedingConfirmation(screen, resolvedAcknowledgedGroups),
+		...(screen.groups ?? []).filter(group => resolvedAcknowledgedGroups.has(group.group))
 			.map(group => group.group),
 	])]
 	const groups = groupNames.map((group) => {
@@ -316,8 +333,11 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 			confirmHigh: confirmRow?.intervalHigh ?? null,
 		}
 	})
+	const baseCommit = baselineCommitOf(screen)
 	const malformed = entries === undefined ? malformedAcceptedRegressions() : malformedAcceptedRegressions(entries)
-	const accepted = entries === undefined ? evaluateAcceptedRegressions(measured) : evaluateAcceptedRegressions(measured, entries)
+	const accepted = entries === undefined
+		? evaluateAcceptedRegressions(measured, acceptedRegressionEntries, baseCommit)
+		: evaluateAcceptedRegressions(measured, entries, baseCommit)
 	// **Acceptance state is separate from ordinary regression state.** A cell with an entry is
 	// exempt from the ordinary row rules whatever its bound turned out to say, and only the
 	// acceptance list itself can fail on it — a reproduced breach, a stale entry, a malformed one.
@@ -334,7 +354,9 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		...accepted.exceeded.map(record => record.cell),
 		...accepted.stale.map(record => record.cell),
 	])
-	const acceptedCellNames = new Set((entries === undefined ? acceptedRegressionEntries : entries).map(entry => entry.cell))
+	const activeCellEntries = (entries === undefined ? acceptedRegressionEntries : entries)
+		.filter(entry => matchesBaseCommit(entry.baseCommit, baseCommit))
+	const acceptedCellNames = new Set(activeCellEntries.map(entry => entry.cell))
 	const acknowledgedCells = new Set([...acceptedCellNames].filter(cell => !failedAcceptanceCells.has(cell)))
 	const withinBoundCells = new Set(accepted.acknowledged.map(record => record.cell))
 	// The group list, read from the screen's own group estimates. The reported group numbers are
@@ -367,8 +389,8 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		measuredWhole: group => groupEvidence(group).singleRunner && groupEvidence(group).measuredWhole,
 	}
 	const acceptedGroups = groupEntries === undefined
-		? evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext)
-		: evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext, groupEntries)
+		? evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext, acceptedGroupRegressionEntries, baseCommit)
+		: evaluateAcceptedGroupRegressions(screen.groups ?? [], confirmationContext, groupEntries, baseCommit)
 	const acknowledgedGroups = new Set(acceptedGroups.acknowledged.map(record => record.group))
 	void acknowledgedGroups
 	const rows = selection.map(({ scenario, reason }) => {
@@ -402,6 +424,7 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	const severeClaims = rows.filter(row => row.screen === 'severe' || row.confirm === 'severe')
 	const blocking = severeClaims.filter(row => row.resolution === 'reproduced' || row.resolution === 'unconfirmed')
 	const unresolved = severeClaims.filter(row => row.resolution === 'unresolved' || row.resolution === 'unmeasured')
+	const boundaryUnresolved = rows.filter(row => !severeClaims.includes(row) && (row.resolution === 'unresolved' || row.resolution === 'unmeasured'))
 	const notReproduced = rows.filter(row => row.resolution === 'not-reproduced')
 	const reproduced = rows.filter(row => row.resolution === 'reproduced')
 
@@ -432,7 +455,9 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		...acceptedGroups.exceeded.map(record => record.group),
 		...acceptedGroups.stale.map(record => record.group),
 	])
-	const acceptedGroupNames = new Set((groupEntries === undefined ? acceptedGroupRegressionEntries : groupEntries).map(entry => entry.group))
+	const activeGroupEntries = (groupEntries === undefined ? acceptedGroupRegressionEntries : groupEntries)
+		.filter(entry => matchesBaseCommit(entry.baseCommit, baseCommit))
+	const acceptedGroupNames = new Set(activeGroupEntries.map(entry => entry.group))
 	// Exempt because an entry exists, not because the bound came out `within`. A cross-shard screen
 	// spanning the group bound while the trusted single-runner confirmation is wholly inside it
 	// left the group unassessed and then blocked it on the ordinary 5% trigger — the stricter rule
@@ -478,15 +503,15 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 	const reviewGroups = groupVerdicts.filter(verdict => !verdict.blocking)
 		.map(verdict => verdict.group)
 
-	const verdict = blocking.length > 0 || blockingGroups.length > 0 || listProblems.length > 0
-		? 'regression'
-		: unresolved.length > 0
-			? 'unresolved'
-			: reproduced.length > 0
-				? 'review'
-				// Nothing blocking survived the second batch, so the screen's own verdict stands
-				// — including `inconclusive`, which stays not-a-pass, and `improvement`.
-				: screen.verdict === 'regression' ? 'review' : screen.verdict
+	let verdict = screen.verdict
+	if (blocking.length > 0 || blockingGroups.length > 0 || listProblems.length > 0)
+		verdict = 'regression'
+	else if (unresolved.length > 0)
+		verdict = 'unresolved'
+	else if (reproduced.length > 0)
+		verdict = 'review'
+	else if (screen.verdict === 'regression' || screen.verdict === 'inconclusive' || boundaryUnresolved.length > 0)
+		verdict = 'review'
 
 	return {
 		schemaVersion: 1,
@@ -514,6 +539,7 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		rows,
 		blocking: blocking.map(row => row.scenario),
 		unresolved: unresolved.map(row => row.scenario),
+		boundaryUnresolved: boundaryUnresolved.map(row => row.scenario),
 		reproduced: reproduced.map(row => row.scenario),
 		/** Rows the second batch did not reproduce: the screen's own noise, measured. */
 		notReproduced: notReproduced.map(row => row.scenario),
@@ -525,6 +551,11 @@ export function resolveConfirmation(screen, confirm, { acceptedRegressions: entr
 		acknowledged: accepted.acknowledged,
 		/** The same, at group level: the true measured aggregate and the bound it is within. */
 		acknowledgedGroups: acceptedGroups.acknowledged,
+		/** Historical entries inactive for this baseline commit. */
+		inactiveAcknowledgements: [
+			...accepted.inactive.map(record => ({ type: 'cell', ...record })),
+			...acceptedGroups.inactive.map(record => ({ type: 'group', ...record })),
+		],
 		/** Ways either acknowledgement list is wrong. Each one fails the gate. */
 		acknowledgementProblems: listProblems,
 		/** Rot checks this run had no evidence to perform. Reported, never a pass, never a failure. */
@@ -581,6 +612,15 @@ export function renderConfirmationMarkdown(result) {
 		)
 	}
 
+	if (result.boundaryUnresolved?.length > 0) {
+		lines.push(
+			'',
+			`> **Boundary uncertainty.** ${result.boundaryUnresolved.map(scenario => `\`${scenario}\``)
+				.join(', ')}: ordinary ±5% boundary rows that could not be settled decisively by both batches. `
+				+ 'Because neither batch measured a severe regression, these rows do not block the gate and are reported as noise diagnostics.',
+		)
+	}
+
 	if (result.acknowledged.length > 0) {
 		lines.push(
 			'',
@@ -594,6 +634,22 @@ export function renderConfirmationMarkdown(result) {
 		)
 		for (const record of result.acknowledged)
 			lines.push(`| \`${record.cell}\` | −${record.depthPercent.toFixed(2)}% | −${record.bound}% | ${markdownCell(record.because)} |`)
+	}
+
+	if (result.inactiveAcknowledgements?.length > 0) {
+		lines.push(
+			'',
+			`> **${result.inactiveAcknowledgements.length} inactive historical acknowledgement${result.inactiveAcknowledgements.length === 1 ? '' : 's'}.** `
+			+ 'Pinned to a different baseline commit and not applied to this comparison. They neither exempt regressions nor trigger rot checks.',
+			'',
+			'| Type | Target | Base commit | Bound | Because |',
+			'| --- | --- | --- | ---: | --- |',
+		)
+		for (const record of result.inactiveAcknowledgements) {
+			const target = record.type === 'cell' ? `\`${record.cell}\`` : `group \`${record.group}\``
+			const shortBase = record.baseCommit ? `\`${record.baseCommit.slice(0, 7)}\`` : 'n/a'
+			lines.push(`| ${record.type} | ${target} | ${shortBase} | −${record.bound}% | ${markdownCell(record.because)} |`)
+		}
 	}
 
 	if (result.groupVerdicts.length > 0) {

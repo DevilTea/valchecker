@@ -51,6 +51,7 @@
 
 /**
  * @typedef {object} AcceptedRegression
+ * @property {string} baseCommit The 40-character hexadecimal git commit hash this cost is accepted against.
  * @property {string} cell The cell id, as the catalog declares it.
  * @property {number} maxRegressionPercent How far down is accepted, as a positive percentage.
  * Judged as a decision threshold against each stage's **interval**, not against a point
@@ -62,21 +63,25 @@
 /** @type {AcceptedRegression[]} */
 export const acceptedRegressions = [
 	{
+		baseCommit: '384d81389516ba174eaaf830970b141306f67a01',
 		cell: 'fallback/recovers',
 		maxRegressionPercent: 45,
 		because: 'A successful `fallback()` callback now receives a detached issue record, path, context, payload record, and every Valchecker-owned nested diagnostic container declared by the issue protocol. That isolation fixes the audit case where callback mutation rewrote the original failure; opaque user-owned values still retain identity rather than being deep-cloned. After removing the accidental generic marker scan from the common snapshot path, five adjacent paired local repetitions measured this cell at -30.93%, with an interval of [-39.41%, -21.26%]. The 45% ceiling covers that measured correctness cost without turning the acknowledgement into an unlimited exemption.',
 	},
 	{
+		baseCommit: '384d81389516ba174eaaf830970b141306f67a01',
 		cell: 'isAfter/before-bound',
 		maxRegressionPercent: 80,
 		because: '`isAfter()` now snapshots the configured `Date` by value for validation and returns a fresh diagnostic `Date` on each failure. A `Date` cannot be made safely shareable with `Object.freeze()` because its internal time slot remains mutable through methods such as `setTime()`: reusing one diagnostic object would let a consumer mutate the next failure or, worse, schema execution state. Five adjacent paired local repetitions measured -61.04% with an interval of [-62.67%, -59.34%], consistent with the earlier hosted result near -68%. The 80% ceiling acknowledges the allocation required by the corrected ownership contract but still bounds it tightly enough to catch another large step backwards.',
 	},
 	{
+		baseCommit: '384d81389516ba174eaaf830970b141306f67a01',
 		cell: 'isBefore/after-bound',
 		maxRegressionPercent: 80,
 		because: '`isBefore()` has the same mutable-`Date` ownership correction as `isAfter()`: validation captures the construction-time instant, while each failure must expose a new `Date` object so supported consumer mutation cannot change later diagnostics or the schema itself. Runtime freezing is not an alternative because frozen `Date` objects still allow their internal time value to change. Five adjacent paired local repetitions measured -60.62% with an interval of [-60.99%, -60.26%], and the earlier hosted screen was near -69%. The 80% bound pays for that specific correctness guarantee while leaving a clear failure margin for any additional slowdown.',
 	},
 	{
+		baseCommit: '384d81389516ba174eaaf830970b141306f67a01',
 		cell: 'map/collect-all',
 		maxRegressionPercent: 25,
 		because: 'The `firstIndex` correction in `map()` under `collectAllIssues`. A buffered entry used to be '
@@ -93,6 +98,7 @@ export const acceptedRegressions = [
 			+ 'with 6.8pp to spare, so the number set from point estimates survives the stricter reading unchanged.',
 	},
 	{
+		baseCommit: '384d81389516ba174eaaf830970b141306f67a01',
 		cell: 'set/collect-all',
 		maxRegressionPercent: 45,
 		because: 'The same `firstIndex` correction in `set()`, whose buffered collection has the same shape as '
@@ -187,6 +193,23 @@ export function combineBoundStandings(screen, confirm) {
 	return { outcome: 'unassessed', why: 'the interval spans the bound, so this run cannot place the cost on either side of it' }
 }
 
+export const commitHashPattern = /^[0-9a-f]{40}$/
+
+export function matchesBaseCommit(entryCommit, baseCommit) {
+	return typeof entryCommit === 'string'
+		&& typeof baseCommit === 'string'
+		&& commitHashPattern.test(entryCommit)
+		&& entryCommit === baseCommit
+}
+
+export function acceptedRegressionsForBase(baseCommit, entries = acceptedRegressions) {
+	return entries.filter(entry => matchesBaseCommit(entry.baseCommit, baseCommit))
+}
+
+export function acceptedGroupRegressionsForBase(baseCommit, entries = acceptedGroupRegressions) {
+	return entries.filter(entry => matchesBaseCommit(entry.baseCommit, baseCommit))
+}
+
 /**
  * Refuses an entry that cannot be read as one. Checked wherever the list is read, so a
  * malformed entry cannot pass by being consulted from somewhere that does not validate.
@@ -202,6 +225,8 @@ export function malformedAcceptedRegressions(entries = acceptedRegressions) {
 		if (seen.has(entry.cell))
 			problems.push(`the accepted-regression list names '${entry.cell}' twice, so one of the two bounds is being ignored`)
 		seen.add(entry.cell)
+		if (typeof entry.baseCommit !== 'string' || !commitHashPattern.test(entry.baseCommit))
+			problems.push(`the accepted-regression entry for '${entry.cell}' must specify a 40-character hexadecimal \`baseCommit\``)
 		if (!Number.isFinite(entry.maxRegressionPercent) || entry.maxRegressionPercent <= 0)
 			problems.push(`the accepted-regression entry for '${entry.cell}' records no positive \`maxRegressionPercent\`, so it would accept a regression of any depth`)
 		if (typeof entry.because !== 'string' || entry.because.trim().length < minimumReasonLength)
@@ -252,6 +277,8 @@ export function malformedAcceptedGroupRegressions(entries = acceptedGroupRegress
 		if (seen.has(entry.group))
 			problems.push(`the accepted-group-regression list names '${entry.group}' twice, so one of the two bounds is being ignored`)
 		seen.add(entry.group)
+		if (typeof entry.baseCommit !== 'string' || !commitHashPattern.test(entry.baseCommit))
+			problems.push(`the accepted-group-regression entry for '${entry.group}' must specify a 40-character hexadecimal \`baseCommit\``)
 		if (!Number.isFinite(entry.maxRegressionPercent) || entry.maxRegressionPercent <= 0)
 			problems.push(`the accepted-group-regression entry for '${entry.group}' records no positive \`maxRegressionPercent\`, so it would accept a regression of any depth`)
 		if (typeof entry.because !== 'string' || entry.because.trim().length < minimumReasonLength)
@@ -309,7 +336,12 @@ export function groupsWithoutAcknowledgedCells(
  * runner, and whether it measured the whole group. Anything short of all three leaves the entry
  * **unassessed**, reported by name.
  */
-export function evaluateAcceptedGroupRegressions(screenGroups, confirmation, entries = acceptedGroupRegressions) {
+export function evaluateAcceptedGroupRegressions(screenGroups, confirmation, entries = acceptedGroupRegressions, baseCommit = null) {
+	const activeEntries = entries.filter(entry => matchesBaseCommit(entry.baseCommit, baseCommit))
+	const inactive = entries
+		.filter(entry => !matchesBaseCommit(entry.baseCommit, baseCommit))
+		.map(entry => ({ group: entry.group, baseCommit: entry.baseCommit, bound: entry.maxRegressionPercent, because: entry.because }))
+
 	const { groups: confirmGroups = [], singleRunner = false, measuredWhole = () => false } = confirmation ?? {}
 	const byName = new Map(confirmGroups.map(group => [group.group, group]))
 	const screenByName = new Map(screenGroups.map(group => [group.group, group]))
@@ -317,7 +349,7 @@ export function evaluateAcceptedGroupRegressions(screenGroups, confirmation, ent
 	const exceeded = []
 	const stale = []
 	const unassessed = []
-	for (const entry of entries) {
+	for (const entry of activeEntries) {
 		const screen = screenByName.get(entry.group) ?? null
 		if (screen == null)
 			continue
@@ -364,11 +396,16 @@ export function evaluateAcceptedGroupRegressions(screenGroups, confirmation, ent
 		else
 			unassessed.push({ group: entry.group, screen: confirmed.classification, screenDelta: confirmed.delta, why: `its bound cannot be judged: ${combined.why}` })
 	}
-	return { acknowledged, exceeded, stale, unassessed }
+	return { acknowledged, exceeded, stale, unassessed, inactive }
 }
 
-export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions) {
-	const byCell = new Map(entries.map(entry => [entry.cell, entry]))
+export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions, baseCommit = null) {
+	const activeEntries = entries.filter(entry => matchesBaseCommit(entry.baseCommit, baseCommit))
+	const inactive = entries
+		.filter(entry => !matchesBaseCommit(entry.baseCommit, baseCommit))
+		.map(entry => ({ cell: entry.cell, baseCommit: entry.baseCommit, bound: entry.maxRegressionPercent, because: entry.because }))
+
+	const byCell = new Map(activeEntries.map(entry => [entry.cell, entry]))
 	const acknowledged = []
 	const exceeded = []
 	const stale = []
@@ -409,5 +446,5 @@ export function evaluateAcceptedRegressions(rows, entries = acceptedRegressions)
 		else
 			unassessed.push({ cell: entry.cell, why: `its bound cannot be judged: ${combined.why}` })
 	}
-	return { acknowledged, exceeded, stale, unassessed }
+	return { acknowledged, exceeded, stale, unassessed, inactive }
 }

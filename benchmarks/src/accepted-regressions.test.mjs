@@ -2,16 +2,20 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
 	acceptedGroupRegressions,
+	acceptedGroupRegressionsForBase,
 	acceptedRegressions,
+	acceptedRegressionsForBase,
 	deepestRegressionPercent,
 	evaluateAcceptedGroupRegressions,
 	evaluateAcceptedRegressions,
 	groupsWithoutAcknowledgedCells,
 	malformedAcceptedGroupRegressions,
 	malformedAcceptedRegressions,
+	matchesBaseCommit,
 	unknownAcceptedGroupRegressions,
 	unknownAcceptedRegressions,
 } from './accepted-regressions.mjs'
+import { confirmationPlan } from './confirmation.mjs'
 
 /**
  * The acknowledgement's rules, and the rot checks that keep it from becoming an escape hatch.
@@ -20,6 +24,13 @@ import {
  * validation costs accepted by Issue #140. Focused fixtures below exercise the mechanism;
  * the committed-list test separately protects the real entries from malformed reasons.
  */
+
+const pre141Base = '384d81389516ba174eaaf830970b141306f67a01'
+const mainBase = '0e47c97b1f73af1c4d857038ab12f2b6b5da7daf'
+
+function evaluatePre141(rows) {
+	return evaluateAcceptedRegressions(rows, acceptedRegressions, pre141Base)
+}
 
 /**
  * A row as the comparison produces one, intervals included — a bound is a decision threshold and
@@ -50,23 +61,25 @@ test('the committed list is well formed and every entry states a reason', () => 
 		'set/collect-all',
 	])
 	for (const entry of acceptedRegressions) {
+		assert.equal(entry.baseCommit, pre141Base)
 		assert.ok(entry.maxRegressionPercent > 0, `${entry.cell} needs a bound`)
 		assert.ok(entry.because.trim().length >= 200, `${entry.cell}'s reason must explain the accepted cost`)
 	}
 })
 
 test('an entry with no bound, no reason, or a repeated cell is refused', () => {
-	assert.deepEqual(malformedAcceptedRegressions([{ cell: '', maxRegressionPercent: 10, because: 'x'.repeat(200) }]), [
+	assert.deepEqual(malformedAcceptedRegressions([{ cell: '', baseCommit: pre141Base, maxRegressionPercent: 10, because: 'x'.repeat(200) }]), [
 		'an accepted-regression entry names no cell',
 	])
-	assert.deepEqual(malformedAcceptedRegressions([{ cell: 'a/b', maxRegressionPercent: 0, because: 'x'.repeat(200) }]), [
+	assert.match(malformedAcceptedRegressions([{ cell: 'a/b', baseCommit: 'invalid', maxRegressionPercent: 10, because: 'x'.repeat(200) }])[0], /must specify a 40-character hexadecimal `baseCommit`/)
+	assert.deepEqual(malformedAcceptedRegressions([{ cell: 'a/b', baseCommit: pre141Base, maxRegressionPercent: 0, because: 'x'.repeat(200) }]), [
 		'the accepted-regression entry for \'a/b\' records no positive `maxRegressionPercent`, so it would accept a regression of any depth',
 	])
 	// A bound with no argument behind it is the escape hatch this mechanism must not become.
-	assert.match(malformedAcceptedRegressions([{ cell: 'a/b', maxRegressionPercent: 10, because: 'it is fine' }])[0], /needs a reason of at least 200 characters/)
+	assert.match(malformedAcceptedRegressions([{ cell: 'a/b', baseCommit: pre141Base, maxRegressionPercent: 10, because: 'it is fine' }])[0], /needs a reason of at least 200 characters/)
 	const twice = [
-		{ cell: 'a/b', maxRegressionPercent: 10, because: 'x'.repeat(200) },
-		{ cell: 'a/b', maxRegressionPercent: 90, because: 'x'.repeat(200) },
+		{ cell: 'a/b', baseCommit: pre141Base, maxRegressionPercent: 10, because: 'x'.repeat(200) },
+		{ cell: 'a/b', baseCommit: pre141Base, maxRegressionPercent: 90, because: 'x'.repeat(200) },
 	]
 	assert.match(malformedAcceptedRegressions(twice)[0], /names 'a\/b' twice/)
 })
@@ -81,7 +94,7 @@ test('an entry naming a cell the catalog does not declare is refused', () => {
 test('a measured regression inside its bound is acknowledged and does not block', () => {
 	// `map/collect-all` as the first CI comparison measured it: severe at -14.67% in the screen
 	// and severe at -11.59% in an independent confirmation batch, against a 25% bound.
-	const { acknowledged, exceeded, stale } = evaluateAcceptedRegressions([
+	const { acknowledged, exceeded, stale } = evaluatePre141([
 		row('map/collect-all', 'severe', -0.1467, 'severe', -0.1159),
 	])
 	assert.deepEqual(exceeded, [])
@@ -97,7 +110,7 @@ test('a breach both batches reproduce still fails', () => {
 	// accepted cost. Both batches must place the whole interval past the bound, and the message
 	// carries the numbers, because "we accepted 45% and measured 60%" is a different
 	// conversation from "this regressed".
-	const { acknowledged, exceeded } = evaluateAcceptedRegressions([
+	const { acknowledged, exceeded } = evaluatePre141([
 		row('set/collect-all', 'severe', -0.6, 'severe', -0.58),
 	])
 	assert.deepEqual(acknowledged, [])
@@ -112,7 +125,7 @@ test('a breach one batch does not reproduce is unassessed, not a red gate', () =
 	// `cleared` at 0% used to be reported as a breach and fail the workflow — while the same row
 	// *without* an acknowledgement would have been `not-reproduced` and would not have blocked.
 	// Adding an acknowledgement made the gate stricter than having none.
-	const result = evaluateAcceptedRegressions([row('set/collect-all', 'severe', -0.6, 'cleared', 0)])
+	const result = evaluatePre141([row('set/collect-all', 'severe', -0.6, 'cleared', 0)])
 	assert.deepEqual([result.exceeded, result.acknowledged], [[], []])
 	assert.match(result.unassessed[0].why, /not independently reproduced/)
 })
@@ -120,7 +133,7 @@ test('a breach one batch does not reproduce is unassessed, not a red gate', () =
 test('an interval spanning the bound is unassessed in either direction', () => {
 	// A -40% point estimate whose interval runs past -45% cannot establish that the cost is
 	// inside the bound, and must not be quietly accepted as if it had.
-	const spanning = evaluateAcceptedRegressions([row('set/collect-all', 'severe', -0.4, 'severe', -0.4, { width: 0.1 })])
+	const spanning = evaluatePre141([row('set/collect-all', 'severe', -0.4, 'severe', -0.4, { width: 0.1 })])
 	assert.deepEqual([spanning.acknowledged, spanning.exceeded], [[], []])
 	assert.match(spanning.unassessed[0].why, /spans the bound/)
 })
@@ -131,11 +144,11 @@ test('an entry is stale only when both measurements agree the cost is gone', () 
 	// either direction — a cell keeps its shard across every repetition, so a runner-dependent
 	// shift in its ratio moves the estimate without widening the interval, which is why an
 	// acknowledged cell is always queued for the confirmation batch.
-	const { stale, acknowledged } = evaluateAcceptedRegressions([row('map/collect-all', 'cleared', -0.004, 'cleared', -0.002)])
+	const { stale, acknowledged } = evaluatePre141([row('map/collect-all', 'cleared', -0.004, 'cleared', -0.002)])
 	assert.deepEqual(acknowledged, [])
 	assert.deepEqual(stale.map(record => [record.cell, record.screen, record.confirm]), [['map/collect-all', 'cleared', 'cleared']])
 	assert.deepEqual(
-		evaluateAcceptedRegressions([row('set/collect-all', 'improvement', 0.2, 'improvement', 0.18)]).stale.map(record => record.cell),
+		evaluatePre141([row('set/collect-all', 'improvement', 0.2, 'improvement', 0.18)]).stale.map(record => record.cell),
 		['set/collect-all'],
 	)
 })
@@ -143,11 +156,11 @@ test('an entry is stale only when both measurements agree the cost is gone', () 
 test('one clear reading against a disagreeing or missing second is unassessed, not stale', () => {
 	// The asymmetry this removes: blocking already needed two readings, so retiring an entry
 	// cannot need one. An unassessed check is reported and neither passes nor fails.
-	const disagreeing = evaluateAcceptedRegressions([row('map/collect-all', 'cleared', -0.004, 'severe', -0.12)])
+	const disagreeing = evaluatePre141([row('map/collect-all', 'cleared', -0.004, 'severe', -0.12)])
 	assert.deepEqual([disagreeing.stale, disagreeing.acknowledged], [[], []])
 	assert.match(disagreeing.unassessed[0].why, /the two do not agree that the cost is gone/)
 
-	const unmeasured = evaluateAcceptedRegressions([row('map/collect-all', 'cleared', -0.004)])
+	const unmeasured = evaluatePre141([row('map/collect-all', 'cleared', -0.004)])
 	assert.deepEqual(unmeasured.stale, [])
 	assert.match(unmeasured.unassessed[0].why, /no confirmation batch measured it/)
 })
@@ -157,15 +170,15 @@ test('a run that could not judge the cell leaves its entry alone', () => {
 	// -6.70% in the confirmation batch. Two batches that cannot judge a cell are not evidence
 	// that the accepted cost is gone, so calling the entry stale here would turn a noisy runner
 	// into a red gate — the failure mode `stabilityThreshold` was removed for.
-	const { acknowledged, exceeded, stale } = evaluateAcceptedRegressions([
+	const { acknowledged, exceeded, stale } = evaluatePre141([
 		row('map/collect-all', 'inconclusive', -0.0767, 'inconclusive', -0.067),
 	])
 	assert.deepEqual([acknowledged, exceeded, stale], [[], [], []])
 })
 
 test('a cell nobody measured is not evidence either way', () => {
-	assert.deepEqual(evaluateAcceptedRegressions([]), { acknowledged: [], exceeded: [], stale: [], unassessed: [] })
-	assert.deepEqual(evaluateAcceptedRegressions([row('string/valid', 'severe', -0.3)]).acknowledged, [], 'an unlisted cell is never acknowledged')
+	assert.deepEqual(evaluatePre141([]), { acknowledged: [], exceeded: [], stale: [], unassessed: [], inactive: [] })
+	assert.deepEqual(evaluatePre141([row('string/valid', 'severe', -0.3)]).acknowledged, [], 'an unlisted cell is never acknowledged')
 })
 
 test('the depth read is the deepest either stage measured', () => {
@@ -188,6 +201,7 @@ test('the committed group acknowledgement list is empty after the confirmed grou
 })
 
 const acceptedFailureGroup = [{
+	baseCommit: pre141Base,
 	group: 'warm/failure/all',
 	maxRegressionPercent: 12,
 	because: 'Synthetic group acknowledgement used only to exercise the generic acknowledgement machinery after the repository retired its real warm/failure/all entry. The fixture deliberately remains long enough to satisfy the same reviewability rule as committed entries, while no production gate consumes it.',
@@ -205,7 +219,7 @@ function confirmedGroup(name, classification, delta, width = 0.01) {
 test('a group aggregate is judged from the single-runner confirmation, inside its bound and past it', () => {
 	// `warm/failure/all` as CI measured it: -6.40%, interval [-7.1%, -5.7%], against a 12% bound.
 	const screen = [group('warm/failure/all', 'regression', -0.064)]
-	const within = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.064), acceptedFailureGroup)
+	const within = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.064), acceptedFailureGroup, pre141Base)
 	assert.equal(within.acknowledged.length, 1)
 	assert.equal(within.acknowledged[0].bound, 12)
 	assert.equal(Number(within.acknowledged[0].depthPercent.toFixed(2)), 6.40)
@@ -213,12 +227,12 @@ test('a group aggregate is judged from the single-runner confirmation, inside it
 
 	// A breach needs both batches, here a screen and a confirmation that agree.
 	const pastScreen = [group('warm/failure/all', 'regression', -0.2)]
-	const past = evaluateAcceptedGroupRegressions(pastScreen, confirmedGroup('warm/failure/all', 'regression', -0.2), acceptedFailureGroup)
+	const past = evaluateAcceptedGroupRegressions(pastScreen, confirmedGroup('warm/failure/all', 'regression', -0.2), acceptedFailureGroup, pre141Base)
 	assert.deepEqual(past.acknowledged, [])
 	assert.equal(Number(past.exceeded[0].depthPercent.toFixed(1)), 20, 'a group effect roughly tripled still fails')
 
 	// And a confirmation breach the screen does not reproduce is unassessed rather than red.
-	const unreproduced = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.2), acceptedFailureGroup)
+	const unreproduced = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'regression', -0.2), acceptedFailureGroup, pre141Base)
 	assert.deepEqual([unreproduced.exceeded, unreproduced.acknowledged], [[], []])
 	assert.match(unreproduced.unassessed[0].why, /not independently reproduced/)
 })
@@ -230,23 +244,23 @@ test('a cross-shard screen decides nothing about an acknowledged group', () => {
 	// variation exceeds the within-run interval — the between-runner fixed effect, demonstrated
 	// by this list's own rot check. If that instrument cannot block a group, it cannot retire one.
 	const screen = [group('warm/failure/all', 'cleared', -0.0344)]
-	const result = evaluateAcceptedGroupRegressions(screen, { groups: [], singleRunner: false, measuredWhole: () => false }, acceptedFailureGroup)
+	const result = evaluateAcceptedGroupRegressions(screen, { groups: [], singleRunner: false, measuredWhole: () => false }, acceptedFailureGroup, pre141Base)
 	assert.deepEqual([result.stale, result.exceeded, result.acknowledged], [[], [], []])
 	assert.match(result.unassessed[0].why, /no single-runner confirmation measured this group/)
 })
 
 test('a group entry is stale when a single-runner batch clears it, and unassessed when it cannot judge', () => {
 	const screen = [group('warm/failure/all', 'regression', -0.064)]
-	const stale = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'cleared', -0.004), acceptedFailureGroup)
+	const stale = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'cleared', -0.004), acceptedFailureGroup, pre141Base)
 	assert.deepEqual(stale.stale.map(record => record.group), ['warm/failure/all'])
 
 	// An inconclusive confirmation neither confirms the accepted cost nor shows it gone.
-	const undecided = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'inconclusive', -0.0393), acceptedFailureGroup)
+	const undecided = evaluateAcceptedGroupRegressions(screen, confirmedGroup('warm/failure/all', 'inconclusive', -0.0393), acceptedFailureGroup, pre141Base)
 	assert.deepEqual([undecided.acknowledged, undecided.exceeded, undecided.stale], [[], [], []])
 	assert.match(undecided.unassessed[0].why, /reports it inconclusive/)
 
 	// A confirmation that measured only part of the group cannot speak for the group.
-	const partial = evaluateAcceptedGroupRegressions(screen, { groups: [group('warm/failure/all', 'cleared', -0.004)], singleRunner: true, measuredWhole: () => false }, acceptedFailureGroup)
+	const partial = evaluateAcceptedGroupRegressions(screen, { groups: [group('warm/failure/all', 'cleared', -0.004)], singleRunner: true, measuredWhole: () => false }, acceptedFailureGroup, pre141Base)
 	assert.deepEqual(partial.stale, [])
 	assert.match(partial.unassessed[0].why, /did not measure every cell of the group/)
 })
@@ -266,4 +280,62 @@ test('a group entry outliving its member cells is refused', () => {
 		[],
 		'any acknowledged member cell keeps the entry alive',
 	)
+})
+
+test('exact historical base activates entry while a different base leaves it inactive', () => {
+	assert.equal(matchesBaseCommit(pre141Base, pre141Base), true)
+	assert.equal(matchesBaseCommit(pre141Base, mainBase), false)
+	assert.equal(matchesBaseCommit(pre141Base, '384d813'), false, 'prefix match is not allowed')
+	assert.equal(matchesBaseCommit('invalid', pre141Base), false)
+
+	const active = acceptedRegressionsForBase(pre141Base)
+	assert.equal(active.length, 5)
+	const inactive = acceptedRegressionsForBase(mainBase)
+	assert.equal(inactive.length, 0)
+	assert.equal(acceptedGroupRegressionsForBase(mainBase).length, 0)
+})
+
+test('a different base does not mask a severe regression and reports historical entries as inactive', () => {
+	const { acknowledged, exceeded, inactive } = evaluateAcceptedRegressions([
+		row('set/collect-all', 'severe', -0.32, 'severe', -0.3),
+	], acceptedRegressions, mainBase)
+	assert.deepEqual(acknowledged, [], 'inactive historical entry must not acknowledge regression')
+	assert.deepEqual(exceeded, [])
+	assert.equal(inactive.length, 5)
+	assert.equal(inactive.find(entry => entry.cell === 'set/collect-all')?.bound, 45)
+})
+
+test('later-base cleared comparison does not mark historical entry stale', () => {
+	const { stale, acknowledged, inactive } = evaluateAcceptedRegressions([
+		row('map/collect-all', 'cleared', -0.004, 'cleared', -0.002),
+	], acceptedRegressions, mainBase)
+	assert.deepEqual(stale, [], 'inactive historical entry must not be marked stale')
+	assert.deepEqual(acknowledged, [])
+	assert.equal(inactive.length, 5)
+})
+
+test('confirmation plan excludes inactive historical acknowledgements from confirmation workload', () => {
+	const screenOnMain = {
+		verdict: 'neutral',
+		severeGroups: [],
+		runCounts: { baseline: 5, candidate: 5 },
+		commits: { baseline: [mainBase], candidate: ['0000000000000000000000000000000000000001'] },
+		rows: [
+			{ scenario: 'map/collect-all', classification: 'cleared', delta: 0, intervalLow: -0.01, intervalHigh: 0.01 },
+		],
+	}
+	const planOnMain = confirmationPlan(screenOnMain)
+	assert.deepEqual(planOnMain.cells, [], 'no rot-check workload on later base')
+
+	const screenOnPre141 = {
+		verdict: 'neutral',
+		severeGroups: [],
+		runCounts: { baseline: 5, candidate: 5 },
+		commits: { baseline: [pre141Base], candidate: ['0000000000000000000000000000000000000001'] },
+		rows: [
+			{ scenario: 'map/collect-all', classification: 'cleared', delta: 0, intervalLow: -0.01, intervalHigh: 0.01 },
+		],
+	}
+	const planOnPre141 = confirmationPlan(screenOnPre141)
+	assert.ok(planOnPre141.cells.includes('map/collect-all'), 'active historical base queues acknowledged cell for rot check')
 })
