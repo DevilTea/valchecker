@@ -222,6 +222,10 @@ export const set = implStepPlugin<PluginDef>({
 				// detection sees earlier items. A first-issue short-circuit
 				// therefore buffers only up to the failing item.
 				let buffer: unknown[] | undefined
+				// Source indices only become necessary after a failed item creates a gap
+				// between buffer position and source position. Keep this sparse/lazy so
+				// the common identity-success path pays nothing for the bookkeeping.
+				let bufferSourceIndices: number[] | undefined
 				let bufferCount = 0
 				let output: Set<unknown> | undefined
 				let firstItemMeta: Map<unknown, FirstItemMetadata> | undefined
@@ -236,19 +240,12 @@ export const set = implStepPlugin<PluginDef>({
 						issues = appended.issues
 						if (appended.hasInternal || !collectAllIssues)
 							return failure(issues)
-						// A buffered item is recorded under its buffer position, which is
-						// its source index only while nothing has been skipped. Collecting
-						// past a failure skips one, so the buffer is materialized here,
-						// while the two still agree, rather than misreporting `firstIndex`.
-						if (output == null) {
-							output = new Set()
-							firstItemMeta = new Map()
-							for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
-								const bufferedItem = buffer![bufferIndex]
-								output.add(bufferedItem)
-								firstItemMeta.set(bufferedItem, { firstIndex: bufferIndex, firstItem: bufferedItem })
-							}
-						}
+						// A failure creates a gap between buffer position and source index.
+						// Remember that fact instead of materializing Set/Map bookkeeping
+						// immediately: if validation ultimately fails without a transform,
+						// that materialization can never affect an observable result.
+						if (output == null)
+							bufferSourceIndices ??= []
 						index++
 						continue
 					}
@@ -260,6 +257,8 @@ export const set = implStepPlugin<PluginDef>({
 						if (isIdentity) {
 							buffer ??= []
 							buffer[bufferCount] = item
+							if (bufferSourceIndices != null)
+								bufferSourceIndices[bufferCount] = index
 							bufferCount++
 							index++
 							continue
@@ -269,7 +268,10 @@ export const set = implStepPlugin<PluginDef>({
 						for (let bufferIndex = 0; bufferIndex < bufferCount; bufferIndex++) {
 							const bufferedItem = buffer![bufferIndex]
 							output.add(bufferedItem)
-							firstItemMeta.set(bufferedItem, { firstIndex: bufferIndex, firstItem: bufferedItem })
+							firstItemMeta.set(bufferedItem, {
+								firstIndex: bufferSourceIndices?.[bufferIndex] ?? bufferIndex,
+								firstItem: bufferedItem,
+							})
 						}
 					}
 

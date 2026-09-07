@@ -501,6 +501,37 @@ describe('set native snapshots', () => {
 			})
 	})
 
+	it('keeps source indices across multiple failed gaps before a later collision', () => {
+		const input = new Set(['kept', 'failed-1', 'middle', 'failed-2', 'later'])
+		const item = v.unknown()
+			.syncProcess((value: unknown) => {
+				if (String(value)
+					.startsWith('failed-')) {
+					return { ok: false }
+				}
+				return { ok: true, value: value === 'later' ? 'middle' : value }
+			})
+		const result = v.set(item, { collectAllIssues: true })
+			.execute(input)
+
+		expect(result.issues.map((issue: any) => issue.code))
+			.toEqual([
+				'fixture:rejected',
+				'fixture:rejected',
+				'set:duplicate_transformed_item',
+			])
+		expect(result.issues[2])
+			.toMatchObject({
+				path: [4],
+				payload: {
+					firstItem: 'middle',
+					firstIndex: 2,
+					item: 'later',
+					index: 4,
+				},
+			})
+	})
+
 	it('excludes failed prefix items when transformation state is initialized later', () => {
 		const input = new Set(['failed', 'a', 'b'])
 		const item = v.unknown()
