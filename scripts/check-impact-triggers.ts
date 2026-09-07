@@ -262,6 +262,16 @@ const loops = [...workflowText.matchAll(/for repetition in[^\n]*\n([\s\S]*?)\n[ 
 	.filter(body => body.includes('pnpm --dir benchmarks cells'))
 if (loops.length < 2)
 	errors.push(`${workflowPath}: expected paired cell measurement loops for both screen and confirmation; found ${loops.length}`)
+const conditionalSelectionRoleLines = [
+	'selection_args=()',
+	'if [[ -f artifacts/performance-impact/selection.json ]]; then',
+	'selection_args=(--selection-roles',
+	'../artifacts/performance-impact/selection.json',
+]
+if (conditionalSelectionRoleLines.some(line => !workflowText.includes(line))) {
+	errors.push(`${workflowPath}: screen measurement must pass selection roles only when the PR scoping artifact exists; unscoped push runs have no selection.json and treat every measured row as affected`)
+}
+
 for (const [index, loop] of loops.entries()) {
 	const label = `${workflowPath}: paired measurement loop ${index + 1} of ${loops.length}`
 	for (const required of [
@@ -278,8 +288,8 @@ for (const [index, loop] of loops.entries()) {
 	}
 	if (loop.includes('run_side baseline') || loop.includes('run_side candidate'))
 		errors.push(`${label} still invokes whole sides separately; one cell's baseline/candidate observations are not adjacent`)
-	if (index === 0 && !loop.includes('--selection-roles "../artifacts/performance-impact/selection.json"'))
-		errors.push(`${label} does not pass the machine-readable affected/canary role map, so health cells can be mixed back into the product group estimator`)
+	if (index === 0 && !loop.includes('selection_args'))
+		errors.push(`${label} does not pass the conditionally resolved affected/canary role arguments to the paired cell runner`)
 }
 
 if (errors.length > 0) {
