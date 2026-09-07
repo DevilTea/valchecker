@@ -395,6 +395,68 @@ describe('fallback plugin', () => {
 			.toBe(payload)
 	})
 
+	it('snapshots multiple top-level and nested owned issues independently', () => {
+		type NestedIssue = ExecutionIssue<'foreign:nested_issue', { value: string }>
+		type WrapperIssue = ExecutionIssue<
+			'foreign:issue_wrapper',
+			{ receivedIssues: [NestedIssue, NestedIssue] }
+		>
+
+		const nestedIssues: [NestedIssue, NestedIssue] = [
+			{
+				code: 'foreign:nested_issue',
+				category: 'validation',
+				message: 'Nested issue.',
+				path: ['first'],
+				payload: { value: 'first' },
+			},
+			{
+				code: 'foreign:nested_issue',
+				category: 'validation',
+				message: 'Nested issue.',
+				path: ['second'],
+				payload: { value: 'second' },
+			},
+		]
+		const wrapper: WrapperIssue = {
+			code: 'foreign:issue_wrapper',
+			category: 'validation',
+			message: 'Wrapper issue.',
+			path: ['wrapper'],
+			payload: markIssueSnapshotPayload(
+				{ receivedIssues: nestedIssues },
+				{ receivedIssues: 'issues' },
+			),
+		}
+		const peer: WrapperIssue = {
+			...wrapper,
+			path: ['peer'],
+			payload: markIssueSnapshotPayload(
+				{ receivedIssues: nestedIssues },
+				{ receivedIssues: 'issues' },
+			),
+		}
+
+		const snapshots = snapshotIssuesForConsumer([wrapper, peer])
+		expect(snapshots)
+			.toHaveLength(2)
+		expect(snapshots[0]).not.toBe(wrapper)
+		expect(snapshots[1]).not.toBe(peer)
+		expect(snapshots[0].payload.receivedIssues).not.toBe(nestedIssues)
+		expect(snapshots[0].payload.receivedIssues[0]).not.toBe(nestedIssues[0])
+		expect(snapshots[0].payload.receivedIssues[1]).not.toBe(nestedIssues[1])
+
+		snapshots[0].path.push('snapshot-only')
+		snapshots[0].payload.receivedIssues[0].path.push('snapshot-only')
+		snapshots[0].payload.receivedIssues[0].payload.value = 'snapshot-only'
+		expect(wrapper.path)
+			.toEqual(['wrapper'])
+		expect(nestedIssues[0].path)
+			.toEqual(['first'])
+		expect(nestedIssues[0].payload.value)
+			.toBe('first')
+	})
+
 	it('honors the versioned payload ownership protocol from another package copy', () => {
 		const protocol = Symbol.for('valchecker.protocol.issueSnapshotPayload.v1')
 		const owned = ['owned']
