@@ -77,11 +77,6 @@ export const acceptedRegressions = [
 		because: '`isBefore()` has the same mutable-`Date` ownership correction as `isAfter()`: validation captures the construction-time instant, while each failure must expose a new `Date` object so supported consumer mutation cannot change later diagnostics or the schema itself. Runtime freezing is not an alternative because frozen `Date` objects still allow their internal time value to change. Five adjacent paired local repetitions measured -60.62% with an interval of [-60.99%, -60.26%], and the earlier hosted screen was near -69%. The 80% bound pays for that specific correctness guarantee while leaving a clear failure margin for any additional slowdown.',
 	},
 	{
-		cell: 'isMimeType/other-type',
-		maxRegressionPercent: 45,
-		because: '`isMimeType()` now snapshots a caller-owned list at construction and keeps each failure payload independently mutable, so mutating one issue\'s `expected` array cannot rewrite future diagnostics or schema configuration. The wildcard matcher itself was optimized in this follow-up and the success cell is now faster than `main`; the remaining failure-only cost is the explicit ownership marker needed so `fallback()` can detach the fresh diagnostic array without generically cloning user arrays. Five adjacent paired local repetitions measured -31.05% with an interval of [-33.00%, -29.04%], consistent with the earlier hosted result near -34%. The 45% bound is deliberately above both readings but still bounded.',
-	},
-	{
 		cell: 'map/collect-all',
 		maxRegressionPercent: 25,
 		because: 'The `firstIndex` correction in `map()` under `collectAllIssues`. A buffered entry used to be '
@@ -111,11 +106,6 @@ export const acceptedRegressions = [
 			+ 'run where this cell was too noisy to judge, by only 2.1pp — so the bound holds but thinly, and a noisier '
 			+ 'run will report this entry `unassessed` rather than acknowledged. That is the honest outcome and it blocks '
 			+ 'nothing; the bound is deliberately not widened to make it read as acknowledged.',
-	},
-	{
-		cell: 'strictObject/unexpected-keys',
-		maxRegressionPercent: 75,
-		because: '`strictObject:unexpected_keys` reports two consumer-visible arrays: the failure-time unknown-key list and the configured expected-key list. Issue #140 requires `fallback()` to detach Valchecker-owned diagnostic containers while preserving identity for opaque user payload values, so the fresh unknown-key array needs explicit ownership metadata; it cannot be pre-marked at schema construction because its contents depend on the failing input. Five adjacent paired local repetitions measured -60.26% with an interval of [-61.46%, -59.02%], consistent with the earlier hosted result near -64%. The 75% ceiling accepts that bounded diagnostic-ownership cost but leaves roughly ten percentage points before a further slowdown becomes a breach.',
 	},
 ]
 
