@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+	baselineCommitOf,
 	confirmationBudget,
 	confirmationBudgetSeconds,
 	confirmationPlan,
@@ -10,6 +11,8 @@ import {
 	resolveConfirmation,
 	secondsPerCellRun,
 } from './confirmation.mjs'
+
+const testBase = '384d81389516ba174eaaf830970b141306f67a01'
 
 /**
  * The two-stage decision, driven by the combinations the review's table names and by the
@@ -21,11 +24,12 @@ import {
  * question about `ratiosWith` rather than about the rule under test.
  */
 
-function screenOf(rows, { verdict = 'review', severeGroups = [] } = {}) {
+function screenOf(rows, { verdict = 'review', severeGroups = [], baseCommit = testBase } = {}) {
 	return {
 		verdict,
 		severeGroups,
 		runCounts: { baseline: 5, candidate: 5 },
+		...(baseCommit != null ? { commits: { baseline: [baseCommit], candidate: ['1111111111111111111111111111111111111111'] } } : {}),
 		// `intervalHigh` as well as `intervalLow`: a bound is judged against the interval, so a
 		// fixture without one cannot be classified against it at all.
 		rows: rows.map(([scenario, classification, delta, intervalLow = delta - 0.01, intervalHigh = delta + 0.01]) => ({
@@ -187,7 +191,7 @@ test('a severe row with no confirmation stage at all still blocks', () => {
 	assert.match(renderConfirmationMarkdown(result), /\*\*Not confirmed\.\*\*/)
 })
 
-const accepted = [{ cell: 'a', maxRegressionPercent: 25, because: 'x'.repeat(200) }]
+const accepted = [{ baseCommit: testBase, cell: 'a', maxRegressionPercent: 25, because: 'x'.repeat(200) }]
 
 test('an acknowledged regression is reported with its bound instead of blocking', () => {
 	// Visible, never absent: a gate whose passing output hides what it forgave is the failure
@@ -259,7 +263,7 @@ test('an acknowledged group stops failing the gate but keeps its true measured v
 	const screen = groupScreen(['a', 'b'])
 	const result = resolveConfirmation(screen, null, {
 		acceptedRegressions: [],
-		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+		acceptedGroupRegressions: [{ baseCommit: testBase, group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
 		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.064, ['a', 'b']) },
 	})
 	assert.deepEqual(result.severeGroups, ['warm/failure/all'], 'the measured trigger is still reported')
@@ -274,7 +278,7 @@ test('a group breaches its bound only when both batches place the interval past 
 	const screen = groupScreen(['a', 'b'], { delta: -0.2, width: 0.01 })
 	const both = resolveConfirmation(screen, null, {
 		acceptedRegressions: [],
-		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+		acceptedGroupRegressions: [{ baseCommit: testBase, group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
 		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.2, ['a', 'b']) },
 	})
 	assert.equal(both.verdict, 'regression')
@@ -283,7 +287,7 @@ test('a group breaches its bound only when both batches place the interval past 
 	// And a confirmation breach the screen does not reproduce is unassessed rather than red.
 	const oneSided = resolveConfirmation(groupScreen(['a', 'b']), null, {
 		acceptedRegressions: [],
-		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
+		acceptedGroupRegressions: [{ baseCommit: testBase, group: 'warm/failure/all', maxRegressionPercent: 12, because: 'x'.repeat(200) }],
 		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.2, ['a', 'b']) },
 	})
 	assert.deepEqual(oneSided.acknowledgementProblems, [])
@@ -317,8 +321,8 @@ test('a severe group with no single-runner confirmation is review, and says why'
 	assert.match(renderConfirmationMarkdown(result), /group triggers? to settle/)
 })
 
-test('a clean screen needs no confirmation and keeps its own verdict', () => {
-	for (const verdict of ['neutral', 'improvement', 'inconclusive']) {
+test('a clean screen needs no confirmation and keeps neutral or improvement verdict', () => {
+	for (const verdict of ['neutral', 'improvement']) {
 		const screen = screenOf([['a', 'cleared', 0], ['b', 'inconclusive', 0.01, -0.02]], { verdict })
 		const result = resolveConfirmation(screen, null)
 		assert.deepEqual(result.rows, [])
@@ -517,7 +521,7 @@ test('a cell whose bound cannot be judged does not fall back to the ordinary thr
 	const screen = screenOf([['a', 'severe', -0.4, -0.6, -0.2]], { verdict: 'regression' })
 	const confirm = confirmOf([['a', 'severe', -0.3, -0.35, -0.25]])
 	const result = resolveConfirmation(screen, confirm, {
-		acceptedRegressions: [{ cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+		acceptedRegressions: [{ baseCommit: testBase, cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
 		acceptedGroupRegressions: [],
 	})
 	assert.deepEqual(result.rows.map(row => row.resolution), ['acceptance-unassessed'])
@@ -534,7 +538,7 @@ test('a group whose bound cannot be judged is not blocked by the ordinary group 
 	const screen = groupScreen(['a', 'b'], { delta: -0.4, width: 0.2 })
 	const result = resolveConfirmation(screen, null, {
 		acceptedRegressions: [],
-		acceptedGroupRegressions: [{ group: 'warm/failure/all', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+		acceptedGroupRegressions: [{ baseCommit: testBase, group: 'warm/failure/all', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
 		groupConfirmations: { 'warm/failure/all': groupConfirmation('warm/failure/all', 'regression', -0.3, ['a', 'b'], { width: 0.05 }) },
 	})
 	assert.deepEqual(result.acknowledgedGroups, [])
@@ -550,7 +554,7 @@ test('a failed acceptance still blocks: the exemption is not unconditional', () 
 	const screen = screenOf([['a', 'severe', -0.6, -0.65, -0.55]], { verdict: 'regression' })
 	const confirm = confirmOf([['a', 'severe', -0.58, -0.62, -0.54]])
 	const result = resolveConfirmation(screen, confirm, {
-		acceptedRegressions: [{ cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
+		acceptedRegressions: [{ baseCommit: testBase, cell: 'a', maxRegressionPercent: 45, because: 'x'.repeat(200) }],
 		acceptedGroupRegressions: [],
 	})
 	assert.equal(result.verdict, 'regression')
@@ -568,4 +572,54 @@ test('a batch is priced at the repetitions the run used, not at a default', () =
 	assert.equal(atTen.groupBudgets[0].fitsOneRunner, false)
 	assert.equal(Number((atTen.groupBudgets[0].totalSeconds / 60).toFixed(1)), 79.7)
 	assert.deepEqual(atTen.unconfirmableGroups, ['warm/success'])
+})
+
+test('ordinary boundary uncertainty from inconclusive screen converges to review and records boundaryUnresolved', () => {
+	const screen = screenOf([['near-boundary', 'inconclusive', -0.04, -0.06, -0.02]], { verdict: 'inconclusive' })
+	const confirm = confirmOf([['near-boundary', 'inconclusive', -0.03, -0.05, -0.01]])
+	const result = resolveConfirmation(screen, confirm, { acceptedRegressions: [] })
+	assert.equal(result.verdict, 'review')
+	assert.deepEqual(result.blocking, [])
+	assert.deepEqual(result.unresolved, [])
+	assert.deepEqual(result.boundaryUnresolved, ['near-boundary'])
+	const markdown = renderConfirmationMarkdown(result)
+	assert.match(markdown, /Boundary uncertainty/)
+	assert.match(markdown, /`near-boundary`/)
+})
+
+test('inactive historical acknowledgement pinned to a different base is reported as inactive and does not exempt regressions', () => {
+	const screen = screenOf([['a', 'severe', -0.1467, -0.182]], {
+		verdict: 'regression',
+		baseCommit: '0000000000000000000000000000000000000002',
+	})
+	const confirm = confirmOf([['a', 'severe', -0.1159]])
+	const result = resolveConfirmation(screen, confirm, { acceptedRegressions: accepted })
+	assert.equal(result.verdict, 'regression')
+	assert.deepEqual(result.blocking, ['a'])
+	assert.deepEqual(result.acknowledged, [])
+	assert.equal(result.inactiveAcknowledgements.length, 1)
+	assert.equal(result.inactiveAcknowledgements[0].cell, 'a')
+	const markdown = renderConfirmationMarkdown(result)
+	assert.match(markdown, /inactive historical acknowledgement/)
+	assert.match(markdown, /Pinned to a different baseline commit/)
+})
+
+test('baselineCommitOf strictly requires a single 40-hex lowercase commit hash', () => {
+	assert.equal(baselineCommitOf({}), null)
+	assert.equal(baselineCommitOf({ commits: {} }), null)
+	assert.equal(baselineCommitOf({ commits: { baseline: [] } }), null)
+	assert.equal(baselineCommitOf({ commits: { baseline: [testBase, '0000000000000000000000000000000000000002'] } }), null)
+	assert.equal(baselineCommitOf({ commits: { baseline: ['384d813'] } }), null, 'short prefix is rejected')
+	assert.equal(baselineCommitOf({ commits: { baseline: [`${testBase} `] } }), null, 'trailing space is rejected')
+	assert.equal(baselineCommitOf({ commits: { baseline: [testBase.toUpperCase()] } }), null, 'uppercase is rejected')
+	assert.equal(baselineCommitOf({ commits: { baseline: [testBase] } }), testBase)
+})
+
+test('inconclusive screen with no rows needing confirmation converges to review with no severe unresolved', () => {
+	const screen = screenOf([['a', 'inconclusive', -0.01, -0.02, 0.00]], { verdict: 'inconclusive' })
+	assert.deepEqual(confirmationSelection(screen), [])
+	const result = resolveConfirmation(screen, null, { acceptedRegressions: [] })
+	assert.equal(result.verdict, 'review')
+	assert.deepEqual(result.unresolved, [])
+	assert.deepEqual(result.blocking, [])
 })

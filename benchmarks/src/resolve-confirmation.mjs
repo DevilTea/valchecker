@@ -14,8 +14,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { acceptedGroupRegressions, acceptedRegressions } from './accepted-regressions.mjs'
-import { confirmationPlan, planSummaryLines, renderConfirmationMarkdown, resolveConfirmation } from './confirmation.mjs'
+import { acceptedGroupRegressionsForBase, acceptedRegressionsForBase } from './accepted-regressions.mjs'
+import { baselineCommitOf, confirmationPlan, planSummaryLines, renderConfirmationMarkdown, resolveConfirmation } from './confirmation.mjs'
 
 const benchmarkRoot = fileURLToPath(new URL('..', import.meta.url))
 
@@ -78,8 +78,11 @@ if (options.plan) {
 	// unit it schedules — rather than a hand-picked subset that can drift from it. It drifted:
 	// this branch emitted `{ cells, shardCount }` after the planner had moved to independent
 	// batches, so even past the `TypeError` the next step would have read an undefined `batches`.
-	const acknowledgedGroups = new Set(acceptedGroupRegressions.map(entry => entry.group))
-	const acknowledgedCells = new Set(acceptedRegressions.map(entry => entry.cell))
+	const baseCommit = baselineCommitOf(screen)
+	const acknowledgedGroups = new Set(acceptedGroupRegressionsForBase(baseCommit)
+		.map(entry => entry.group))
+	const acknowledgedCells = new Set(acceptedRegressionsForBase(baseCommit)
+		.map(entry => entry.cell))
 	// The repetition count the screen actually used, not the planner's default. `workflow_dispatch`
 	// accepts a `runs` other than five and `confirm-measure` executes that same number, so a
 	// default of five would price a different job than the one scheduled: 100 cells is about
@@ -123,8 +126,9 @@ else {
 		// eslint-disable-next-line antfu/no-top-level-await -- top-level await in an ESM entry script executed to completion at load
 		await writeFile(options.json, `${JSON.stringify(result, null, 2)}\n`)
 	}
+	const boundaryUnresolvedCount = result.boundaryUnresolved?.length ?? 0
 	console.error(`[confirm] verdict ${result.verdict} (screen ${result.screenVerdict}): `
-		+ `${result.reproduced.length} reproduced, ${result.notReproduced.length} not reproduced, ${result.unresolved.length} unresolved`)
+		+ `${result.reproduced.length} reproduced, ${result.notReproduced.length} not reproduced, ${result.unresolved.length} unresolved (severe), ${boundaryUnresolvedCount} boundary unresolved`)
 	// Why, not just what. A job whose log ends in a one-line summary and `ELIFECYCLE` sends its
 	// reader to an artifact to find out which cell failed the build, and the first real run of
 	// this stage was misread as a wiring fault for exactly that reason. The rows that decided
@@ -134,11 +138,19 @@ else {
 			+ `confirm ${row.confirm ?? 'not measured'}${row.confirmDelta == null ? '' : ` ${(row.confirmDelta * 100).toFixed(2)}%`}`)
 	}
 	for (const row of result.rows.filter(candidate => result.unresolved.includes(candidate.scenario))) {
-		console.error(`[confirm] unresolved: ${row.scenario} — screen ${row.screen} ${(row.screenDelta * 100).toFixed(2)}%, `
+		console.error(`[confirm] unresolved (severe): ${row.scenario} — screen ${row.screen} ${(row.screenDelta * 100).toFixed(2)}%, `
+			+ `confirm ${row.confirm ?? 'not measured'}${row.confirmDelta == null ? '' : ` ${(row.confirmDelta * 100).toFixed(2)}%`}`)
+	}
+	for (const row of result.rows.filter(candidate => result.boundaryUnresolved?.includes(candidate.scenario))) {
+		console.error(`[confirm] boundary unresolved: ${row.scenario} — screen ${row.screen} ${(row.screenDelta * 100).toFixed(2)}%, `
 			+ `confirm ${row.confirm ?? 'not measured'}${row.confirmDelta == null ? '' : ` ${(row.confirmDelta * 100).toFixed(2)}%`}`)
 	}
 	for (const record of result.acknowledged)
 		console.error(`[confirm] accepted regression: ${record.cell} — measured -${record.depthPercent.toFixed(2)}%, accepted to -${record.bound}%`)
+	for (const record of result.inactiveAcknowledgements ?? []) {
+		const target = record.type === 'cell' ? record.cell : `group ${record.group}`
+		console.error(`[confirm] inactive acknowledgement (${target}): pinned to base ${record.baseCommit ? record.baseCommit.slice(0, 7) : 'n/a'} — not active for this run`)
+	}
 	for (const problem of result.acknowledgementProblems)
 		console.error(`[confirm] accepted-regression list: ${problem}`)
 	for (const problem of result.unassessedAcknowledgements)

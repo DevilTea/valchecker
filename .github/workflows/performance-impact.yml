@@ -432,6 +432,13 @@ jobs:
           if [[ -n "$CELLS" ]]; then
             cell_args=(--cells "$CELLS")
           fi
+          # Scoped pull-request runs persist an affected/canary role map. Push and
+          # manually unscoped runs intentionally do not: with no map, the comparator
+          # treats every measured cell as affected, which is the full-run estimator.
+          selection_args=()
+          if [[ -f artifacts/performance-impact/selection.json ]]; then
+            selection_args=(--selection-roles "../artifacts/performance-impact/selection.json")
+          fi
           seed="compare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           # The cell definitions always come from this checked-out candidate ref. Each
@@ -458,7 +465,7 @@ jobs:
               --baseline-output "../artifacts/performance-impact/baseline-$repetition-shard$SHARD.json" \
               --candidate-output "../artifacts/performance-impact/candidate-$repetition-shard$SHARD.json" \
               --catalog-output "../artifacts/performance-impact/cell-catalog.json" \
-              --selection-roles "../artifacts/performance-impact/selection.json" \
+              "${selection_args[@]}" \
               "${cell_args[@]}"
           done
 

@@ -80,16 +80,46 @@ test('require-resolved does not turn an ordinary review verdict into a failure',
 	assert.equal(child.status, 0)
 })
 
-test('require-resolved blocks a final inconclusive verdict even when no severe regression is claimed', () => {
+test('require-resolved permits ordinary boundary uncertainty to converge to review when no severe regression is claimed', () => {
 	const { child, result } = run(
-		comparison('inconclusive', -0.02, 'inconclusive'),
+		comparison('inconclusive', -0.04, 'inconclusive'),
 		comparison('cleared', 0, 'neutral'),
 		'--fail-on-regression',
 		'--require-resolved',
 	)
-	assert.equal(result.verdict, 'inconclusive')
+	assert.equal(result.verdict, 'review')
 	assert.deepEqual(result.blocking, [])
 	assert.deepEqual(result.unresolved, [])
+	assert.deepEqual(result.boundaryUnresolved, [])
+	assert.equal(child.status, 0)
+})
+
+test('require-resolved reports boundaryUnresolved as non-blocking review when both batches are inconclusive without severe claim', () => {
+	const { child, result } = run(
+		comparison('inconclusive', -0.04, 'inconclusive'),
+		comparison('inconclusive', -0.03, 'inconclusive'),
+		'--fail-on-regression',
+		'--require-resolved',
+	)
+	assert.equal(result.verdict, 'review')
+	assert.deepEqual(result.blocking, [])
+	assert.deepEqual(result.unresolved, [])
+	assert.deepEqual(result.boundaryUnresolved, ['cli/resolution-probe'])
+	assert.equal(child.status, 0)
+	assert.match(child.stderr, /boundary unresolved: cli\/resolution-probe/)
+})
+
+test('require-resolved blocks when confirmation discovers severe regression from inconclusive screen', () => {
+	const { child, result } = run(
+		comparison('inconclusive', -0.04, 'inconclusive'),
+		comparison('severe', -0.14, 'regression'),
+		'--fail-on-regression',
+		'--require-resolved',
+	)
+	assert.equal(result.verdict, 'unresolved')
+	assert.deepEqual(result.blocking, [])
+	assert.deepEqual(result.unresolved, ['cli/resolution-probe'])
+	assert.deepEqual(result.boundaryUnresolved, [])
 	assert.equal(child.status, 2)
-	assert.match(child.stderr, /required check has no resolved answer: inconclusive/)
+	assert.match(child.stderr, /required check has no resolved answer: unresolved/)
 })
