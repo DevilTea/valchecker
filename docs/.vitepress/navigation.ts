@@ -1,8 +1,8 @@
+import type { DocumentationSectionId } from '../_meta/pages'
 import {
 	documentationSections,
 	narrativePages,
 	narrativeRoute,
-	type DocumentationSectionId,
 } from '../_meta/pages'
 
 export interface DocsNavigationItem {
@@ -41,7 +41,8 @@ export const docsNav: DocsNavigationItem[] = documentationSections.map((section)
  */
 export function createDocsSidebar(apiReferenceItems: readonly DocsNavigationItem[]): DocsSidebarGroup[] {
 	return documentationSections.map((section) => {
-		const narrativeItems = pagesFor(section.id).map(itemFor)
+		const narrativeItems = pagesFor(section.id)
+			.map(itemFor)
 		return {
 			text: section.label,
 			items: section.id === 'reference'
