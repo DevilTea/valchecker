@@ -105,7 +105,7 @@ Representative inputs that changed verdict — not the complete list. A differen
 | `1️` (U+0031 U+FE0F) | rejected | accepted |
 | `🇦🇦` (U+1F1E6 U+1F1E6) | rejected | accepted |
 | `⌚️` (U+231A U+FE0F) | rejected | accepted |
-| `🏴` (U+1F3F4 + `usca` + U+E007F) | rejected | accepted |
+| `🏴󠁵󠁳󠁣󠁡󠁿` (U+1F3F4 + `usca` + U+E007F) | rejected | accepted |
 | `👪🏻` (U+1F46A U+1F3FB) | rejected | accepted |
 | `🏽` (U+1F3FD), a lone skin-tone modifier | **accepted** | rejected |
 | `🦰` (U+1F9B0), a lone hair component | **accepted** | rejected |

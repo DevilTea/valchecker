@@ -24,7 +24,7 @@ The checked fixture proves two important cases: an originating per-step message 
 | Field placement in forms | `issue.path`, not the message text |
 | API/client branching | `code`, `category`, and structured payload/context |
 
-The full message-resolution precedence and exception guarantees are part of the [Valchecker 1.0 Contract](/guide/v1-contract); this guide does not duplicate that formal list.
+The full message-resolution precedence and exception guarantees are part of the [Valchecker 1.0 Contract](/reference/v1-contract); this guide does not duplicate that formal list.
 
 ## Localize from structured data
 
