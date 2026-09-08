@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSourceImportGraph, importPath } from './source-import-graph'
-import { objectTree } from './source-tree'
+import { buildSourceImportGraph, importPath, objectTree } from './source-tree'
 
 const repository = {
 	'packages/app/package.json': '{ "name": "app" }',
