@@ -26,6 +26,19 @@ function alphaSource(helperImport: string | null): string {
 		.join('\n')
 }
 
+function pageSource(root: string = 'packages/internal/src/steps/alpha/alpha.ts'): string {
+	return [
+		'---',
+		'description: Pipeline behavior.',
+		'relatedSources:',
+		`  - ${root}`,
+		'relatedPackages:',
+		'---',
+		'# Pipeline',
+		'',
+	].join('\n')
+}
+
 function repository(alpha = alphaSource('./helper')): Record<string, string> {
 	return {
 		'packages/internal/package.json': '{ "name": "@valchecker/internal" }',
@@ -33,16 +46,7 @@ function repository(alpha = alphaSource('./helper')): Record<string, string> {
 		'packages/internal/src/steps/alpha/alpha.ts': alpha,
 		'packages/internal/src/steps/alpha/alpha.doc.md': '### `alpha()`\n',
 		'packages/internal/src/steps/alpha/helper.ts': `export const helper = 1\n`,
-		'docs/core/pipeline.md': [
-			'---',
-			'description: Pipeline behavior.',
-			'relatedSources:',
-			'  - packages/internal/src/steps/alpha/alpha.ts',
-			'relatedPackages:',
-			'---',
-			'# Pipeline',
-			'',
-		].join('\n'),
+		'docs/core/pipeline.md': pageSource(),
 	}
 }
 
@@ -108,6 +112,43 @@ describe('documentation impact selection', () => {
 					revision: 'base',
 				}])
 		}
+	})
+
+	it('reads the base page metadata when the semantic root itself was renamed', () => {
+		const oldRoot = 'packages/internal/src/pipeline-old.ts'
+		const newRoot = 'packages/internal/src/pipeline-new.ts'
+		const base = repository()
+		base[oldRoot] = `export const pipeline = 1\n`
+		base['docs/core/pipeline.md'] = pageSource(oldRoot)
+
+		const current = repository()
+		current[newRoot] = `export const pipeline = 1\n`
+		current['docs/core/pipeline.md'] = pageSource(newRoot)
+
+		const report = analyzeDocsImpact(
+			objectTree(current),
+			['docs/core/pipeline.md', oldRoot, newRoot],
+			{ baseTree: objectTree(base), pages: [page] },
+		)
+
+		const narrative = report.impacts.find(impact => impact.kind === 'narrative')!
+		expect(narrative.touched)
+			.toBe(true)
+		expect(narrative.causes)
+			.toEqual(expect.arrayContaining([
+				{
+					changedPath: newRoot,
+					root: newRoot,
+					chain: [newRoot],
+					revision: 'current',
+				},
+				{
+					changedPath: oldRoot,
+					root: oldRoot,
+					chain: [oldRoot],
+					revision: 'base',
+				},
+			]))
 	})
 })
 
