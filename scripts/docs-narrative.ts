@@ -1,10 +1,10 @@
+import type { SourceTree } from './source-tree'
+import type { NarrativePage } from '../docs/_meta/pages'
 import path from 'node:path'
 import {
 	documentationSections,
 	narrativePages,
-	type NarrativePage,
 } from '../docs/_meta/pages'
-import type { SourceTree } from './source-tree'
 
 export interface NarrativeFrontmatter {
 	description: string | null
@@ -19,13 +19,20 @@ export interface ParsedNarrativePage {
 }
 
 const frontmatterFields = ['description', 'relatedSources', 'relatedPackages'] as const
-const listFields = new Set(['relatedSources', 'relatedPackages'])
+const listFields = new Set<string>(['relatedSources', 'relatedPackages'])
 
 function unquote(value: string): string {
 	const trimmed = value.trim()
-	if (trimmed.length >= 2 && ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'))))
+	const quote = trimmed[0]
+	if (trimmed.length >= 2 && (quote === '\'' || quote === '"') && trimmed.at(-1) === quote)
 		return trimmed.slice(1, -1)
 	return trimmed
+}
+
+function allowedFrontmatterFields(): string {
+	return frontmatterFields
+		.map(item => `\`${item}\``)
+		.join(', ')
 }
 
 /**
@@ -57,32 +64,35 @@ export function parseNarrativePage(text: string): ParsedNarrativePage {
 	const seen = new Set<string>()
 
 	for (const raw of lines.slice(1, closer)) {
-		if (raw.trim() === '')
+		const trimmedRaw = raw.trim()
+		if (trimmedRaw === '')
 			continue
-		const listItem = /^\s+-\s+(.+)$/.exec(raw)
-		if (listItem != null) {
+
+		if (trimmedRaw.startsWith('- ')) {
 			if (activeList == null) {
-				problems.push(`\`${raw.trim()}\` is a list item without a list field.`)
+				problems.push(`\`${trimmedRaw}\` is a list item without a list field.`)
 				continue
 			}
-			const value = unquote(listItem[1]!)
+			const value = unquote(trimmedRaw.slice(2))
 			if (value === '') {
 				problems.push(`\`${activeList}\` contains an empty item.`)
 				continue
 			}
-			;(activeList === 'relatedSources' ? relatedSources : relatedPackages).push(value)
+			const targetList = activeList === 'relatedSources' ? relatedSources : relatedPackages
+			targetList.push(value)
 			continue
 		}
 
-		const field = /^([A-Za-z][A-Za-z0-9]*):\s*(.*)$/.exec(raw.trim())
-		if (field == null) {
-			problems.push(`\`${raw.trim()}\` is not a supported frontmatter field or list item.`)
+		const colon = trimmedRaw.indexOf(':')
+		if (colon <= 0) {
+			problems.push(`\`${trimmedRaw}\` is not a supported frontmatter field or list item.`)
 			activeList = null
 			continue
 		}
-		const [, name, rawValue] = field as unknown as [string, string, string]
-		if (!(frontmatterFields as readonly string[]).includes(name)) {
-			problems.push(`\`${name}\` is not narrative page-local metadata. Allowed fields: ${frontmatterFields.map(item => `\`${item}\``).join(', ')}.`)
+		const name = trimmedRaw.slice(0, colon)
+		const rawValue = trimmedRaw.slice(colon + 1).trimStart()
+		if (!/^[a-z][a-z0-9]*$/i.test(name) || !(frontmatterFields as readonly string[]).includes(name)) {
+			problems.push(`\`${name}\` is not narrative page-local metadata. Allowed fields: ${allowedFrontmatterFields()}.`)
 			activeList = null
 			continue
 		}
@@ -94,7 +104,7 @@ export function parseNarrativePage(text: string): ParsedNarrativePage {
 		seen.add(name)
 
 		if (listFields.has(name)) {
-			if (rawValue.trim() !== '')
+			if (rawValue !== '')
 				problems.push(`\`${name}\` is a list and must put each value on its own \`- item\` line.`)
 			activeList = name as 'relatedSources' | 'relatedPackages'
 			continue
@@ -117,7 +127,12 @@ function visibleMarkdownLines(markdown: string): string[] {
 	const visible: string[] = []
 	let fence: string | null = null
 	for (const line of markdown.split(/\r?\n/)) {
-		const delimiter = /^\s*(`{3,}|~{3,})/.exec(line)?.[1] ?? null
+		const trimmed = line.trimStart()
+		const delimiter = trimmed.startsWith('```')
+			? '`'.repeat(trimmed.match(/^`+/)?.[0].length ?? 0)
+			: trimmed.startsWith('~~~')
+				? '~'.repeat(trimmed.match(/^~+/)?.[0].length ?? 0)
+				: null
 		if (fence != null) {
 			if (delimiter != null && delimiter[0] === fence[0] && delimiter.length >= fence.length)
 				fence = null
@@ -132,9 +147,19 @@ function visibleMarkdownLines(markdown: string): string[] {
 	return visible
 }
 
+function isTableSeparator(line: string): boolean {
+	let content = line.trim()
+	if (content.startsWith('|'))
+		content = content.slice(1)
+	if (content.endsWith('|'))
+		content = content.slice(0, -1)
+	const cells = content.split('|').map(cell => cell.trim())
+	return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell))
+}
+
 function hasTable(markdown: string): boolean {
 	const lines = visibleMarkdownLines(markdown)
-	return lines.some((line, index) => line.includes('|') && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1] ?? ''))
+	return lines.some((line, index) => line.includes('|') && isTableSeparator(lines[index + 1] ?? ''))
 }
 
 function hasDot(markdown: string): boolean {
@@ -143,7 +168,7 @@ function hasDot(markdown: string): boolean {
 
 function localTarget(pagePath: string, rawTarget: string): string | null {
 	const target = rawTarget.split('#')[0]!.split('?')[0]!
-	if (target === '' || target.startsWith('#') || /^(?:[a-z]+:)?\/\//i.test(target) || target.startsWith('data:'))
+	if (target === '' || /^(?:[a-z]+:)?\/\//i.test(target) || target.startsWith('data:'))
 		return null
 	if (target.startsWith('@/'))
 		return path.posix.join('docs', target.slice(2))
@@ -168,6 +193,37 @@ function referencedLocalFiles(pagePath: string, markdown: string): string[] {
 		}
 	}
 	return targets
+}
+
+function markdownHeading(line: string): string | null {
+	const trimmed = line.trimStart()
+	let depth = 0
+	while (trimmed[depth] === '#')
+		depth++
+	if (depth < 2 || depth > 6 || trimmed[depth] !== ' ')
+		return null
+
+	let heading = trimmed.slice(depth + 1).trim()
+	const anchorStart = heading.lastIndexOf(' {#')
+	if (anchorStart >= 0 && heading.endsWith('}'))
+		heading = heading.slice(0, anchorStart).trimEnd()
+	return heading === '' ? null : heading
+}
+
+function unauditedSkips(markdown: string): number[] {
+	const lines = markdown.split(/\r?\n/)
+	const problems: number[] = []
+	for (const [index, line] of lines.entries()) {
+		if (line.trim() !== '<!-- typecheck-skip -->')
+			continue
+		let previous = index - 1
+		while (previous >= 0 && lines[previous]!.trim() === '')
+			previous--
+		const reason = previous >= 0 ? lines[previous]!.trim() : ''
+		if (!reason.startsWith('<!-- ') || !reason.endsWith(' -->') || reason.startsWith('<!-- typecheck-'))
+			problems.push(index + 1)
+	}
+	return problems
 }
 
 const excludedNarrativeRoots = ['docs/.vitepress', 'docs/_meta', 'docs/.examples', 'docs/api']
@@ -225,7 +281,9 @@ export function auditNarrativeDocs(
 		for (const problem of parsed.problems)
 			problems.push(`\`${page.path}\`: ${problem}`)
 
-		const firstContent = parsed.body.split(/\r?\n/).find(line => line.trim() !== '')?.trim() ?? ''
+		const firstContentLine = parsed.body.split(/\r?\n/)
+			.find(line => line.trim() !== '')
+		const firstContent = firstContentLine?.trim() ?? ''
 		if (firstContent !== `# ${page.title}`)
 			problems.push(`\`${page.path}\` must open with canonical H1 \`# ${page.title}\`, found ${firstContent === '' ? 'no H1' : `\`${firstContent}\``}.`)
 
@@ -239,6 +297,8 @@ export function auditNarrativeDocs(
 				if (parsed.frontmatter.relatedSources.length === 0)
 					problems.push(`\`${page.path}\` has no \`relatedSources\` semantic root.`)
 			}
+			for (const line of unauditedSkips(parsed.body))
+				problems.push(`\`${page.path}\` has an unaudited \`typecheck-skip\` directive at Markdown line ${line}; precede it with an explanatory HTML comment.`)
 		}
 
 		for (const source of parsed.frontmatter?.relatedSources ?? []) {
@@ -246,8 +306,9 @@ export function auditNarrativeDocs(
 				problems.push(`\`${page.path}\` references missing related source \`${source}\`.`)
 		}
 
-		const visible = visibleMarkdownLines(parsed.body)
-		const headings = new Set(visible.map(line => /^#{2,6}\s+(.+?)\s*(?:\{#[^}]+\})?$/.exec(line.trim())?.[1]?.trim()).filter((heading): heading is string => heading != null))
+		const headings = new Set(visibleMarkdownLines(parsed.body)
+			.map(markdownHeading)
+			.filter((heading): heading is string => heading != null))
 		for (const required of page.requiredHeadings ?? []) {
 			if (!headings.has(required))
 				problems.push(`\`${page.path}\` is missing required heading \`${required}\`.`)
@@ -267,7 +328,8 @@ export function auditNarrativeDocs(
 	}
 
 	const registered = new Set(pages.map(page => page.path))
-	for (const file of collectNarrativeMarkdown(tree).toSorted()) {
+	for (const file of collectNarrativeMarkdown(tree)
+		.toSorted()) {
 		if (!registered.has(file as NarrativePage['path']))
 			problems.push(`Unregistered narrative page \`${file}\` exists under \`docs/\`.`)
 	}
