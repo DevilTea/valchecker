@@ -52,6 +52,7 @@
 		"docs:examples": "tsx ./scripts/check-docs-examples.ts",
 		"docs:examples:runtime": "vitest --run --config ./docs/vitest.config.ts",
 		"docs:check": "pnpm docs:narrative && pnpm docs:markdown && pnpm docs:api && pnpm docs:examples && pnpm docs:examples:runtime && pnpm -r --filter=./docs run typecheck && pnpm docs:build",
+		"docs:status": "tsx ./scripts/check-docs-status.ts",
 		"docs:preview": "pnpm -r --filter=./docs run preview",
 		"test": "pnpm test:quality && vitest --run",
 		"test:coverage": "pnpm test:quality && tsx ./scripts/run-coverage.ts",
