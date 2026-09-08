@@ -2,7 +2,7 @@ import type { NarrativePage } from '../docs/_meta/pages'
 import type { SourceTree } from './source-tree'
 import { narrativePages } from '../docs/_meta/pages'
 import { parseNarrativePage } from './docs-narrative'
-import { buildSourceImportGraph, importPath } from './source-import-graph'
+import { buildSourceImportGraph, importPath } from './source-tree'
 import { discoverSteps, stepsRoot } from './step-inventory'
 
 export type ImpactRevision = 'current' | 'base'
