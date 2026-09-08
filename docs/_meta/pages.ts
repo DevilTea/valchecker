@@ -9,8 +9,8 @@ export const documentationSections = [
 
 export type DocumentationSectionId = typeof documentationSections[number]['id']
 
-export type NarrativePageArchetype =
-	| 'tutorial'
+export type NarrativePageArchetype
+	= 'tutorial'
 	| 'concept'
 	| 'recipe'
 	| 'extension'
@@ -145,5 +145,6 @@ export const narrativePages: readonly NarrativePage[] = [
 ]
 
 export function narrativeRoute(page: Pick<NarrativePage, 'path'>): string {
-	return `/${page.path.slice('docs/'.length).replace(/\.md$/, '')}`
+	return `/${page.path.slice('docs/'.length)
+		.replace(/\.md$/, '')}`
 }
