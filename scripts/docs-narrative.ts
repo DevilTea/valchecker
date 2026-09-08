@@ -1,5 +1,5 @@
-import type { SourceTree } from './source-tree'
 import type { NarrativePage } from '../docs/_meta/pages'
+import type { SourceTree } from './source-tree'
 import path from 'node:path'
 import {
 	documentationSections,
@@ -90,7 +90,8 @@ export function parseNarrativePage(text: string): ParsedNarrativePage {
 			continue
 		}
 		const name = trimmedRaw.slice(0, colon)
-		const rawValue = trimmedRaw.slice(colon + 1).trimStart()
+		const rawValue = trimmedRaw.slice(colon + 1)
+			.trimStart()
 		if (!/^[a-z][a-z0-9]*$/i.test(name) || !(frontmatterFields as readonly string[]).includes(name)) {
 			problems.push(`\`${name}\` is not narrative page-local metadata. Allowed fields: ${allowedFrontmatterFields()}.`)
 			activeList = null
@@ -118,7 +119,8 @@ export function parseNarrativePage(text: string): ParsedNarrativePage {
 
 	return {
 		frontmatter: { description, relatedSources, relatedPackages },
-		body: lines.slice(closer + 1).join('\n'),
+		body: lines.slice(closer + 1)
+			.join('\n'),
 		problems,
 	}
 }
@@ -153,7 +155,8 @@ function isTableSeparator(line: string): boolean {
 		content = content.slice(1)
 	if (content.endsWith('|'))
 		content = content.slice(0, -1)
-	const cells = content.split('|').map(cell => cell.trim())
+	const cells = content.split('|')
+		.map(cell => cell.trim())
 	return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell))
 }
 
@@ -203,10 +206,13 @@ function markdownHeading(line: string): string | null {
 	if (depth < 2 || depth > 6 || trimmed[depth] !== ' ')
 		return null
 
-	let heading = trimmed.slice(depth + 1).trim()
+	let heading = trimmed.slice(depth + 1)
+		.trim()
 	const anchorStart = heading.lastIndexOf(' {#')
-	if (anchorStart >= 0 && heading.endsWith('}'))
-		heading = heading.slice(0, anchorStart).trimEnd()
+	if (anchorStart >= 0 && heading.endsWith('}')) {
+		heading = heading.slice(0, anchorStart)
+			.trimEnd()
+	}
 	return heading === '' ? null : heading
 }
 
