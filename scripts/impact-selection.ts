@@ -1,5 +1,5 @@
 import type { SourceTree } from './source-tree'
-import { buildSourceImportGraph } from './source-import-graph'
+import { buildSourceImportGraph } from './source-tree'
 
 /**
  * Which benchmark scenarios one diff can move, so the Performance Impact gate can
@@ -79,7 +79,6 @@ export const gateDefiningPaths: ReadonlySet<string> = new Set([
 	'scripts/impact-selection.ts',
 	'scripts/inert-change.ts',
 	'scripts/select-impact-scenarios.ts',
-	'scripts/source-import-graph.ts',
 	'scripts/source-tree.ts',
 ])
 
