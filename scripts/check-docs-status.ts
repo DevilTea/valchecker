@@ -24,12 +24,14 @@ function argumentValue(name: string): string | null {
 
 function mergeBase(requested: string): string {
 	try {
-		return git('merge-base', requested, 'HEAD').trim()
+		return git('merge-base', requested, 'HEAD')
+			.trim()
 	}
 	catch (error) {
 		if (requested !== 'origin/main')
 			throw error
-		return git('merge-base', 'main', 'HEAD').trim()
+		return git('merge-base', 'main', 'HEAD')
+			.trim()
 	}
 }
 
@@ -46,14 +48,17 @@ function gitRevisionTree(ref: string): SourceTree {
 	for (const file of files) {
 		const parts = file.split('/')
 		for (let index = 1; index < parts.length; index++) {
-			const directory = parts.slice(0, index).join('/')
+			const directory = parts.slice(0, index)
+				.join('/')
 			directories.add(directory)
-			const parent = parts.slice(0, index - 1).join('/')
+			const parent = parts.slice(0, index - 1)
+				.join('/')
 			const entries = entriesByDirectory.get(parent) ?? new Set<string>()
 			entries.add(parts[index - 1]!)
 			entriesByDirectory.set(parent, entries)
 		}
-		const directory = parts.slice(0, -1).join('/')
+		const directory = parts.slice(0, -1)
+			.join('/')
 		const entries = entriesByDirectory.get(directory) ?? new Set<string>()
 		entries.add(parts.at(-1)!)
 		entriesByDirectory.set(directory, entries)
