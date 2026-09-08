@@ -1,6 +1,6 @@
 # Migrating to Valchecker 1.0
 
-This guide covers breaking and newly formalized behavior for applications and step-plugin authors upgrading from earlier releases. That behavior ships in `0.0.33`. The 1.0 release candidate it was prepared for was never published, so `0.0.33` is where the 1.0 contract first appears, while the version series stays below 1.0. Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract) for normative behavior.
+This guide covers breaking and newly formalized behavior for applications and step-plugin authors upgrading from earlier releases. That behavior ships in `0.0.33`. The 1.0 release candidate it was prepared for was never published, so `0.0.33` is where the 1.0 contract first appears, while the version series stays below 1.0. Read the [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/reference/v1-contract) for normative behavior.
 
 ## Checklist
 
@@ -105,7 +105,7 @@ Representative inputs that changed verdict — not the complete list. A differen
 | `1️` (U+0031 U+FE0F) | rejected | accepted |
 | `🇦🇦` (U+1F1E6 U+1F1E6) | rejected | accepted |
 | `⌚️` (U+231A U+FE0F) | rejected | accepted |
-| `🏴󠁵󠁳󠁣󠁡󠁿` (U+1F3F4 + `usca` + U+E007F) | rejected | accepted |
+| `🏴` (U+1F3F4 + `usca` + U+E007F) | rejected | accepted |
 | `👪🏻` (U+1F46A U+1F3FB) | rejected | accepted |
 | `🏽` (U+1F3FD), a lone skin-tone modifier | **accepted** | rejected |
 | `🦰` (U+1F9B0), a lone hair component | **accepted** | rejected |

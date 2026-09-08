@@ -5,6 +5,7 @@ import {
 	documentationSections,
 	narrativePages,
 } from '../docs/_meta/pages'
+import { compatibilityArtifactPaths } from './docs-compatibility'
 
 export interface NarrativeFrontmatter {
 	description: string | null
@@ -233,7 +234,7 @@ function unauditedSkips(markdown: string): number[] {
 }
 
 const excludedNarrativeRoots = ['docs/.vitepress', 'docs/_meta', 'docs/.examples', 'docs/api', 'docs/node_modules']
-const excludedNarrativeFiles = new Set(['docs/index.md'])
+const excludedNarrativeFiles = new Set(['docs/index.md', ...compatibilityArtifactPaths()])
 
 function collectNarrativeMarkdown(tree: SourceTree, directory = 'docs'): string[] {
 	const entries = tree.list(directory)
@@ -273,8 +274,6 @@ export function auditNarrativeDocs(
 		seenPaths.add(page.path)
 		if (!sectionIds.has(page.section))
 			problems.push(`\`${page.path}\` uses unknown documentation section \`${page.section}\`.`)
-		if (page.navHidden === true && page.transitional !== true)
-			problems.push(`\`${page.path}\` hides a canonical page from navigation; \`navHidden\` is reserved for transitional compatibility routes.`)
 		const orderKey = `${page.section}:${page.order}`
 		if (orders.has(orderKey))
 			problems.push(`Documentation section \`${page.section}\` uses order ${page.order} more than once.`)
@@ -295,19 +294,17 @@ export function auditNarrativeDocs(
 		if (firstContent !== `# ${page.title}`)
 			problems.push(`\`${page.path}\` must open with canonical H1 \`# ${page.title}\`, found ${firstContent === '' ? 'no H1' : `\`${firstContent}\``}.`)
 
-		if (!page.transitional) {
-			if (parsed.frontmatter == null) {
-				problems.push(`\`${page.path}\` has no narrative frontmatter. Final narrative pages require \`description\` and non-empty \`relatedSources\`.`)
-			}
-			else {
-				if (parsed.frontmatter.description == null || parsed.frontmatter.description.trim() === '')
-					problems.push(`\`${page.path}\` has no non-empty \`description\`.`)
-				if (parsed.frontmatter.relatedSources.length === 0)
-					problems.push(`\`${page.path}\` has no \`relatedSources\` semantic root.`)
-			}
-			for (const line of unauditedSkips(parsed.body))
-				problems.push(`\`${page.path}\` has an unaudited \`typecheck-skip\` directive at Markdown line ${line}; precede it with an explanatory HTML comment.`)
+		if (parsed.frontmatter == null) {
+			problems.push(`\`${page.path}\` has no narrative frontmatter. Narrative pages require \`description\` and non-empty \`relatedSources\`.`)
 		}
+		else {
+			if (parsed.frontmatter.description == null || parsed.frontmatter.description.trim() === '')
+				problems.push(`\`${page.path}\` has no non-empty \`description\`.`)
+			if (parsed.frontmatter.relatedSources.length === 0)
+				problems.push(`\`${page.path}\` has no \`relatedSources\` semantic root.`)
+		}
+		for (const line of unauditedSkips(parsed.body))
+			problems.push(`\`${page.path}\` has an unaudited \`typecheck-skip\` directive at Markdown line ${line}; precede it with an explanatory HTML comment.`)
 
 		for (const source of parsed.frontmatter?.relatedSources ?? []) {
 			if (tree.read(source) == null)

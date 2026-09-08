@@ -1,13 +1,15 @@
-# Basic Validation
+---
+layout: page
+head:
+  - - meta
+    - http-equiv: refresh
+      content: "0; url=../getting-started/quick-start"
+  - - meta
+    - name: robots
+      content: noindex
+---
+<!-- Generated compatibility route. Do not edit it; `pnpm docs:compat` checks it and `pnpm docs:compat:update` rewrites it from `docs/_meta/compatibility.ts`. -->
 
-This legacy route is retained temporarily for compatibility while the final route cleanup is handled by #154.
+# Documentation moved
 
-Use these canonical owners instead:
-
-- [Quick Start](/getting-started/quick-start) for the first schema → execution → result flow;
-- [Structured Data](/guides-recipes/structured-data) for practical object, collection, optional-field, and union composition;
-- [Validation and Transformation](/core-concepts/validation-and-transformation) for the cross-cutting constraint/output model;
-- [Types and Runtime Behavior](/core-concepts/types-and-runtime) for inferred input/output state;
-- [API Reference](/api/overview) for exact built-in step contracts.
-
-The former primitive-by-primitive examples are intentionally not maintained as a second API catalog.
+This published route is preserved for compatibility. Continue to [Quick Start](/getting-started/quick-start).

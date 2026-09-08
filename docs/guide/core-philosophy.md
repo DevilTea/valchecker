@@ -1,13 +1,15 @@
-# Core Philosophy
+---
+layout: page
+head:
+  - - meta
+    - http-equiv: refresh
+      content: "0; url=../core-concepts/pipeline-and-chaining"
+  - - meta
+    - name: robots
+      content: noindex
+---
+<!-- Generated compatibility route. Do not edit it; `pnpm docs:compat` checks it and `pnpm docs:compat:update` rewrites it from `docs/_meta/compatibility.ts`. -->
 
-This legacy monolith has been split into focused Core Concepts and is retained temporarily only for route compatibility.
+# Documentation moved
 
-Continue with:
-
-- [Pipeline and Chaining](/core-concepts/pipeline-and-chaining)
-- [Validation and Transformation](/core-concepts/validation-and-transformation)
-- [Synchronous and Asynchronous Execution](/core-concepts/sync-and-async)
-- [Issues and Paths](/core-concepts/issues-and-paths)
-- [Types and Runtime Behavior](/core-concepts/types-and-runtime)
-
-New conceptual documentation is maintained in those canonical pages rather than duplicated here.
+This published route is preserved for compatibility. Continue to [Pipeline and Chaining](/core-concepts/pipeline-and-chaining).

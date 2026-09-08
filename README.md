@@ -134,10 +134,10 @@ Every schema exposes the upstream-compatible `~standard` contract for Standard S
 
 ## Documentation
 
-- [Quick Start](https://deviltea.github.io/valchecker/guide/quick-start)
-- [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/guide/v1-contract)
-- [Migrating to 1.0](https://deviltea.github.io/valchecker/guide/migration-to-1)
-- [Custom Steps](https://deviltea.github.io/valchecker/guide/custom-steps)
+- [Quick Start](https://deviltea.github.io/valchecker/getting-started/quick-start)
+- [Valchecker 1.0 Contract](https://deviltea.github.io/valchecker/reference/v1-contract)
+- [Migrating to 1.0](https://deviltea.github.io/valchecker/troubleshooting-migration/migration-to-1)
+- [Custom Step Plugins](https://deviltea.github.io/valchecker/extending/custom-step-plugins)
 - [API Reference](https://deviltea.github.io/valchecker/api/overview)
 - [Complete migration guide](./MIGRATION.md)
 - [Support policy](./SUPPORT.md)

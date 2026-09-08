@@ -35,20 +35,28 @@ Own migration steps, common mistakes, compatibility caveats, and diagnosis/recov
 - Step-specific API facts → sibling `<name>.doc.md` → generated `docs/api/*`.
 - Cross-cutting concepts and real tasks → narrative Markdown.
 - Narrative page identity/order → `docs/_meta/pages.ts`.
+- Legacy published-route compatibility and final legacy-page disposition → `docs/_meta/compatibility.ts`.
 - API category framing → `scripts/docs-api-templates/*`.
 - Runtime-sensitive narrative example code → canonical checked fixture under `docs/.examples`.
 
 Narrative pages should link to generated API anchors for exact leaf contracts rather than restating catalogs.
 
-## Transitional inventory and route compatibility
+## Route compatibility
 
-During #148–#154, legacy `docs/guide/*` and `docs/examples/*` pages may remain registered with `transitional: true`. This is an inventory bridge only: it preserves deterministic identity and old routes while content is re-homed by reader need.
+Canonical reader-facing pages are registered only in `docs/_meta/pages.ts`. Old published routes that still need to resolve are **not** narrative pages and do not appear in that registry.
 
-A transitional page is not exempt from existence/H1 checks, but it may defer final page-local source metadata until its migration issue rewrites it into a canonical destination. When a canonical replacement exists, the legacy route may also set `navHidden: true`: it remains registered and audited but disappears from generated navigation so readers are not offered two teaching destinations.
+`docs/_meta/compatibility.ts` is the single machine-readable compatibility inventory. Each entry records:
 
-`navHidden` is **only** a temporary route-compatibility mechanism. Canonical pages may not use it; the narrative structural checker rejects `navHidden` unless `transitional: true`. #154 owns replacing these temporary registered stubs with the final machine-readable route-compatibility strategy and removing the legacy inventory.
+- the old published route;
+- its final disposition (`migrated`, `split`, `absorbed`, `redirected`, or `intentionally-removed` when appropriate);
+- the canonical page ids that now own its useful content;
+- the canonical page id used as the redirect destination.
 
-The final cleanup must leave no legacy page merely because it was once transitional.
+Compatibility targets use canonical page ids rather than copied route strings. Route identity therefore stays owned by the narrative registry even if a canonical page moves later.
+
+Old-path Markdown files are generated compatibility artifacts. `pnpm docs:compat` verifies the mapping and committed output without changing files; `pnpm docs:compat:update` is the only supported way to rewrite those artifacts. Do not hand-edit generated compatibility pages or reintroduce duplicate prose merely to preserve an old URL.
+
+The compatibility checker must fail closed on malformed/duplicate source routes, canonical-route collisions, unknown canonical targets, invalid redirect ownership, or stale generated artifacts. The narrative checker excludes only the exact generated compatibility paths named by the mapping; unrelated Markdown under an old directory remains an unregistered-page error.
 
 ## Page archetypes
 

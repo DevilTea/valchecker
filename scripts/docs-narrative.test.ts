@@ -4,6 +4,8 @@ import { documentationSections } from '../docs/_meta/pages'
 import { auditNarrativeDocs, parseNarrativePage } from './docs-narrative'
 import { objectTree } from './source-tree'
 
+const semanticRoot = 'packages/internal/src/core/example.ts'
+
 const pages: NarrativePage[] = documentationSections.map(section => ({
 	id: section.id,
 	path: `docs/${section.id}/index.md`,
@@ -11,15 +13,27 @@ const pages: NarrativePage[] = documentationSections.map(section => ({
 	order: 10,
 	title: section.label,
 	archetype: section.id === 'getting-started' ? 'tutorial' : 'concept',
-	transitional: true,
 }))
+
+function pageText(page: NarrativePage): string {
+	return [
+		'---',
+		`description: ${page.title} documentation.`,
+		'relatedSources:',
+		`  - ${semanticRoot}`,
+		'---',
+		`# ${page.title}`,
+		'',
+	].join('\n')
+}
 
 function files(overrides: Record<string, string> = {}): Record<string, string> {
 	const result: Record<string, string> = {
 		'docs/index.md': '# Landing\n',
+		[semanticRoot]: 'export const example = true\n',
 	}
 	for (const page of pages)
-		result[page.path] = `# ${page.title}\n`
+		result[page.path] = pageText(page)
 	return { ...result, ...overrides }
 }
 
@@ -29,7 +43,7 @@ describe('narrative frontmatter', () => {
 			'---',
 			'description: A source-backed concept page.',
 			'relatedSources:',
-			'  - packages/internal/src/core/example.ts',
+			`  - ${semanticRoot}`,
 			'relatedPackages:',
 			'  - valchecker',
 			'---',
@@ -41,7 +55,7 @@ describe('narrative frontmatter', () => {
 		expect(parsed.frontmatter)
 			.toEqual({
 				description: 'A source-backed concept page.',
-				relatedSources: ['packages/internal/src/core/example.ts'],
+				relatedSources: [semanticRoot],
 				relatedPackages: ['valchecker'],
 			})
 	})
@@ -56,7 +70,7 @@ describe('narrative frontmatter', () => {
 })
 
 describe('narrative documentation audit', () => {
-	it('accepts the transitional inventory without inventing duplicate metadata', () => {
+	it('accepts the final canonical inventory with source-backed page metadata', () => {
 		expect(auditNarrativeDocs(objectTree(files()), pages))
 			.toEqual([])
 	})
@@ -69,9 +83,23 @@ describe('narrative documentation audit', () => {
 			.toEqual([])
 	})
 
+	it('excludes only exact generated compatibility paths from narrative ownership', () => {
+		expect(auditNarrativeDocs(objectTree(files({
+			'docs/guide/quick-start.md': '# Generated compatibility artifact\n',
+		})), pages))
+			.toEqual([])
+
+		const problems = auditNarrativeDocs(objectTree(files({
+			'docs/guide/unregistered.md': '# Legacy prose returned\n',
+		})), pages)
+		expect(problems)
+			.toContain('Unregistered narrative page `docs/guide/unregistered.md` exists under `docs/`.')
+	})
+
 	it('rejects unregistered pages and canonical H1 drift', () => {
 		const problems = auditNarrativeDocs(objectTree(files({
-			[pages[0]!.path]: '# Wrong title\n',
+			[pages[0]!.path]: pageText(pages[0]!)
+				.replace(`# ${pages[0]!.title}`, '# Wrong title'),
 			'docs/core-concepts/stray.md': '# Stray\n',
 		})), pages)
 		expect(problems)
@@ -80,38 +108,26 @@ describe('narrative documentation audit', () => {
 			.toContain('Unregistered narrative page `docs/core-concepts/stray.md` exists under `docs/`.')
 	})
 
-	it('reserves navHidden for transitional compatibility routes', () => {
-		const { transitional: _transitional, ...canonicalFields } = pages[0]!
-		const hiddenFinal: NarrativePage = {
-			...canonicalFields,
-			navHidden: true,
-		}
-		const hiddenPages = [hiddenFinal, ...pages.slice(1)]
-		const problems = auditNarrativeDocs(objectTree(files()), hiddenPages)
-		expect(problems)
-			.toContain(`\`${hiddenFinal.path}\` hides a canonical page from navigation; \`navHidden\` is reserved for transitional compatibility routes.`)
-	})
-
-	it('requires source-backed metadata once a page leaves transitional inventory', () => {
-		const { transitional: _transitional, ...finalPageFields } = pages[0]!
-		const finalPage: NarrativePage = finalPageFields
-		const finalPages = [finalPage, ...pages.slice(1)]
-		const withoutMetadata = auditNarrativeDocs(objectTree(files()), finalPages)
+	it('requires source-backed metadata for every canonical narrative page', () => {
+		const withoutMetadata = auditNarrativeDocs(objectTree(files({
+			[pages[0]!.path]: `# ${pages[0]!.title}\n`,
+		})), pages)
 		expect(withoutMetadata)
-			.toContain(`\`${finalPage.path}\` has no narrative frontmatter. Final narrative pages require \`description\` and non-empty \`relatedSources\`.`)
+			.toContain(`\`${pages[0]!.path}\` has no narrative frontmatter. Narrative pages require \`description\` and non-empty \`relatedSources\`.`)
 
-		const withMetadata = auditNarrativeDocs(objectTree(files({
-			[finalPage.path]: [
+		const missingSource = auditNarrativeDocs(objectTree(files({
+			[semanticRoot]: '',
+			[pages[0]!.path]: [
 				'---',
 				'description: Final page.',
 				'relatedSources:',
-				'  - packages/internal/src/core/example.ts',
+				'  - packages/internal/src/core/missing.ts',
 				'---',
-				`# ${finalPage.title}`,
+				`# ${pages[0]!.title}`,
 			].join('\n'),
-		})), finalPages)
-		expect(withMetadata)
-			.toContain(`\`${finalPage.path}\` references missing related source \`packages/internal/src/core/example.ts\`.`)
+		})), pages)
+		expect(missingSource)
+			.toContain(`\`${pages[0]!.path}\` references missing related source \`packages/internal/src/core/missing.ts\`.`)
 	})
 
 	it('enforces deterministic heading, visual, and local-file requirements when declared', () => {
@@ -122,7 +138,7 @@ describe('narrative documentation audit', () => {
 		}
 		const constrainedPages = [constrained, ...pages.slice(1)]
 		const problems = auditNarrativeDocs(objectTree(files({
-			[constrained.path]: `# ${constrained.title}\n\n![Flow](./flow.svg)\n`,
+			[constrained.path]: `${pageText(constrained)}\n![Flow](./flow.svg)\n`,
 		})), constrainedPages)
 		expect(problems)
 			.toContain(`\`${constrained.path}\` is missing required heading \`Pipeline\`.`)

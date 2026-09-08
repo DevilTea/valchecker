@@ -30,27 +30,15 @@ export interface NarrativePage {
 	title: string
 	/** Optional shorter label for navigation. */
 	navLabel?: string
-	/**
-	 * Keep a registered compatibility route out of generated navigation while migration is in
-	 * progress. Hidden routes remain structurally audited and may only be removed by the route
-	 * compatibility work in #154.
-	 */
-	navHidden?: true
 	archetype: NarrativePageArchetype
 	/** Exact heading text that deterministic structure checks can require. */
 	requiredHeadings?: readonly string[]
 	/** Visual presence is required only when a concrete page contract says so. */
 	visualRequirement?: NarrativeVisualRequirement
-	/**
-	 * Temporary inventory bridge while #151–#154 move the legacy docs tree.
-	 * Transitional pages must still exist and keep their canonical H1, but page-local source
-	 * metadata becomes mandatory when the page is rewritten into its final owner.
-	 */
-	transitional?: true
 }
 
 /** Canonical identity/order for hand-authored reader-facing narrative pages. */
-export const narrativePages: readonly NarrativePage[] = [
+export const narrativePages = [
 	{
 		id: 'quick-start',
 		path: 'docs/getting-started/quick-start.md',
@@ -59,16 +47,6 @@ export const narrativePages: readonly NarrativePage[] = [
 		title: 'Quick Start',
 		archetype: 'tutorial',
 		requiredHeadings: ['Install Valchecker', 'Build a schema', 'Execute the schema', 'Read the result', 'Where to go next'],
-	},
-	{
-		id: 'legacy-quick-start',
-		path: 'docs/guide/quick-start.md',
-		section: 'getting-started',
-		order: 900,
-		title: 'Quick Start',
-		navHidden: true,
-		archetype: 'tutorial',
-		transitional: true,
 	},
 	{
 		id: 'pipeline-and-chaining',
@@ -117,26 +95,6 @@ export const narrativePages: readonly NarrativePage[] = [
 		visualRequirement: 'table',
 	},
 	{
-		id: 'legacy-core-philosophy',
-		path: 'docs/guide/core-philosophy.md',
-		section: 'core-concepts',
-		order: 900,
-		title: 'Core Philosophy',
-		navHidden: true,
-		archetype: 'concept',
-		transitional: true,
-	},
-	{
-		id: 'legacy-issue-paths',
-		path: 'docs/examples/issue-paths.md',
-		section: 'core-concepts',
-		order: 910,
-		title: 'Issue Paths',
-		navHidden: true,
-		archetype: 'concept',
-		transitional: true,
-	},
-	{
 		id: 'structured-data',
 		path: 'docs/guides-recipes/structured-data.md',
 		section: 'guides-recipes',
@@ -173,46 +131,6 @@ export const narrativePages: readonly NarrativePage[] = [
 		visualRequirement: 'dot',
 	},
 	{
-		id: 'legacy-basic-validation',
-		path: 'docs/examples/basic-validation.md',
-		section: 'guides-recipes',
-		order: 900,
-		title: 'Basic Validation',
-		navHidden: true,
-		archetype: 'recipe',
-		transitional: true,
-	},
-	{
-		id: 'legacy-async-validation',
-		path: 'docs/examples/async-validation.md',
-		section: 'guides-recipes',
-		order: 910,
-		title: 'Async Validation',
-		navHidden: true,
-		archetype: 'recipe',
-		transitional: true,
-	},
-	{
-		id: 'custom-messages',
-		path: 'docs/examples/custom-messages.md',
-		section: 'guides-recipes',
-		order: 920,
-		title: 'Custom Messages',
-		navHidden: true,
-		archetype: 'recipe',
-		transitional: true,
-	},
-	{
-		id: 'fallback-chains',
-		path: 'docs/examples/fallback-chains.md',
-		section: 'guides-recipes',
-		order: 930,
-		title: 'Fallback Chains',
-		navHidden: true,
-		archetype: 'recipe',
-		transitional: true,
-	},
-	{
 		id: 'custom-step-plugins',
 		path: 'docs/extending/custom-step-plugins.md',
 		section: 'extending',
@@ -231,16 +149,6 @@ export const narrativePages: readonly NarrativePage[] = [
 		visualRequirement: 'dot',
 	},
 	{
-		id: 'custom-steps',
-		path: 'docs/guide/custom-steps.md',
-		section: 'extending',
-		order: 900,
-		title: 'Custom Steps',
-		navHidden: true,
-		archetype: 'extension',
-		transitional: true,
-	},
-	{
 		id: 'v1-contract',
 		path: 'docs/reference/v1-contract.md',
 		section: 'reference',
@@ -249,16 +157,6 @@ export const narrativePages: readonly NarrativePage[] = [
 		navLabel: '1.0 Contract',
 		archetype: 'reference',
 		visualRequirement: 'table',
-	},
-	{
-		id: 'legacy-v1-contract',
-		path: 'docs/guide/v1-contract.md',
-		section: 'reference',
-		order: 900,
-		title: 'Valchecker 1.0 Contract',
-		navHidden: true,
-		archetype: 'reference',
-		transitional: true,
 	},
 	{
 		id: 'migration-to-1',
@@ -270,17 +168,9 @@ export const narrativePages: readonly NarrativePage[] = [
 		archetype: 'migration',
 		visualRequirement: 'table',
 	},
-	{
-		id: 'legacy-migration-to-1',
-		path: 'docs/guide/migration-to-1.md',
-		section: 'troubleshooting-migration',
-		order: 900,
-		title: 'Migrating to Valchecker 1.0',
-		navHidden: true,
-		archetype: 'migration',
-		transitional: true,
-	},
-]
+] as const satisfies readonly NarrativePage[]
+
+export type NarrativePageId = typeof narrativePages[number]['id']
 
 export function narrativeRoute(page: Pick<NarrativePage, 'path'>): string {
 	return `/${page.path.slice('docs/'.length)

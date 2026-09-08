@@ -1,5 +1,15 @@
-# Issue Paths
+---
+layout: page
+head:
+  - - meta
+    - http-equiv: refresh
+      content: "0; url=../core-concepts/issues-and-paths"
+  - - meta
+    - name: robots
+      content: noindex
+---
+<!-- Generated compatibility route. Do not edit it; `pnpm docs:compat` checks it and `pnpm docs:compat:update` rewrites it from `docs/_meta/compatibility.ts`. -->
 
-This legacy example route is retained temporarily for compatibility.
+# Documentation moved
 
-The canonical explanation of structured issues, data paths, and branch provenance now lives at **[Issues and Paths](/core-concepts/issues-and-paths)**. The checked examples and diagrams are maintained there rather than duplicated on this route.
+This published route is preserved for compatibility. Continue to [Issues and Paths](/core-concepts/issues-and-paths).

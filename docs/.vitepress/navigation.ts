@@ -1,4 +1,4 @@
-import type { DocumentationSectionId } from '../_meta/pages'
+import type { DocumentationSectionId, NarrativePage } from '../_meta/pages'
 import {
 	documentationSections,
 	narrativePages,
@@ -17,11 +17,11 @@ export interface DocsSidebarGroup {
 
 function pagesFor(section: DocumentationSectionId) {
 	return narrativePages
-		.filter(page => page.section === section && page.navHidden !== true)
+		.filter(page => page.section === section)
 		.toSorted((left, right) => left.order - right.order)
 }
 
-function itemFor(page: typeof narrativePages[number]): DocsNavigationItem {
+function itemFor(page: NarrativePage): DocsNavigationItem {
 	return {
 		text: page.navLabel ?? page.title,
 		link: narrativeRoute(page),
@@ -31,15 +31,13 @@ function itemFor(page: typeof narrativePages[number]): DocsNavigationItem {
 export const docsNav: DocsNavigationItem[] = documentationSections.map((section) => {
 	const first = pagesFor(section.id)[0]
 	if (first == null)
-		throw new Error(`Documentation section \`${section.id}\` has no visible registered narrative page.`)
+		throw new Error(`Documentation section \`${section.id}\` has no registered narrative page.`)
 	return { text: section.label, link: narrativeRoute(first) }
 })
 
 /**
  * Build the complete sidebar while keeping generated API entries outside narrative ownership.
  * `config.ts` passes the marker-owned API items into the Reference section through this seam.
- * Transitional compatibility routes remain registry-owned and audited, but `navHidden` keeps
- * them from becoming duplicate teaching destinations while #154 still owns route cleanup.
  */
 export function createDocsSidebar(apiReferenceItems: readonly DocsNavigationItem[]): DocsSidebarGroup[] {
 	return documentationSections.map((section) => {
