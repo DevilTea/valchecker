@@ -4,6 +4,8 @@
 		"composite": true
 	},
 	"include": [
-		".vitepress/config.ts"
+		".vitepress/config.ts",
+		".vitepress/navigation.ts",
+		"_meta/pages.ts"
 	]
 }

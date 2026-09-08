@@ -47,6 +47,7 @@
 		"docs:build": "pnpm -r --filter=./docs run build",
 		"docs:api": "tsx ./scripts/check-docs-api.ts",
 		"docs:api:update": "tsx ./scripts/check-docs-api.ts --write",
+		"docs:narrative": "tsx ./scripts/check-docs-narrative.ts",
 		"docs:examples": "tsx ./scripts/check-docs-examples.ts",
 		"docs:preview": "pnpm -r --filter=./docs run preview",
 		"test": "pnpm test:quality && vitest --run",
