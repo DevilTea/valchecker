@@ -11,11 +11,11 @@ export type DocumentationSectionId = typeof documentationSections[number]['id']
 
 export type NarrativePageArchetype
 	= 'tutorial'
-	| 'concept'
-	| 'recipe'
-	| 'extension'
-	| 'reference'
-	| 'migration'
+		| 'concept'
+		| 'recipe'
+		| 'extension'
+		| 'reference'
+		| 'migration'
 
 export type NarrativeVisualRequirement = 'dot' | 'table' | 'any'
 
