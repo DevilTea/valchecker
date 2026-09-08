@@ -232,7 +232,7 @@ function unauditedSkips(markdown: string): number[] {
 	return problems
 }
 
-const excludedNarrativeRoots = ['docs/.vitepress', 'docs/_meta', 'docs/.examples', 'docs/api']
+const excludedNarrativeRoots = ['docs/.vitepress', 'docs/_meta', 'docs/.examples', 'docs/api', 'docs/node_modules']
 const excludedNarrativeFiles = new Set(['docs/index.md'])
 
 function collectNarrativeMarkdown(tree: SourceTree, directory = 'docs'): string[] {

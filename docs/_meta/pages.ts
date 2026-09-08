@@ -75,6 +75,7 @@ export const narrativePages: readonly NarrativePage[] = [
 		order: 20,
 		title: 'Issue Paths',
 		archetype: 'concept',
+		visualRequirement: 'dot',
 		transitional: true,
 	},
 	{

@@ -4,6 +4,7 @@ import DefaultTheme from 'vitepress/theme'
 import { h } from 'vue'
 import '@shikijs/vitepress-twoslash/style.css'
 import 'virtual:group-icons.css'
+import 'vitepress-plugin-graphviz/style.css'
 import './style.css'
 
 export default {

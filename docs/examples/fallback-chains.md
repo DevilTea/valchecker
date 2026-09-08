@@ -9,26 +9,7 @@ declare const cache: { getDefaultProfile: () => Promise<unknown> }
 
 ## JSON payload recovery
 
-```ts
-import { v } from 'valchecker'
-
-const payloadSchema = v.string()
-	.toJSONValue({ message: 'Invalid JSON format' })
-	.fallback(() => ({ items: [] }))
-	.use(v.object({
-		items: v.array(
-			v.object({
-				id: v.string()
-					.toTrimmed()
-					.isNotEmpty(),
-				quantity: v.number()
-					.isFinite()
-					.isInteger()
-					.isAtLeast(1),
-			}),
-		),
-	}))
-```
+<<< ../.examples/guides-recipes/fallback-json/example.ts
 
 Invalid JSON is replaced before structural validation. Valid JSON with an invalid `items` shape still fails at the delegated object schema unless another later fallback is added.
 

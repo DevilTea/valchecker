@@ -108,6 +108,7 @@ export const isPositive = implStepPlugin<PluginDef>({
 
 Register the plugin with the initial step it depends on:
 
+<!-- Imports the reader-created local `./isPositive` module from the example above. -->
 <!-- typecheck-skip -->
 ```ts
 import { createValchecker, number } from 'valchecker'
@@ -122,6 +123,7 @@ const schema = v.number()
 
 A message-bearing method keeps at most one required semantic operand positional. Optional configuration and `message` belong to one trailing options object.
 
+<!-- Signature fragment intentionally depends on the surrounding PluginDef/Meta declarations. -->
 <!-- typecheck-skip -->
 ```ts
 type Options = StepOptions<Meta['SelfIssue']>
@@ -209,6 +211,7 @@ A callback-driven pipeline may still return a direct early failure before asynch
 
 A thrown or rejected user/native callback is an `operation` issue:
 
+<!-- Type fragment uses illustrative `Input` and surrounding plugin issue declarations. -->
 <!-- typecheck-skip -->
 ```ts
 type CallbackIssue = ExecutionIssue<
@@ -224,6 +227,7 @@ Pass `category: 'operation'` to `createIssue()` for that code. The code, categor
 
 Use `addFailureStep()` only for an intentional recovery or flow-control operation. Internal issues are fatal and must not be hidden:
 
+<!-- Implementation fragment assumes the surrounding plugin callback utilities and replacement factory. -->
 <!-- typecheck-skip -->
 ```ts
 addFailureStep((issues) => {
@@ -255,6 +259,7 @@ The declaring module owns the symbol and any required snapshot or freeze of muta
 
 A capability is how one step discovers what another registered step can do, without importing it or hardcoding its name. Declare it as the third argument of `implStepPlugin`, keyed by a well-known symbol owned by the consuming step:
 
+<!-- Capability sketch omits the surrounding `PluginDef` declaration on purpose. -->
 <!-- typecheck-skip -->
 ```ts
 import { implStepPlugin, unionShorthandCapability } from 'valchecker'

@@ -61,6 +61,14 @@ describe('narrative documentation audit', () => {
 			.toEqual([])
 	})
 
+	it('ignores installed package Markdown under docs/node_modules', () => {
+		expect(auditNarrativeDocs(objectTree(files({
+			'docs/node_modules/vitepress/README.md': '# VitePress\n',
+			'docs/node_modules/vitepress/template/index.md': '# Template\n',
+		})), pages))
+			.toEqual([])
+	})
+
 	it('rejects unregistered pages and canonical H1 drift', () => {
 		const problems = auditNarrativeDocs(objectTree(files({
 			[pages[0]!.path]: '# Wrong title\n',

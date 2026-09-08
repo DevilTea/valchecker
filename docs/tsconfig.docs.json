@@ -8,6 +8,7 @@
 		"./.vitepress/theme"
 	],
 	"exclude": [
+		"./.examples",
 		"./.vitepress/cache",
 		"./.vitepress/dist",
 		"./.vitepress/config.ts"
