@@ -80,6 +80,18 @@ describe('narrative documentation audit', () => {
 			.toContain('Unregistered narrative page `docs/core-concepts/stray.md` exists under `docs/`.')
 	})
 
+	it('reserves navHidden for transitional compatibility routes', () => {
+		const { transitional: _transitional, ...canonicalFields } = pages[0]!
+		const hiddenFinal: NarrativePage = {
+			...canonicalFields,
+			navHidden: true,
+		}
+		const hiddenPages = [hiddenFinal, ...pages.slice(1)]
+		const problems = auditNarrativeDocs(objectTree(files()), hiddenPages)
+		expect(problems)
+			.toContain(`\`${hiddenFinal.path}\` hides a canonical page from navigation; \`navHidden\` is reserved for transitional compatibility routes.`)
+	})
+
 	it('requires source-backed metadata once a page leaves transitional inventory', () => {
 		const { transitional: _transitional, ...finalPageFields } = pages[0]!
 		const finalPage: NarrativePage = finalPageFields

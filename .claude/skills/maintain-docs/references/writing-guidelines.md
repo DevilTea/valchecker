@@ -46,10 +46,6 @@ A passing structural/build check does not prove prose correctness. Source-backed
 
 ## Examples
 
-Until #149 lands, existing TypeScript fences keep using `scripts/check-docs-examples.ts`.
-
-Long-term rule from #147:
-
 - small API-shape/type examples may remain inline;
 - runtime-sensitive claims use a canonical checked fixture displayed from the same source;
 - one substantial example has one canonical code owner;
@@ -59,14 +55,18 @@ Do not repeat exhaustive step parameters/issues in narrative pages; link to gene
 
 ## Visuals
 
-Graphviz DOT is the default graph/flow/state DSL once #149 wires rendering. Tables are preferred for genuinely tabular comparisons. SVG, Vue, and screenshots are exceptions with explicit explanatory value; Mermaid is not initially supported.
+Graphviz DOT is the default graph/flow/state DSL. Tables are preferred for genuinely tabular comparisons. SVG, Vue, and screenshots are exceptions with explicit explanatory value; Mermaid is not initially supported.
 
 A page declares a structural visual requirement only when the visual is essential enough that its absence is objectively a contract failure.
 
 ## Links, assets, and includes
 
-Prefer canonical internal destinations. Local image/include targets must resolve; the narrative structural check rejects missing local assets/includes. Route compatibility for legacy published URLs is handled later by #154 rather than duplicate prose pages.
+Prefer canonical internal destinations. Local image/include targets must resolve; the narrative structural check rejects missing local assets/includes. Route compatibility for legacy published URLs is handled by #154 rather than duplicate prose pages.
 
 ## Transitional pages
 
-Pages marked `transitional: true` are legacy source material waiting for #151–#154 migration. Do not expand them into new long-lived architecture. Preserve useful content, but move it into final reader-need-driven destinations before removing the transitional flag.
+Pages marked `transitional: true` are legacy source material waiting for #151–#154 migration. Do not expand them into new long-lived architecture. Preserve useful content, but move it into final reader-need-driven destinations before reducing the legacy route to compatibility-only content.
+
+When a canonical destination exists, a legacy transitional page may set registry-owned `navHidden: true`. That keeps the route registered and audited while removing it from generated navigation. `navHidden` is not available to canonical pages and must never be used to hide unfinished or inconvenient content; the structural checker requires it to be paired with `transitional: true`.
+
+Final redirect/route compatibility and removal of the transitional stubs belongs to #154.

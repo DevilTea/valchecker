@@ -30,6 +30,12 @@ export interface NarrativePage {
 	title: string
 	/** Optional shorter label for navigation. */
 	navLabel?: string
+	/**
+	 * Keep a registered compatibility route out of generated navigation while migration is in
+	 * progress. Hidden routes remain structurally audited and may only be removed by the route
+	 * compatibility work in #154.
+	 */
+	navHidden?: true
 	archetype: NarrativePageArchetype
 	/** Exact heading text that deterministic structure checks can require. */
 	requiredHeadings?: readonly string[]
@@ -43,56 +49,110 @@ export interface NarrativePage {
 	transitional?: true
 }
 
-/**
- * Canonical identity/order for hand-authored reader-facing narrative pages.
- *
- * The current paths are intentionally transitional. #151–#154 will replace this inventory with
- * reader-need-driven destinations under the accepted six-section information architecture.
- */
+/** Canonical identity/order for hand-authored reader-facing narrative pages. */
 export const narrativePages: readonly NarrativePage[] = [
 	{
 		id: 'quick-start',
-		path: 'docs/guide/quick-start.md',
+		path: 'docs/getting-started/quick-start.md',
 		section: 'getting-started',
 		order: 10,
 		title: 'Quick Start',
 		archetype: 'tutorial',
+		requiredHeadings: ['Install Valchecker', 'Build a schema', 'Execute the schema', 'Read the result', 'Where to go next'],
+	},
+	{
+		id: 'legacy-quick-start',
+		path: 'docs/guide/quick-start.md',
+		section: 'getting-started',
+		order: 900,
+		title: 'Quick Start',
+		navHidden: true,
+		archetype: 'tutorial',
 		transitional: true,
 	},
 	{
-		id: 'core-philosophy',
-		path: 'docs/guide/core-philosophy.md',
+		id: 'pipeline-and-chaining',
+		path: 'docs/core-concepts/pipeline-and-chaining.md',
 		section: 'core-concepts',
 		order: 10,
-		title: 'Core Philosophy',
-		archetype: 'concept',
-		transitional: true,
-	},
-	{
-		id: 'issue-paths',
-		path: 'docs/examples/issue-paths.md',
-		section: 'core-concepts',
-		order: 20,
-		title: 'Issue Paths',
+		title: 'Pipeline and Chaining',
 		archetype: 'concept',
 		visualRequirement: 'dot',
+	},
+	{
+		id: 'validation-and-transformation',
+		path: 'docs/core-concepts/validation-and-transformation.md',
+		section: 'core-concepts',
+		order: 20,
+		title: 'Validation and Transformation',
+		archetype: 'concept',
+		visualRequirement: 'table',
+	},
+	{
+		id: 'sync-and-async',
+		path: 'docs/core-concepts/sync-and-async.md',
+		section: 'core-concepts',
+		order: 30,
+		title: 'Synchronous and Asynchronous Execution',
+		navLabel: 'Sync and Async',
+		archetype: 'concept',
+		visualRequirement: 'dot',
+	},
+	{
+		id: 'issues-and-paths',
+		path: 'docs/core-concepts/issues-and-paths.md',
+		section: 'core-concepts',
+		order: 40,
+		title: 'Issues and Paths',
+		archetype: 'concept',
+		visualRequirement: 'dot',
+	},
+	{
+		id: 'types-and-runtime',
+		path: 'docs/core-concepts/types-and-runtime.md',
+		section: 'core-concepts',
+		order: 50,
+		title: 'Types and Runtime Behavior',
+		archetype: 'concept',
+		visualRequirement: 'table',
+	},
+	{
+		id: 'legacy-core-philosophy',
+		path: 'docs/guide/core-philosophy.md',
+		section: 'core-concepts',
+		order: 900,
+		title: 'Core Philosophy',
+		navHidden: true,
+		archetype: 'concept',
 		transitional: true,
 	},
 	{
-		id: 'basic-validation',
+		id: 'legacy-issue-paths',
+		path: 'docs/examples/issue-paths.md',
+		section: 'core-concepts',
+		order: 910,
+		title: 'Issue Paths',
+		navHidden: true,
+		archetype: 'concept',
+		transitional: true,
+	},
+	{
+		id: 'legacy-basic-validation',
 		path: 'docs/examples/basic-validation.md',
 		section: 'guides-recipes',
-		order: 10,
+		order: 900,
 		title: 'Basic Validation',
+		navHidden: true,
 		archetype: 'recipe',
 		transitional: true,
 	},
 	{
-		id: 'async-validation',
+		id: 'legacy-async-validation',
 		path: 'docs/examples/async-validation.md',
 		section: 'guides-recipes',
-		order: 20,
+		order: 910,
 		title: 'Async Validation',
+		navHidden: true,
 		archetype: 'recipe',
 		transitional: true,
 	},

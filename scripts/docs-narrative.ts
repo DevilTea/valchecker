@@ -273,6 +273,8 @@ export function auditNarrativeDocs(
 		seenPaths.add(page.path)
 		if (!sectionIds.has(page.section))
 			problems.push(`\`${page.path}\` uses unknown documentation section \`${page.section}\`.`)
+		if (page.navHidden === true && page.transitional !== true)
+			problems.push(`\`${page.path}\` hides a canonical page from navigation; \`navHidden\` is reserved for transitional compatibility routes.`)
 		const orderKey = `${page.section}:${page.order}`
 		if (orders.has(orderKey))
 			problems.push(`Documentation section \`${page.section}\` uses order ${page.order} more than once.`)
