@@ -234,11 +234,8 @@ jobs:
       - name: Build Packages
         run: pnpm build
 
-      - name: Check Documentation Examples
-        run: pnpm docs:examples
-
-      - name: Build Documentation
-        run: pnpm docs:build
+      - name: Check Documentation
+        run: pnpm docs:check
 
   Release-Artifacts:
     runs-on: ubuntu-24.04

@@ -29,6 +29,21 @@ The `check:failed` issue receives:
 ['user', 'profile', 'email']
 ```
 
+```dot
+digraph IssuePath {
+	rankdir=LR
+	node [shape=box]
+	root [label="object()"]
+	user [label="user"]
+	profile [label="profile"]
+	email [label="email"]
+	issue [shape=note, label="check:failed\npath: user → profile → email"]
+	root -> user -> profile -> email -> issue
+}
+```
+
+Each enclosing structure prepends its own segment while propagating the child issue, so the final path describes the failing value rather than the validator's implementation location.
+
 ## Array indices
 
 Array indices are numeric path segments:

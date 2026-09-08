@@ -69,6 +69,9 @@ catalogs:
     vitepress:
       specifier: ^2.0.0-alpha.17
       version: 2.0.0-alpha.17
+    vitepress-plugin-graphviz:
+      specifier: ^0.1.0
+      version: 0.1.0
     vitepress-plugin-group-icons:
       specifier: ^1.7.5
       version: 1.7.5
@@ -155,6 +158,9 @@ importers:
       vitepress:
         specifier: 'catalog:'
         version: 2.0.0-alpha.17(@types/node@24.13.2)(change-case@5.4.4)(jiti@2.7.0)(postcss@8.5.16)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+      vitepress-plugin-graphviz:
+        specifier: 'catalog:'
+        version: 0.1.0(vitepress@2.0.0-alpha.17(@types/node@24.13.2)(change-case@5.4.4)(jiti@2.7.0)(postcss@8.5.16)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0))
       vitepress-plugin-group-icons:
         specifier: 'catalog:'
         version: 1.7.5(vite@7.3.6(@types/node@24.13.2)(jiti@2.7.0)(tsx@4.22.5)(yaml@2.9.0))
@@ -582,6 +588,9 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@hpcc-js/wasm-graphviz@1.29.0':
+    resolution: {integrity: sha512-irr5OCt1G5s5j75jlGZm3Y5fb6DboE2c/aWiM/Fv/b3NygbJY/Rp8335kS5Qeklsib0dWInjAYCj4UEClIYQmQ==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1803,6 +1812,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -2856,6 +2866,11 @@ packages:
       yaml:
         optional: true
 
+  vitepress-plugin-graphviz@0.1.0:
+    resolution: {integrity: sha512-KpDPhq+jcoJfccJTKvVY19TfkOO4RnRyt1ua/F9Xukd6PHj+Gs76G8FsCpk8svCu0Ei1AioC0x+aXKpg59capw==}
+    peerDependencies:
+      vitepress: ^1.0.0 || ^2.0.0-alpha.17
+
   vitepress-plugin-group-icons@1.7.5:
     resolution: {integrity: sha512-QzcroUuIiVKyXpmEiiHVbfRTQIy9Zbwxpk5JC/zavO8mavitwumz2RZWlwTchMCCHducYyPptkYvXvdnNUWkog==}
     peerDependencies:
@@ -3357,6 +3372,8 @@ snapshots:
       '@floating-ui/core': 1.7.5
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@hpcc-js/wasm-graphviz@1.29.0': {}
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -5800,6 +5817,11 @@ snapshots:
       jiti: 2.7.0
       tsx: 4.22.5
       yaml: 2.9.0
+
+  vitepress-plugin-graphviz@0.1.0(vitepress@2.0.0-alpha.17(@types/node@24.13.2)(change-case@5.4.4)(jiti@2.7.0)(postcss@8.5.16)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)):
+    dependencies:
+      '@hpcc-js/wasm-graphviz': 1.29.0
+      vitepress: 2.0.0-alpha.17(@types/node@24.13.2)(change-case@5.4.4)(jiti@2.7.0)(postcss@8.5.16)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
 
   vitepress-plugin-group-icons@1.7.5(vite@7.3.6(@types/node@24.13.2)(jiti@2.7.0)(tsx@4.22.5)(yaml@2.9.0)):
     dependencies:

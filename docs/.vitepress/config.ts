@@ -1,6 +1,7 @@
 import type { DocsNavigationItem } from './navigation'
 import { transformerTwoslash } from '@shikijs/vitepress-twoslash'
 import { defineConfig } from 'vitepress'
+import { graphvizMarkdownPlugin } from 'vitepress-plugin-graphviz'
 import { groupIconMdPlugin as MarkdownItGroupIcon } from 'vitepress-plugin-group-icons'
 import { createDocsSidebar, docsNav } from './navigation'
 
@@ -31,8 +32,9 @@ export default defineConfig({
 	},
 
 	markdown: {
-		config: (md) => {
+		config: async (md) => {
 			md.use(MarkdownItGroupIcon)
+			await graphvizMarkdownPlugin(md)
 		},
 		codeTransformers: [
 			transformerTwoslash(),
