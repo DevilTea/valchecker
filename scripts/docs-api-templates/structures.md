@@ -1,8 +1,8 @@
 # Structures
 
-Structural validators compose nested schemas and prepend property keys or collection indexes to child issue paths without mutating child issues.
+Structural validators compose nested schemas. Exact traversal, output, options, paths, issue codes, and edge cases belong to each generated step entry.
 
-The normative edge-case behavior is defined in the [Valchecker 1.0 Contract](/guide/v1-contract#object-schemas).
+For task-oriented composition, use [Structured Data](/guides-recipes/structured-data). For the cross-cutting path/provenance model, use [Issues and Paths](/core-concepts/issues-and-paths). Formal compatibility guarantees are in the [Valchecker 1.0 Contract](/reference/v1-contract#structural-composition-guarantees).
 
 <!-- typecheck-prelude
 declare const createValchecker: typeof import('valchecker').createValchecker
@@ -13,23 +13,6 @@ declare const undefined_: typeof import('valchecker').undefined_
 declare const number: typeof import('valchecker').number
 declare const isGreaterThan: typeof import('valchecker').isGreaterThan
 -->
-
-## Issue collection
-
-`object()`, `strictObject()`, `looseObject()`, `array()`, `tuple()`, `set()`, `map()`, `record()`, and `intersection()` stop after the first recoverable structural or child failure by default. A failing child can still contribute every issue produced by that child execution; later sibling fields, items, entries, or intersection branches are not evaluated.
-
-Set `collectAllIssues: true` on the structural step to continue after recoverable failures:
-
-```ts
-const form = v.object({
-	name: v.string(),
-	age: v.number(),
-}, { collectAllIssues: true })
-```
-
-Internal issues are always fatal and stop later structural work in both modes. The option is resolved when the schema is constructed, so the hot traversal loop does not repeatedly branch on it.
-
-`collectAllIssues` does not apply to `union()` or `variant()`, which select a branch rather than traversing siblings.
 
 ## Object schemas
 
@@ -94,18 +77,8 @@ Matching a value's declared `type` is neither a size nor a membership check, so 
 
 <!-- steps: media-type -->
 
-## Nested issue paths
+## Related guidance
 
-```ts
-const schema = v.object({
-	users: v.array(
-		v.object({
-			profile: v.object({
-				name: v.string(),
-			}),
-		}),
-	),
-})
-```
-
-A failure in the second user's name receives path `['users', 1, 'profile', 'name']`. Symbols remain symbol path segments. Frozen or reused child issues are supported because path prepending clones rather than mutates.
+- [Structured Data](/guides-recipes/structured-data) — applied object and collection composition
+- [Issues and Paths](/core-concepts/issues-and-paths) — nested paths and issue provenance
+- [Valchecker 1.0 Contract](/reference/v1-contract#structural-composition-guarantees) — cross-cutting compatibility guarantees

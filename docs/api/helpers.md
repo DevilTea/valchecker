@@ -6,19 +6,11 @@ around them, and the order the sections appear in, come from `scripts/docs-api-t
 
 # Helpers and Utilities
 
-These steps provide generic validation, arbitrary transformation, recovery, delegation, recursion, type assertions, and execution-mode control.
+These entries cover generic validation/transformation escape hatches, recovery and delegation, type-level utilities, and execution-mode control. Each generated entry owns its exact callback, result, issue, and typing contract.
 
-<!-- typecheck-prelude
-declare const input: unknown
-declare const schema: { execute: (input: unknown) => unknown }
-declare const i18n: { t: (key: string, params: Record<string, unknown>) => string }
-declare const createValchecker: typeof import('valchecker').createValchecker
-declare const allSteps: typeof import('valchecker').allSteps
--->
+Use the narrative documentation for cross-cutting execution, result, message, and recovery models rather than treating this reference category as a second tutorial.
 
 ## Escape hatches
-
-Reach for a built-in named validation or transformation first: it carries a semantic issue code, a default message, and its own tests. These two cover the conditions and outputs no built-in expresses.
 
 ### `check<AddedIssue = never>(callback, options?)` {#check}
 
@@ -243,49 +235,9 @@ It changes execution mode, not the successful value.
 
 This step emits no issue.
 
-## Message handling
+## Related guidance
 
-A global message resolver may be supplied when creating an instance:
-
-<!-- typecheck-isolate -->
-```ts
-const v = createValchecker({
-	steps: allSteps,
-	message: ({ code, payload, path }) =>
-		i18n.t(`validation.${code}`, { payload, path }),
-})
-```
-
-Message priority:
-
-1. originating step message,
-2. nearest enclosing structure message,
-3. further enclosing structure messages,
-4. originating instance global resolver,
-5. originating built-in default,
-6. `"Invalid value."`.
-
-A throwing message handler becomes a `core:message_exception` internal issue at the public boundary.
-
-```ts
-v.number()
-	.isAtLeast(1, { message: ({ payload }) =>
-		`Expected at least ${payload.minimum}, received ${payload.value}` })
-```
-
-## Working with results
-
-```ts
-const result = await schema.execute(input)
-
-if (v.isSuccess(result)) {
-	console.log(result.value)
-}
-else {
-	for (const issue of result.issues) {
-		console.log(issue.code, issue.path, issue.payload)
-	}
-}
-```
-
-Validation failures are returned values with a non-empty issue tuple. Built-in callback execution failures are normalized into their documented operation issues; unexpected reached step failures are normalized into core internal issues. Schema-construction misuse may still throw synchronously.
+- [Synchronous and Asynchronous Execution](/core-concepts/sync-and-async) — reached execution modes and `.toAsync()`
+- [Issues and Paths](/core-concepts/issues-and-paths) — result failures, paths, and issue provenance
+- [Custom Messages and Error Responses](/guides-recipes/custom-messages-and-errors) — message ownership and application handling
+- [Fallback and Recovery](/guides-recipes/fallback-and-recovery) — recovery boundaries and failure policy
