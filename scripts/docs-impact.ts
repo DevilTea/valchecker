@@ -135,7 +135,8 @@ export function analyzeDocsImpact(
 	problems.push(...currentInventory.problems)
 	const currentRoots = [
 		...new Set([
-			...currentNarrativeRoots.values().flat(),
+			...[...currentNarrativeRoots.values()]
+				.flat(),
 			...currentInventory.steps.map(step => step.path),
 		]),
 	]
@@ -151,7 +152,8 @@ export function analyzeDocsImpact(
 		problems.push(...baseInventory.problems.map(problem => `[base] ${problem}`))
 		const baseRoots = [
 			...new Set([
-				...baseNarrativeRoots.values().flat(),
+				...[...baseNarrativeRoots.values()]
+					.flat(),
 				...baseInventory.steps.map(step => step.path),
 			]),
 		]
