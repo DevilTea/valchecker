@@ -31,7 +31,8 @@ function fenceMarker(line: string): FenceMarker | null {
 	return {
 		character,
 		length,
-		language: remainder.slice(0, languageEnd).toLowerCase(),
+		language: remainder.slice(0, languageEnd)
+			.toLowerCase(),
 	}
 }
 
@@ -40,7 +41,8 @@ function unsupportedDiagramLines(markdown: string): Array<{ line: number, langua
 	const problems: Array<{ line: number, language: string }> = []
 	let active: Pick<FenceMarker, 'character' | 'length'> | null = null
 
-	for (const [index, line] of markdown.split(/\r?\n/).entries()) {
+	for (const [index, line] of markdown.split(/\r?\n/)
+		.entries()) {
 		const marker = fenceMarker(line)
 		if (marker == null)
 			continue
@@ -108,6 +110,8 @@ export function auditDocumentationMarkdown(tree: SourceTree): string[] {
 	const problems: string[] = []
 	const docs = collectMarkdown(tree, 'docs')
 		.toSorted()
+	const readmes = packageReadmes(tree)
+		.toSorted()
 
 	for (const file of docs) {
 		const markdown = tree.read(file)!
@@ -116,7 +120,7 @@ export function auditDocumentationMarkdown(tree: SourceTree): string[] {
 		}
 	}
 
-	for (const file of [...docs, ...packageReadmes(tree).toSorted()]) {
+	for (const file of [...docs, ...readmes]) {
 		const markdown = tree.read(file)!
 		for (const line of unauditedTypecheckSkipLines(markdown)) {
 			problems.push(`${file}:${line} has \`typecheck-skip\` without a preceding explanatory HTML comment.`)
