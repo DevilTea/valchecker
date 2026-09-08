@@ -75,7 +75,6 @@
 		"@types/node": "catalog:",
 		"@vitest/coverage-v8": "catalog:",
 		"bumpp": "catalog:",
-		"@deviltea/eslint-config": "catalog:",
 		"eslint": "catalog:",
 		"lint-staged": "catalog:",
 		"pathe": "catalog:",
