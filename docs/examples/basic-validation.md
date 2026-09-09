@@ -1,11 +1,13 @@
 # Basic Validation
 
-This legacy example route is retained temporarily for compatibility while task-oriented recipes move into their canonical homes.
+This legacy route is retained temporarily for compatibility while the final route cleanup is handled by #154.
 
-Start with **[Quick Start](/getting-started/quick-start)** for the first schema → execution → result flow, then use:
+Use these canonical owners instead:
 
-- [Validation and Transformation](/core-concepts/validation-and-transformation) for the core distinction between constraints and output changes;
-- [Issues and Paths](/core-concepts/issues-and-paths) for nested failures;
+- [Quick Start](/getting-started/quick-start) for the first schema → execution → result flow;
+- [Structured Data](/guides-recipes/structured-data) for practical object, collection, optional-field, and union composition;
+- [Validation and Transformation](/core-concepts/validation-and-transformation) for the cross-cutting constraint/output model;
+- [Types and Runtime Behavior](/core-concepts/types-and-runtime) for inferred input/output state;
 - [API Reference](/api/overview) for exact built-in step contracts.
 
-The broader application recipes formerly collected here are being migrated separately rather than maintained as a second general-purpose example page.
+The former primitive-by-primitive examples are intentionally not maintained as a second API catalog.

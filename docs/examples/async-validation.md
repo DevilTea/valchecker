@@ -1,7 +1,12 @@
 # Async Validation
 
-This legacy example route is retained temporarily for compatibility.
+This legacy route is retained temporarily for compatibility while the final route cleanup is handled by #154.
 
-The execution-model explanation now lives at **[Synchronous and Asynchronous Execution](/core-concepts/sync-and-async)**, including checked examples for reached async callbacks, synchronous early failure, and `toAsync()`.
+Use:
 
-Application recipes for database/API checks, caching, and transactional re-checks belong in Guides & Recipes and are being migrated separately rather than duplicated here.
+- [Async Validation](/guides-recipes/async-validation) for database/API/service-check application patterns;
+- [Synchronous and Asynchronous Execution](/core-concepts/sync-and-async) for direct, maybe-async, and forced-async execution semantics;
+- [`check()` Reference](/api/helpers#check) for the exact callback contract;
+- [`toAsync()` Reference](/api/helpers#toasync) when every invocation must return a native promise.
+
+The old page mixed application recipes with execution-model theory; those concerns now have separate canonical owners.
