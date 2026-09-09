@@ -38,18 +38,6 @@
 			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
 		},
 		{
-			"advisory": "GHSA-5p4m-2wfm-xmqj",
-			"dependency": "js-yaml",
-			"maxSeverity": "high",
-			"allowedRoots": ["eslint"],
-			"exposure": "development-tooling",
-			"exposureRationale": "Reachable only through ESLint configuration loading in the repository toolchain; production audit is clean and the path is outside release/publish authorization tooling.",
-			"remediationBlocker": "A targeted transitive update probe on 2026-09-05 changed no manifest or lockfile entry. Moving the direct ESLint toolchain to the currently published 10.x line is a major migration and needs separate lint-contract review.",
-			"acknowledgedOn": "2026-09-05",
-			"expiresOn": "2026-10-05",
-			"reviewCondition": "Review immediately if severity increases, the advisory gains another direct root, production audit includes it, or a release/security-sensitive root reaches it; otherwise review by expiry."
-		},
-		{
 			"advisory": "GHSA-fxqj-rqcc-2cmp",
 			"dependency": "postcss",
 			"maxSeverity": "moderate",
