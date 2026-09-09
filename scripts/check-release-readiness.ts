@@ -26,8 +26,8 @@ const requiredReleaseFiles = [
 	'SUPPORT.md',
 	'RELEASING.md',
 	'api-surface.json',
-	'docs/guide/v1-contract.md',
-	'docs/guide/migration-to-1.md',
+	'docs/reference/v1-contract.md',
+	'docs/troubleshooting-migration/migration-to-1.md',
 	'.github/workflows/ci.yml',
 	'.github/workflows/release.yml',
 	'scripts/release.ts',
@@ -136,9 +136,10 @@ async function main(): Promise<void> {
 	assertContains(migration, 'intersection:conflicting_outputs', 'MIGRATION.md')
 	assertNoPlaceholders(migration, 'MIGRATION.md')
 
-	const migrationPage = await readText('docs/guide/migration-to-1.md')
-	assertContains(migrationPage, 'MIGRATION.md', 'docs/guide/migration-to-1.md')
-	assertContains(migrationPage, '/guide/v1-contract', 'docs/guide/migration-to-1.md')
+	const migrationPagePath = 'docs/troubleshooting-migration/migration-to-1.md'
+	const migrationPage = await readText(migrationPagePath)
+	assertContains(migrationPage, 'MIGRATION.md', migrationPagePath)
+	assertContains(migrationPage, '/reference/v1-contract', migrationPagePath)
 
 	const support = await readText('SUPPORT.md')
 	assertContains(support, 'Semantic Versioning', 'SUPPORT.md')
