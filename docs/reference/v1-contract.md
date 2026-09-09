@@ -5,10 +5,28 @@ relatedSources:
   - packages/valchecker/package.json
   - packages/all-steps/package.json
   - packages/internal/package.json
-  - api-surface.json
+  - SUPPORT.md
+  - scripts/test-packages.ts
+  - scripts/check-api-surface.ts
+  - scripts/docs-api.ts
   - packages/internal/src/core/core.ts
   - packages/internal/src/core/types.ts
   - packages/internal/src/core/message.ts
+  - packages/valchecker/src/default.ts
+  - packages/valchecker/src/index.ts
+  - packages/all-steps/src/allSteps/allSteps.ts
+  - packages/internal/src/steps/object/object.ts
+  - packages/internal/src/steps/strictObject/strictObject.ts
+  - packages/internal/src/steps/looseObject/looseObject.ts
+  - packages/internal/src/steps/array/array.ts
+  - packages/internal/src/steps/set/set.ts
+  - packages/internal/src/steps/map/map.ts
+  - packages/internal/src/steps/record/record.ts
+  - packages/internal/src/steps/tuple/tuple.ts
+  - packages/internal/src/steps/union/union.ts
+  - packages/internal/src/steps/variant/variant.ts
+  - packages/internal/src/steps/intersection/intersection.ts
+  - packages/internal/src/steps/toAsync/toAsync.ts
 ---
 # Valchecker 1.0 Contract
 
@@ -104,22 +122,25 @@ Message resolution follows this precedence:
 5. originating step default message;
 6. `"Invalid value."`.
 
-Resolution runs after the issue has its final path and context. A handler may return `null` or `undefined` to defer to the next source. A throwing message handler becomes the internal `core:message_exception` result rather than escaping the public execution boundary.
+Resolution runs after the issue has its final path and context. Message maps inspect own properties only, so inherited keys are not issue-code handlers. A handler may return `null` or `undefined` to defer to the next source. A throwing message handler becomes the internal `core:message_exception` result rather than escaping the public execution boundary.
+
+The global resolver type is derived from the plugins registered on that Valchecker instance. Selective instances therefore expose only core issues plus the issue codes of their registered plugins. Same-code payload variants remain discriminated unions, and custom plugins contribute their declared `Meta.SelfIssue` variants to that resolver domain.
 
 For application patterns such as localization, forms, and HTTP responses, use [Custom Messages and Error Responses](/guides-recipes/custom-messages-and-errors).
 
 ## Standard Schema V1.1
 
-Every schema exposes `~standard` through the upstream `@standard-schema/spec` contract.
+Every schema exposes `~standard` through the upstream `@standard-schema/spec` V1.1 `StandardSchemaV1.Props` contract. Its `version`, `vendor`, optional phantom `types`, and `validate` properties preserve the spec's readonly declaration semantics. `validate(value, options?)` accepts the V1.1 options object; Valchecker currently ignores `options.libraryOptions`.
 
 - synchronous validation returns a Standard Schema result directly;
 - asynchronous or thenable validation returns a promise;
 - success contains the transformed output;
 - failure contains Standard Schema-compatible issues and paths;
-- the schema output type flows through generic Standard Schema consumers;
+- the phantom `types` member and `validate` result carry the schema output type through generic Standard Schema consumers;
+- a schema with output `Output` is assignable to `StandardSchemaV1<unknown, Output>`;
 - the public input type remains `unknown`, because any runtime value can be executed.
 
-Valchecker currently ignores `options.libraryOptions`; supplying it does not change validation behavior. These are declaration and interoperability guarantees, not runtime object-freezing guarantees. Use `execute()` when Valchecker's complete issue payload and Valchecker-specific result typing are required.
+These are TypeScript declaration and interoperability guarantees, not runtime object-freezing guarantees. Use `execute()` when Valchecker's complete issue payload and Valchecker-specific result typing are required.
 
 ## Structural composition guarantees
 

@@ -2,9 +2,43 @@
 description: Migrate pre-1.0 Valchecker applications to the 1.0 contract by reviewing runtime support, renamed steps, stricter issue contracts, execution modes, and structural semantics.
 relatedSources:
   - package.json
-  - api-surface.json
+  - packages/valchecker/package.json
+  - packages/all-steps/package.json
+  - packages/internal/package.json
+  - MIGRATION.md
+  - scripts/test-packages.ts
+  - packages/valchecker/src/index.ts
   - packages/internal/src/core/core.ts
   - packages/internal/src/core/types.ts
+  - packages/internal/src/steps/number/number.ts
+  - packages/internal/src/steps/looseNumber/looseNumber.ts
+  - packages/internal/src/steps/looseBoolean/looseBoolean.ts
+  - packages/internal/src/steps/looseBigint/looseBigint.ts
+  - packages/internal/src/steps/check/check.ts
+  - packages/internal/src/steps/transform/transform.ts
+  - packages/internal/src/steps/fallback/fallback.ts
+  - packages/internal/src/steps/isAtLeast/isAtLeast.ts
+  - packages/internal/src/steps/isAtMost/isAtMost.ts
+  - packages/internal/src/steps/isLengthAtLeast/isLengthAtLeast.ts
+  - packages/internal/src/steps/isLengthAtMost/isLengthAtMost.ts
+  - packages/internal/src/steps/isEmpty/isEmpty.ts
+  - packages/internal/src/steps/isInteger/isInteger.ts
+  - packages/internal/src/steps/isStartingWith/isStartingWith.ts
+  - packages/internal/src/steps/isEndingWith/isEndingWith.ts
+  - packages/internal/src/steps/isFinite/isFinite.ts
+  - packages/internal/src/steps/toJSONValue/toJSONValue.ts
+  - packages/internal/src/steps/toJSONString/toJSONString.ts
+  - packages/internal/src/steps/toSplit/toSplit.ts
+  - packages/internal/src/steps/toFiltered/toFiltered.ts
+  - packages/internal/src/steps/toSorted/toSorted.ts
+  - packages/internal/src/steps/toNumber/toNumber.ts
+  - packages/internal/src/steps/toBigint/toBigint.ts
+  - packages/internal/src/steps/union/union.ts
+  - packages/internal/src/steps/intersection/intersection.ts
+  - packages/internal/src/steps/object/object.ts
+  - packages/internal/src/steps/strictObject/strictObject.ts
+  - packages/internal/src/steps/looseObject/looseObject.ts
+  - packages/internal/src/steps/toAsync/toAsync.ts
 ---
 # Migrating to Valchecker 1.0
 
@@ -35,13 +69,13 @@ The repository's [complete migration guide](https://github.com/DevilTea/valcheck
 - `number()` now matches the JavaScript/TypeScript `number` identity, including `NaN` and positive or negative infinity. Add `isFinite()` where finite values are policy.
 - Loose primitives normalize only the primitive or strings accepted by the corresponding TypeScript template-literal primitive model; they are not unrestricted JavaScript coercion.
 - `execute()` preserves sync or maybe-async behavior; use `.toAsync()` for an unconditional native promise.
-- Callback steps that document asynchronous operation accept `PromiseLike` values.
+- `check()`, `transform()`, and `fallback()` accept `PromiseLike` callback results for their documented asynchronous operation.
 - `union()` returns the first successful branch's transformed output.
 - `intersection()` uses graph-aware plain-object composition and rejects incompatible distinct non-plain instances.
 - Object validators read declared own properties only; `strictObject()` includes unknown enumerable symbol keys; `looseObject()` preserves unknown own properties.
 - Issue-path prepending does not mutate child issues.
 - Plugin methods cannot collide with core names or use `then` or symbol names.
-- Callback exceptions use step-specific `operation` issues when the step contract converts them.
+- Callback exceptions in `check()`, `transform()`, `toFiltered()`, and `toSorted()` use their step-specific `operation` issues.
 - Accidental implementation helpers that were never intended as supported root exports have been removed.
 
 For the complete step-by-step list, including JSON serialization changes, mapped-boolean payloads, `literal()` equality, conversion issue categories, and every issue-code rename, use `MIGRATION.md` rather than duplicating that leaf-level catalog here.
@@ -95,9 +129,9 @@ Important migration classes include:
 
 - numeric bounds use explicit `minimum` / `maximum` payload fields;
 - length bounds use `minimumLength` / `maximumLength`;
-- same-purpose variants can share an issue code while retaining discriminated payload unions;
-- native conversion failures are `operation` issues when the operation itself fails;
-- callback steps use their documented step-specific failure code instead of a generic validation/core error.
+- `isAtLeast()` and `isAtMost()` each share one issue code across number/bigint variants while retaining discriminated payload unions;
+- `toJSONString:serialization_failed`, `toNumber:conversion_failed`, and `toBigint:conversion_failed` are `operation` issues;
+- `check()`, `transform()`, `toFiltered()`, and `toSorted()` use their documented step-specific callback failure code instead of a generic validation/core error.
 
 Use [Custom Messages and Error Responses](/guides-recipes/custom-messages-and-errors) for application handling patterns and the generated step entry for the exact current payload.
 
