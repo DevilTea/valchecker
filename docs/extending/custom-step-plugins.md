@@ -75,7 +75,7 @@ The threshold is not code length. It is whether callers benefit from a shared na
 
 Build third-party plugins from root exports of `@valchecker/internal`. Do not import package-private source paths or unexported runtime helpers; those are not part of the supported extension boundary.
 
-For the formal compatibility guarantees around public plugin exports, see the [Valchecker 1.0 Contract](/guide/v1-contract).
+For the formal compatibility guarantees around public plugin exports, see the [Valchecker 1.0 Contract](/reference/v1-contract).
 
 ## Move cross-plugin behavior to composition contracts
 

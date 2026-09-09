@@ -78,4 +78,4 @@ That matters for reused or frozen issue data and for nested composition: each ou
 - use `context` when diagnostic provenance matters;
 - display `message` to humans, but do not parse it to recover structured meaning.
 
-For compatibility guarantees around the complete issue/result shape, see the [Valchecker 1.0 Contract](/guide/v1-contract).
+For compatibility guarantees around the complete issue/result shape, see the [Valchecker 1.0 Contract](/reference/v1-contract).

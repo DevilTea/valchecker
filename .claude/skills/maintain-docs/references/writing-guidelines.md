@@ -1,6 +1,6 @@
 # Documentation writing guidelines
 
-These rules apply to hand-authored narrative pages. Exact page identity/order comes from `docs/_meta/pages.ts`; generated step reference follows #134.
+These rules apply to hand-authored narrative pages. Exact page identity/order comes from `docs/_meta/pages.ts`; generated step reference follows #134; preserved legacy routes are generated from `docs/_meta/compatibility.ts`.
 
 ## Canonical ownership first
 
@@ -9,12 +9,13 @@ Before editing, decide what fact is being changed:
 - exact built-in step behavior, options, issue codes, caveats → edit the step's `<name>.doc.md`;
 - cross-cutting concept or user task → edit the narrative page;
 - page identity/order/section → edit `docs/_meta/pages.ts`;
+- legacy published-route compatibility or final legacy-page disposition → edit `docs/_meta/compatibility.ts`;
 - generated API category framing → edit `scripts/docs-api-templates/*`;
-- never hand-edit generated `docs/api/*`.
+- never hand-edit generated `docs/api/*` or generated legacy-route pages.
 
 ## Narrative frontmatter
 
-Final (non-transitional) narrative pages use only page-local metadata:
+Narrative pages use only page-local metadata:
 
 ```yaml
 ---
@@ -26,7 +27,7 @@ relatedPackages:
 ---
 ```
 
-`description` and at least one precise `relatedSources` semantic root are required for final behavior-bearing narrative pages. `relatedPackages` is optional and should not duplicate information without a concrete impact/search use.
+`description` and at least one precise `relatedSources` semantic root are required for behavior-bearing narrative pages. `relatedPackages` is optional and should not duplicate information without a concrete impact/search use.
 
 Do not put registry-owned `title`, `section`, `category`, `order`, route, or navigation labels in frontmatter.
 
@@ -61,12 +62,19 @@ A page declares a structural visual requirement only when the visual is essentia
 
 ## Links, assets, and includes
 
-Prefer canonical internal destinations. Local image/include targets must resolve; the narrative structural check rejects missing local assets/includes. Route compatibility for legacy published URLs is handled by #154 rather than duplicate prose pages.
+Prefer canonical internal destinations for every new or maintained link. Local image/include targets must resolve; the narrative structural check rejects missing local assets/includes.
 
-## Transitional pages
+Old published URLs are compatibility surfaces, not preferred destinations. Preserve them only through `docs/_meta/compatibility.ts` and its generated artifacts. Do not link new prose, README entry points, navigation, or API framing to an old compatibility route when the canonical route is known.
 
-Pages marked `transitional: true` are legacy source material waiting for #151–#154 migration. Do not expand them into new long-lived architecture. Preserve useful content, but move it into final reader-need-driven destinations before reducing the legacy route to compatibility-only content.
+If a legacy page was split or absorbed, its compatibility entry may record several canonical content destinations while selecting one primary `redirectTo`. That mapping is disposition evidence; do not recreate the old page as a manually curated index.
 
-When a canonical destination exists, a legacy transitional page may set registry-owned `navHidden: true`. That keeps the route registered and audited while removing it from generated navigation. `navHidden` is not available to canonical pages and must never be used to hide unfinished or inconvenient content; the structural checker requires it to be paired with `transitional: true`.
+## Generated compatibility pages
 
-Final redirect/route compatibility and removal of the transitional stubs belongs to #154.
+Files generated for old published routes contain redirect metadata and a fallback canonical link only. They are deliberately outside narrative ownership and must not accumulate hand-written teaching content.
+
+Use:
+
+- `pnpm docs:compat` to verify mapping/output parity;
+- `pnpm docs:compat:update` after changing the compatibility mapping or canonical route identity.
+
+If a generated compatibility page looks wrong, fix the mapping, registry, or generator. Never patch the generated file itself.

@@ -8,7 +8,7 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /guide/quick-start
+      link: /getting-started/quick-start
     - theme: alt
       text: API Reference
       link: /api/overview
@@ -177,6 +177,6 @@ Valchecker treats runtime validation, output transformation, TypeScript inferenc
 
 <div class="install-cmd">npm install valchecker</div>
 
-[Get Started →](/guide/quick-start) · [View API Reference →](/api/overview) · [See Examples →](/examples/basic-validation)
+[Get Started →](/getting-started/quick-start) · [View API Reference →](/api/overview) · [Guides & Recipes →](/guides-recipes/structured-data)
 
 </div>

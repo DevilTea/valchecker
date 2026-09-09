@@ -1,5 +1,15 @@
-# Migrating to Valchecker 1.0
+---
+layout: page
+head:
+  - - meta
+    - http-equiv: refresh
+      content: "0; url=../troubleshooting-migration/migration-to-1"
+  - - meta
+    - name: robots
+      content: noindex
+---
+<!-- Generated compatibility route. Do not edit it; `pnpm docs:compat` checks it and `pnpm docs:compat:update` rewrites it from `docs/_meta/compatibility.ts`. -->
 
-This compatibility route has moved to [Troubleshooting & Migration: Migrating to Valchecker 1.0](/troubleshooting-migration/migration-to-1).
+# Documentation moved
 
-The old `/guide/migration-to-1` path remains registered temporarily so existing links do not disappear during the documentation migration. New documentation should link the canonical route.
+This published route is preserved for compatibility. Continue to [Migrating to Valchecker 1.0](/troubleshooting-migration/migration-to-1).

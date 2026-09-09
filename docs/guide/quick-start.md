@@ -1,5 +1,15 @@
-# Quick Start
+---
+layout: page
+head:
+  - - meta
+    - http-equiv: refresh
+      content: "0; url=../getting-started/quick-start"
+  - - meta
+    - name: robots
+      content: noindex
+---
+<!-- Generated compatibility route. Do not edit it; `pnpm docs:compat` checks it and `pnpm docs:compat:update` rewrites it from `docs/_meta/compatibility.ts`. -->
 
-This legacy route is retained temporarily for compatibility.
+# Documentation moved
 
-The canonical first-success guide now lives at **[Quick Start](/getting-started/quick-start)**. New installation, schema, execution, and result guidance is maintained there rather than duplicated on this route.
+This published route is preserved for compatibility. Continue to [Quick Start](/getting-started/quick-start).

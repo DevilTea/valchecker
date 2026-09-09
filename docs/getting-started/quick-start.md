@@ -25,7 +25,7 @@ Import the default instance when bundle-level step selection is not yet a concer
 import { v } from 'valchecker'
 ```
 
-The default instance exposes every built-in step. Selective instances are an advanced optimization covered under [Extending Valchecker](/guide/custom-steps).
+The default instance exposes every built-in step. Selective instances are an advanced optimization covered under [Extending Valchecker](/extending/custom-step-plugins).
 
 ## Build a schema
 
